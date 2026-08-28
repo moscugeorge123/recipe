@@ -1,0 +1,11 @@
+appId: com.recipe.app
+---
+- launchApp
+- tapOn:
+    text: Skip
+    optional: true
+- assertVisible: TONIGHT
+- tapOn: KITCHEN
+- assertVisible: My kitchen
+- tapOn: Capture a recipe
+- assertVisible: Send me anything.

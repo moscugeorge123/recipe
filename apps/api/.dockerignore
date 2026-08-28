@@ -1,0 +1,23 @@
+node_modules
+dist
+coverage
+.git
+.gitignore
+.github
+
+# Never bake environment files into an image.
+.env
+.env.*
+!.env.example
+
+# Not needed to build or run the service.
+*.md
+.prettierrc.json
+.prettierignore
+eslint.config.js
+vitest.config.ts
+tests
+docker-compose.yml
+Dockerfile
+.dockerignore
+.nvmrc

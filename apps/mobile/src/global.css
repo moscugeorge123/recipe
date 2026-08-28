@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #fff8f2;
+  --color-bg-elevated: #fffdf9;
+  --color-surface: #ffe8d6;
+  --color-border: #e6d3c2;
+  --color-text: #2a2118;
+  --color-text-muted: #6b7a62;
+  --color-text-disabled: #8a9580;
+  --color-icon: #4a3d32;
+  --color-primary: #e25a3c;
+  --color-primary-pressed: #c4472c;
+  --color-primary-soft: #fff1ed;
+  --color-on-primary: #ffffff;
+  --color-secondary: #2f8f5b;
+  --color-secondary-soft: #eaf7f0;
+  --color-accent: #e8b923;
+  --color-favorite: #d94f70;
+  --color-chili: #c43c2c;
+  --color-sky: #3a8fbf;
+  --color-linen: #f3e6d8;
+  --color-peach: #ffe8d6;
+  --color-butter: #fffdf9;
+  --color-crust: #e6d3c2;
+  --color-espresso: #2a2118;
+  --color-olive: #6b7a62;
+  --color-sage: #8a9580;
+}
+
+.cook-dark {
+  --color-bg: #1a1612;
+  --color-bg-elevated: #252019;
+  --color-surface: #312a22;
+  --color-border: #4a3f34;
+  --color-text: #f5ede4;
+  --color-text-muted: #b5a898;
+  --color-text-disabled: #8a7d70;
+  --color-icon: #e6d3c2;
+  --color-primary: #ef6d52;
+  --color-primary-pressed: #e25a3c;
+  --color-primary-soft: #3a221c;
+  --color-on-primary: #2a2118;
+  --color-secondary: #45a36e;
+  --color-secondary-soft: #163325;
+  --color-accent: #f6d56a;
+  --color-favorite: #e56b86;
+  --color-chili: #ef6d52;
+  --color-sky: #5eb0d6;
+  --color-linen: #312a22;
+  --color-peach: #312a22;
+  --color-butter: #252019;
+  --color-crust: #4a3f34;
+  --color-espresso: #f5ede4;
+  --color-olive: #b5a898;
+  --color-sage: #8a7d70;
+}

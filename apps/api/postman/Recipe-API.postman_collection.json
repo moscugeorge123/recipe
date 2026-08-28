@@ -1,0 +1,397 @@
+{
+  "info": {
+    "_postman_id": "7c8e1a2b-4f3d-4a91-9c6e-2b1d8f0a5e73",
+    "name": "Recipe API",
+    "description": "REST API for async recipe extraction from URLs (YouTube, Instagram, TikTok, Facebook, web).\n\n**Import:** File → Import → select this collection (and optionally `Recipe-API.local.postman_environment.json`).\n\n**Conventions**\n- Resources return `{ \"data\": ... }`; collections also include `{ \"meta\": ... }`.\n- Errors return `{ \"error\": { \"code\", \"message\", \"details?\", \"requestId?\" } }`.\n- Branch on `error.code`, not the message text.\n- `/health` is unauthenticated and returns a flat document for load balancers.\n- No authentication is implemented yet.\n\nCreate extraction job saves `jobId` (and `recipeId` when already extracted). Get job status saves `recipeId` when the job completes.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:3000"
+    },
+    {
+      "key": "apiPrefix",
+      "value": "/api/v1"
+    },
+    {
+      "key": "jobId",
+      "value": ""
+    },
+    {
+      "key": "recipeId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Service health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/health",
+            "description": "Returns 200 while the service and registered dependencies are usable, 503 otherwise. Requires no authentication."
+          },
+          "response": [
+            {
+              "name": "OK",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/health"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"status\": \"ok\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Liveness (load balancer)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/health",
+            "description": "Infrastructure-facing liveness probe. Same contract as `/api/v1/health`, not rate-limited."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Extraction",
+      "item": [
+        {
+          "name": "Create extraction job",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Accepted or already extracted', function () {",
+                  "  pm.expect([200, 202]).to.include(pm.response.code);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.jobId) {",
+                  "  pm.collectionVariables.set('jobId', json.data.jobId);",
+                  "}",
+                  "if (json.data && json.data.recipeId) {",
+                  "  pm.collectionVariables.set('recipeId', json.data.recipeId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"url\": \"https://example.com/recipe\",\n  \"outputLanguage\": \"en\",\n  \"forceRefresh\": false,\n  \"options\": {\n    \"extractNutrition\": false,\n    \"extractImages\": true,\n    \"highAccuracy\": false\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{baseUrl}}{{apiPrefix}}/recipes/extract",
+            "description": "Queues an async recipe extraction job.\n\n- **202** — new job queued\n- **200** — same URL already extracted (`deduplicated: true`)\n\n`url` is required. Other fields are optional (`outputLanguage` defaults to `\"en\"`).\n\nSet `forceRefresh` to `true` to skip cache/dedup and extract again."
+          },
+          "response": [
+            {
+              "name": "Queued (202)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"url\": \"https://example.com/recipe\"\n}"
+                },
+                "url": "{{baseUrl}}{{apiPrefix}}/recipes/extract"
+              },
+              "status": "Accepted",
+              "code": 202,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"jobId\": \"3f6b1d0e-4c2a-4f21-9a3c-1e5f0b8d9c77\",\n    \"status\": \"queued\"\n  }\n}"
+            },
+            {
+              "name": "Deduplicated (200)",
+              "originalRequest": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"url\": \"https://example.com/recipe\"\n}"
+                },
+                "url": "{{baseUrl}}{{apiPrefix}}/recipes/extract"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"jobId\": \"3f6b1d0e-4c2a-4f21-9a3c-1e5f0b8d9c77\",\n    \"status\": \"completed\",\n    \"recipeId\": \"8a1c2d3e-5f6a-4b7c-8d9e-0f1a2b3c4d5e\",\n    \"deduplicated\": true\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get extraction job status",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.recipeId) {",
+                  "  pm.collectionVariables.set('recipeId', json.data.recipeId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/recipes/extract/jobs/{{jobId}}",
+            "description": "Poll extraction progress. `:id` must be a UUID.\n\nRun **Create extraction job** first so `{{jobId}}` is set automatically."
+          },
+          "response": [
+            {
+              "name": "In progress",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/recipes/extract/jobs/{{jobId}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"3f6b1d0e-4c2a-4f21-9a3c-1e5f0b8d9c77\",\n    \"status\": \"RUNNING\",\n    \"progress\": 40,\n    \"currentStage\": \"transcription\",\n    \"recipeId\": null,\n    \"error\": null,\n    \"startedAt\": \"2026-08-20T18:30:00.000Z\",\n    \"completedAt\": null\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Cancel extraction job",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/recipes/extract/jobs/{{jobId}}/cancel",
+            "description": "Cancel a queued or running job.\n\n- **200** — cancelled\n- **404** — job not found\n- **409** — job cannot be cancelled (already completed/failed/cancelled)"
+          },
+          "response": [
+            {
+              "name": "Cancelled",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/recipes/extract/jobs/{{jobId}}/cancel"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"3f6b1d0e-4c2a-4f21-9a3c-1e5f0b8d9c77\",\n    \"status\": \"CANCELLED\"\n  }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Recipes",
+      "item": [
+        {
+          "name": "List recipes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', function () {",
+                  "  pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const json = pm.response.json();",
+                  "if (json.data && json.data.length > 0) {",
+                  "  pm.collectionVariables.set('recipeId', json.data[0].id);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}{{apiPrefix}}/recipes?page=1&pageSize=20",
+              "host": ["{{baseUrl}}{{apiPrefix}}"],
+              "path": ["recipes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "description": "Page number, 1-based. Default 1."
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20",
+                  "description": "Items per page. Default 20, max 100."
+                }
+              ]
+            },
+            "description": "Paginated recipe list. Saves the first recipe id to `{{recipeId}}` when the list is not empty."
+          },
+          "response": [
+            {
+              "name": "Empty list",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/recipes?page=1&pageSize=20"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [],\n  \"meta\": {\n    \"page\": 1,\n    \"pageSize\": 20,\n    \"total\": 0,\n    \"totalPages\": 0\n  }\n}"
+            },
+            {
+              "name": "With recipes",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/recipes?page=1&pageSize=20"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"8a1c2d3e-5f6a-4b7c-8d9e-0f1a2b3c4d5e\",\n      \"title\": \"Fake pasta recipe\",\n      \"description\": \"A simple weeknight pasta from the fake provider fixture.\",\n      \"confidence\": 0.6,\n      \"sourceLanguage\": \"en\",\n      \"createdAt\": \"2026-08-26T09:00:00.000Z\",\n      \"updatedAt\": \"2026-08-26T09:00:00.000Z\",\n      \"servings\": 2,\n      \"prepTimeMinutes\": null,\n      \"cookTimeMinutes\": null,\n      \"totalTimeMinutes\": null,\n      \"calories\": 420,\n      \"cuisine\": null,\n      \"difficulty\": null,\n      \"minutes\": null,\n      \"sourceType\": \"GENERIC_WEB\",\n      \"sourceLabel\": \"Website\",\n      \"creator\": \"fixture-chef\",\n      \"originalUrl\": \"https://example.com/fake-recipe\",\n      \"thumbnailUrl\": \"https://example.com/fake-thumb.jpg\",\n      \"ingredientCount\": 1,\n      \"stepCount\": 1\n    }\n  ],\n  \"meta\": {\n    \"page\": 1,\n    \"pageSize\": 20,\n    \"total\": 1,\n    \"totalPages\": 1\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get recipe by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/recipes/{{recipeId}}",
+            "description": "Full recipe with ingredients, steps, and source. `:id` must be a UUID.\n\nPopulate `{{recipeId}}` from List recipes, Create extraction job (dedup), or Get job status."
+          },
+          "response": [
+            {
+              "name": "Recipe detail",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/recipes/{{recipeId}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"8a1c2d3e-5f6a-4b7c-8d9e-0f1a2b3c4d5e\",\n    \"title\": \"Fake pasta recipe\",\n    \"description\": \"A simple weeknight pasta from the fake provider fixture.\",\n    \"servings\": 2,\n    \"prepTimeMinutes\": null,\n    \"cookTimeMinutes\": null,\n    \"totalTimeMinutes\": null,\n    \"calories\": 420,\n    \"cuisine\": null,\n    \"difficulty\": null,\n    \"minutes\": null,\n    \"nutrition\": null,\n    \"sourceLanguage\": \"en\",\n    \"confidence\": 0.6,\n    \"warnings\": [],\n    \"promptVersion\": \"recipe-extraction-v1\",\n    \"ingredients\": [\n      {\n        \"id\": \"1b2c3d4e-5f6a-4b7c-8d9e-0f1a2b3c4d5e\",\n        \"name\": \"spaghetti\",\n        \"canonicalName\": \"spaghetti\",\n        \"quantity\": \"200\",\n        \"unit\": \"g\",\n        \"preparation\": null,\n        \"optional\": false,\n        \"category\": \"Pantry\",\n        \"confidence\": 0.6,\n        \"provenance\": {},\n        \"warnings\": [],\n        \"sortOrder\": 0\n      }\n    ],\n    \"steps\": [\n      {\n        \"id\": \"2c3d4e5f-6a7b-4c8d-9e0f-1a2b3c4d5e6f\",\n        \"stepOrder\": 1,\n        \"instruction\": \"Mix 200g spaghetti with garlic and olive oil.\",\n        \"durationMinutes\": null,\n        \"temperature\": null,\n        \"stage\": \"COOK\",\n        \"ingredientHint\": \"200 g spaghetti\",\n        \"confidence\": 0.5,\n        \"provenance\": {},\n        \"warnings\": []\n      }\n    ],\n    \"source\": {\n      \"id\": \"3d4e5f6a-7b8c-4d9e-0f1a-2b3c4d5e6f7a\",\n      \"sourceType\": \"GENERIC_WEB\",\n      \"originalUrl\": \"https://example.com/fake-recipe\",\n      \"normalizedUrl\": \"https://example.com/fake-recipe\",\n      \"metadata\": {\n        \"author\": \"fixture-chef\",\n        \"thumbnailUrl\": \"https://example.com/fake-thumb.jpg\"\n      },\n      \"author\": \"fixture-chef\",\n      \"thumbnailUrl\": \"https://example.com/fake-thumb.jpg\",\n      \"sourceLabel\": \"Website\",\n      \"createdAt\": \"2026-08-26T09:00:00.000Z\"\n    },\n    \"createdAt\": \"2026-08-26T09:00:00.000Z\",\n    \"updatedAt\": \"2026-08-26T09:00:00.000Z\"\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete recipe",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}{{apiPrefix}}/recipes/{{recipeId}}",
+            "description": "Deletes a recipe by UUID. Returns 404 if it does not exist."
+          },
+          "response": [
+            {
+              "name": "Deleted",
+              "originalRequest": {
+                "method": "DELETE",
+                "header": [],
+                "url": "{{baseUrl}}{{apiPrefix}}/recipes/{{recipeId}}"
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [
+                {
+                  "key": "Content-Type",
+                  "value": "application/json"
+                }
+              ],
+              "body": "{\n  \"data\": {\n    \"id\": \"8a1c2d3e-5f6a-4b7c-8d9e-0f1a2b3c4d5e\",\n    \"deleted\": true\n  }\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

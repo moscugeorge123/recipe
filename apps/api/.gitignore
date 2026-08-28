@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Test output
+coverage/
+
+# Environment files — never commit real secrets. Only .env.example is tracked.
+.env
+.env.*
+!.env.example
+
+# Local media storage (dev)
+storage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor
+.DS_Store
+.idea/
+*.swp

@@ -1,0 +1,40 @@
+# syntax=docker/dockerfile:1
+
+ARG NODE_VERSION=24-alpine
+
+FROM node:${NODE_VERSION} AS build
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+COPY apps/api/package.json ./apps/api/
+COPY apps/mobile/package.json ./apps/mobile/
+COPY apps/api/prisma ./apps/api/prisma
+RUN npm ci
+
+COPY apps/api/tsconfig.json apps/api/tsconfig.build.json ./apps/api/
+COPY apps/api/src ./apps/api/src
+RUN npm run build -w api
+RUN npm prune --omit=dev
+
+FROM node:${NODE_VERSION} AS runtime
+WORKDIR /app
+
+RUN apk add --no-cache ffmpeg
+
+ENV NODE_ENV=production \
+    HOST=0.0.0.0 \
+    SERVICE_NAME=worker
+
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/package.json ./package.json
+COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/package.json
+COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
+COPY --from=build --chown=node:node /app/apps/api/prisma ./apps/api/prisma
+
+WORKDIR /app/apps/api
+USER node
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "import('ioredis').then(({default:R})=>new R(process.env.REDIS_URL||'redis://localhost:6379').ping().then(()=>process.exit(0)).catch(()=>process.exit(1)))"
+
+CMD ["node", "dist/worker/index.js"]

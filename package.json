@@ -1,0 +1,39 @@
+{
+  "name": "recipe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Recipe monorepo — Expo mobile app and extraction API",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "start": "nx start mobile",
+    "android": "nx android mobile",
+    "ios": "nx ios mobile",
+    "web": "nx web mobile",
+    "dev:mobile": "nx start mobile",
+    "dev:api": "nx dev api",
+    "dev:worker": "nx run api:dev:worker",
+    "build:api": "nx build api",
+    "test": "nx run-many -t test",
+    "lint": "nx run-many -t lint",
+    "typecheck": "nx run-many -t typecheck",
+    "graph": "nx graph"
+  },
+  "devDependencies": {
+    "nx": "^22.1.3"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "allowScripts": {
+    "nx@22.7.8": true,
+    "@prisma/client@6.19.3": true,
+    "prisma@6.19.3": true,
+    "@prisma/engines@6.19.3": true,
+    "unrs-resolver@1.12.2": true,
+    "msgpackr-extract@3.0.4": true,
+    "esbuild@0.28.2": true
+  }
+}

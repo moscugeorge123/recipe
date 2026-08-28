@@ -1,0 +1,14 @@
+import { View, type ViewProps } from 'react-native';
+
+type CardProps = ViewProps & {
+  className?: string;
+};
+
+export function Card({ className, ...props }: CardProps) {
+  return (
+    <View
+      className={`rounded-card border border-crust bg-bg-elevated p-4 ${className ?? ''}`}
+      {...props}
+    />
+  );
+}
