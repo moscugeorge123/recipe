@@ -29,4 +29,13 @@ describe('parseJobOptions', () => {
     expect(parseJobOptions({ highAccuracy: true }).highAccuracy).toBe(true);
     expect(parseJobOptions({ highAccuracy: false }).highAccuracy).toBe(false);
   });
+
+  it('parses selectedThumbnailUrl when it is a non-empty string', () => {
+    expect(parseJobOptions({}).selectedThumbnailUrl).toBeUndefined();
+    expect(parseJobOptions({ selectedThumbnailUrl: '' }).selectedThumbnailUrl).toBeUndefined();
+    expect(parseJobOptions({ selectedThumbnailUrl: 1 }).selectedThumbnailUrl).toBeUndefined();
+    expect(
+      parseJobOptions({ selectedThumbnailUrl: 'https://example.com/chosen.jpg' }).selectedThumbnailUrl,
+    ).toBe('https://example.com/chosen.jpg');
+  });
 });

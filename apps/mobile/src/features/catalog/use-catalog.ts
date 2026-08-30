@@ -90,5 +90,7 @@ export function useCatalog() {
     cookedCounts,
     isApiLoading: listQuery.isLoading,
     isApiError: listQuery.isError,
+    isApiFetching: listQuery.isFetching,
+    refetch: listQuery.refetch,
   };
 }

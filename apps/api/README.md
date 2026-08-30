@@ -21,6 +21,11 @@ The HTTP API accepts extraction requests and returns immediately with a job id. 
 process executes the multi-stage pipeline (content acquisition → media processing → AI extraction →
 normalization → validation). See [`architecture.md`](architecture.md) for the full design.
 
+`POST /api/v1/recipes/preview` unfurls title, author and thumbnails for the import screen without
+creating a job. It shares the extract rate limit. Instagram preview is oEmbed/Open Graph only
+(never Apify); set `META_APP_ID` + `META_APP_SECRET` for Graph oEmbed. YouTube preview uses public oEmbed plus `i.ytimg.com` stills (never yt-dlp, never downloads).
+Extraction still uses yt-dlp on the worker.
+
 The scaffold ships with request validation, centralised error handling, structured logging, OpenAPI
 documentation, health checks, security defaults, graceful shutdown and a full test suite. The `example`
 feature remains as a reference until recipe endpoints ship in Phase 9.
@@ -34,6 +39,8 @@ feature remains as a reference until recipe endpoints ship in Phase 9.
 | **Node.js** | `>=22` (24 LTS recommended) | `.nvmrc` pins 24, matching the Docker image. |
 | **npm**     | `>=10` (ships with Node)    | The lockfile is at the workspace root.       |
 | **Docker**  | Any recent version          | Compose stack: API, worker, Postgres, Redis. |
+| **yt-dlp**  | Current release             | Required for YouTube preview/extraction when running the API or worker on the host. `pipx install yt-dlp` or `pip3 install --user yt-dlp`. Compose/ECS images already include it. |
+| **FFmpeg**  | Any recent version          | Required on the host worker for audio/frames (`sudo apt install ffmpeg`). The worker image already includes ffmpeg and ffprobe. |
 
 ---
 
@@ -83,6 +90,9 @@ come from the ECS task definition and secrets from Secrets Manager or SSM Parame
 | `STORAGE_PROVIDER`      | `local`       | `local` or `s3`.                                                           |
 | `STORAGE_LOCAL_PATH`    | `./storage`   | Local artifact directory (dev).                                            |
 | `OPENAI_API_KEY`        | _(unset)_     | Required when AI providers are enabled (Phase 7).                          |
+| `META_APP_ID`           | _(unset)_     | Optional Instagram Graph oEmbed for `POST /recipes/preview`.               |
+| `META_APP_SECRET`       | _(unset)_     | Pair with `META_APP_ID`. Preview falls back to Open Graph when unset.      |
+| `YTDLP_PATH`            | `yt-dlp`      | Binary used for YouTube preview and extraction. Must be on PATH.           |
 | `EXTRACTION_MAX_RETRIES`| `5`           | Queue retry limit for transient failures.                                  |
 | `EXTRACTION_QUEUE_CONCURRENCY` | `2`  | Worker concurrency (Phase 4).                                              |
 | `MAX_VIDEO_DURATION_SECONDS` | `600` | Rejects videos longer than this.                                       |
@@ -181,7 +191,9 @@ docker compose --env-file apps/api/.env up --build
 docker compose down          # sends SIGTERM; watch the graceful shutdown logs
 ```
 
-The worker image (`Dockerfile.worker`) includes FFmpeg for media processing stages.
+Both images ship **yt-dlp** (installed at image build, not Alpine’s stale package) so YouTube preview
+and extraction work in Compose and ECS. The worker image (`Dockerfile.worker`) also includes
+**FFmpeg** and **ffprobe** for media processing. The API image does not include FFmpeg.
 
 ## Tests
 
@@ -196,8 +208,10 @@ Tests need no network and no AWS environment. Database integration tests under
 
 ```bash
 # With Postgres running (e.g. via docker compose up postgres):
+# Apply migrations to the test database once. `npm test` always uses recipe_api_test,
+# even if `.env` points DATABASE_URL at the development recipe_api database.
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/recipe_api_test npm run db:migrate:deploy
-TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/recipe_api_test npm test
+npm test
 ```
 
 ## Code quality

@@ -117,6 +117,7 @@ jest.mock('react-native-svg', () => {
 
 jest.mock('expo-clipboard', () => ({
   getStringAsync: jest.fn(async () => ''),
+  hasStringAsync: jest.fn(async () => true),
   setStringAsync: jest.fn(),
 }));
 

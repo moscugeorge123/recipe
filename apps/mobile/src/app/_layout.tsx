@@ -15,18 +15,40 @@ import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { CaptureSheet } from '@/components/capture/capture-sheet';
 import { Toast } from '@/components/ui/toast';
+import { prefetchHomeQueries } from '@/features/home/prefetch';
 import { QueryProvider } from '@/lib/query-provider';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { useUiStore } from '@/stores/ui-store';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
+void prefetchHomeQueries();
+
+const FONT_LOAD_TIMEOUT_MS = 2_000;
+
+function usePreferencesHydrated(): boolean {
+  const [hydrated, setHydrated] = useState(() =>
+    usePreferencesStore.persist.hasHydrated(),
+  );
+
+  useEffect(() => {
+    const unsub = usePreferencesStore.persist.onFinishHydration(() => {
+      setHydrated(true);
+    });
+    if (usePreferencesStore.persist.hasHydrated()) {
+      setHydrated(true);
+    }
+    return unsub;
+  }, []);
+
+  return hydrated;
+}
 
 function OnboardingGate() {
   const hasOnboarded = usePreferencesStore((state) => state.hasOnboarded);
@@ -44,7 +66,7 @@ function OnboardingGate() {
 }
 
 export default function RootLayout() {
-  const [loaded] = useFonts({
+  const [fontsLoaded] = useFonts({
     Manrope_500Medium,
     Manrope_600SemiBold,
     Manrope_700Bold,
@@ -53,14 +75,25 @@ export default function RootLayout() {
     IBMPlexMono_600SemiBold,
     IBMPlexMono_700Bold,
   });
+  const [fontsGaveUp, setFontsGaveUp] = useState(false);
+  const prefsHydrated = usePreferencesHydrated();
+  const ready = (fontsLoaded || fontsGaveUp) && prefsHydrated;
   const toast = useUiStore((state) => state.toast);
   const hideToast = useUiStore((state) => state.hideToast);
 
   useEffect(() => {
-    if (loaded) {
+    if (fontsLoaded) {
+      return;
+    }
+    const id = setTimeout(() => setFontsGaveUp(true), FONT_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(id);
+  }, [fontsLoaded]);
+
+  useEffect(() => {
+    if (ready) {
       SplashScreen.hideAsync().catch(() => undefined);
     }
-  }, [loaded]);
+  }, [ready]);
 
   useEffect(() => {
     if (!toast) {
@@ -70,33 +103,33 @@ export default function RootLayout() {
     return () => clearTimeout(id);
   }, [toast, hideToast]);
 
-  if (!loaded) {
-    return null;
-  }
-
   return (
     <GestureHandlerRootView style={styles.root}>
       <QueryProvider>
-        <OnboardingGate />
-        <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="onboarding" />
-          <Stack.Screen name="search" />
-          <Stack.Screen name="shop" />
-          <Stack.Screen name="recipe/[id]" />
-          <Stack.Screen name="import/preview" />
-          <Stack.Screen name="import/extract/[jobId]" />
-          <Stack.Screen name="import/review/[id]" />
-          <Stack.Screen name="import/error" />
-          <Stack.Screen name="import/manual" />
-          <Stack.Screen name="cook/[id]/index" />
-          <Stack.Screen name="cook/[id]/step" />
-          <Stack.Screen name="cook/[id]/complete" />
-          <Stack.Screen name="+not-found" options={{ title: 'Not found' }} />
-        </Stack>
-        <CaptureSheet />
-        <Toast toast={toast} />
-        <StatusBar style="dark" />
+        {ready ? (
+          <>
+            <OnboardingGate />
+            <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen name="onboarding" />
+              <Stack.Screen name="search" />
+              <Stack.Screen name="shop" />
+              <Stack.Screen name="recipe/[id]" />
+              <Stack.Screen name="import/preview" />
+              <Stack.Screen name="import/extract/[jobId]" />
+              <Stack.Screen name="import/review/[id]" />
+              <Stack.Screen name="import/error" />
+              <Stack.Screen name="import/manual" />
+              <Stack.Screen name="cook/[id]/index" />
+              <Stack.Screen name="cook/[id]/step" />
+              <Stack.Screen name="cook/[id]/complete" />
+              <Stack.Screen name="+not-found" options={{ title: 'Not found' }} />
+            </Stack>
+            <CaptureSheet />
+            <Toast toast={toast} />
+            <StatusBar style="dark" />
+          </>
+        ) : null}
       </QueryProvider>
     </GestureHandlerRootView>
   );

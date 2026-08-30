@@ -2,6 +2,7 @@ export interface JobOptions {
   extractNutrition: boolean;
   extractImages: boolean;
   highAccuracy: boolean;
+  selectedThumbnailUrl?: string;
 }
 
 export function parseJobOptions(raw: unknown): JobOptions {
@@ -10,9 +11,15 @@ export function parseJobOptions(raw: unknown): JobOptions {
       ? (raw as Record<string, unknown>)
       : {};
 
+  const selectedThumbnailUrl =
+    typeof record.selectedThumbnailUrl === 'string' && record.selectedThumbnailUrl.length > 0
+      ? record.selectedThumbnailUrl
+      : undefined;
+
   return {
     extractNutrition: record.extractNutrition === true,
     extractImages: record.extractImages !== false,
     highAccuracy: record.highAccuracy === true,
+    ...(selectedThumbnailUrl ? { selectedThumbnailUrl } : {}),
   };
 }

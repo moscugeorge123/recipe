@@ -7,6 +7,7 @@ import { RecipeExtractor } from '../../../../src/modules/recipes/application/rec
 import { RecipeNormalizer } from '../../../../src/modules/normalization/application/recipe-normalizer.js';
 import { ConfidenceCalculator } from '../../../../src/modules/confidence/application/confidence-calculator.js';
 import { RecipeValidator } from '../../../../src/modules/validation/application/recipe-validator.js';
+import { serializeStageError } from '../../../../src/modules/extraction/application/stage-orchestrator.js';
 import { normalizeIngredientName, normalizeUnit } from '../../../../src/modules/normalization/domain/units.js';
 import { describeOutputLanguage } from '../../../../src/modules/recipes/prompts/recipe-extraction-v1.js';
 import type { LLMInput, LLMProvider, LLMResult } from '../../../../src/infrastructure/ai/llm/llm-provider.js';
@@ -335,5 +336,26 @@ describe('output language', () => {
     expect(captured).toContain('fatGrams');
     expect(captured).toContain('per serving');
     expect(captured).toContain('otherwise null');
+  });
+});
+
+describe('serializeStageError', () => {
+  it('keeps a plain message when there is no cause', () => {
+    expect(serializeStageError(new Error('Stage failed'))).toEqual({ message: 'Stage failed' });
+  });
+
+  it('includes nested cause messages and stderr', () => {
+    const spawned = Object.assign(new Error('spawn yt-dlp ENOENT'), {
+      code: 'ENOENT',
+      stderr: 'yt-dlp: command not found\n',
+    });
+    const wrapped = new Error('Failed to fetch YouTube metadata: yt-dlp is not installed or not on PATH', {
+      cause: spawned,
+    });
+
+    expect(serializeStageError(wrapped)).toEqual({
+      message: 'Failed to fetch YouTube metadata: yt-dlp is not installed or not on PATH',
+      cause: 'spawn yt-dlp ENOENT | yt-dlp: command not found',
+    });
   });
 });

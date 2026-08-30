@@ -64,6 +64,15 @@ describe('Button', () => {
     });
   });
 
+  test('icon size uses the label as the accessible name', async () => {
+    await render(
+      <Button label="Back" size="icon" icon={<Text>‹</Text>} />,
+    );
+
+    expect(screen.getByRole('button', { name: 'Back' })).toBeOnTheScreen();
+    expect(screen.queryByText('Back')).toBeNull();
+  });
+
   test('ghost uses paprika-600 label on a transparent fill', async () => {
     await render(<Button label="Skip" variant="ghost" />);
 

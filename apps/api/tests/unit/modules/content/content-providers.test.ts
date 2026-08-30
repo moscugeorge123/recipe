@@ -1,10 +1,11 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import type { ApifyClient } from '../../../../src/modules/content/providers/instagram/apify-client.js';
 import { parseApifyDatasetItems } from '../../../../src/modules/content/providers/instagram/apify-client.js';
 import { InstagramContentProvider } from '../../../../src/modules/content/providers/instagram/instagram-content-provider.js';
 import type { VideoDownloadClient } from '../../../../src/modules/content/providers/youtube/ytdlp-client.js';
 import { YouTubeContentProvider } from '../../../../src/modules/content/providers/youtube/youtube-content-provider.js';
+import { GenericWebContentProvider } from '../../../../src/modules/content/providers/generic/generic-web-content-provider.js';
 import { FacebookContentProvider } from '../../../../src/modules/content/providers/facebook/facebook-content-provider.js';
 import { TikTokContentProvider } from '../../../../src/modules/content/providers/tiktok/tiktok-content-provider.js';
 import { ContentAcquisitionFailedError } from '../../../../src/shared/errors/extraction-errors.js';
@@ -136,6 +137,69 @@ describe('YouTubeContentProvider', () => {
     expect(content.description).toBe('Mix and bake');
     expect(content.caption).toBe('Mix and bake');
     expect(content.videoLocalPath).toBe('/tmp/video.mp4');
+  });
+
+  it('surfaces a missing yt-dlp binary on metadata failure', async () => {
+    const ytdlp: VideoDownloadClient = {
+      fetchMetadata: async () => {
+        throw new Error('Failed to fetch YouTube metadata: yt-dlp is not installed or not on PATH');
+      },
+      download: async () => {
+        throw new Error('download must not run');
+      },
+    };
+
+    const provider = new YouTubeContentProvider(ytdlp);
+    await expect(provider.acquire('https://www.youtube.com/watch?v=abc', ctx)).rejects.toThrow(
+      /yt-dlp is not installed/,
+    );
+  });
+
+  it('returns metadata without videoLocalPath when download fails', async () => {
+    const ytdlp: VideoDownloadClient = {
+      fetchMetadata: async () => ({
+        title: 'Pan sauce',
+        description: 'Deglaze the pan with wine',
+        uploader: 'Chef Tube',
+        duration: 45,
+      }),
+      download: async () => {
+        throw new Error('Failed to download YouTube video: Sign in to confirm you are not a bot');
+      },
+    };
+
+    const provider = new YouTubeContentProvider(ytdlp);
+    const content = await provider.acquire('https://www.youtube.com/watch?v=abc', ctx);
+
+    expect(content.title).toBe('Pan sauce');
+    expect(content.description).toBe('Deglaze the pan with wine');
+    expect(content.videoLocalPath).toBeUndefined();
+    expect(content.metadata.downloadError).toContain('Sign in to confirm');
+  });
+});
+
+describe('GenericWebContentProvider', () => {
+  it('supports any remaining http(s) URL', () => {
+    const provider = new GenericWebContentProvider();
+    expect(provider.supports('https://www.seriouseats.com/pasta')).toBe(true);
+    expect(provider.supports('http://blog.example.org/recipe')).toBe(true);
+    expect(provider.supports('ftp://example.com/file')).toBe(false);
+  });
+
+  it('stores the first og:image as thumbnailUrl', async () => {
+    const fetchImpl = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(
+        `<meta property="og:title" content="Web pasta" />
+         <meta property="og:image" content="https://cdn.example/hero.jpg" />`,
+        { status: 200 },
+      ),
+    );
+
+    const content = await new GenericWebContentProvider().acquire('https://food.example/pasta', ctx);
+
+    expect(content.title).toBe('Web pasta');
+    expect(content.thumbnailUrl).toBe('https://cdn.example/hero.jpg');
+    fetchImpl.mockRestore();
   });
 });
 

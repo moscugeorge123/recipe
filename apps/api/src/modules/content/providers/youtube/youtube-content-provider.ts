@@ -2,7 +2,7 @@ import type { SourceType } from '@prisma/client';
 
 import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
 import type { AcquiredContent, AcquisitionContext, ContentProvider } from '../../domain/types.js';
-import type { VideoDownloadClient } from './ytdlp-client.js';
+import type { VideoDownloadClient, YtDlpMetadata } from './ytdlp-client.js';
 
 const YOUTUBE_HOSTS = ['youtube.com', 'www.youtube.com', 'youtu.be', 'm.youtube.com'];
 
@@ -22,25 +22,24 @@ export class YouTubeContentProvider implements ContentProvider {
   }
 
   async acquire(url: string, ctx: AcquisitionContext): Promise<AcquiredContent> {
-    let metadata;
+    let metadata: YtDlpMetadata;
     try {
       metadata = await this.ytdlp.fetchMetadata(url);
     } catch (error: unknown) {
       throw new ContentAcquisitionFailedError({
-        message: 'Failed to acquire YouTube metadata',
+        message: error instanceof Error ? error.message : 'Failed to acquire YouTube metadata',
         cause: error,
       });
     }
 
     const destPath = `${ctx.tempDir}/video.mp4`;
-    let download;
+    let videoLocalPath: string | undefined;
+    let downloadError: string | undefined;
     try {
-      download = await this.ytdlp.download(url, destPath);
+      const download = await this.ytdlp.download(url, destPath);
+      videoLocalPath = download.filePath;
     } catch (error: unknown) {
-      throw new ContentAcquisitionFailedError({
-        message: 'Failed to download YouTube video',
-        cause: error,
-      });
+      downloadError = error instanceof Error ? error.message : 'Failed to download YouTube video';
     }
 
     const images = metadata.thumbnail
@@ -57,12 +56,13 @@ export class YouTubeContentProvider implements ContentProvider {
         : {}),
       ...(metadata.uploader ? { author: metadata.uploader } : {}),
       ...(metadata.language ? { language: metadata.language } : {}),
-      videoLocalPath: download.filePath,
+      ...(videoLocalPath ? { videoLocalPath } : {}),
       ...(metadata.thumbnail ? { thumbnailUrl: metadata.thumbnail } : {}),
       images,
       metadata: {
         provider: 'yt-dlp',
         durationSeconds: metadata.duration,
+        ...(downloadError ? { downloadError } : {}),
       },
     };
   }

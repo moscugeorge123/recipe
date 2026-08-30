@@ -150,19 +150,16 @@ export class StageOrchestrator {
           previousStatus = STAGE_TO_JOB_STATUS[stage];
         }
       } catch (error: unknown) {
+        const serialized = serializeStageError(error);
         await this.stageRepo.update(stageRecord.id, {
           status: 'FAILED',
           completedAt: new Date(),
-          error: {
-            message: error instanceof Error ? error.message : 'Stage failed',
-          },
+          error: serialized,
         });
 
         await this.jobRepo.update(ctx.jobId, {
           status: 'FAILED',
-          error: {
-            message: error instanceof Error ? error.message : 'Stage failed',
-          },
+          error: serialized,
           completedAt: new Date(),
         });
 
@@ -241,15 +238,14 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
       const metadata: Record<string, unknown> = {
         ...existingMeta,
         author: ctx.acquiredContent.author ?? null,
-        ...(options.extractImages
-          ? { thumbnailUrl: ctx.acquiredContent.thumbnailUrl ?? null }
-          : {}),
         title: ctx.acquiredContent.title ?? null,
         language: ctx.acquiredContent.language ?? null,
         ...ctx.acquiredContent.metadata,
       };
 
-      if (!options.extractImages) {
+      if (options.extractImages) {
+        metadata.thumbnailUrl = options.selectedThumbnailUrl ?? ctx.acquiredContent.thumbnailUrl ?? null;
+      } else {
         delete metadata.thumbnailUrl;
       }
 
@@ -367,21 +363,25 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
         }
 
         const imageBuffer = await deps.storage.download(asset.storageKey);
-        const ocrResult = await ai.ocr.analyzeImage({
-          data: imageBuffer,
-          mimeType: asset.mimeType,
-          timestampSeconds: index * deps.config.extraction.frameIntervalSeconds,
-        });
+        try {
+          const ocrResult = await ai.ocr.analyzeImage({
+            data: imageBuffer,
+            mimeType: asset.mimeType,
+            timestampSeconds: index * deps.config.extraction.frameIntervalSeconds,
+          });
 
-        ctx.ocrResults.push(ocrResult);
-        await deps.ocrRepo.create({
-          mediaAssetId: asset.id,
-          text: ocrResult.text,
-          timestampSeconds: ocrResult.timestampSeconds ?? null,
-          confidence: ocrResult.confidence,
-          boundingBoxes: ocrResult.boundingBoxes,
-          provider: ocrResult.provider,
-        });
+          ctx.ocrResults.push(ocrResult);
+          await deps.ocrRepo.create({
+            mediaAssetId: asset.id,
+            text: ocrResult.text,
+            timestampSeconds: ocrResult.timestampSeconds ?? null,
+            confidence: ocrResult.confidence,
+            boundingBoxes: ocrResult.boundingBoxes,
+            provider: ocrResult.provider,
+          });
+        } catch {
+          continue;
+        }
       }
     },
 
@@ -566,4 +566,40 @@ function maybeDelay(ms: number): Promise<void> {
     return Promise.resolve();
   }
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+const STDERR_LIMIT = 500;
+
+/** Flatten an error + nested causes/stderr into the JSON stored on job/stage rows. */
+export function serializeStageError(error: unknown): { message: string; cause?: string } {
+  const message = error instanceof Error ? error.message : 'Stage failed';
+  const parts: string[] = [];
+  let current: unknown = error instanceof Error ? error.cause : undefined;
+  let depth = 0;
+
+  while (current instanceof Error && depth < 4) {
+    parts.push(current.message);
+    const stderr = readStderr(current);
+    if (stderr) {
+      parts.push(stderr.slice(0, STDERR_LIMIT));
+    }
+    current = current.cause;
+    depth += 1;
+  }
+
+  return parts.length > 0 ? { message, cause: parts.join(' | ') } : { message };
+}
+
+function readStderr(error: Error): string | undefined {
+  if (!('stderr' in error)) {
+    return undefined;
+  }
+  const raw = (error as { stderr?: unknown }).stderr;
+  if (typeof raw === 'string') {
+    return raw.trim() || undefined;
+  }
+  if (Buffer.isBuffer(raw)) {
+    return raw.toString('utf8').trim() || undefined;
+  }
+  return undefined;
 }

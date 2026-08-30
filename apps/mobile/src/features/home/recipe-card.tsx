@@ -1,5 +1,5 @@
-import { View } from 'react-native';
 import { router } from 'expo-router';
+import { View } from 'react-native';
 
 import { SourceIcon } from '@/components/icons/source-icon';
 import { PhotoStandIn } from '@/components/ui/photo-stand-in';
@@ -58,7 +58,7 @@ export function RecipeCard({
         <View className="flex-row items-center gap-1.5 pt-1">
           <SourceIcon source={recipe.sourceLabel} size={14} />
           <Text variant="caption" className="text-[12px]">
-            {meta ?? `${recipe.sourceLabel} · ${recipe.creator}`}
+            {meta ?? `${recipe.creator}`}
           </Text>
         </View>
       </View>

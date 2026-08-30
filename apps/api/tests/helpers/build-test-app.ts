@@ -17,7 +17,12 @@ export interface TestAppOptions {
 }
 
 export function testConfig(env: Record<string, string> = {}): AppConfig {
-  return loadConfig({ NODE_ENV: 'test', LOG_LEVEL: 'silent', ...env });
+  return loadConfig({
+    ...process.env,
+    NODE_ENV: 'test',
+    LOG_LEVEL: 'silent',
+    ...env,
+  });
 }
 
 /**

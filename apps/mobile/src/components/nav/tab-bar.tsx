@@ -3,19 +3,19 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-  withTiming,
+    useAnimatedStyle,
+    useSharedValue,
+    withSpring,
+    withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-  CaptureTomato,
-  ExploreFoodIcon,
-  HomeFoodIcon,
-  KitchenFoodIcon,
-  YouFoodIcon,
+    CaptureTomato,
+    ExploreFoodIcon,
+    HomeFoodIcon,
+    KitchenFoodIcon,
+    YouFoodIcon,
 } from '@/components/icons/food-tab-icons';
 import { Text } from '@/components/ui/text';
 import { hapticLight } from '@/lib/haptics';

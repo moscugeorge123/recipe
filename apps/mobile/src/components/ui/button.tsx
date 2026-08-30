@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import {
     type PressableProps,
     type StyleProp,
@@ -14,6 +15,7 @@ type ButtonVariant =
 
 type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
+  icon?: ReactNode;
   variant?: ButtonVariant;
   size?: 'lg' | 'md' | 'icon';
   className?: string;
@@ -60,6 +62,7 @@ function variantLabel(variant: ButtonVariant, cookDark: boolean): string {
 
 export function Button({
   label,
+  icon,
   variant = 'primary',
   size = 'md',
   disabled,
@@ -105,15 +108,18 @@ export function Button({
       ]}
       {...props}
     >
-      <Text
-        className={labelSize}
-        style={{
-          color: labelColor,
-          fontFamily: variant === 'ghost' ? fonts.manrope600 : fonts.manrope700,
-        }}
-      >
-        {label}
-      </Text>
+      {icon ?? (
+        <Text
+          className={labelSize}
+          style={{
+            color: labelColor,
+            fontFamily:
+              variant === 'ghost' ? fonts.manrope600 : fonts.manrope700,
+          }}
+        >
+          {label}
+        </Text>
+      )}
     </PressScale>
   );
 }

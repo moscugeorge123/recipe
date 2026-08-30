@@ -44,11 +44,14 @@ describe('API documentation', () => {
     expect(response.statusCode).toBe(200);
     expect(spec.openapi).toMatch(/^3\./);
     expect(Object.keys(spec.paths).sort()).toEqual([
+      '/api/v1/cook-sessions',
+      '/api/v1/cook-sessions/{id}',
       '/api/v1/health',
       '/api/v1/recipes',
       '/api/v1/recipes/extract',
       '/api/v1/recipes/extract/jobs/{id}',
       '/api/v1/recipes/extract/jobs/{id}/cancel',
+      '/api/v1/recipes/preview',
       '/api/v1/recipes/{id}',
     ]);
   });

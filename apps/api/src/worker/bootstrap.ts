@@ -1,6 +1,8 @@
 import pino from 'pino';
 
 import { config, type AppConfig } from '../config/env.js';
+import { isFfmpegAvailable } from '../modules/media/ffmpeg/ffmpeg-media-processor.js';
+import { isYtDlpAvailable } from '../modules/content/providers/youtube/ytdlp-client.js';
 import { createContainer } from '../shared/di/container.js';
 import { disconnectPrisma } from '../infrastructure/database/prisma/client.js';
 import { disconnectRedis, getRedisClient } from '../infrastructure/redis/client.js';
@@ -29,6 +31,20 @@ export async function startWorker(appConfig: AppConfig = config): Promise<pino.L
 
   const container = createContainer();
   await registerExtractionProcessor(container);
+
+  const [ytdlpOk, ffmpegOk] = await Promise.all([
+    isYtDlpAvailable(appConfig.providers.ytdlpPath),
+    isFfmpegAvailable(),
+  ]);
+  if (!ytdlpOk) {
+    log.warn(
+      { binary: appConfig.providers.ytdlpPath },
+      'yt-dlp is not installed; YouTube extraction will fail until it is on PATH',
+    );
+  }
+  if (!ffmpegOk) {
+    log.warn('ffmpeg/ffprobe is not installed; YouTube media processing will fail');
+  }
 
   log.info(
     {

@@ -1,10 +1,11 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { useCallback } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useCatalog } from '@/features/catalog/use-catalog';
+import { useStartCooking } from '@/features/cook-sessions/hooks';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
 import { planRecipe } from '@/features/recipes/plan';
 import { useCookStore } from '@/stores/cook-store';
@@ -19,14 +20,19 @@ export default function CookIntroScreen() {
   const catalog = useCatalog();
   const fetched = useRecipe(id);
   const recipe = fetched.data ?? catalog.get(id ?? '');
-  const start = useCookStore((state) => state.start);
-  const recipeId = useCookStore((state) => state.recipeId);
+  const startCooking = useStartCooking();
 
-  useEffect(() => {
-    if (recipe && recipeId !== recipe.id) {
-      start(recipe.id);
-    }
-  }, [recipe, recipeId, start]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!recipe) {
+        return;
+      }
+      if (useCookStore.getState().terminalStatus) {
+        return;
+      }
+      startCooking(recipe.id).catch(() => undefined);
+    }, [recipe, startCooking]),
+  );
 
   if (!recipe) {
     return (

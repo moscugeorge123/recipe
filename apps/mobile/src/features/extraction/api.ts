@@ -8,7 +8,11 @@ import {
 import { apiClient, unwrapData } from '@/services/api-client';
 
 export async function createExtraction(
-  input: { url: string; forceRefresh?: boolean },
+  input: {
+    url: string;
+    forceRefresh?: boolean;
+    selectedThumbnailUrl?: string;
+  },
   signal?: AbortSignal,
 ): Promise<ExtractionJobCreate> {
   const parsed = await apiClient.post<unknown>(
@@ -17,7 +21,12 @@ export async function createExtraction(
       url: input.url,
       forceRefresh: input.forceRefresh ?? false,
       outputLanguage: 'en',
-      options: { extractImages: true },
+      options: {
+        extractImages: true,
+        ...(input.selectedThumbnailUrl
+          ? { selectedThumbnailUrl: input.selectedThumbnailUrl }
+          : {}),
+      },
     },
     { signal },
   );

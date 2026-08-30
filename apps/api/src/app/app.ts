@@ -4,6 +4,7 @@ import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod
 import { config as defaultConfig, type AppConfig } from '../config/env.js';
 import { healthRoutes } from '../features/health/health.routes.js';
 import type { DependencyCheck } from '../features/health/health.types.js';
+import { cookSessionsRoutes } from '../modules/cook-sessions/api/cook-sessions.routes.js';
 import { jobsRoutes } from '../modules/jobs/api/jobs.routes.js';
 import { recipesRoutes } from '../modules/recipes/api/recipes.routes.js';
 import { buildLoggerOptions } from '../infrastructure/logging/logger.js';
@@ -101,11 +102,15 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       await versioned.register(healthRoutes, { checks: healthChecks });
       await versioned.register(jobsRoutes, {
         extractionJobService: container.extractionJobService,
+        linkPreviewService: container.linkPreviewService,
         extractRateLimitMax: config.extraction.extractRateLimitMax,
         extractRateLimitWindowMs: config.extraction.extractRateLimitWindowMs,
       });
       await versioned.register(recipesRoutes, {
         recipeService: container.recipeService,
+      });
+      await versioned.register(cookSessionsRoutes, {
+        cookSessionService: container.cookSessionService,
       });
     },
     { prefix: config.api.prefix },

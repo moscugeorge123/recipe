@@ -1,45 +1,33 @@
+import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
-import { router } from 'expo-router';
 
 import { SourceIcon } from '@/components/icons/source-icon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
-import { useCreateExtraction } from '@/features/extraction/hooks/use-create-extraction';
-import { ApiError } from '@/services/api-client';
+import { inspectClipboard } from '@/features/capture/sources';
 import { useUiStore } from '@/stores/ui-store';
 
 export default function ManualImportScreen() {
-  const [value, setValue] = useState('');
-  const create = useCreateExtraction();
+  const { paste = '' } = useLocalSearchParams<{ paste?: string }>();
+  const [value, setValue] = useState(String(paste));
   const showToast = useUiStore((state) => state.showToast);
 
-  const looksLikeUrl = /^https?:\/\//i.test(value.trim());
-
-  const submit = async () => {
-    if (!looksLikeUrl) {
+  const submit = () => {
+    const offer = inspectClipboard(value.trim());
+    if (offer.kind !== 'url') {
       showToast({
         text: 'Only recipe URLs can be extracted today',
         glyph: '↗',
       });
       return;
     }
-    try {
-      const result = await create.mutateAsync({ url: value.trim() });
-      if (result.status === 'completed' && result.recipeId) {
-        router.replace(`/import/review/${result.recipeId}`);
-        return;
-      }
-      router.replace(`/import/extract/${result.jobId}`);
-    } catch (error) {
-      const code = error instanceof ApiError ? error.code : 'EXTRACTION_FAILED';
-      router.push({
-        pathname: '/import/error',
-        params: { code: code ?? 'EXTRACTION_FAILED' },
-      });
-    }
+    router.push({
+      pathname: '/import/preview',
+      params: { source: offer.source, url: offer.url },
+    });
   };
 
   return (
@@ -66,13 +54,7 @@ export default function ManualImportScreen() {
           placeholder="https://"
         />
         <View className="mt-5">
-          <Button
-            label="Make it a recipe"
-            size="lg"
-            onPress={() => {
-              submit().catch(() => undefined);
-            }}
-          />
+          <Button label="Make it a recipe" size="lg" onPress={submit} />
         </View>
       </ScrollView>
     </Screen>

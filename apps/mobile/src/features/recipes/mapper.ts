@@ -303,6 +303,7 @@ export function mapRecipeDetail(dto: RecipeDetailDto): RecipeView {
     steps: sortedSteps.map((step, index) =>
       mapStep(step, index, sortedSteps.length, ingredients),
     ),
+    createdAt: dto.createdAt,
   };
 }
 
@@ -332,5 +333,6 @@ export function mapRecipeListItem(dto: RecipeListItemView): RecipeView {
     steps: [],
     ingredientCount: dto.ingredientCount,
     stepCount: dto.stepCount,
+    createdAt: dto.createdAt,
   };
 }

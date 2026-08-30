@@ -57,10 +57,7 @@ export function planRecipe(recipe: RecipeView): {
       name: stage.name,
       mins,
       rows: stage.rows.map((step) => ({
-        label:
-          step.instruction.length > 56
-            ? `${step.instruction.slice(0, 54)}…`
-            : step.instruction,
+        label: step.instruction,
         time: step.durationSeconds ? mmss(step.durationSeconds) : null,
       })),
     };

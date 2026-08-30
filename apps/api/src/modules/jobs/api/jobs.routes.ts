@@ -2,6 +2,7 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { errorResponseSchema, standardErrorResponses } from '../../../shared/errors/error-response.js';
 import { dataResponseSchema } from '../../../shared/http/response.js';
+import type { LinkPreviewService } from '../../content/preview/link-preview.service.js';
 import type { ExtractionJobService } from '../application/extraction-job.service.js';
 import { createJobsController } from './jobs.controller.js';
 import {
@@ -10,24 +11,24 @@ import {
   extractionJobResponseSchema,
   jobIdParamsSchema,
   jobStatusResponseSchema,
+  linkPreviewResponseSchema,
+  previewLinkBodySchema,
 } from './jobs.schema.js';
 
 export interface JobsRoutesOptions {
   extractionJobService: ExtractionJobService;
+  linkPreviewService: LinkPreviewService;
   extractRateLimitMax?: number;
   extractRateLimitWindowMs?: number;
 }
 
 export const jobsRoutes: FastifyPluginAsyncZod<JobsRoutesOptions> = async (app, opts) => {
-  const controller = createJobsController(opts.extractionJobService);
+  const controller = createJobsController(opts.extractionJobService, opts.linkPreviewService);
 
-  const extractRateLimit =
-    opts.extractRateLimitMax && opts.extractRateLimitWindowMs
-      ? {
-          max: opts.extractRateLimitMax,
-          timeWindow: opts.extractRateLimitWindowMs,
-        }
-      : true;
+  const extractRateLimit = {
+    max: opts.extractRateLimitMax ?? 10,
+    timeWindow: opts.extractRateLimitWindowMs ?? 60_000,
+  };
 
   app.post(
     '/recipes/extract',
@@ -47,6 +48,26 @@ export const jobsRoutes: FastifyPluginAsyncZod<JobsRoutesOptions> = async (app, 
       },
     },
     controller.createJob,
+  );
+
+  app.post(
+    '/recipes/preview',
+    {
+      config: { rateLimit: extractRateLimit },
+      schema: {
+        tags: ['extraction'],
+        summary: 'Preview a recipe URL',
+        description:
+          'Unfurls title, author and thumbnails for the import screen. Does not create a job or RecipeSource.',
+        body: previewLinkBodySchema,
+        response: {
+          200: dataResponseSchema(linkPreviewResponseSchema),
+          502: errorResponseSchema,
+          ...standardErrorResponses,
+        },
+      },
+    },
+    controller.previewLink,
   );
 
   app.get(

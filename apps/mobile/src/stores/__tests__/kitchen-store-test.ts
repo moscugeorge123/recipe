@@ -10,6 +10,7 @@ describe('kitchen store', () => {
       savedIds: ['seed:harissa', 'seed:dal'],
       wantIds: ['seed:congee'],
       cookedCounts: { 'seed:dal': 2 },
+      recipeNotes: {},
       servingsByRecipe: {},
       recentSearches: [],
     });
@@ -27,6 +28,14 @@ describe('kitchen store', () => {
     expect(useKitchenStore.getState().servingsByRecipe['seed:dal']).toBe(1);
     useKitchenStore.getState().setServings('seed:dal', 99);
     expect(useKitchenStore.getState().servingsByRecipe['seed:dal']).toBe(12);
+  });
+
+  test('addRecipeNote prepends trimmed notes per recipe', () => {
+    useKitchenStore.getState().addRecipeNote('seed:dal', '  more heat  ');
+    useKitchenStore.getState().addRecipeNote('seed:dal', '');
+    useKitchenStore.getState().addRecipeNote('seed:dal', 'less lemon');
+    const notes = useKitchenStore.getState().recipeNotes['seed:dal'] ?? [];
+    expect(notes.map((note) => note.text)).toEqual(['less lemon', 'more heat']);
   });
 });
 

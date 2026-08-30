@@ -9,6 +9,7 @@ import {
 } from '../../../shared/errors/extraction-errors.js';
 import { hashUrl, normalizeUrl } from '../../../shared/utils/url.js';
 import type { ContentProviderRegistry } from '../../content/domain/types.js';
+import { parseJobOptions } from '../domain/job-options.js';
 import { JobStateMachine } from '../domain/job-state-machine.js';
 import type { IExtractionJobRepository } from '../repository/extraction-job.repository.js';
 import type { IRecipeSourceRepository } from '../../recipes/repository/recipe-source.repository.js';
@@ -52,6 +53,11 @@ export class ExtractionJobService {
 
   async createJob(input: CreateExtractionJobInput): Promise<CreateExtractionJobResult> {
     await assertSafeUrl(input.url);
+
+    const options = parseJobOptions(input.options);
+    if (options.selectedThumbnailUrl) {
+      await assertSafeUrl(options.selectedThumbnailUrl);
+    }
 
     const normalizedUrl = normalizeUrl(input.url);
     const urlHash = hashUrl(normalizedUrl);

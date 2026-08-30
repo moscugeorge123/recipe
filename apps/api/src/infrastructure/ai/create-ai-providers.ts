@@ -34,7 +34,7 @@ export function createAIProviders(
     return {
       llm,
       transcription: new OpenAITranscriptionProvider(config, usageTracker, jobId),
-      ocr: new LLMVisionOCRProvider(llm, config, usageTracker, jobId),
+      ocr: new LLMVisionOCRProvider(config, usageTracker, jobId),
       vision: new OpenAIVisionProvider(config, usageTracker, jobId),
     };
   }

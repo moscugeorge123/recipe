@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { FakeContentProvider } from '../../../../src/modules/content/providers/fake/fake-content-provider.js';
+import { GenericWebContentProvider } from '../../../../src/modules/content/providers/generic/generic-web-content-provider.js';
 import { InstagramContentProvider } from '../../../../src/modules/content/providers/instagram/instagram-content-provider.js';
 import { YouTubeContentProvider } from '../../../../src/modules/content/providers/youtube/youtube-content-provider.js';
 import { DefaultContentProviderRegistry } from '../../../../src/modules/content/registry/content-provider-registry.js';
@@ -21,10 +22,12 @@ describe('ContentProviderRegistry', () => {
       }),
     );
     registry.register(new FakeContentProvider());
+    registry.register(new GenericWebContentProvider());
 
     expect(registry.detectSourceType('https://www.instagram.com/reel/abc/')).toBe('INSTAGRAM');
     expect(registry.detectSourceType('https://www.youtube.com/watch?v=abc')).toBe('YOUTUBE');
     expect(registry.detectSourceType('https://example.com/fake-recipe')).toBe('GENERIC_WEB');
+    expect(registry.detectSourceType('https://www.seriouseats.com/pasta')).toBe('GENERIC_WEB');
   });
 
   it('throws for unsupported URLs', () => {

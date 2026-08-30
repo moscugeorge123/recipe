@@ -9,13 +9,19 @@ export type RecipeListFilters = {
   sourceType?: string;
 };
 
+export const recipeKeys = {
+  all: ['recipes'] as const,
+  list: (page: number, pageSize: number, filters?: RecipeListFilters) =>
+    [...recipeKeys.all, page, pageSize, filters] as const,
+};
+
 export function useRecipes(
   page = 1,
   pageSize = 50,
   filters?: RecipeListFilters,
 ) {
   return useQuery({
-    queryKey: ['recipes', page, pageSize, filters],
+    queryKey: recipeKeys.list(page, pageSize, filters),
     queryFn: ({ signal }) =>
       listRecipes({ page, pageSize, ...filters }, signal),
     staleTime: 60_000,
@@ -32,7 +38,7 @@ export function useRecipeSearch(q: string) {
   }, [q]);
 
   return useQuery({
-    queryKey: ['recipes', 1, 50, { q: debouncedQ }],
+    queryKey: recipeKeys.list(1, 50, { q: debouncedQ }),
     queryFn: ({ signal }) =>
       listRecipes({ q: debouncedQ, pageSize: 50 }, signal),
     enabled: debouncedQ.length >= 1,

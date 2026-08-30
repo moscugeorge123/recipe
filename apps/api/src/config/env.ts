@@ -73,6 +73,8 @@ const rawEnvSchema = z.object({
     .string()
     .min(1)
     .default('postgresql://postgres:postgres@localhost:5432/recipe_api'),
+  /** Used when NODE_ENV=test. Never point this at the development `recipe_api` database. */
+  TEST_DATABASE_URL: z.string().min(1).optional(),
 
   // --- Redis / queue -----------------------------------------------------------
   REDIS_URL: z.string().min(1).default('redis://localhost:6379'),
@@ -108,7 +110,41 @@ const rawEnvSchema = z.object({
 
   // --- External content providers (Phase 5+) -----------------------------------
   APIFY_API_TOKEN: z.string().optional(),
+  /** Optional Instagram Graph oEmbed app token (`{app-id}|{app-secret}`). */
+  META_APP_ID: z.string().optional(),
+  META_APP_SECRET: z.string().optional(),
+  /** Path or name of the yt-dlp binary used for YouTube preview and extraction. */
+  YTDLP_PATH: z.string().min(1).default('yt-dlp'),
 });
+
+export const DEFAULT_TEST_DATABASE_URL =
+  'postgresql://postgres:postgres@localhost:5432/recipe_api_test';
+
+function databaseName(url: string): string | undefined {
+  try {
+    return new URL(url).pathname.replace(/^\//, '') || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Tests must never write to the development `recipe_api` database. */
+export function resolveDatabaseUrl(input: {
+  nodeEnv: string;
+  databaseUrl: string;
+  testDatabaseUrl?: string;
+}): string {
+  if (input.nodeEnv !== 'test') {
+    return input.databaseUrl;
+  }
+
+  const candidate = input.testDatabaseUrl ?? input.databaseUrl;
+  if (databaseName(candidate) === 'recipe_api') {
+    return DEFAULT_TEST_DATABASE_URL;
+  }
+
+  return candidate;
+}
 
 const configSchema = rawEnvSchema.transform((raw) => ({
   nodeEnv: raw.NODE_ENV,
@@ -144,7 +180,11 @@ const configSchema = rawEnvSchema.transform((raw) => ({
     windowMs: raw.RATE_LIMIT_WINDOW_MS,
   },
   database: {
-    url: raw.DATABASE_URL,
+    url: resolveDatabaseUrl({
+      nodeEnv: raw.NODE_ENV,
+      databaseUrl: raw.DATABASE_URL,
+      ...(raw.TEST_DATABASE_URL !== undefined ? { testDatabaseUrl: raw.TEST_DATABASE_URL } : {}),
+    }),
   },
   redis: {
     url: raw.REDIS_URL,
@@ -187,6 +227,9 @@ const configSchema = rawEnvSchema.transform((raw) => ({
   },
   providers: {
     apifyApiToken: raw.APIFY_API_TOKEN,
+    metaAppId: raw.META_APP_ID,
+    metaAppSecret: raw.META_APP_SECRET,
+    ytdlpPath: raw.YTDLP_PATH,
   },
 }));
 

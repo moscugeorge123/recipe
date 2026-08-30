@@ -33,11 +33,17 @@ export type KitchenCollection = {
   recipeIds: RecipeId[];
 };
 
+export type RecipeNote = {
+  text: string;
+  cookedAt: number;
+};
+
 export type KitchenState = {
   inboxStatus: Record<RecipeId, InboxStatus>;
   savedIds: RecipeId[];
   wantIds: RecipeId[];
   cookedCounts: Record<RecipeId, number>;
+  recipeNotes: Record<RecipeId, RecipeNote[]>;
   collections: KitchenCollection[];
   pantryStaples: string[];
   servingsByRecipe: Record<RecipeId, number>;
@@ -47,6 +53,7 @@ export type KitchenState = {
   toggleSaved: (id: RecipeId) => void;
   toggleWant: (id: RecipeId) => void;
   incrementCooked: (id: RecipeId) => void;
+  addRecipeNote: (id: RecipeId, text: string) => void;
   setServings: (id: RecipeId, n: number) => void;
   addRecentSearch: (q: string) => void;
   addCollection: (name: string) => void;
@@ -80,13 +87,24 @@ export type CookTimer = {
   running: boolean;
 } | null;
 
+export type StartCookOptions = {
+  reset?: boolean;
+  sessionId?: string | null;
+};
+
+export type CookTerminalStatus = 'COMPLETED' | 'STOPPED';
+
 export type CookSessionState = {
   recipeId: RecipeId | null;
+  sessionId: string | null;
   stepIndex: number;
   startedAt: number | null;
   timer: CookTimer;
-  start: (recipeId: RecipeId) => void;
+  terminalStatus: CookTerminalStatus | null;
+  start: (recipeId: RecipeId, options?: StartCookOptions) => void;
+  setSessionId: (sessionId: string | null) => void;
   setStep: (index: number) => void;
+  setTerminalStatus: (status: CookTerminalStatus) => void;
   exit: () => void;
   startTimer: (stepIndex: number, seconds: number, label: string) => void;
   toggleTimer: () => void;

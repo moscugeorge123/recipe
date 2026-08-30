@@ -1,26 +1,112 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import {
+  Dimensions,
+  Keyboard,
+  Platform,
+  Pressable,
+  ScrollView,
+  TextInput,
+  View,
+} from 'react-native';
 import Animated, {
-    Easing,
-    useAnimatedStyle,
-    useSharedValue,
-    withRepeat,
-    withSequence,
-    withTiming,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
 } from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { useCatalog } from '@/features/catalog/use-catalog';
+import {
+  useFinishCooking,
+  useStartCooking,
+} from '@/features/cook-sessions/hooks';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
-import { reanimatedEasing, useReducedMotion } from '@/lib/motion';
+import { duration, reanimatedEasing, useReducedMotion } from '@/lib/motion';
 import { useCookStore } from '@/stores/cook-store';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { usePreferencesStore } from '@/stores/preferences-store';
-import { useUiStore } from '@/stores/ui-store';
 import { CookShell, useCookTheme } from '@/theme/cook-shell';
 import { colors, fonts } from '@/theme/tokens';
+
+const recordedCookedKeys = new Set<string>();
+
+function cookedSessionKey(recipeId: string, startedAt: number | null): string {
+  return `${recipeId}:${startedAt ?? 'none'}`;
+}
+
+type KeyboardInset = {
+  height: number;
+  screenY: number;
+  durationMs: number;
+};
+
+function useKeyboardBottomInset(): KeyboardInset {
+  const [inset, setInset] = useState<KeyboardInset>({
+    height: 0,
+    screenY: Dimensions.get('window').height,
+    durationMs: duration.sheet,
+  });
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const viewport =
+        typeof window !== 'undefined' ? window.visualViewport : null;
+      const syncViewport = () => {
+        if (!viewport) {
+          return;
+        }
+        const covered = Math.max(
+          0,
+          window.innerHeight - viewport.height - viewport.offsetTop,
+        );
+        const height = covered < 100 ? 0 : covered;
+        setInset({
+          height,
+          screenY: height > 0 ? viewport.offsetTop + viewport.height : window.innerHeight,
+          durationMs: duration.sheet,
+        });
+      };
+      viewport?.addEventListener('resize', syncViewport);
+      viewport?.addEventListener('scroll', syncViewport);
+      return () => {
+        viewport?.removeEventListener('resize', syncViewport);
+        viewport?.removeEventListener('scroll', syncViewport);
+      };
+    }
+
+    const eventDuration = (ms: number | undefined) =>
+      ms && ms > 0 ? ms : duration.sheet;
+    const showEvent =
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent =
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const show = Keyboard.addListener(showEvent, (event) => {
+      setInset({
+        height: event.endCoordinates.height,
+        screenY: event.endCoordinates.screenY,
+        durationMs: eventDuration(event.duration),
+      });
+    });
+    const hide = Keyboard.addListener(hideEvent, (event) => {
+      setInset({
+        height: 0,
+        screenY: Dimensions.get('window').height,
+        durationMs: eventDuration(event.duration),
+      });
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+
+  return inset;
+}
 
 function CompleteInner() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -29,16 +115,57 @@ function CompleteInner() {
   const recipe = fetched.data ?? catalog.get(id ?? '');
   const { dark, tokens } = useCookTheme();
   const reduced = useReducedMotion();
-  const startedAt = useCookStore((state) => state.startedAt);
-  const exit = useCookStore((state) => state.exit);
-  const start = useCookStore((state) => state.start);
+  const [startedAt] = useState(() => useCookStore.getState().startedAt);
+  const { markCompleted, clearLocal } = useFinishCooking();
+  const startCooking = useStartCooking();
   const incrementCooked = useKitchenStore((state) => state.incrementCooked);
   const cookedCounts = useKitchenStore((state) => state.cookedCounts);
-  const showToast = useUiStore((state) => state.showToast);
+  const addRecipeNote = useKitchenStore((state) => state.addRecipeNote);
   const [note, setNote] = useState('');
   const [finishedAt] = useState(() => Date.now());
+  const keyboard = useKeyboardBottomInset();
+  const notesRef = useRef<View>(null);
+  const shift = useSharedValue(0);
+
+  useEffect(() => {
+    markCompleted().catch(() => undefined);
+  }, [markCompleted]);
+
+  useEffect(() => {
+    if (!recipe) {
+      return;
+    }
+    const key = cookedSessionKey(recipe.id, startedAt);
+    if (recordedCookedKeys.has(key)) {
+      return;
+    }
+    recordedCookedKeys.add(key);
+    incrementCooked(recipe.id);
+  }, [incrementCooked, recipe, startedAt]);
+
   const ring = useSharedValue(0.72);
   const flash = useSharedValue(reduced ? 0 : 0.55);
+
+  useEffect(() => {
+    const ms = reduced ? 0 : keyboard.durationMs;
+    if (keyboard.height <= 0) {
+      shift.value = withTiming(0, { duration: ms, easing: reanimatedEasing });
+      return;
+    }
+    const handle = requestAnimationFrame(() => {
+      if (shift.value > 0) {
+        return;
+      }
+      notesRef.current?.measureInWindow((_x, y, _w, h) => {
+        const overlap = y + h + 60 - keyboard.screenY;
+        shift.value = withTiming(Math.max(0, overlap), {
+          duration: ms,
+          easing: reanimatedEasing,
+        });
+      });
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [keyboard.durationMs, keyboard.height, keyboard.screenY, reduced, shift]);
 
   useEffect(() => {
     if (reduced) {
@@ -67,6 +194,10 @@ function CompleteInner() {
   const flashStyle = useAnimatedStyle(() => ({
     opacity: flash.value,
   }));
+  const slideStyle = useAnimatedStyle(() => ({
+    flex: 1,
+    transform: [{ translateY: -shift.value }],
+  }));
 
   if (!recipe) {
     return <Text style={{ color: tokens.text }}>Loading</Text>;
@@ -77,7 +208,14 @@ function CompleteInner() {
     Math.round((finishedAt - (startedAt ?? finishedAt)) / 60000) ||
       recipe.minutes,
   );
-  const times = (cookedCounts[recipe.id] ?? 0) + 1;
+  const pendingCooked = !recordedCookedKeys.has(
+    cookedSessionKey(recipe.id, startedAt),
+  );
+  const times = (cookedCounts[recipe.id] ?? 0) + (pendingCooked ? 1 : 0);
+
+  const persistNote = () => {
+    addRecipeNote(recipe.id, note);
+  };
 
   return (
     <View className="flex-1">
@@ -96,14 +234,17 @@ function CompleteInner() {
           },
         ]}
       />
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingHorizontal: 22,
-          paddingTop: 58,
-          paddingBottom: 26,
-        }}
-      >
+      <Animated.View style={slideStyle}>
+        <ScrollView
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="on-drag"
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingHorizontal: 22,
+            paddingTop: 58,
+            paddingBottom: 26,
+          }}
+        >
         <View className="flex-1 justify-center gap-5">
           <View className="h-[86px] w-[86px] items-center justify-center">
             <Animated.View
@@ -164,7 +305,7 @@ function CompleteInner() {
               </View>
             ))}
           </View>
-          <View>
+          <View ref={notesRef} collapsable={false}>
             <Text
               style={{
                 color: tokens.muted,
@@ -180,7 +321,9 @@ function CompleteInner() {
               placeholder="Add a note — less lemon, more heat…"
               placeholderTextColor={tokens.noteText}
               accessibilityLabel="Cooking note"
-              className="min-h-[52px] rounded-[16px] p-[15px]"
+              multiline
+              textAlignVertical="top"
+              className="min-h-[88px] rounded-[16px] p-[15px]"
               style={{
                 backgroundColor: tokens.statBg,
                 color: tokens.text,
@@ -192,58 +335,37 @@ function CompleteInner() {
         </View>
         <View className="gap-2.5">
           <Button
-            label="Save to Cooked"
+            label="Done"
             size="lg"
             className="h-[58px]"
             onPress={() => {
-              incrementCooked(recipe.id);
-              exit();
-              showToast({
-                text: `Added to Cooked · ${recipe.title}`,
-                glyph: '✓',
-              });
+              persistNote();
+              clearLocal();
               router.replace('/');
             }}
           />
-          <View className="flex-row gap-2.5">
-            <Pressable
-              accessibilityRole="button"
-              onPress={() =>
-                showToast({ text: 'Share — prototype stub', glyph: '›' })
-              }
-              className="h-[52px] min-h-11 flex-1 items-center justify-center rounded-[16px]"
-              style={{ backgroundColor: tokens.ghostBg }}
-            >
-              <Text
-                style={{
-                  fontFamily: fonts.manrope700,
-                  color: tokens.ghostText,
-                }}
-              >
-                Share
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                start(recipe.id);
-                router.replace(`/cook/${recipe.id}`);
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              persistNote();
+              startCooking(recipe.id, { reset: true }).catch(() => undefined);
+              router.replace(`/cook/${recipe.id}`);
+            }}
+            className="h-[52px] min-h-11 items-center justify-center rounded-[16px]"
+            style={{ backgroundColor: tokens.ghostBg }}
+          >
+            <Text
+              style={{
+                fontFamily: fonts.manrope700,
+                color: tokens.ghostText,
               }}
-              className="h-[52px] min-h-11 flex-1 items-center justify-center rounded-[16px]"
-              style={{ backgroundColor: tokens.ghostBg }}
             >
-              <Text
-                style={{
-                  fontFamily: fonts.manrope700,
-                  color: tokens.ghostText,
-                }}
-              >
-                Cook again
-              </Text>
-            </Pressable>
-          </View>
+              Cook again
+            </Text>
+          </Pressable>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }

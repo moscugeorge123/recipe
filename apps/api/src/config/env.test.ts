@@ -42,6 +42,22 @@ describe('loadConfig', () => {
     );
   });
 
+  it('never uses the development database when NODE_ENV is test', () => {
+    expect(loadConfig({ NODE_ENV: 'test' }).database.url).toContain('recipe_api_test');
+    expect(
+      loadConfig({
+        NODE_ENV: 'test',
+        DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/recipe_api',
+      }).database.url,
+    ).toContain('recipe_api_test');
+    expect(
+      loadConfig({
+        NODE_ENV: 'test',
+        TEST_DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/recipe_api_ci',
+      }).database.url,
+    ).toContain('recipe_api_ci');
+  });
+
   it('derives environment flags', () => {
     const production = loadConfig({ NODE_ENV: 'production' });
 
@@ -57,10 +73,29 @@ describe('loadConfig', () => {
     const config = loadConfig({});
 
     expect(config.database.url).toContain('postgresql://');
+    expect(config.database.url).toContain('recipe_api');
     expect(config.redis.url).toBe('redis://localhost:6379');
     expect(config.storage.provider).toBe('local');
     expect(config.extraction.maxRetries).toBe(5);
     expect(config.extraction.queueConcurrency).toBe(2);
+  });
+
+  it('parses optional Meta app credentials', () => {
+    const config = loadConfig({
+      META_APP_ID: 'app-id',
+      META_APP_SECRET: 'app-secret',
+    });
+
+    expect(config.providers.metaAppId).toBe('app-id');
+    expect(config.providers.metaAppSecret).toBe('app-secret');
+    expect(loadConfig({}).providers.metaAppId).toBeUndefined();
+  });
+
+  it('defaults YTDLP_PATH to yt-dlp and accepts an override', () => {
+    expect(loadConfig({}).providers.ytdlpPath).toBe('yt-dlp');
+    expect(loadConfig({ YTDLP_PATH: '/usr/local/bin/yt-dlp' }).providers.ytdlpPath).toBe(
+      '/usr/local/bin/yt-dlp',
+    );
   });
 
   it('parses storage S3 config when bucket and region are set', () => {

@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Sheet } from '@/components/ui/sheet';
 import { Text } from '@/components/ui/text';
 import { useCatalog } from '@/features/catalog/use-catalog';
+import { useSyncCookStep } from '@/features/cook-sessions/hooks';
 import { formatTimer, parseIngredientHint } from '@/features/cook/parse-hint';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
 import { formatQty } from '@/features/recipes/plan';
@@ -30,14 +31,16 @@ function CookStepInner() {
   const reduced = useReducedMotion();
   const stepIndex = useCookStore((state) => state.stepIndex);
   const setStep = useCookStore((state) => state.setStep);
-  const exit = useCookStore((state) => state.exit);
   const timer = useCookStore((state) => state.timer);
   const startTimer = useCookStore((state) => state.startTimer);
+  const toggleTimer = useCookStore((state) => state.toggleTimer);
+  const clearTimer = useCookStore((state) => state.clearTimer);
   const servings = useKitchenStore(
     (state) => state.servingsByRecipe[id ?? ''] ?? recipe?.servings ?? 1,
   );
   const [ingOpen, setIngOpen] = useState(false);
   useKeepAwake();
+  useSyncCookStep();
 
   const steps = recipe?.steps ?? [];
   const si = Math.min(stepIndex, Math.max(steps.length - 1, 0));
@@ -78,15 +81,27 @@ function CookStepInner() {
 
   const stages = Array.from(new Set(steps.map((step) => step.stage)));
   const ingList = parseIngredientHint(current.ingredientHint);
-  const timerLabel = current.durationSeconds
-    ? timer && timer.stepIndex === si
-      ? timer.running
-        ? `Running · ${formatTimer(timer.remainingSec)}`
-        : timer.remainingSec === 0
-          ? 'Done ✓'
-          : `Paused · ${formatTimer(timer.remainingSec)}`
-      : `Start ${formatTimer(current.durationSeconds)} timer`
-    : '';
+  const stepTimer = timer && timer.stepIndex === si ? timer : null;
+  const timerMain = current.durationSeconds
+    ? !stepTimer
+      ? {
+          label: `Start ${formatTimer(current.durationSeconds)} timer`,
+          action: 'start' as const,
+        }
+      : stepTimer.running
+        ? {
+            label: formatTimer(stepTimer.remainingSec),
+            action: null,
+          }
+        : stepTimer.remainingSec === 0
+          ? { label: 'Done ✓', action: null }
+          : { label: 'Resume', action: 'resume' as const }
+    : null;
+  const timerSide = stepTimer
+    ? stepTimer.running
+      ? { label: 'Stop', action: 'stop' as const }
+      : { label: 'Reset', action: 'reset' as const }
+    : null;
   const parallel =
     timer?.running && timer.stepIndex === si && steps[si + 1]
       ? steps[si + 1]
@@ -101,7 +116,6 @@ function CookStepInner() {
             accessibilityRole="button"
             accessibilityLabel="Exit cooking"
             onPress={() => {
-              exit();
               router.replace('/');
             }}
             className="h-11 justify-center"
@@ -120,11 +134,11 @@ function CookStepInner() {
           </Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="All ingredients"
+            accessibilityLabel="Ingredients"
             onPress={() => setIngOpen(true)}
             className="h-11 justify-center"
           >
-            <Text style={{ color: tokens.muted }}>All</Text>
+            <Text style={{ color: tokens.muted }}>Ingredients</Text>
           </Pressable>
         </View>
         <View className="flex-row gap-1.5 px-5">
@@ -210,37 +224,92 @@ function CookStepInner() {
               ))}
             </View>
           ) : null}
-          {timerLabel ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={timerLabel}
-              onPress={() =>
-                startTimer(si, current.durationSeconds ?? 0, `Step ${si + 1}`)
-              }
-              className="mt-[26px] h-14 min-h-11 items-center justify-center rounded-[17px] px-[22px]"
-              style={{
-                backgroundColor:
-                  timer?.stepIndex === si
-                    ? tokens.timerOnBg
-                    : tokens.timerOffBg,
-                borderWidth: 1,
-                borderColor:
-                  timer?.stepIndex === si
-                    ? tokens.timerOnBorder
-                    : tokens.timerOffBorder,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: fonts.manrope700,
-                  fontSize: 16,
-                  color:
-                    timer?.stepIndex === si ? tokens.timerOnText : tokens.text,
-                }}
-              >
-                {timerLabel}
-              </Text>
-            </Pressable>
+          {timerMain ? (
+            <View className="mt-[26px] flex-row gap-2.5">
+              {timerMain.action ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={timerMain.label}
+                  onPress={() => {
+                    if (timerMain.action === 'start') {
+                      startTimer(
+                        si,
+                        current.durationSeconds ?? 0,
+                        `Step ${si + 1}`,
+                      );
+                      return;
+                    }
+                    toggleTimer();
+                  }}
+                  className="h-14 min-h-11 flex-1 items-center justify-center rounded-[17px] px-[22px]"
+                  style={{
+                    backgroundColor: stepTimer
+                      ? tokens.timerOnBg
+                      : tokens.timerOffBg,
+                    borderWidth: 1,
+                    borderColor: stepTimer
+                      ? tokens.timerOnBorder
+                      : tokens.timerOffBorder,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: fonts.manrope700,
+                      fontSize: 16,
+                      color: stepTimer ? tokens.timerOnText : tokens.text,
+                    }}
+                  >
+                    {timerMain.label}
+                  </Text>
+                </Pressable>
+              ) : (
+                <View
+                  accessibilityLiveRegion="polite"
+                  accessibilityLabel={timerMain.label}
+                  className="h-14 min-h-11 flex-1 items-center justify-center rounded-[17px] px-[22px]"
+                  style={{
+                    backgroundColor: tokens.timerOnBg,
+                    borderWidth: 1,
+                    borderColor: tokens.timerOnBorder,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: fonts.manrope700,
+                      fontSize: 16,
+                      color: tokens.timerOnText,
+                    }}
+                  >
+                    {timerMain.label}
+                  </Text>
+                </View>
+              )}
+              {timerSide ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={timerSide.label}
+                  onPress={() => {
+                    if (timerSide.action === 'stop') {
+                      toggleTimer();
+                      return;
+                    }
+                    clearTimer();
+                  }}
+                  className="h-14 min-h-11 min-w-[88px] items-center justify-center rounded-[17px] px-5"
+                  style={{ backgroundColor: tokens.ghostBg }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: fonts.manrope700,
+                      fontSize: 16,
+                      color: tokens.ghostText,
+                    }}
+                  >
+                    {timerSide.label}
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
           ) : null}
           {parallel ? (
             <Pressable
@@ -274,33 +343,48 @@ function CookStepInner() {
           ) : null}
         </Animated.View>
         <View className="px-5">
-          <Button
-            label={
-              si === steps.length - 1 ? 'Finish cooking' : 'Done · next step'
-            }
-            size="lg"
-            className="h-[62px]"
-            onPress={goNext}
-          />
-          <View className="flex-row items-center justify-between pt-2.5">
+          <View className="flex-row items-center gap-2.5">
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Previous step"
+              disabled={si === 0}
               onPress={goPrev}
-              className="h-11 justify-center"
-            >
-              <Text style={{ color: tokens.muted }}>‹ Previous</Text>
-            </Pressable>
-            <Text
+              className="h-[62px] w-[62px] items-center justify-center rounded-[17px]"
               style={{
-                fontFamily: fonts.mono500,
-                color: tokens.muted,
-                fontSize: 11,
+                backgroundColor: tokens.ghostBg,
+                opacity: si === 0 ? 0.4 : 1,
               }}
             >
-              swipe left · next
-            </Text>
+              <Text
+                style={{
+                  fontFamily: fonts.manrope700,
+                  fontSize: 28,
+                  color: tokens.ghostText,
+                  lineHeight: 32,
+                }}
+              >
+                {'<'}
+              </Text>
+            </Pressable>
+            <Button
+              label={
+                si === steps.length - 1 ? 'Finish cooking' : 'Done · next step'
+              }
+              size="lg"
+              className="h-[62px] flex-1"
+              onPress={goNext}
+            />
           </View>
+          <Text
+            className="pt-2.5 text-center"
+            style={{
+              fontFamily: fonts.mono500,
+              color: tokens.muted,
+              fontSize: 11,
+            }}
+          >
+            swipe left · next
+          </Text>
         </View>
         <Sheet
           visible={ingOpen}

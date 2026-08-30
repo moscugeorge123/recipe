@@ -49,6 +49,7 @@ describe('mapRecipeListItem', () => {
     expect(view.steps).toEqual([]);
     expect(view.ingredientCount).toBe(8);
     expect(view.stepCount).toBe(4);
+    expect(view.createdAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
   test('applies defaults when list fields are null', () => {

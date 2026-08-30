@@ -26,6 +26,12 @@ RUN npm prune --omit=dev
 FROM node:${NODE_VERSION} AS runtime
 WORKDIR /app
 
+# yt-dlp for YouTube preview. Keep in sync with Dockerfile.worker (worker also adds ffmpeg).
+# Do not use `apk add yt-dlp` — Alpine's package is too stale for YouTube.
+RUN apk add --no-cache ca-certificates python3 py3-pip \
+  && pip3 install --no-cache-dir --break-system-packages yt-dlp \
+  && yt-dlp --version
+
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
     PORT=3000

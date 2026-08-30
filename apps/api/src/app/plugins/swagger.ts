@@ -42,6 +42,7 @@ export async function registerSwagger(app: FastifyInstance, config: AppConfig): 
         { name: 'health', description: 'Liveness and dependency checks' },
         { name: 'extraction', description: 'Recipe extraction jobs' },
         { name: 'recipes', description: 'Extracted recipes' },
+        { name: 'cook-sessions', description: 'In-progress and finished cook sessions' },
       ],
     },
     transform: jsonSchemaTransform,

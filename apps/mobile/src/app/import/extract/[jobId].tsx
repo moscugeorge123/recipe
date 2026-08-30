@@ -138,7 +138,11 @@ function ExtractRow({
 }
 
 export default function ExtractScreen() {
-  const { jobId } = useLocalSearchParams<{ jobId: string }>();
+  const { jobId, thumbnailUrl } = useLocalSearchParams<{
+    jobId: string;
+    thumbnailUrl?: string;
+  }>();
+  const stillUri = thumbnailUrl ? String(thumbnailUrl) : undefined;
   const { job, uiStage, headline, isTerminal, isFailed } =
     useExtractionJob(jobId);
   const reduced = useReducedMotion();
@@ -174,6 +178,7 @@ export default function ExtractScreen() {
       <View className="my-[22px] h-[266px] overflow-hidden rounded-[20px] border border-crust bg-peach">
         <View className="absolute left-2.5 top-2.5 w-[124px]">
           <PhotoStandIn
+            uri={stillUri}
             colors={pistachio?.placeholder ?? ['#E6D9C4', '#DCCBB0']}
             height={246}
             radius={14}

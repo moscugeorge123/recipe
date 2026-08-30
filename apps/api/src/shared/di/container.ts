@@ -5,6 +5,7 @@ import { PrismaExtractionJobRepository } from '../../infrastructure/database/rep
 import { PrismaExtractionStageRepository } from '../../infrastructure/database/repositories/extraction-stage.repository.js';
 import { PrismaMediaAssetRepository } from '../../infrastructure/database/repositories/media-asset.repository.js';
 import { PrismaOCRRepository } from '../../infrastructure/database/repositories/ocr.repository.js';
+import { PrismaCookSessionRepository } from '../../infrastructure/database/repositories/cook-session.repository.js';
 import { PrismaRecipeRepository } from '../../infrastructure/database/repositories/recipe.repository.js';
 import { PrismaRecipeSourceRepository } from '../../infrastructure/database/repositories/recipe-source.repository.js';
 import { PrismaTranscriptRepository } from '../../infrastructure/database/repositories/transcript.repository.js';
@@ -30,6 +31,10 @@ import { InstagramContentProvider } from '../../modules/content/providers/instag
 import { TikTokContentProvider } from '../../modules/content/providers/tiktok/tiktok-content-provider.js';
 import { YouTubeContentProvider } from '../../modules/content/providers/youtube/youtube-content-provider.js';
 import { YtDlpClient } from '../../modules/content/providers/youtube/ytdlp-client.js';
+import {
+  createLinkPreviewService,
+  type LinkPreviewService,
+} from '../../modules/content/preview/link-preview.service.js';
 import { DefaultContentProviderRegistry } from '../../modules/content/registry/content-provider-registry.js';
 import type { ContentProviderRegistry } from '../../modules/content/domain/types.js';
 import {
@@ -43,6 +48,8 @@ import {
 } from '../../modules/jobs/application/extraction-job.service.js';
 import type { IExtractionJobRepository } from '../../modules/jobs/repository/extraction-job.repository.js';
 import type { IExtractionStageRepository } from '../../modules/jobs/repository/extraction-stage.repository.js';
+import { CookSessionService } from '../../modules/cook-sessions/application/cook-session-service.js';
+import type { ICookSessionRepository } from '../../modules/cook-sessions/repository/cook-session.repository.js';
 import { RecipeService } from '../../modules/recipes/application/recipe-service.js';
 import { MediaProcessingService } from '../../modules/media/application/media-processing.service.js';
 import { FfmpegMediaProcessor } from '../../modules/media/ffmpeg/ffmpeg-media-processor.js';
@@ -63,6 +70,7 @@ export interface AppContainer {
     extractionStage: IExtractionStageRepository;
     recipe: IRecipeRepository;
     recipeSource: IRecipeSourceRepository;
+    cookSession: ICookSessionRepository;
     mediaAsset: IMediaAssetRepository;
     evidence: PrismaExtractionEvidenceRepository;
     transcript: PrismaTranscriptRepository;
@@ -72,9 +80,11 @@ export interface AppContainer {
   };
   contentRegistry: ContentProviderRegistry;
   contentAcquisition: ContentAcquisitionService;
+  linkPreviewService: LinkPreviewService;
   mediaProcessing: MediaProcessingService;
   extractionJobService: ExtractionJobService;
   recipeService: RecipeService;
+  cookSessionService: CookSessionService;
   pipeline: RecipeExtractionPipeline;
   createQueue(): QueueProvider;
 }
@@ -89,7 +99,7 @@ export function createContentRegistry(appConfig: AppConfig): ContentProviderRegi
   const registry = new DefaultContentProviderRegistry();
 
   registry.register(new InstagramContentProvider(new HttpApifyClient(appConfig.providers.apifyApiToken ?? '')));
-  registry.register(new YouTubeContentProvider(new YtDlpClient()));
+  registry.register(new YouTubeContentProvider(new YtDlpClient(appConfig.providers.ytdlpPath)));
   registry.register(new FacebookContentProvider());
   registry.register(new TikTokContentProvider());
   registry.register(new FakeContentProvider());
@@ -107,6 +117,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     extractionStage: new PrismaExtractionStageRepository(prisma),
     recipe: new PrismaRecipeRepository(prisma),
     recipeSource: new PrismaRecipeSourceRepository(prisma),
+    cookSession: new PrismaCookSessionRepository(prisma),
     mediaAsset: new PrismaMediaAssetRepository(prisma),
     evidence: new PrismaExtractionEvidenceRepository(prisma),
     transcript: new PrismaTranscriptRepository(prisma),
@@ -117,6 +128,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
 
   const contentRegistry = createContentRegistry(appConfig);
   const contentAcquisition = new ContentAcquisitionService(contentRegistry);
+  const linkPreviewService = createLinkPreviewService(appConfig);
 
   const mediaProcessing = new MediaProcessingService(
     new FfmpegMediaProcessor(),
@@ -185,6 +197,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
   );
 
   const recipeService = new RecipeService(repositories.recipe, repositories.recipeSource);
+  const cookSessionService = new CookSessionService(repositories.cookSession, repositories.recipe);
 
   return {
     config: appConfig,
@@ -194,9 +207,11 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     repositories,
     contentRegistry,
     contentAcquisition,
+    linkPreviewService,
     mediaProcessing,
     extractionJobService,
     recipeService,
+    cookSessionService,
     pipeline,
     createQueue,
   };

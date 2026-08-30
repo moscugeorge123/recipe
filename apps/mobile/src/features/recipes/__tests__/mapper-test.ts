@@ -111,6 +111,7 @@ describe('mapRecipeDetail', () => {
     expect(view.steps[0]?.stage).toBe('PREP');
     expect(view.steps[1]?.stage).toBe('SERVE');
     expect(view.steps[0]?.ingredientHint).toBe('6 Chicken thighs');
+    expect(view.createdAt).toBe('2026-01-01T00:00:00.000Z');
   });
 
   test('prefers API cuisine, difficulty, minutes, and source fields', () => {

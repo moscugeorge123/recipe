@@ -1,36 +1,88 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
+import { ChevronLeft } from '@/components/icons/chevron-left';
 import { SourceIcon } from '@/components/icons/source-icon';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { PhotoStandIn } from '@/components/ui/photo-stand-in';
+import { PressScale } from '@/components/ui/press-scale';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
+import { inspectClipboard } from '@/features/capture/sources';
 import { useCreateExtraction } from '@/features/extraction/hooks/use-create-extraction';
+import { useLinkPreview } from '@/features/link-preview/hooks/use-link-preview';
 import { SEED_RECIPES } from '@/features/recipes/seed';
 import { ApiError } from '@/services/api-client';
 import { useUiStore } from '@/stores/ui-store';
 import { colors, fonts } from '@/theme/tokens';
+
+function displayUrl(url: string): string {
+  return url.replace(/^https?:\/\//i, '').replace(/\/$/, '');
+}
+
+function formatAuthor(author: string): string {
+  return author.startsWith('@') ? author : `@${author}`;
+}
 
 export default function ImportPreviewScreen() {
   const { source = 'Instagram', url = '' } = useLocalSearchParams<{
     source?: string;
     url?: string;
   }>();
+  const paramUrl = String(url).trim();
+  const [pastedUrl, setPastedUrl] = useState('');
+  const [pickedThumbnailUrl, setPickedThumbnailUrl] = useState<string | null>(
+    null,
+  );
+
+  const draftUrl = paramUrl || pastedUrl.trim();
+  const preview = useLinkPreview(draftUrl);
   const create = useCreateExtraction();
   const showToast = useUiStore((state) => state.showToast);
   const pistachio = SEED_RECIPES[0];
-  const sourceLabel = String(source);
+  const placeholder = pistachio?.placeholder ?? ['#E6D9C4', '#DCCBB0'];
+
+  const detected = inspectClipboard(draftUrl);
+  const sourceLabel =
+    detected.kind === 'url' ? detected.source : String(source);
+  const hasUrl = /^https?:\/\//i.test(draftUrl);
+  const thumbnails = preview.data?.thumbnails ?? [];
+  const selectedThumbnailUrl =
+    pickedThumbnailUrl &&
+    thumbnails.some((thumb) => thumb.url === pickedThumbnailUrl)
+      ? pickedThumbnailUrl
+      : (thumbnails[0]?.url ?? null);
+
+  useEffect(() => {
+    if (preview.isError) {
+      showToast({ text: "Couldn't load a preview", glyph: '!' });
+    }
+  }, [preview.isError, showToast]);
 
   const start = async () => {
-    const extractUrl = String(url) || 'https://instagram.com/reel/C8xk2Rp9Lm/';
+    if (!hasUrl) {
+      return;
+    }
     try {
-      const result = await create.mutateAsync({ url: extractUrl });
+      const result = await create.mutateAsync({
+        url: draftUrl,
+        ...(selectedThumbnailUrl ? { selectedThumbnailUrl } : {}),
+      });
       if (result.status === 'completed' && result.recipeId) {
         router.replace(`/import/review/${result.recipeId}`);
         return;
       }
-      router.replace(`/import/extract/${result.jobId}`);
+      router.replace({
+        pathname: '/import/extract/[jobId]',
+        params: {
+          jobId: result.jobId,
+          ...(selectedThumbnailUrl
+            ? { thumbnailUrl: selectedThumbnailUrl }
+            : {}),
+        },
+      });
     } catch (error) {
       const code = error instanceof ApiError ? error.code : 'EXTRACTION_FAILED';
       router.push({
@@ -41,6 +93,17 @@ export default function ImportPreviewScreen() {
     }
   };
 
+  const previewError =
+    preview.error instanceof ApiError
+      ? preview.error.message
+      : preview.isError
+        ? "We couldn't unfurl this link. You can still turn it into a recipe."
+        : undefined;
+  const authorLabel = preview.data?.author?.trim()
+    ? formatAuthor(preview.data.author.trim())
+    : null;
+  const titleLabel = preview.data?.title?.trim() || null;
+
   return (
     <Screen>
       <ScrollView
@@ -48,61 +111,137 @@ export default function ImportPreviewScreen() {
         showsVerticalScrollIndicator={false}
       >
         <View className="flex-row items-center gap-1.5 pb-5 pt-1">
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Back"
+          <Button
+            label="Back"
+            size="icon"
+            variant="ghost"
+            icon={<ChevronLeft />}
             onPress={() => router.back()}
-            className="-ml-[11px] h-11 w-11 items-center justify-center"
-          >
-            <Text className="text-[22px]" tone="icon">
-              ‹
-            </Text>
-          </Pressable>
+            className="-ml-[11px]"
+          />
           <SourceIcon source={sourceLabel} size={22} />
           <Text className="text-[15px]">Importing from {sourceLabel}</Text>
         </View>
-        <View className="mb-4 h-8 flex-row items-center gap-2 self-start rounded-[11px] bg-secondary-soft px-[13px]">
-          <Text className="text-[13px]" style={{ color: colors.basil700 }}>
-            ✓
-          </Text>
-          <Text className="text-[13px]" style={{ color: colors.basil700 }}>
-            Recipe captured
-          </Text>
-        </View>
-        <View className="overflow-hidden rounded-[20px] border border-crust bg-bg-elevated">
-          <PhotoStandIn
-            colors={pistachio?.placeholder ?? ['#E6D9C4', '#DCCBB0']}
-            height={200}
-            radius={0}
-            label="video still"
-          />
-          <View className="p-4">
-            <View className="flex-row items-center gap-2 pb-[11px]">
-              <SourceIcon source={sourceLabel} size={16} />
-              <Text className="text-[12.5px]" tone="muted">
-                @noor.cooks
-              </Text>
-            </View>
-            <Text className="text-[14.5px] leading-[1.5]" tone="icon">
-              the pistachio pasta everyone keeps asking about — 320g rigatoni,
-              big handful of pistachios, one lemon, don’t skip the pasta water
-            </Text>
-            <Text
-              className="pt-3 text-[11px]"
-              tone="muted"
-              style={{ fontFamily: fonts.mono500 }}
-            >
-              {String(url) || 'instagram.com/reel/C8xk2Rp9Lm/'}
-            </Text>
+        {!paramUrl ? (
+          <View className="mb-4">
+            <Input
+              label="URL"
+              value={pastedUrl}
+              onChangeText={setPastedUrl}
+              autoCapitalize="none"
+              autoCorrect={false}
+              placeholder="https://"
+            />
           </View>
-        </View>
-        <Text variant="caption" className="py-5 text-[13.5px] leading-[1.5]">
-          {`We'll read the caption, the on-screen text and the spoken steps, then hand you a recipe to check.`}
-        </Text>
+        ) : null}
+        {hasUrl ? (
+          <View className="overflow-hidden rounded-[20px] border border-crust bg-bg-elevated">
+            <PhotoStandIn
+              uri={
+                preview.isSuccess
+                  ? (selectedThumbnailUrl ?? thumbnails[0]?.url)
+                  : null
+              }
+              colors={placeholder}
+              height={200}
+              radius={0}
+              label="video still"
+            />
+            <View className="p-4">
+              {preview.isPending ? (
+                <View className="gap-2">
+                  <View className="h-3.5 w-28 rounded-md bg-linen" />
+                  <View className="h-4 w-4/5 rounded-md bg-linen" />
+                </View>
+              ) : (
+                <>
+                  {authorLabel || titleLabel ? (
+                    <View className="flex-row items-center gap-2.5 pb-[11px]">
+                      <SourceIcon source={sourceLabel} size={28} />
+                      <View className="min-w-0 flex-1">
+                        {authorLabel ? (
+                          <Text className="text-[13px]" tone="muted">
+                            {authorLabel}
+                          </Text>
+                        ) : null}
+                        {titleLabel ? (
+                          <Text
+                            className="text-[14.5px] leading-[1.35]"
+                            tone="icon"
+                            numberOfLines={1}
+                          >
+                            {titleLabel}
+                          </Text>
+                        ) : null}
+                      </View>
+                    </View>
+                  ) : null}
+                  {previewError ? (
+                    <Text
+                      accessibilityRole="alert"
+                      className="pt-2 text-[13px]"
+                      style={{ color: colors.chili }}
+                    >
+                      {previewError}
+                    </Text>
+                  ) : null}
+                  <Text
+                    className="pt-3 text-[11px]"
+                    tone="muted"
+                    style={{ fontFamily: fonts.mono500 }}
+                  >
+                    {displayUrl(draftUrl)}
+                  </Text>
+                </>
+              )}
+              {preview.isSuccess && thumbnails.length > 1 ? (
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  className="pt-3"
+                >
+                  {thumbnails.map((thumb, index) => {
+                    const selected = thumb.url === selectedThumbnailUrl;
+                    return (
+                      <PressScale
+                        key={thumb.url}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Thumbnail ${index + 1}`}
+                        accessibilityState={{ selected }}
+                        onPress={() => setPickedThumbnailUrl(thumb.url)}
+                        className="mr-2 overflow-hidden rounded-[10px]"
+                        style={{
+                          borderWidth: 2,
+                          borderColor: selected
+                            ? colors.paprika
+                            : colors.espresso,
+                        }}
+                      >
+                        <View style={{ width: 72 }}>
+                          <PhotoStandIn
+                            uri={thumb.url}
+                            colors={placeholder}
+                            height={72}
+                            radius={0}
+                            label={`still ${index + 1}`}
+                          />
+                        </View>
+                      </PressScale>
+                    );
+                  })}
+                </ScrollView>
+              ) : null}
+            </View>
+          </View>
+        ) : null}
         <Button
-          label="Turn into a recipe"
+          label={create.isPending ? 'Starting…' : 'Turn into a recipe'}
           size="lg"
+          disabled={!hasUrl || create.isPending}
           onPress={() => {
+            if (create.isPending) {
+              return;
+            }
             start().catch(() => undefined);
           }}
         />

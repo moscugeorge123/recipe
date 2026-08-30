@@ -10,10 +10,26 @@ export const createExtractionJobBodySchema = z
         extractNutrition: z.boolean().default(false),
         extractImages: z.boolean().default(true),
         highAccuracy: z.boolean().default(false),
+        selectedThumbnailUrl: z.url().optional(),
       })
       .default({ extractNutrition: false, extractImages: true, highAccuracy: false }),
   })
   .strict();
+
+export const previewLinkBodySchema = z
+  .object({
+    url: z.url('url must be a valid URL'),
+  })
+  .strict();
+
+export const linkPreviewResponseSchema = z.object({
+  url: z.string(),
+  sourceType: z.enum(['INSTAGRAM', 'YOUTUBE', 'FACEBOOK', 'TIKTOK', 'GENERIC_WEB']),
+  title: z.string().nullable(),
+  author: z.string().nullable(),
+  description: z.string().nullable(),
+  thumbnails: z.array(z.object({ url: z.string() })),
+});
 
 export const jobIdParamsSchema = z.object({
   id: z.uuid('id must be a UUID'),
@@ -43,3 +59,4 @@ export const cancelJobResponseSchema = z.object({
 });
 
 export type CreateExtractionJobBody = z.infer<typeof createExtractionJobBodySchema>;
+export type PreviewLinkBody = z.infer<typeof previewLinkBodySchema>;

@@ -88,7 +88,12 @@ export class OpenAIVisionProvider implements VisionProvider {
         continue;
       }
 
-      const parsed = JSON.parse(content) as { observations: VisionObservation[] };
+      let parsed: { observations: VisionObservation[] };
+      try {
+        parsed = JSON.parse(content) as { observations: VisionObservation[] };
+      } catch {
+        continue;
+      }
 
       if (this.usageTracker && this.jobId) {
         await this.usageTracker.track({

@@ -49,6 +49,7 @@ export type RecipeView = {
   steps: RecipeStepView[];
   ingredientCount?: number;
   stepCount?: number;
+  createdAt?: string;
 };
 
 export type RecipeListItemView = {

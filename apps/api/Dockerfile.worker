@@ -19,7 +19,14 @@ RUN npm prune --omit=dev
 FROM node:${NODE_VERSION} AS runtime
 WORKDIR /app
 
-RUN apk add --no-cache ffmpeg
+# ffmpeg for media processing + yt-dlp for YouTube extraction.
+# Keep the yt-dlp install in sync with apps/api/Dockerfile (API has no ffmpeg).
+# Do not use `apk add yt-dlp` — Alpine's package is too stale for YouTube.
+RUN apk add --no-cache ca-certificates ffmpeg python3 py3-pip \
+  && pip3 install --no-cache-dir --break-system-packages yt-dlp \
+  && yt-dlp --version \
+  && ffmpeg -version \
+  && ffprobe -version
 
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \

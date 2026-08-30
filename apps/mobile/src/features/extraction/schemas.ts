@@ -9,6 +9,7 @@ export const createExtractionBodySchema = z.object({
       extractNutrition: z.boolean().optional(),
       extractImages: z.boolean().optional(),
       highAccuracy: z.boolean().optional(),
+      selectedThumbnailUrl: z.string().optional(),
     })
     .optional(),
 });

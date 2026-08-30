@@ -10,12 +10,12 @@ import { Screen } from '@/components/ui/screen';
 import { Sheet } from '@/components/ui/sheet';
 import { Text } from '@/components/ui/text';
 import { useCatalog } from '@/features/catalog/use-catalog';
+import { useStartCooking } from '@/features/cook-sessions/hooks';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
 import { formatQty, planRecipe } from '@/features/recipes/plan';
 import { hapticLight, hapticSuccess } from '@/lib/haptics';
 import { usePopScale } from '@/lib/motion';
 import { isHave } from '@/stores/contracts';
-import { useCookStore } from '@/stores/cook-store';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { useShopStore } from '@/stores/shop-store';
 import { useUiStore } from '@/stores/ui-store';
@@ -105,8 +105,9 @@ export default function RecipeDetailScreen() {
   const confirmReviewed = useKitchenStore((state) => state.confirmReviewed);
   const inboxStatus = useKitchenStore((state) => state.inboxStatus);
   const pantryStaples = useKitchenStore((state) => state.pantryStaples);
+  const recipeNotes = useKitchenStore((state) => state.recipeNotes);
   const addIngredients = useShopStore((state) => state.addIngredients);
-  const startCook = useCookStore((state) => state.start);
+  const startCooking = useStartCooking();
   const showToast = useUiStore((state) => state.showToast);
   const [showMore, setShowMore] = useState(false);
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -136,6 +137,7 @@ export default function RecipeDetailScreen() {
     (ing) => !isHave(ing.name, pantryStaples),
   );
   const status = inboxStatus[recipe.id];
+  const notes = recipeNotes[recipe.id] ?? [];
 
   return (
     <Screen edges={['left', 'right']}>
@@ -239,7 +241,7 @@ export default function RecipeDetailScreen() {
               if (status) {
                 confirmReviewed(recipe.id);
               }
-              startCook(recipe.id);
+              startCooking(recipe.id).catch(() => undefined);
               router.push(`/cook/${recipe.id}`);
             }}
           />
@@ -258,6 +260,27 @@ export default function RecipeDetailScreen() {
               </View>
             ))}
           </View>
+
+          {notes.length ? (
+            <View className="mt-6">
+              <Text variant="section">NOTES</Text>
+              {notes.map((item) => (
+                <View
+                  key={`${item.cookedAt}-${item.text}`}
+                  className="mt-2 rounded-[16px] bg-linen p-4"
+                >
+                  <Text variant="caption">
+                    {new Date(item.cookedAt).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                      year: 'numeric',
+                    })}
+                  </Text>
+                  <Text className="pt-1.5">{item.text}</Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
 
           <View className="mt-6 flex-row items-center justify-between">
             <Text variant="section">SERVINGS</Text>

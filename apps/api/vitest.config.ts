@@ -8,6 +8,8 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       LOG_LEVEL: 'silent',
+      DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/recipe_api_test',
+      TEST_DATABASE_URL: 'postgresql://postgres:postgres@localhost:5432/recipe_api_test',
     },
     coverage: {
       provider: 'v8',

@@ -42,6 +42,7 @@ export const useKitchenStore = create<KitchenState>()(
         'seed:harissa': 4,
         'seed:congee': 1,
       },
+      recipeNotes: {},
       collections: defaultCollections,
       pantryStaples: [...DEFAULT_PANTRY_STAPLES],
       servingsByRecipe: {},
@@ -78,6 +79,21 @@ export const useKitchenStore = create<KitchenState>()(
             [id]: (state.cookedCounts[id] ?? 0) + 1,
           },
         })),
+      addRecipeNote: (id, text) => {
+        const trimmed = text.trim();
+        if (!trimmed) {
+          return;
+        }
+        set((state) => ({
+          recipeNotes: {
+            ...state.recipeNotes,
+            [id]: [
+              { text: trimmed, cookedAt: Date.now() },
+              ...(state.recipeNotes[id] ?? []),
+            ],
+          },
+        }));
+      },
       setServings: (id, n) =>
         set((state) => ({
           servingsByRecipe: {
@@ -119,6 +135,17 @@ export const useKitchenStore = create<KitchenState>()(
     {
       name: 'mise.kitchen.v1',
       storage: createJSONStorage(() => AsyncStorage),
+      merge: (persisted, current) => {
+        const stored =
+          persisted && typeof persisted === 'object'
+            ? (persisted as Partial<KitchenState>)
+            : {};
+        return {
+          ...current,
+          ...stored,
+          recipeNotes: stored.recipeNotes ?? {},
+        };
+      },
     },
   ),
 );
