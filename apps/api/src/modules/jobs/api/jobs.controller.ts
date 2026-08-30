@@ -19,6 +19,7 @@ export function createJobsController(
       request: FastifyRequest<{ Body: CreateExtractionJobBody }>,
       reply: FastifyReply,
     ): Promise<void> => {
+      request.log.info({ step: 'http.extract.create', url: request.body.url }, 'http.extract.create started');
       const result = await service.createJob(request.body);
 
       if (result.deduplicated) {
@@ -33,7 +34,12 @@ export function createJobsController(
       request: FastifyRequest<{ Body: PreviewLinkBody }>,
       reply: FastifyReply,
     ): Promise<void> => {
+      request.log.info({ step: 'http.preview', url: request.body.url }, 'http.preview started');
       const result = await linkPreviewService.preview(request.body.url);
+      request.log.info(
+        { step: 'http.preview', sourceType: result.sourceType, thumbnailCount: result.thumbnails.length },
+        'http.preview completed',
+      );
       reply.send(dataResponse(result));
     },
 

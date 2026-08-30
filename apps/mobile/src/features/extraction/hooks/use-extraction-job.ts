@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 
 import { getExtractionJob } from '@/features/extraction/api';
 import {
-  extractionHeadline,
   isFailedJobStatus,
   isTerminalJobStatus,
   mapJobToUiStage,
@@ -54,7 +53,6 @@ export function useExtractionJob(jobId: string | undefined) {
     ...query,
     job,
     uiStage,
-    headline: extractionHeadline(uiStage),
     isTerminal: job ? isTerminalJobStatus(job.status) : false,
     isFailed: job ? isFailedJobStatus(job.status) : false,
   };

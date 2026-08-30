@@ -11,6 +11,7 @@ describe('loadConfig', () => {
     expect(config.server.host).toBe('0.0.0.0');
     expect(config.api.prefix).toBe('/api/v1');
     expect(config.logging.level).toBe('info');
+    expect(config.logging.directory).toBe('./logs');
     expect(config.cors.origins).toEqual([]);
     expect(config.rateLimit.enabled).toBe(true);
   });
@@ -96,6 +97,14 @@ describe('loadConfig', () => {
     expect(loadConfig({ YTDLP_PATH: '/usr/local/bin/yt-dlp' }).providers.ytdlpPath).toBe(
       '/usr/local/bin/yt-dlp',
     );
+  });
+
+  it('writes daily files to ./logs except in tests, and LOG_DIR="" disables them', () => {
+    expect(loadConfig({}).logging.directory).toBe('./logs');
+    expect(loadConfig({ NODE_ENV: 'production' }).logging.directory).toBe('./logs');
+    expect(loadConfig({ NODE_ENV: 'test' }).logging.directory).toBeUndefined();
+    expect(loadConfig({ LOG_DIR: '' }).logging.directory).toBeUndefined();
+    expect(loadConfig({ LOG_DIR: '/var/log/recipe' }).logging.directory).toBe('/var/log/recipe');
   });
 
   it('parses storage S3 config when bucket and region are set', () => {

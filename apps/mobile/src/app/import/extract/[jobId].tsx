@@ -4,159 +4,66 @@ import { Pressable, View } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
   withTiming,
 } from 'react-native-reanimated';
 
-import { Button } from '@/components/ui/button';
-import { PhotoStandIn } from '@/components/ui/photo-stand-in';
+import { daisy } from '@/components/daisy/colors';
+import {
+  DAISY_COPY,
+  DaisyMascot,
+  daisyCopyBucketForPhase,
+  daisyCopyBucketFromJob,
+  daisyPhaseFromJob,
+  formatSourcePill,
+  useDaisyCopy,
+  useDaisyDisplayPhase,
+} from '@/components/daisy';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { cancelExtraction } from '@/features/extraction/api';
 import { useExtractionJob } from '@/features/extraction/hooks/use-extraction-job';
-import { EXTRACTION_STEP_LABELS } from '@/features/extraction/stage-map';
-import { SEED_RECIPES } from '@/features/recipes/seed';
 import { announce } from '@/lib/announce';
-import {
-  duration,
-  reanimatedEasing,
-  useBreathe,
-  useReducedMotion,
-} from '@/lib/motion';
-import { colors, fonts } from '@/theme/tokens';
-
-const CHIPS = [
-  { label: 'IMAGE', to: { left: 154, top: 8, width: 150, height: 60 } },
-  { label: 'TITLE', to: { left: 154, top: 74, width: 190, height: 26 } },
-  {
-    label: '8 INGREDIENTS',
-    to: { left: 154, top: 106, width: 158, height: 26 },
-  },
-  { label: '8 STEPS', to: { left: 154, top: 138, width: 116, height: 26 } },
-  { label: '25 MIN', to: { left: 154, top: 170, width: 86, height: 26 } },
-  { label: 'SERVES 4', to: { left: 248, top: 170, width: 96, height: 26 } },
-];
-
-function ExtractChip({
-  chip,
-  index,
-  done,
-  reduced,
-}: {
-  chip: (typeof CHIPS)[number];
-  index: number;
-  done: boolean;
-  reduced: boolean;
-}) {
-  const left = useSharedValue(14 + index * 8);
-  const top = useSharedValue(10 + index * 28);
-  const width = useSharedValue(88);
-  const height = useSharedValue(24);
-
-  useEffect(() => {
-    const next = done
-      ? chip.to
-      : { left: 14 + index * 8, top: 10 + index * 28, width: 88, height: 24 };
-    const cfg = reduced
-      ? { duration: 0 }
-      : { duration: duration.step, easing: reanimatedEasing };
-    left.value = withTiming(next.left, cfg);
-    top.value = withTiming(next.top, cfg);
-    width.value = withTiming(next.width, cfg);
-    height.value = withTiming(next.height, cfg);
-  }, [chip.to, done, height, index, left, reduced, top, width]);
-
-  const style = useAnimatedStyle(() => ({
-    left: left.value,
-    top: top.value,
-    width: width.value,
-    height: height.value,
-    backgroundColor: done ? colors.espresso : 'rgba(255,255,255,0.9)',
-  }));
-
-  return (
-    <Animated.View
-      className="absolute items-center justify-center rounded-[9px] px-2.5"
-      style={style}
-    >
-      <Text
-        style={{
-          fontFamily: fonts.mono700,
-          fontSize: 10,
-          letterSpacing: 0.8,
-          color: done ? '#F7F1E8' : colors.olive,
-        }}
-      >
-        {chip.label}
-      </Text>
-    </Animated.View>
-  );
-}
-
-function ExtractRow({
-  label,
-  done,
-  now,
-}: {
-  label: string;
-  done: boolean;
-  now: boolean;
-}) {
-  const breathe = useBreathe(now);
-
-  return (
-    <View className="flex-row items-center gap-3 py-[11px]">
-      <Animated.View
-        className="h-[22px] w-[22px] items-center justify-center rounded-full"
-        style={[
-          breathe,
-          {
-            backgroundColor: done
-              ? colors.paprika
-              : now
-                ? colors.paprikaSoft
-                : colors.linen,
-            borderWidth: now ? 2 : 0,
-            borderColor: colors.paprika,
-          },
-        ]}
-      >
-        <Text className="text-[11px]" tone="inverse">
-          {done ? '✓' : ''}
-        </Text>
-      </Animated.View>
-      <Text
-        className="flex-1 text-[14.5px]"
-        style={{
-          fontFamily: done || now ? fonts.manrope600 : fonts.manrope500,
-          color: done ? colors.espresso : now ? colors.paprika : colors.olive,
-        }}
-      >
-        {label}
-      </Text>
-    </View>
-  );
-}
+import { useReducedMotion } from '@/lib/motion';
+import { fonts } from '@/theme/tokens';
 
 export default function ExtractScreen() {
-  const { jobId, thumbnailUrl } = useLocalSearchParams<{
+  const { jobId, url } = useLocalSearchParams<{
     jobId: string;
+    url?: string;
     thumbnailUrl?: string;
   }>();
-  const stillUri = thumbnailUrl ? String(thumbnailUrl) : undefined;
-  const { job, uiStage, headline, isTerminal, isFailed } =
-    useExtractionJob(jobId);
+  const { job, isTerminal, isFailed } = useExtractionJob(jobId);
   const reduced = useReducedMotion();
-  const pistachio = SEED_RECIPES[0];
+  const jobPhase = daisyPhaseFromJob(job?.status, job?.currentStage);
+  const jobBucket = daisyCopyBucketFromJob(job?.status, job?.currentStage);
+  const { phase, successReady } = useDaisyDisplayPhase(jobPhase, reduced);
+  const bucket = daisyCopyBucketForPhase(phase, jobBucket);
+  const status = useDaisyCopy(bucket);
+  const source = url ? formatSourcePill(String(url)) : '';
+  const busy =
+    bucket === 'importing' ||
+    bucket === 'analyzing' ||
+    bucket === 'extracting' ||
+    bucket === 'processing';
+  const statusColor =
+    bucket === 'success'
+      ? daisy.successCopy
+      : bucket === 'error'
+        ? daisy.error
+        : daisy.ink;
 
   useEffect(() => {
-    announce(headline);
-  }, [headline]);
+    announce(DAISY_COPY[bucket][0] ?? '');
+  }, [bucket]);
 
   useEffect(() => {
-    if (job?.status === 'COMPLETED' && job.recipeId) {
+    if (successReady && job?.status === 'COMPLETED' && job.recipeId) {
       router.replace(`/import/review/${job.recipeId}`);
     }
-  }, [job?.recipeId, job?.status]);
+  }, [job?.recipeId, job?.status, successReady]);
 
   useEffect(() => {
     if (isFailed) {
@@ -169,59 +76,158 @@ export default function ExtractScreen() {
 
   return (
     <Screen className="px-5">
-      <Text variant="mono" className="pb-2 pt-1">
-        READING POST
-      </Text>
-      <Text variant="display" accessibilityLiveRegion="polite">
-        {headline}
-      </Text>
-      <View className="my-[22px] h-[266px] overflow-hidden rounded-[20px] border border-crust bg-peach">
-        <View className="absolute left-2.5 top-2.5 w-[124px]">
-          <PhotoStandIn
-            uri={stillUri}
-            colors={pistachio?.placeholder ?? ['#E6D9C4', '#DCCBB0']}
-            height={246}
-            radius={14}
-            label="source post"
-          />
+      <View className="flex-1">
+        <View className="items-center pt-10">
+          {source ? (
+            <View
+              style={{
+                paddingVertical: 7,
+                paddingHorizontal: 14,
+                borderRadius: 999,
+                backgroundColor: daisy.pillBg,
+              }}
+            >
+              <Text
+                numberOfLines={1}
+                style={{
+                  fontFamily: fonts.manrope600,
+                  fontSize: 12,
+                  color: daisy.quiet,
+                }}
+              >
+                {source}
+              </Text>
+            </View>
+          ) : null}
         </View>
-        {CHIPS.map((chip, index) => (
-          <ExtractChip
-            key={chip.label}
-            chip={chip}
-            index={index}
-            done={uiStage >= Math.min(index, 5)}
-            reduced={reduced}
-          />
-        ))}
+
+        <View className="flex-1 justify-center">
+          <DaisyMascot phase={phase} size={240} />
+        </View>
+
+        <View className="items-center px-4 pb-2 pt-1">
+          <StatusLine color={statusColor} reduced={reduced} text={status} />
+          {busy ? <StatusDots reduced={reduced} /> : null}
+        </View>
+
+        {jobId && !isTerminal ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancel import"
+            onPress={() => {
+              cancelExtraction(jobId).catch(() => undefined);
+              router.replace('/');
+            }}
+            className="h-11 items-center justify-center"
+          >
+            <Text
+              style={{
+                fontFamily: fonts.manrope700,
+                fontSize: 14,
+                color: daisy.quiet,
+              }}
+            >
+              Cancel import
+            </Text>
+          </Pressable>
+        ) : null}
       </View>
-      {EXTRACTION_STEP_LABELS.map((label, index) => {
-        const done = uiStage > index;
-        const now = uiStage === index && !isTerminal;
-        return <ExtractRow key={label} label={label} done={done} now={now} />;
-      })}
-      <Text variant="caption" className="pt-4">
-        {`You can leave this screen — we'll finish in the background and tell you when it's ready.`}
-      </Text>
-      {jobId && !isTerminal ? (
-        <Button
-          label="Cancel"
-          variant="ghost"
-          className="mt-4"
-          onPress={() => {
-            cancelExtraction(jobId).catch(() => undefined);
-            router.replace('/');
-          }}
-        />
-      ) : null}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-        onPress={() => router.back()}
-        className="mt-2 h-11 justify-center"
-      >
-        <Text tone="primary">Leave for now</Text>
-      </Pressable>
     </Screen>
+  );
+}
+
+// m-fade: each new line fades up over .5s instead of swapping instantly.
+function StatusLine({
+  text,
+  color,
+  reduced,
+}: {
+  text: string;
+  color: string;
+  reduced: boolean;
+}) {
+  const enter = useSharedValue(1);
+
+  useEffect(() => {
+    if (reduced) {
+      enter.value = withTiming(1, { duration: 400 });
+      return;
+    }
+    enter.value = 0;
+    enter.value = withTiming(1, { duration: 500 });
+  }, [enter, reduced, text]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: enter.value,
+    transform: [{ translateY: (1 - enter.value) * 4 }],
+  }));
+
+  return (
+    <Animated.View style={style}>
+      <Text
+        accessibilityLiveRegion="polite"
+        style={{
+          fontFamily: fonts.manrope700,
+          fontSize: 15,
+          color,
+          textAlign: 'center',
+        }}
+      >
+        {text}
+      </Text>
+    </Animated.View>
+  );
+}
+
+function StatusDots({ reduced }: { reduced: boolean }) {
+  return (
+    <View className="mt-3 flex-row justify-center" style={{ gap: 5 }}>
+      {[0, 1, 2].map((index) => (
+        <StatusDot key={index} index={index} reduced={reduced} />
+      ))}
+    </View>
+  );
+}
+
+function StatusDot({ index, reduced }: { index: number; reduced: boolean }) {
+  const pulse = useSharedValue(reduced ? 0.6 : 0.25);
+
+  useEffect(() => {
+    if (reduced) {
+      pulse.value = 0.6;
+      return;
+    }
+    pulse.value = withDelay(
+      index * 200,
+      withRepeat(
+        withSequence(
+          withTiming(1, { duration: 700 }),
+          withTiming(0.25, { duration: 700 }),
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, [index, pulse, reduced]);
+
+  const style = useAnimatedStyle(() => ({
+    opacity: pulse.value,
+    transform: [
+      { translateY: reduced ? 0 : ((pulse.value - 0.25) / 0.75) * -3 },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        style,
+        {
+          width: 6,
+          height: 6,
+          borderRadius: 3,
+          backgroundColor: daisy.apron,
+        },
+      ]}
+    />
   );
 }

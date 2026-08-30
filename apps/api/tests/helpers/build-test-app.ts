@@ -21,6 +21,7 @@ export function testConfig(env: Record<string, string> = {}): AppConfig {
     ...process.env,
     NODE_ENV: 'test',
     LOG_LEVEL: 'silent',
+    LOG_DIR: '',
     ...env,
   });
 }

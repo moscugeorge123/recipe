@@ -31,6 +31,11 @@ const rawEnvSchema = z.object({
   PORT: z.coerce.number().int().min(0).max(65535).default(3000),
 
   LOG_LEVEL: z.enum(LOG_LEVELS).default('info'),
+  /**
+   * Directory for daily log files (`<service>.YYYY-MM-DD.log`). Default `./logs` outside tests.
+   * Set to an empty string to disable file logging (stdout only).
+   */
+  LOG_DIR: z.string().optional(),
 
   SERVICE_NAME: z.string().min(1).default('api'),
   SERVICE_VERSION: z.string().min(1).default('0.1.0'),
@@ -128,6 +133,19 @@ function databaseName(url: string): string | undefined {
   }
 }
 
+/**
+ * Daily file logs default to `./logs` except in tests. An empty `LOG_DIR` turns them off.
+ */
+export function resolveLogDirectory(nodeEnv: string, logDir?: string): string | undefined {
+  if (logDir === '') {
+    return undefined;
+  }
+  if (logDir !== undefined) {
+    return logDir;
+  }
+  return nodeEnv === 'test' ? undefined : './logs';
+}
+
 /** Tests must never write to the development `recipe_api` database. */
 export function resolveDatabaseUrl(input: {
   nodeEnv: string;
@@ -166,6 +184,7 @@ const configSchema = rawEnvSchema.transform((raw) => ({
   },
   logging: {
     level: raw.LOG_LEVEL,
+    directory: resolveLogDirectory(raw.NODE_ENV, raw.LOG_DIR),
   },
   api: {
     prefix: raw.API_PREFIX,

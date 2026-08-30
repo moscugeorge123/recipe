@@ -17,6 +17,7 @@ storage/
 
 # Logs
 *.log
+logs/
 npm-debug.log*
 
 # OS / editor

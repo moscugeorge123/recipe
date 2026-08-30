@@ -1,3 +1,6 @@
+import type { AppLogger } from '../../../../infrastructure/logging/logger.js';
+import { silentLogger } from '../../../../infrastructure/logging/logger.js';
+import { logStep } from '../../../../infrastructure/logging/log-step.js';
 import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
 import type { VideoDownloadClient } from '../../providers/youtube/ytdlp-client.js';
 import {
@@ -21,12 +24,14 @@ export interface YouTubeUnfurlerOptions {
   timeoutMs?: number;
   httpTimeoutMs?: number;
   fetchImpl?: FetchLike;
+  log?: AppLogger;
 }
 
 export class YouTubeLinkUnfurler implements LinkUnfurler {
   private readonly timeoutMs: number;
   private readonly httpTimeoutMs: number;
   private readonly fetchImpl: FetchLike;
+  private readonly log: AppLogger;
 
   constructor(
     private readonly ytdlp: VideoDownloadClient,
@@ -35,6 +40,7 @@ export class YouTubeLinkUnfurler implements LinkUnfurler {
     this.timeoutMs = options.timeoutMs ?? PREVIEW_YTDLP_TIMEOUT_MS;
     this.httpTimeoutMs = options.httpTimeoutMs ?? PREVIEW_HTTP_TIMEOUT_MS;
     this.fetchImpl = options.fetchImpl ?? fetch;
+    this.log = options.log ?? silentLogger();
   }
 
   supports(url: string): boolean {
@@ -49,10 +55,13 @@ export class YouTubeLinkUnfurler implements LinkUnfurler {
 
   async unfurl(url: string): Promise<LinkPreview> {
     try {
-      return await this.unfurlViaOembed(url);
+      return await logStep(this.log, 'youtube.oembed', { url }, () => this.unfurlViaOembed(url));
     } catch (oembedError: unknown) {
+      this.log.warn({ step: 'youtube.oembed', url, err: oembedError }, 'youtube.oembed failed');
       try {
-        return await this.unfurlViaYtdlp(url);
+        return await logStep(this.log, 'youtube.ytdlp-preview', { url }, () =>
+          this.unfurlViaYtdlp(url),
+        );
       } catch {
         throw oembedError;
       }

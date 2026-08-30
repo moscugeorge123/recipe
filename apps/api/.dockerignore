@@ -18,6 +18,7 @@ eslint.config.js
 vitest.config.ts
 tests
 docker-compose.yml
+logs
 Dockerfile
 .dockerignore
 .nvmrc

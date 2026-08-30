@@ -1,4 +1,4 @@
-import Fastify, { LogController, type FastifyInstance } from 'fastify';
+import Fastify, { LogController, type FastifyBaseLogger, type FastifyInstance } from 'fastify';
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 
 import { config as defaultConfig, type AppConfig } from '../config/env.js';
@@ -7,7 +7,7 @@ import type { DependencyCheck } from '../features/health/health.types.js';
 import { cookSessionsRoutes } from '../modules/cook-sessions/api/cook-sessions.routes.js';
 import { jobsRoutes } from '../modules/jobs/api/jobs.routes.js';
 import { recipesRoutes } from '../modules/recipes/api/recipes.routes.js';
-import { buildLoggerOptions } from '../infrastructure/logging/logger.js';
+import { createLogger, type AppLogger } from '../infrastructure/logging/logger.js';
 import type { AppContainer } from '../shared/di/container.js';
 import { createContainer } from '../shared/di/container.js';
 import { registerCors } from './plugins/cors.js';
@@ -27,6 +27,8 @@ export interface BuildAppOptions {
   healthChecks?: DependencyCheck[];
   /** Pre-built container for tests; defaults to production container when omitted. */
   container?: AppContainer;
+  /** Shared with the container so API and pipeline lines land in the same daily file. */
+  logger?: AppLogger;
 }
 
 /**
@@ -38,10 +40,11 @@ export interface BuildAppOptions {
  */
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const config = options.config ?? defaultConfig;
-  const container = options.container ?? createContainer();
+  const logger = options.logger ?? (await createLogger(config));
+  const container = options.container ?? createContainer({ logger });
 
   const app = Fastify({
-    logger: buildLoggerOptions(config),
+    loggerInstance: logger as FastifyBaseLogger,
     logController: new LogController({ requestIdLogLabel: 'requestId' }),
     // Request ids are resolved by our own function so untrusted header values are validated.
     requestIdHeader: false,
@@ -123,6 +126,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       corsOrigins: config.cors.origins.length,
       rateLimitEnabled: config.rateLimit.enabled,
       requestIdHeader: REQUEST_ID_HEADER,
+      logDirectory: config.logging.directory,
     },
     'Application configured',
   );

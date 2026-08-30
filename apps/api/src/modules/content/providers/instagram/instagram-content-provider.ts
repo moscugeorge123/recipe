@@ -1,6 +1,7 @@
 import type { SourceType } from '@prisma/client';
 
 import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
+import { logStep } from '../../../../infrastructure/logging/log-step.js';
 import type { AcquiredContent, AcquisitionContext, ContentProvider } from '../../domain/types.js';
 import type { ApifyClient } from './apify-client.js';
 
@@ -21,21 +22,23 @@ export class InstagramContentProvider implements ContentProvider {
   }
 
   async acquire(url: string, ctx: AcquisitionContext): Promise<AcquiredContent> {
-    void ctx;
-
-    let posts;
-    try {
-      posts = await this.apify.runInstagramScraper({ directUrls: [url], resultsLimit: 1 });
-    } catch (error: unknown) {
-      if (error instanceof ContentAcquisitionFailedError) {
-        throw error;
+    const posts = await (async () => {
+      const scrape = () => this.apify.runInstagramScraper({ directUrls: [url], resultsLimit: 1 });
+      try {
+        return ctx.log
+          ? await logStep(ctx.log, 'instagram.apify', { url }, scrape)
+          : await scrape();
+      } catch (error: unknown) {
+        if (error instanceof ContentAcquisitionFailedError) {
+          throw error;
+        }
+        const detail = error instanceof Error ? error.message : 'Unknown Apify error';
+        throw new ContentAcquisitionFailedError({
+          message: `Failed to acquire Instagram content: ${detail}`,
+          cause: error,
+        });
       }
-      const detail = error instanceof Error ? error.message : 'Unknown Apify error';
-      throw new ContentAcquisitionFailedError({
-        message: `Failed to acquire Instagram content: ${detail}`,
-        cause: error,
-      });
-    }
+    })();
 
     const post = posts[0];
     if (!post) {

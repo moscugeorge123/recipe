@@ -70,14 +70,11 @@ export default function ImportPreviewScreen() {
         url: draftUrl,
         ...(selectedThumbnailUrl ? { selectedThumbnailUrl } : {}),
       });
-      if (result.status === 'completed' && result.recipeId) {
-        router.replace(`/import/review/${result.recipeId}`);
-        return;
-      }
       router.replace({
         pathname: '/import/extract/[jobId]',
         params: {
           jobId: result.jobId,
+          url: draftUrl,
           ...(selectedThumbnailUrl
             ? { thumbnailUrl: selectedThumbnailUrl }
             : {}),

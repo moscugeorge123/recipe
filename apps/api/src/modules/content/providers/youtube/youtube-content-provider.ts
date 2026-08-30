@@ -1,6 +1,7 @@
 import type { SourceType } from '@prisma/client';
 
 import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
+import { logStep } from '../../../../infrastructure/logging/log-step.js';
 import type { AcquiredContent, AcquisitionContext, ContentProvider } from '../../domain/types.js';
 import type { VideoDownloadClient, YtDlpMetadata } from './ytdlp-client.js';
 
@@ -22,9 +23,12 @@ export class YouTubeContentProvider implements ContentProvider {
   }
 
   async acquire(url: string, ctx: AcquisitionContext): Promise<AcquiredContent> {
+    const log = ctx.log;
     let metadata: YtDlpMetadata;
     try {
-      metadata = await this.ytdlp.fetchMetadata(url);
+      metadata = log
+        ? await logStep(log, 'youtube.metadata', { url }, () => this.ytdlp.fetchMetadata(url))
+        : await this.ytdlp.fetchMetadata(url);
     } catch (error: unknown) {
       throw new ContentAcquisitionFailedError({
         message: error instanceof Error ? error.message : 'Failed to acquire YouTube metadata',
@@ -36,10 +40,13 @@ export class YouTubeContentProvider implements ContentProvider {
     let videoLocalPath: string | undefined;
     let downloadError: string | undefined;
     try {
-      const download = await this.ytdlp.download(url, destPath);
+      const download = log
+        ? await logStep(log, 'youtube.download', { url }, () => this.ytdlp.download(url, destPath))
+        : await this.ytdlp.download(url, destPath);
       videoLocalPath = download.filePath;
     } catch (error: unknown) {
       downloadError = error instanceof Error ? error.message : 'Failed to download YouTube video';
+      log?.warn({ step: 'youtube.download', url, err: error }, 'youtube.download failed');
     }
 
     const images = metadata.thumbnail

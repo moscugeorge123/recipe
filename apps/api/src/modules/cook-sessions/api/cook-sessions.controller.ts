@@ -54,7 +54,15 @@ export function createCookSessionsController(service: CookSessionService): {
 } {
   return {
     create: async (request, reply): Promise<void> => {
+      request.log.info(
+        { step: 'http.cook-session.create', recipeId: request.body.recipeId },
+        'http.cook-session.create started',
+      );
       const { session, resumed } = await service.create(request.body);
+      request.log.info(
+        { step: 'http.cook-session.create', sessionId: session.id, resumed, status: session.status },
+        'http.cook-session.create completed',
+      );
       reply.status(resumed ? 200 : 201).send(dataResponse(serializeCookSession(session)));
     },
 
@@ -69,11 +77,24 @@ export function createCookSessionsController(service: CookSessionService): {
     },
 
     patch: async (request, reply): Promise<void> => {
+      request.log.info(
+        {
+          step: 'http.cook-session.patch',
+          sessionId: request.params.id,
+          status: request.body.status,
+          currentStepIndex: request.body.currentStepIndex,
+        },
+        'http.cook-session.patch started',
+      );
       const session = await service.update(request.params.id, request.body);
       reply.send(dataResponse(serializeCookSession(session)));
     },
 
     delete: async (request, reply): Promise<void> => {
+      request.log.info(
+        { step: 'http.cook-session.delete', sessionId: request.params.id },
+        'http.cook-session.delete started',
+      );
       await service.delete(request.params.id);
       reply.send(dataResponse({ id: request.params.id, deleted: true as const }));
     },

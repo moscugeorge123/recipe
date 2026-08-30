@@ -5,6 +5,8 @@ import type { AppConfig } from '../../../config/env.js';
 import { createAIProviders } from '../../../infrastructure/ai/create-ai-providers.js';
 import { AIUsageTracker } from '../../../infrastructure/ai/usage/ai-usage-tracker.js';
 import { DEFAULT_PRICING } from '../../../infrastructure/ai/usage/pricing.js';
+import { silentLogger, type AppLogger } from '../../../infrastructure/logging/logger.js';
+import { logStep } from '../../../infrastructure/logging/log-step.js';
 import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
 import { ExtractionFailedError } from '../../../shared/errors/extraction-errors.js';
 import type { ContentAcquisitionService } from '../../content/application/content-acquisition.service.js';
@@ -67,16 +69,22 @@ export class StageOrchestrator {
     private readonly jobRepo: IExtractionJobRepository,
     private readonly stageRepo: IExtractionStageRepository,
     private readonly handlers: Partial<Record<PipelineStage, StageHandler>>,
+    private readonly log: AppLogger = silentLogger(),
   ) {
     this.progress = new ProgressCalculator(PIPELINE_STAGE_ORDER);
   }
 
   async runStages(ctx: PipelineContext): Promise<void> {
+    const log = this.log.child({ jobId: ctx.jobId });
     let previousStatus: JobStatus | undefined;
 
     for (const stage of PIPELINE_STAGE_ORDER) {
       const job = await this.jobRepo.findById(ctx.jobId);
       if (!job || job.status === 'CANCELLED' || job.status === 'COMPLETED' || job.status === 'FAILED') {
+        log.info(
+          { step: 'pipeline.stage', stage, status: job?.status ?? 'missing' },
+          'pipeline.execute stopped',
+        );
         return;
       }
 
@@ -84,6 +92,7 @@ export class StageOrchestrator {
 
       const existing = await this.stageRepo.findByJobAndStage(ctx.jobId, stage);
       if (existing?.status === 'COMPLETED') {
+        log.info({ step: 'pipeline.stage', stage, skipped: true }, 'pipeline.stage skipped');
         previousStatus = AFTER_STAGE_STATUS[stage] ?? STAGE_TO_JOB_STATUS[stage];
         continue;
       }
@@ -111,10 +120,15 @@ export class StageOrchestrator {
         ...(job.startedAt ? {} : { startedAt }),
       });
 
+      const stageStartedMs = Date.now();
+      log.info({ step: 'pipeline.stage', stage, status: runningStatus }, 'pipeline.stage started');
+
       try {
         const handler = this.handlers[stage];
         if (handler) {
           await handler(ctx);
+        } else {
+          log.info({ step: 'pipeline.stage', stage }, 'pipeline.stage has no handler');
         }
 
         const completedAt = new Date();
@@ -124,6 +138,11 @@ export class StageOrchestrator {
           completedAt,
           durationMs: completedAt.getTime() - startedAt.getTime(),
         });
+
+        log.info(
+          { step: 'pipeline.stage', stage, durationMs: Date.now() - stageStartedMs },
+          'pipeline.stage completed',
+        );
 
         const afterStatus = AFTER_STAGE_STATUS[stage];
         if (afterStatus === 'COMPLETED') {
@@ -163,6 +182,11 @@ export class StageOrchestrator {
           completedAt: new Date(),
         });
 
+        log.error(
+          { step: 'pipeline.stage', stage, durationMs: Date.now() - stageStartedMs, err: error },
+          'pipeline.stage failed',
+        );
+
         throw error;
       }
     }
@@ -200,6 +224,7 @@ export interface StageHandlerDeps {
   aiUsageRepo: IAIUsageRepository;
   storage: StorageProvider;
   config: AppConfig;
+  log?: AppLogger;
 }
 
 export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Record<PipelineStage, StageHandler>> {
@@ -207,6 +232,7 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
   const recipeNormalizer = new RecipeNormalizer();
   const confidenceCalculator = new ConfidenceCalculator();
   const recipeValidator = new RecipeValidator();
+  const log = deps.log ?? silentLogger();
 
   return {
     ACQUIRING_CONTENT: async (ctx): Promise<void> => {
@@ -256,6 +282,10 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
 
     PROCESSING_MEDIA: async (ctx): Promise<void> => {
       if (!deps.mediaProcessing || !ctx.acquiredContent?.videoLocalPath) {
+        log.info(
+          { step: 'media.process', jobId: ctx.jobId, skipped: true },
+          'media.process skipped',
+        );
         await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
         return;
       }
@@ -273,6 +303,10 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
     TRANSCRIBING: async (ctx): Promise<void> => {
       const audioAssets = await deps.mediaAssetRepo.findByJobAndType(ctx.jobId, 'AUDIO');
       if (audioAssets.length === 0) {
+        log.info(
+          { step: 'ai.transcribe', jobId: ctx.jobId, skipped: true },
+          'ai.transcribe skipped',
+        );
         await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
         return;
       }
@@ -283,6 +317,10 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
       }
       const existing = await deps.transcriptRepo.findByMediaAssetId(audioAsset.id);
       if (existing) {
+        log.info(
+          { step: 'ai.transcribe', jobId: ctx.jobId, skipped: true, reason: 'already transcribed' },
+          'ai.transcribe skipped',
+        );
         return;
       }
 
@@ -290,10 +328,16 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
       const ai = createAIProviders(deps.config, usageTracker, ctx.jobId);
 
       const audioBuffer = await deps.storage.download(audioAsset.storageKey);
-      ctx.transcript = await ai.transcription.transcribe({
-        data: audioBuffer,
-        mimeType: audioAsset.mimeType,
-      });
+      ctx.transcript = await logStep(
+        log.child({ jobId: ctx.jobId }),
+        'ai.transcribe',
+        { mimeType: audioAsset.mimeType, sizeBytes: audioBuffer.byteLength },
+        () =>
+          ai.transcription.transcribe({
+            data: audioBuffer,
+            mimeType: audioAsset.mimeType,
+          }),
+      );
 
         await deps.transcriptRepo.create({
         mediaAssetId: audioAsset.id,
@@ -307,6 +351,7 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
     ANALYZING_FRAMES: async (ctx): Promise<void> => {
       const frameAssets = await deps.mediaAssetRepo.findByJobAndType(ctx.jobId, 'FRAME');
       if (frameAssets.length === 0) {
+        log.info({ step: 'ai.vision', jobId: ctx.jobId, skipped: true }, 'ai.vision skipped');
         await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
         return;
       }
@@ -329,7 +374,12 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
         })),
       );
 
-      ctx.visionAnalyses = await ai.vision.analyzeImages(images);
+      ctx.visionAnalyses = await logStep(
+        log.child({ jobId: ctx.jobId }),
+        'ai.vision',
+        { frameCount: images.length },
+        () => ai.vision.analyzeImages(images),
+      );
 
       for (const [index, analysis] of ctx.visionAnalyses.entries()) {
         const asset = framesToAnalyze[index];
@@ -347,12 +397,14 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
     RUNNING_OCR: async (ctx): Promise<void> => {
       const frameAssets = await deps.mediaAssetRepo.findByJobAndType(ctx.jobId, 'FRAME');
       if (frameAssets.length === 0) {
+        log.info({ step: 'ai.ocr', jobId: ctx.jobId, skipped: true }, 'ai.ocr skipped');
         await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
         return;
       }
 
       const usageTracker = new AIUsageTracker(deps.aiUsageRepo, DEFAULT_PRICING);
       const ai = createAIProviders(deps.config, usageTracker, ctx.jobId);
+      const jobLog = log.child({ jobId: ctx.jobId });
 
       ctx.ocrResults = [];
       const maxOcrFrames = 3;
@@ -364,11 +416,13 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
 
         const imageBuffer = await deps.storage.download(asset.storageKey);
         try {
-          const ocrResult = await ai.ocr.analyzeImage({
-            data: imageBuffer,
-            mimeType: asset.mimeType,
-            timestampSeconds: index * deps.config.extraction.frameIntervalSeconds,
-          });
+          const ocrResult = await logStep(jobLog, 'ai.ocr', { frameIndex: index }, () =>
+            ai.ocr.analyzeImage({
+              data: imageBuffer,
+              mimeType: asset.mimeType,
+              timestampSeconds: index * deps.config.extraction.frameIntervalSeconds,
+            }),
+          );
 
           ctx.ocrResults.push(ocrResult);
           await deps.ocrRepo.create({
@@ -379,7 +433,8 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
             boundingBoxes: ocrResult.boundingBoxes,
             provider: ocrResult.provider,
           });
-        } catch {
+        } catch (error: unknown) {
+          jobLog.warn({ step: 'ai.ocr', frameIndex: index, err: error }, 'ai.ocr skipped frame');
           continue;
         }
       }
@@ -398,14 +453,15 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
         ...(ctx.visionAnalyses ? { visionAnalyses: ctx.visionAnalyses } : {}),
       });
 
-      if (ctx.evidence.length === 0) {
+      const evidence = ctx.evidence;
+      if (evidence.length === 0) {
         throw new ExtractionFailedError({
           message: 'No evidence available to extract a recipe',
         });
       }
 
       await deps.evidenceRepo.createMany(
-        ctx.evidence.map((item) => ({
+        evidence.map((item) => ({
           jobId: ctx.jobId,
           evidenceType: item.evidenceType,
           value: item.value,
@@ -423,11 +479,17 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
       const ai = createAIProviders(deps.config, usageTracker, ctx.jobId);
       const extractor = new RecipeExtractor(ai.llm);
 
-      const { recipe: extracted, promptVersion, rawExtraction } = await extractor.extract({
-        evidence: ctx.evidence,
-        outputLanguage: ctx.outputLanguage,
-        extractNutrition: options.extractNutrition,
-      });
+      const { recipe: extracted, promptVersion, rawExtraction } = await logStep(
+        log.child({ jobId: ctx.jobId }),
+        'ai.extract-recipe',
+        { evidenceCount: evidence.length, extractNutrition: options.extractNutrition },
+        () =>
+          extractor.extract({
+            evidence,
+            outputLanguage: ctx.outputLanguage,
+            extractNutrition: options.extractNutrition,
+          }),
+      );
 
       const normalized = recipeNormalizer.normalize(extracted, ctx.outputLanguage);
       const confidence = confidenceCalculator.calculate(normalized);

@@ -1,4 +1,6 @@
 import { JobNotFoundError } from '../../../shared/errors/extraction-errors.js';
+import { silentLogger, type AppLogger } from '../../../infrastructure/logging/logger.js';
+import { logStep } from '../../../infrastructure/logging/log-step.js';
 import type { IExtractionJobRepository } from '../../jobs/repository/extraction-job.repository.js';
 import type { IRecipeSourceRepository } from '../../recipes/repository/recipe-source.repository.js';
 import type { PipelineContext, StageOrchestrator } from './stage-orchestrator.js';
@@ -8,6 +10,7 @@ export class RecipeExtractionPipeline {
     private readonly jobRepo: IExtractionJobRepository,
     private readonly sourceRepo: IRecipeSourceRepository,
     private readonly orchestrator: StageOrchestrator,
+    private readonly log: AppLogger = silentLogger(),
   ) {}
 
   async execute(jobId: string): Promise<void> {
@@ -17,6 +20,10 @@ export class RecipeExtractionPipeline {
     }
 
     if (job.status === 'COMPLETED' || job.status === 'CANCELLED') {
+      this.log.info(
+        { step: 'pipeline.execute', jobId, status: job.status },
+        'pipeline.execute skipped',
+      );
       return;
     }
 
@@ -31,6 +38,11 @@ export class RecipeExtractionPipeline {
       outputLanguage: job.outputLanguage,
     };
 
-    await this.orchestrator.runStages(ctx);
+    await logStep(
+      this.log.child({ jobId }),
+      'pipeline.execute',
+      { sourceUrl: source.originalUrl, outputLanguage: job.outputLanguage, status: job.status },
+      () => this.orchestrator.runStages(ctx),
+    );
   }
 }

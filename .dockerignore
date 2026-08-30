@@ -27,6 +27,7 @@ apps/api/postman
 apps/api/coverage
 apps/api/dist
 apps/api/storage
+apps/api/logs
 
 *.md
 !apps/api/.env.example

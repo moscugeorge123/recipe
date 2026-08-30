@@ -34,16 +34,6 @@ export function mapJobToUiStage(
   return STAGE_MAP[key] ?? STAGE_MAP[status] ?? 0;
 }
 
-export function extractionHeadline(uiStage: number): string {
-  if (uiStage < 3) {
-    return 'Pulling the recipe out.';
-  }
-  if (uiStage < 5) {
-    return 'Putting it in order.';
-  }
-  return 'Your recipe is ready.';
-}
-
 export function isTerminalJobStatus(status: string): boolean {
   return TERMINAL.has(status);
 }

@@ -1,5 +1,4 @@
 import {
-  extractionHeadline,
   isFailedJobStatus,
   isTerminalJobStatus,
   mapJobToUiStage,
@@ -15,12 +14,6 @@ describe('extraction stage map', () => {
     expect(mapJobToUiStage('EXTRACTING_RECIPE', 'EXTRACTING_RECIPE')).toBe(4);
     expect(mapJobToUiStage('NORMALIZING_RECIPE', 'NORMALIZING_RECIPE')).toBe(5);
     expect(mapJobToUiStage('COMPLETED', 'VALIDATING_RECIPE')).toBe(5);
-  });
-
-  test('headlines follow the prototype copy', () => {
-    expect(extractionHeadline(0)).toBe('Pulling the recipe out.');
-    expect(extractionHeadline(3)).toBe('Putting it in order.');
-    expect(extractionHeadline(5)).toBe('Your recipe is ready.');
   });
 
   test('terminal and failed flags', () => {

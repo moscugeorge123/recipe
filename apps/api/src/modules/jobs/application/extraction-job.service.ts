@@ -1,5 +1,7 @@
 import type { ExtractionJob, JobStatus, Prisma } from '@prisma/client';
 
+import type { AppLogger } from '../../../infrastructure/logging/logger.js';
+import { silentLogger } from '../../../infrastructure/logging/logger.js';
 import { assertSafeUrl } from '../../../infrastructure/security/ssrf-guard.js';
 import type { QueueProvider } from '../../../infrastructure/queues/bullmq/queue-provider.js';
 import {
@@ -49,6 +51,7 @@ export class ExtractionJobService {
     private readonly sourceRepo: IRecipeSourceRepository,
     private readonly registry: ContentProviderRegistry,
     private readonly queue: QueueProvider,
+    private readonly log: AppLogger = silentLogger(),
   ) {}
 
   async createJob(input: CreateExtractionJobInput): Promise<CreateExtractionJobResult> {
@@ -77,6 +80,10 @@ export class ExtractionJobService {
     if (!input.forceRefresh) {
       const existing = await this.jobRepo.findLatestCompletedBySourceId(source.id);
       if (existing?.recipeId) {
+        this.log.info(
+          { step: 'http.extract.create', jobId: existing.id, url: input.url, deduplicated: true },
+          'http.extract.create completed',
+        );
         return {
           jobId: existing.id,
           status: 'completed',
@@ -93,6 +100,10 @@ export class ExtractionJobService {
     });
 
     await this.queue.enqueue(EXTRACTION_JOB_NAME, { jobId: job.id });
+    this.log.info(
+      { step: 'queue.enqueue', jobId: job.id, sourceType, url: input.url },
+      'queue.enqueue completed',
+    );
 
     return { jobId: job.id, status: 'queued' };
   }
@@ -135,9 +146,14 @@ export class ExtractionJobService {
       });
     }
 
-    return this.jobRepo.update(jobId, {
+    const updated = await this.jobRepo.update(jobId, {
       status: 'CANCELLED',
       completedAt: new Date(),
     });
+    this.log.info(
+      { step: 'http.extract.cancel', jobId, previousStatus: job.status },
+      'http.extract.cancel completed',
+    );
+    return updated;
   }
 }

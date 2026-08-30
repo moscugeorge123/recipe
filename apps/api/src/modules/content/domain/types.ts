@@ -21,10 +21,17 @@ export interface AcquiredContent {
   metadata: Record<string, unknown>;
 }
 
+export interface AcquireLogger {
+  info(obj: object, msg?: string): void;
+  warn(obj: object, msg?: string): void;
+  error(obj: object, msg?: string): void;
+}
+
 export interface AcquisitionContext {
   jobId: string;
   outputLanguage: string;
   tempDir: string;
+  log?: AcquireLogger;
 }
 
 export interface ContentProvider {

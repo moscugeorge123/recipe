@@ -73,6 +73,7 @@ come from the ECS task definition and secrets from Secrets Manager or SSM Parame
 | `SERVICE_NAME`          | `api`         | Included in every log line.                                                |
 | `SERVICE_VERSION`       | `0.1.0`       | Included in logs and in the OpenAPI document.                              |
 | `LOG_LEVEL`             | `info`        | `fatal` … `trace`, or `silent`.                                            |
+| `LOG_DIR`               | `./logs`      | Daily files `<service>.YYYY-MM-DD.log`. Empty string disables file logs.   |
 | `API_PREFIX`            | `/api/v1`     | Version prefix for application routes.                                     |
 | `ENABLE_DOCS`           | _not prod_    | Serves Swagger UI at `/docs`. Off by default in production.                |
 | `CORS_ORIGINS`          | _(empty)_     | Comma-separated allow-list. Never a wildcard.                              |
@@ -382,9 +383,24 @@ forwards to CloudWatch Logs and what Logs Insights can query without pre-process
 }
 ```
 
-Fastify performs the request/response logging itself, so the application adds no duplicate logging.
-Request ids are available everywhere via `request.id` and on `request.log`, so every line emitted
-during a request is correlated automatically.
+The same JSON is also appended to daily files under `LOG_DIR` (default `./logs`, git-ignored):
+
+```
+logs/api.2026-08-30.log
+logs/worker.2026-08-30.log
+```
+
+Set `SERVICE_NAME=worker` on the worker process so its file does not mix with the API. Set
+`LOG_DIR=` to disable files (stdout only). Tests never write files. Files older than 14 rotations
+are removed.
+
+Pipeline and worker steps log `started` then `completed`/`failed` with `durationMs` and a `step`
+field (`pipeline.stage`, `youtube.download`, `ai.transcribe`, `queue.job`, …). If a job hangs, the
+last `started` line without a matching `completed` is the step that stalled.
+
+Fastify performs the request/response logging itself. Request ids are available everywhere via
+`request.id` and on `request.log`, so every line emitted during a request is correlated automatically.
+The worker uses `jobId` the same way.
 
 **What is never logged:** request headers (they carry `Authorization` and `Cookie`), request bodies,
 and the client IP address. Pino redaction is configured as a second line of defence for

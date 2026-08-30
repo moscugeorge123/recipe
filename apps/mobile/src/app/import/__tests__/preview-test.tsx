@@ -116,6 +116,7 @@ describe('ImportPreviewScreen', () => {
       pathname: '/import/extract/[jobId]',
       params: {
         jobId: 'job-1',
+        url: 'https://example.com/fake-recipe',
         thumbnailUrl: 'https://example.com/fake-thumb-2.jpg',
       },
     });
@@ -163,5 +164,32 @@ describe('ImportPreviewScreen', () => {
         url: 'https://example.com/fake-recipe',
       });
     });
+  });
+
+  test('sends an instant-complete job through extract so Daisy can play', async () => {
+    fetchPreview.mockResolvedValue(fakePreview);
+    createJob.mockResolvedValue({
+      jobId: 'job-fast',
+      status: 'completed',
+      recipeId: 'rec-9',
+    });
+    const user = userEvent.setup();
+
+    await renderWithProviders(<ImportPreviewScreen />);
+    await user.press(
+      await screen.findByRole('button', { name: 'Turn into a recipe' }),
+    );
+
+    await waitFor(() => {
+      expect(router.replace).toHaveBeenCalledWith({
+        pathname: '/import/extract/[jobId]',
+        params: {
+          jobId: 'job-fast',
+          url: 'https://example.com/fake-recipe',
+          thumbnailUrl: 'https://example.com/fake-thumb.jpg',
+        },
+      });
+    });
+    expect(router.replace).not.toHaveBeenCalledWith('/import/review/rec-9');
   });
 });

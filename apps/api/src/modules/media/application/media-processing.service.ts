@@ -2,6 +2,9 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { AppConfig } from '../../../config/env.js';
+import type { AppLogger } from '../../../infrastructure/logging/logger.js';
+import { silentLogger } from '../../../infrastructure/logging/logger.js';
+import { logStep } from '../../../infrastructure/logging/log-step.js';
 import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
 import { MediaProcessingFailedError } from '../../../shared/errors/extraction-errors.js';
 import { deduplicateFrames } from '../domain/perceptual-hash.js';
@@ -28,10 +31,15 @@ export class MediaProcessingService {
     private readonly storage: StorageProvider,
     private readonly mediaAssetRepo: IMediaAssetRepository,
     private readonly config: AppConfig,
+    private readonly log: AppLogger = silentLogger(),
   ) {}
 
   async processVideo(input: ProcessVideoInput): Promise<ProcessVideoResult> {
-    const metadata = await this.processor.getMetadata(input.videoLocalPath);
+    const log = this.log.child({ jobId: input.jobId });
+
+    const metadata = await logStep(log, 'media.metadata', { path: input.videoLocalPath }, () =>
+      this.processor.getMetadata(input.videoLocalPath),
+    );
 
     if (metadata.durationSeconds > this.config.extraction.maxVideoDurationSeconds) {
       throw new MediaProcessingFailedError({
@@ -40,7 +48,9 @@ export class MediaProcessingService {
     }
 
     const audioPath = path.join(input.tempDir, 'audio.mp3');
-    await this.processor.extractAudio(input.videoLocalPath, audioPath);
+    await logStep(log, 'media.extract-audio', {}, () =>
+      this.processor.extractAudio(input.videoLocalPath, audioPath),
+    );
     const audioBuffer = await readFile(audioPath);
     const audioKey = `jobs/${input.jobId}/audio.mp3`;
     const audioStored = await this.storage.upload(audioKey, audioBuffer, {
@@ -57,11 +67,20 @@ export class MediaProcessingService {
     });
 
     const framesDir = path.join(input.tempDir, 'frames');
-    const rawFrames = await this.processor.extractFrames(input.videoLocalPath, {
-      outputDir: framesDir,
-      intervalSeconds: this.config.extraction.frameIntervalSeconds,
-      maxFrames: this.config.extraction.maxFrames,
-    });
+    const rawFrames = await logStep(
+      log,
+      'media.extract-frames',
+      {
+        intervalSeconds: this.config.extraction.frameIntervalSeconds,
+        maxFrames: this.config.extraction.maxFrames,
+      },
+      () =>
+        this.processor.extractFrames(input.videoLocalPath, {
+          outputDir: framesDir,
+          intervalSeconds: this.config.extraction.frameIntervalSeconds,
+          maxFrames: this.config.extraction.maxFrames,
+        }),
+    );
 
     const uniqueFrames = await deduplicateFrames(rawFrames);
     const frameStorageKeys: string[] = [];
@@ -86,7 +105,9 @@ export class MediaProcessingService {
     }
 
     const thumbnailPath = path.join(input.tempDir, 'thumbnail.jpg');
-    await this.processor.generateThumbnail(input.videoLocalPath, thumbnailPath);
+    await logStep(log, 'media.thumbnail', {}, () =>
+      this.processor.generateThumbnail(input.videoLocalPath, thumbnailPath),
+    );
     const thumbnailBuffer = await readFile(thumbnailPath);
     const thumbnailKey = `jobs/${input.jobId}/thumbnail.jpg`;
     const thumbStored = await this.storage.upload(thumbnailKey, thumbnailBuffer, {

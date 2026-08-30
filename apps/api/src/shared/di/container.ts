@@ -11,6 +11,9 @@ import { PrismaRecipeSourceRepository } from '../../infrastructure/database/repo
 import { PrismaTranscriptRepository } from '../../infrastructure/database/repositories/transcript.repository.js';
 import { PrismaVisionRepository } from '../../infrastructure/database/repositories/vision.repository.js';
 import { prisma } from '../../infrastructure/database/prisma/client.js';
+import pino from 'pino';
+
+import { buildLoggerOptions, silentLogger, type AppLogger } from '../../infrastructure/logging/logger.js';
 import {
   BullMQQueueProvider,
   InMemoryQueueProvider,
@@ -62,6 +65,7 @@ import type { IRecipeSourceRepository } from '../../modules/recipes/repository/r
  */
 export interface AppContainer {
   config: AppConfig;
+  log: AppLogger;
   prisma: typeof prisma;
   redis: ReturnType<typeof getRedisClient>;
   storage: StorageProvider;
@@ -93,6 +97,7 @@ export interface CreateContainerOptions {
   storage?: StorageProvider;
   queue?: QueueProvider;
   enableMediaProcessing?: boolean;
+  logger?: AppLogger;
 }
 
 export function createContentRegistry(appConfig: AppConfig): ContentProviderRegistry {
@@ -110,6 +115,9 @@ export function createContentRegistry(appConfig: AppConfig): ContentProviderRegi
 
 export function createContainer(options: CreateContainerOptions = {}): AppContainer {
   const appConfig = config;
+  const log =
+    options.logger ??
+    (appConfig.isTest ? silentLogger() : pino(buildLoggerOptions(appConfig)));
   const storage = options.storage ?? createStorageProvider(appConfig);
 
   const repositories = {
@@ -127,14 +135,15 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
   };
 
   const contentRegistry = createContentRegistry(appConfig);
-  const contentAcquisition = new ContentAcquisitionService(contentRegistry);
-  const linkPreviewService = createLinkPreviewService(appConfig);
+  const contentAcquisition = new ContentAcquisitionService(contentRegistry, log);
+  const linkPreviewService = createLinkPreviewService(appConfig, { log });
 
   const mediaProcessing = new MediaProcessingService(
     new FfmpegMediaProcessor(),
     storage,
     repositories.mediaAsset,
     appConfig,
+    log,
   );
 
   const stageHandlers = createDefaultStageHandlers({
@@ -151,18 +160,21 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     aiUsageRepo: repositories.aiUsage,
     storage,
     config: appConfig,
+    log,
   });
 
   const orchestrator = new StageOrchestrator(
     repositories.extractionJob,
     repositories.extractionStage,
     stageHandlers,
+    log,
   );
 
   const pipeline = new RecipeExtractionPipeline(
     repositories.extractionJob,
     repositories.recipeSource,
     orchestrator,
+    log,
   );
 
   let queueInstance: QueueProvider | undefined = options.queue;
@@ -178,6 +190,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
       appConfig.extraction.queueConcurrency,
       appConfig.extraction.backoffMs,
       appConfig.extraction.maxRetries,
+      log,
     );
 
     return queueInstance;
@@ -194,6 +207,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     repositories.recipeSource,
     contentRegistry,
     queue,
+    log,
   );
 
   const recipeService = new RecipeService(repositories.recipe, repositories.recipeSource);
@@ -201,6 +215,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
 
   return {
     config: appConfig,
+    log,
     prisma,
     redis: getRedisClient(),
     storage,

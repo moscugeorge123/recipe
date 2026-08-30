@@ -1,6 +1,5 @@
-import pino from 'pino';
-
 import { config, type AppConfig } from '../config/env.js';
+import { createLogger, type AppLogger } from '../infrastructure/logging/logger.js';
 import { isFfmpegAvailable } from '../modules/media/ffmpeg/ffmpeg-media-processor.js';
 import { isYtDlpAvailable } from '../modules/content/providers/youtube/ytdlp-client.js';
 import { createContainer } from '../shared/di/container.js';
@@ -11,25 +10,18 @@ import {
   registerExtractionProcessor,
 } from './processors/extraction.processor.js';
 
-export function createWorkerLogger(appConfig: AppConfig = config): pino.Logger {
-  return pino({
-    level: appConfig.logging.level,
-    base: {
-      service: appConfig.service.name,
-      version: appConfig.service.version,
-      env: appConfig.nodeEnv,
-    },
-  });
+export async function createWorkerLogger(appConfig: AppConfig = config): Promise<AppLogger> {
+  return createLogger(appConfig);
 }
 
-export async function startWorker(appConfig: AppConfig = config): Promise<pino.Logger> {
-  const log = createWorkerLogger(appConfig);
+export async function startWorker(appConfig: AppConfig = config): Promise<AppLogger> {
+  const log = await createWorkerLogger(appConfig);
 
   const redis = getRedisClient();
   await redis.connect();
   await redis.ping();
 
-  const container = createContainer();
+  const container = createContainer({ logger: log });
   await registerExtractionProcessor(container);
 
   const [ytdlpOk, ffmpegOk] = await Promise.all([
@@ -50,6 +42,7 @@ export async function startWorker(appConfig: AppConfig = config): Promise<pino.L
     {
       redisUrl: appConfig.redis.url.replace(/:[^:@/]+@/, ':***@'),
       queueConcurrency: appConfig.extraction.queueConcurrency,
+      logDirectory: appConfig.logging.directory,
     },
     'Worker started',
   );
@@ -57,7 +50,7 @@ export async function startWorker(appConfig: AppConfig = config): Promise<pino.L
   return log;
 }
 
-export function registerWorkerShutdown(log: pino.Logger, appConfig: AppConfig = config): void {
+export function registerWorkerShutdown(log: AppLogger, appConfig: AppConfig = config): void {
   let shuttingDown = false;
 
   const shutdown = async (signal: string): Promise<void> => {

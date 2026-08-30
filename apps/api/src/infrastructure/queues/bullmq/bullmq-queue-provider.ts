@@ -1,6 +1,8 @@
 import { Queue, Worker, type ConnectionOptions } from 'bullmq';
 import type { Redis } from 'ioredis';
 
+import type { AppLogger } from '../../logging/logger.js';
+import { silentLogger } from '../../logging/logger.js';
 import type { EnqueueOptions, JobHandler, JobPayload, QueueProvider } from './queue-provider.js';
 
 export class BullMQQueueProvider implements QueueProvider {
@@ -13,6 +15,7 @@ export class BullMQQueueProvider implements QueueProvider {
     private readonly concurrency: number,
     private readonly defaultBackoffMs: number,
     private readonly defaultAttempts: number,
+    private readonly log: AppLogger = silentLogger(),
   ) {
     this.queue = new Queue(queueName, { connection });
   }
@@ -39,13 +42,43 @@ export class BullMQQueueProvider implements QueueProvider {
         if (job.name !== name) {
           throw new Error(`Unexpected job name: ${job.name}`);
         }
-        await handler(job.data as JobPayload);
+        const payload = job.data as JobPayload;
+        const jobLog = this.log.child({
+          jobId: payload.jobId,
+          bullJobId: job.id,
+          attempt: job.attemptsMade + 1,
+        });
+        jobLog.info(
+          { step: 'queue.job', attemptsMade: job.attemptsMade, maxAttempts: job.opts.attempts },
+          'queue.job started',
+        );
+        const startedAt = Date.now();
+        try {
+          await handler(payload);
+          jobLog.info(
+            { step: 'queue.job', durationMs: Date.now() - startedAt },
+            'queue.job completed',
+          );
+        } catch (error: unknown) {
+          jobLog.error(
+            { step: 'queue.job', durationMs: Date.now() - startedAt, err: error },
+            'queue.job failed',
+          );
+          throw error;
+        }
       },
       {
         connection: this.connection,
         concurrency: this.concurrency,
       },
     );
+
+    this.worker.on('stalled', (jobId) => {
+      this.log.warn({ step: 'queue.job', bullJobId: jobId }, 'queue.job stalled');
+    });
+    this.worker.on('error', (error) => {
+      this.log.error({ step: 'queue.worker', err: error }, 'queue.worker error');
+    });
   }
 
   async close(): Promise<void> {

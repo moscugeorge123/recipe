@@ -42,6 +42,8 @@ COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/packag
 COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=node:node /app/apps/api/prisma ./apps/api/prisma
 
+RUN mkdir -p /app/apps/api/logs && chown node:node /app/apps/api/logs
+
 WORKDIR /app/apps/api
 USER node
 

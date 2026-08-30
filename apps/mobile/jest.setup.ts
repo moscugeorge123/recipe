@@ -21,16 +21,25 @@ jest.mock('react-native-reanimated', () => {
     ...Animated,
     useSharedValue: <T>(init: T) => ({ value: init }),
     useAnimatedStyle: (updater: () => unknown) => updater(),
+    useAnimatedProps: (updater: () => unknown) => updater(),
     withTiming: <T>(toValue: T) => toValue,
     withSpring: <T>(toValue: T) => toValue,
     withSequence: <T>(...values: T[]) => values[values.length - 1],
     withDelay: <T>(_delay: number, value: T) => value,
     withRepeat: <T>(value: T) => value,
-    interpolate: () => 0,
+    cancelAnimation: jest.fn(),
+    interpolate: (_value: number, _input: number[], output: number[]) =>
+      output[0] ?? 0,
+    Extrapolation: {
+      CLAMP: 'clamp',
+      EXTEND: 'extend',
+      IDENTITY: 'identity',
+    },
     Easing: {
       linear: (t: number) => t,
       ease: (t: number) => t,
       quad: (t: number) => t,
+      sin: (t: number) => t,
       out: (fn: (t: number) => number) => fn,
       inOut: (fn: (t: number) => number) => fn,
       bezier: () => (t: number) => t,
@@ -110,8 +119,11 @@ jest.mock('react-native-svg', () => {
     Path: create('Path'),
     Rect: create('Rect'),
     Circle: create('Circle'),
+    Ellipse: create('Ellipse'),
+    Line: create('Line'),
     G: create('G'),
     Polygon: create('Polygon'),
+    Text: create('Text'),
   };
 });
 

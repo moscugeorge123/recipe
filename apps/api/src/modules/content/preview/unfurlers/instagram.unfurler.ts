@@ -1,4 +1,7 @@
 import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
+import type { AppLogger } from '../../../../infrastructure/logging/logger.js';
+import { silentLogger } from '../../../../infrastructure/logging/logger.js';
+import { logStep } from '../../../../infrastructure/logging/log-step.js';
 import { fetchHtml, PREVIEW_HTTP_TIMEOUT_MS, type FetchLike } from '../fetch-html.js';
 import { mapInstagramOembed, parseInstagramOgTitle } from '../instagram-mapper.js';
 import { parseOpenGraph } from '../open-graph.js';
@@ -12,6 +15,7 @@ export interface InstagramUnfurlerOptions {
   appSecret?: string;
   fetchImpl?: FetchLike;
   timeoutMs?: number;
+  log?: AppLogger;
 }
 
 export class InstagramLinkUnfurler implements LinkUnfurler {
@@ -19,12 +23,14 @@ export class InstagramLinkUnfurler implements LinkUnfurler {
   private readonly appSecret: string | undefined;
   private readonly fetchImpl: FetchLike;
   private readonly timeoutMs: number;
+  private readonly log: AppLogger;
 
   constructor(options: InstagramUnfurlerOptions = {}) {
     this.appId = options.appId;
     this.appSecret = options.appSecret;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? PREVIEW_HTTP_TIMEOUT_MS;
+    this.log = options.log ?? silentLogger();
   }
 
   supports(url: string): boolean {
@@ -40,9 +46,11 @@ export class InstagramLinkUnfurler implements LinkUnfurler {
     const appId = this.appId;
     const appSecret = this.appSecret;
     if (appId && appSecret) {
-      return this.unfurlViaGraph(url, appId, appSecret);
+      return logStep(this.log, 'instagram.graph-oembed', { url }, () =>
+        this.unfurlViaGraph(url, appId, appSecret),
+      );
     }
-    return this.unfurlViaOpenGraph(url);
+    return logStep(this.log, 'instagram.open-graph', { url }, () => this.unfurlViaOpenGraph(url));
   }
 
   private async unfurlViaGraph(

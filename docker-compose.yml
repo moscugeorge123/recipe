@@ -61,6 +61,8 @@ services:
         condition: service_healthy
     restart: unless-stopped
     stop_grace_period: 15s
+    volumes:
+      - ./apps/api/logs:/app/apps/api/logs
 
   worker:
     build:
@@ -79,6 +81,8 @@ services:
       SENTRY_DSN: ${SENTRY_DSN:-}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
       STORAGE_LOCAL_PATH: /app/apps/api/storage
+    volumes:
+      - ./apps/api/logs:/app/apps/api/logs
     depends_on:
       postgres:
         condition: service_healthy
