@@ -113,7 +113,7 @@ function CompleteInner() {
   const catalog = useCatalog();
   const fetched = useRecipe(id);
   const recipe = fetched.data ?? catalog.get(id ?? '');
-  const { dark, tokens } = useCookTheme();
+  const { tokens } = useCookTheme();
   const reduced = useReducedMotion();
   const [startedAt] = useState(() => useCookStore.getState().startedAt);
   const { markCompleted, clearLocal } = useFinishCooking();
@@ -254,23 +254,43 @@ function CompleteInner() {
             <View
               className="h-[70px] w-[70px] items-center justify-center rounded-full"
               style={{
-                backgroundColor: dark ? colors.paprika400 : colors.paprika,
+                backgroundColor: colors.paprika,
               }}
             >
-              <Text className="text-[30px]" style={{ color: colors.espresso }}>
+              <Text className="text-[30px]" style={{ color: colors.onPrimary }}>
                 ✓
               </Text>
             </View>
           </View>
           <Text
             style={{
-              fontFamily: fonts.manrope800,
-              fontSize: 33,
-              lineHeight: 36,
+              fontFamily: fonts.bold,
+              fontSize: 28,
+              lineHeight: 40,
               color: tokens.text,
             }}
           >
             You cooked {recipe.title}.
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.bold,
+              fontSize: 64,
+              lineHeight: 70,
+              letterSpacing: -1,
+              color: tokens.text,
+            }}
+          >
+            {mins}
+          </Text>
+          <Text
+            style={{
+              fontFamily: fonts.medium,
+              fontSize: 14,
+              color: tokens.muted,
+            }}
+          >
+            minutes on the clock
           </Text>
           <View className="flex-row gap-2.5">
             {[
@@ -285,7 +305,7 @@ function CompleteInner() {
               >
                 <Text
                   style={{
-                    fontFamily: fonts.mono500,
+                    fontFamily: fonts.medium,
                     fontSize: 10,
                     color: tokens.muted,
                   }}
@@ -294,7 +314,7 @@ function CompleteInner() {
                 </Text>
                 <Text
                   style={{
-                    fontFamily: fonts.manrope700,
+                    fontFamily: fonts.semibold,
                     fontSize: 19,
                     color: tokens.text,
                     paddingTop: 8,
@@ -309,7 +329,7 @@ function CompleteInner() {
             <Text
               style={{
                 color: tokens.muted,
-                fontFamily: fonts.manrope600,
+                fontFamily: fonts.medium,
                 paddingBottom: 9,
               }}
             >
@@ -327,7 +347,7 @@ function CompleteInner() {
               style={{
                 backgroundColor: tokens.statBg,
                 color: tokens.text,
-                fontFamily: fonts.manrope500,
+                fontFamily: fonts.regular,
                 fontSize: 15,
               }}
             />
@@ -337,7 +357,6 @@ function CompleteInner() {
           <Button
             label="Done"
             size="lg"
-            className="h-[58px]"
             onPress={() => {
               persistNote();
               clearLocal();
@@ -351,12 +370,12 @@ function CompleteInner() {
               startCooking(recipe.id, { reset: true }).catch(() => undefined);
               router.replace(`/cook/${recipe.id}`);
             }}
-            className="h-[52px] min-h-11 items-center justify-center rounded-[16px]"
+            className="h-12 min-h-12 items-center justify-center rounded-cta"
             style={{ backgroundColor: tokens.ghostBg }}
           >
             <Text
               style={{
-                fontFamily: fonts.manrope700,
+                fontFamily: fonts.semibold,
                 color: tokens.ghostText,
               }}
             >

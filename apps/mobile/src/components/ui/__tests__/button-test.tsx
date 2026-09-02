@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { Text } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { CookShell } from '@/theme/cook-shell';
@@ -31,7 +32,7 @@ describe('Button', () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 
-  test('primary uses paprika fill and white label', async () => {
+  test('primary uses Rausch fill and white label', async () => {
     await render(<Button label="Start cooking" />);
 
     expect(screen.getByRole('button', { name: 'Start cooking' })).toHaveStyle({
@@ -42,25 +43,27 @@ describe('Button', () => {
     });
   });
 
-  test('inverse uses espresso fill and steamed-milk label', async () => {
+  test('inverse uses canvas fill, ink outline, and ink label', async () => {
     await render(<Button label="Show results" variant="inverse" />);
 
     expect(screen.getByRole('button', { name: 'Show results' })).toHaveStyle({
-      backgroundColor: colors.espresso,
+      backgroundColor: colors.cream,
+      borderColor: colors.espresso,
     });
     expect(screen.getByText('Show results')).toHaveStyle({
-      color: colors.steamedMilk,
+      color: colors.espresso,
     });
   });
 
-  test('secondary uses basil-600 fill and white label', async () => {
+  test('secondary uses canvas fill, ink outline, and ink label', async () => {
     await render(<Button label="Clear the list" variant="secondary" />);
 
     expect(screen.getByRole('button', { name: 'Clear the list' })).toHaveStyle({
-      backgroundColor: colors.basil600,
+      backgroundColor: colors.cream,
+      borderColor: colors.espresso,
     });
     expect(screen.getByText('Clear the list')).toHaveStyle({
-      color: colors.onPrimary,
+      color: colors.espresso,
     });
   });
 
@@ -73,23 +76,23 @@ describe('Button', () => {
     expect(screen.queryByText('Back')).toBeNull();
   });
 
-  test('ghost uses paprika-600 label on a transparent fill', async () => {
+  test('ghost uses ink label on a transparent fill', async () => {
     await render(<Button label="Skip" variant="ghost" />);
 
     expect(screen.getByText('Skip')).toHaveStyle({
-      color: colors.paprikaPressed,
+      color: colors.espresso,
     });
   });
 
-  test('disabled keeps 50% opacity', async () => {
+  test('disabled primary uses the Rausch disabled fill', async () => {
     await render(<Button label="Save" disabled />);
 
     expect(screen.getByRole('button', { name: 'Save' })).toHaveStyle({
-      opacity: 0.5,
+      backgroundColor: colors.paprikaSoft,
     });
   });
 
-  test('primary in the cook-dark shell uses paprika-400 and espresso label', async () => {
+  test('primary in the cook-dark shell stays Rausch with white label', async () => {
     await render(
       <CookShell theme="dark">
         <Button label="Next step" />
@@ -97,10 +100,10 @@ describe('Button', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Next step' })).toHaveStyle({
-      backgroundColor: colors.paprika400,
+      backgroundColor: colors.paprika,
     });
     expect(screen.getByText('Next step')).toHaveStyle({
-      color: colors.espresso,
+      color: colors.onPrimary,
     });
   });
 });

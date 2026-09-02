@@ -96,7 +96,7 @@ export function CaptureSheet() {
         <SourceGrid sources={SUPPORTED_CAPTURE_METHODS} onSelect={go} />
       </View>
       {clipboard.kind !== 'hidden' ? (
-        <View className="mt-3 flex-row items-center gap-[11px] rounded-[17px] border border-crust bg-peach p-[15px]">
+        <View className="mt-3 flex-row items-center gap-[11px] rounded-card border border-crust bg-bg p-4">
           <SourceIcon source={clipboard.source} size={28} />
           <View className="min-w-0 flex-1">
             <Text className="text-[13px]" tone="muted">
@@ -106,7 +106,7 @@ export function CaptureSheet() {
               numberOfLines={1}
               className="text-[11.5px]"
               tone="muted"
-              style={{ fontFamily: fonts.mono500 }}
+              style={{ fontFamily: fonts.medium }}
             >
               {clipboard.preview}
             </Text>
@@ -115,13 +115,12 @@ export function CaptureSheet() {
             accessibilityRole="button"
             accessibilityLabel="Use clipboard"
             onPress={useClipboard}
-            className="h-[38px] min-h-11 justify-center rounded-[12px] px-[15px]"
-            style={{ backgroundColor: colors.espresso }}
+            className="h-12 min-h-12 justify-center rounded-cta px-5"
+            style={{ backgroundColor: colors.paprika }}
           >
             <Text
-              className="text-[12.5px]"
-              tone="inverse"
-              style={{ fontFamily: fonts.manrope700 }}
+              className="text-sm"
+              style={{ fontFamily: fonts.medium, color: colors.onPrimary }}
             >
               Use
             </Text>

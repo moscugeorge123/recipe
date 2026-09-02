@@ -15,6 +15,7 @@ import { Text } from '@/components/ui/text';
 import { duration, reanimatedEasing, useReducedMotion } from '@/lib/motion';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { useUiStore } from '@/stores/ui-store';
+import { colors } from '@/theme/tokens';
 
 const TASTE = [
   'Italian',
@@ -76,7 +77,7 @@ function ProgressDot({ index, step }: { index: number; step: number }) {
       className="h-[7px] rounded-full"
       style={[
         style,
-        { backgroundColor: index <= step ? '#E25A3C' : '#E0D5C5' },
+        { backgroundColor: index <= step ? colors.paprika : colors.crust },
       ]}
     />
   );

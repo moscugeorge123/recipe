@@ -217,7 +217,7 @@ export default function KitchenScreen() {
                         />
                         <View className="flex-1">
                           <Text
-                            style={{ fontFamily: fonts.manrope700 }}
+                            style={{ fontFamily: fonts.semibold }}
                             className="text-[15.5px]"
                           >
                             {recipe.title}
@@ -265,7 +265,7 @@ export default function KitchenScreen() {
                   />
                   <View className="flex-1">
                     <Text
-                      style={{ fontFamily: fonts.manrope700 }}
+                      style={{ fontFamily: fonts.semibold }}
                       className="text-[15.5px]"
                     >
                       {recipe.title}
@@ -303,7 +303,7 @@ export default function KitchenScreen() {
                     glyph: '›',
                   })
                 }
-                className="w-[47%] rounded-[18px] border border-crust bg-bg-elevated p-[15px]"
+                className="w-[47%] rounded-card border border-crust bg-bg p-4"
               >
                 <View className="flex-row gap-1 pb-3">
                   {collection.recipeIds.slice(0, 3).map((id) => {
@@ -311,9 +311,9 @@ export default function KitchenScreen() {
                     return (
                       <View key={id} className="flex-1">
                         <PhotoStandIn
-                          colors={recipe?.placeholder ?? ['#E6D9C4', '#DCCBB0']}
+                          colors={recipe?.placeholder ?? ['#f7f7f7', '#f2f2f2']}
                           height={44}
-                          radius={9}
+                          radius={14}
                           uri={recipe?.thumbnailUrl}
                         />
                       </View>
@@ -321,7 +321,7 @@ export default function KitchenScreen() {
                   })}
                 </View>
                 <Text
-                  style={{ fontFamily: fonts.manrope700 }}
+                  style={{ fontFamily: fonts.semibold }}
                   className="text-[15px]"
                 >
                   {collection.name}
@@ -340,7 +340,7 @@ export default function KitchenScreen() {
                   glyph: '+',
                 });
               }}
-              className="min-h-[120px] w-[47%] items-center justify-center rounded-[18px] border-[1.5px] border-dashed border-crust"
+              className="min-h-[120px] w-[47%] items-center justify-center rounded-card border border-dashed border-crust"
             >
               <Text className="text-center text-[14px]" tone="muted">
                 + New{'\n'}collection
@@ -352,7 +352,7 @@ export default function KitchenScreen() {
         {empty ? (
           <View className="items-center px-5 pt-[30px]">
             <Text
-              style={{ fontFamily: fonts.manrope700 }}
+              style={{ fontFamily: fonts.semibold }}
               className="text-[19px]"
             >
               {empty.title}

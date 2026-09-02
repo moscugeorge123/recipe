@@ -16,7 +16,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { duration, reanimatedEasing, useReducedMotion } from '@/lib/motion';
-import { colors } from '@/theme/tokens';
+import { colors, radii, shadows } from '@/theme/tokens';
 
 type SheetProps = {
   visible: boolean;
@@ -142,11 +142,16 @@ export function Sheet({
         <Animated.View
           accessibilityViewIsModal
           accessibilityLabel={accessibilityLabel}
-          className="max-h-[80%] rounded-t-sheet bg-bg px-5 pt-[22px]"
+          className="max-h-[80%] rounded-t-sheet bg-bg px-6 pt-6"
           onLayout={onSheetLayout}
           style={[
             sheetStyle,
-            { paddingBottom: Math.max(insets.bottom, 34) },
+            shadows.float,
+            {
+              paddingBottom: Math.max(insets.bottom, 34),
+              borderTopLeftRadius: radii.card,
+              borderTopRightRadius: radii.card,
+            },
           ]}
         >
           {children}

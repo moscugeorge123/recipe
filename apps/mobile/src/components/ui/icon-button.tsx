@@ -20,7 +20,7 @@ export function IconButton({
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
-      className={`h-11 min-h-11 w-11 min-w-11 items-center justify-center rounded-icon border border-crust bg-bg-elevated ${
+      className={`h-10 min-h-10 w-10 min-w-10 items-center justify-center rounded-full border border-crust bg-bg ${
         disabled ? 'opacity-50' : ''
       } ${className ?? ''}`}
       {...props}

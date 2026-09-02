@@ -7,7 +7,7 @@ import {
   useActiveCook,
   useFinishCooking,
 } from '@/features/cook-sessions/hooks';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, radii, shadows } from '@/theme/tokens';
 
 export function CookingNowCard() {
   const cooking = useActiveCook();
@@ -38,24 +38,28 @@ export function CookingNowCard() {
 
   return (
     <View
-      className="mx-5 mb-[26px] rounded-[20px] p-4"
-      style={{ backgroundColor: colors.espresso }}
+      className="mx-5 mb-[26px] p-6"
+      style={{
+        backgroundColor: colors.cream,
+        borderRadius: radii.card,
+        borderWidth: 1,
+        borderColor: colors.crust,
+        ...shadows.float,
+      }}
     >
       <Text
-        className="text-[10.5px] tracking-[0.14em]"
-        tone="accent"
-        style={{ fontFamily: fonts.mono500 }}
+        className="text-xs leading-4"
+        style={{ fontFamily: fonts.bold, color: colors.olive }}
       >
         COOKING NOW
       </Text>
       <Text
-        tone="inverse"
-        className="pt-2 text-[18px]"
-        style={{ fontFamily: fonts.manrope800 }}
+        className="pt-2 text-[21px] leading-[30px]"
+        style={{ fontFamily: fonts.bold, color: colors.espresso }}
       >
         {cooking.title}
       </Text>
-      <Text className="pt-1 text-[12.5px]" style={{ color: '#B5A898' }}>
+      <Text className="pt-1 text-sm" style={{ color: colors.olive }}>
         Step {cooking.stepIndex + 1} of {cooking.stepCount}
       </Text>
       <View className="flex-row gap-1 py-3">
@@ -65,9 +69,7 @@ export function CookingNowCard() {
             className="h-[5px] flex-1 rounded-full"
             style={{
               backgroundColor:
-                index <= cooking.stepIndex
-                  ? colors.paprika
-                  : 'rgba(255,255,255,0.16)',
+                index <= cooking.stepIndex ? colors.paprika : colors.steam,
             }}
           />
         ))}
@@ -81,10 +83,9 @@ export function CookingNowCard() {
         />
         <Button
           label="Stop"
-          variant="ghost"
+          variant="secondary"
           size="md"
           className="flex-1"
-          style={{ borderWidth: 1, borderColor: colors.steamedMilk }}
           onPress={confirmStop}
         />
       </View>

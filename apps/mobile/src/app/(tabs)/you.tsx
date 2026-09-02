@@ -116,9 +116,9 @@ export default function YouScreen() {
           ].map((stat) => (
             <View
               key={stat.k}
-              className="flex-1 rounded-[17px] border border-crust bg-bg-elevated px-[13px] py-[15px]"
+              className="flex-1 rounded-card border border-crust bg-bg px-[13px] py-[15px]"
             >
-              <Text variant="display" className="text-[25px]">
+              <Text variant="title" className="text-[22px]">
                 {stat.v}
               </Text>
               <Text variant="caption" className="pt-2 text-[11.5px]">

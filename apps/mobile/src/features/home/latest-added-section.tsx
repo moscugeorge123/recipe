@@ -25,7 +25,7 @@ export function LatestAddedSection() {
     return (
       <View className="px-5 pb-[26px]">
         <SectionLabel className="pb-3">LATEST ADDED</SectionLabel>
-        <View className="rounded-[20px] border border-crust bg-linen p-[18px]">
+        <View className="rounded-card border border-crust bg-peach p-6">
           <Text variant="caption" className="pb-3">
             We couldn’t load your latest recipes. Check your connection and try
             again.
@@ -47,7 +47,7 @@ export function LatestAddedSection() {
     return (
       <View className="px-5 pb-[26px]">
         <SectionLabel className="pb-3">LATEST ADDED</SectionLabel>
-        <View className="rounded-[20px] border border-crust bg-linen p-[18px]">
+        <View className="rounded-card border border-crust bg-peach p-6">
           <Text variant="caption" className="pb-3">
             You haven’t added any recipes yet. Capture a link, photo or note to
             get started.

@@ -4,7 +4,7 @@ import { Text, toneColors } from '@/components/ui/text';
 import { colors } from '@/theme/tokens';
 
 describe('Text', () => {
-  test('default body uses espresso', async () => {
+  test('default body uses ink', async () => {
     await render(<Text>Evening</Text>);
 
     expect(screen.getByText('Evening')).toHaveStyle({
@@ -12,7 +12,7 @@ describe('Text', () => {
     });
   });
 
-  test('inverse tone uses steamed milk even on the default variant', async () => {
+  test('inverse tone uses on-dark even on the default variant', async () => {
     await render(<Text tone="inverse">Resume</Text>);
 
     expect(screen.getByText('Resume')).toHaveStyle({
@@ -20,11 +20,11 @@ describe('Text', () => {
     });
   });
 
-  test('kicker defaults to paprika-600', async () => {
+  test('kicker defaults to muted', async () => {
     await render(<Text variant="kicker">MISE</Text>);
 
     expect(screen.getByText('MISE')).toHaveStyle({
-      color: colors.paprikaPressed,
+      color: colors.olive,
     });
   });
 

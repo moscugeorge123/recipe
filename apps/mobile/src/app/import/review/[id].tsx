@@ -52,7 +52,7 @@ export default function ReviewScreen() {
             {recipe.steps.length} steps
           </Text>
         </View>
-        <View className="overflow-hidden rounded-[22px] border border-crust bg-bg-elevated">
+        <View className="overflow-hidden rounded-card border border-crust bg-bg">
           <PhotoStandIn
             colors={recipe.placeholder}
             height={170}
@@ -94,7 +94,7 @@ export default function ReviewScreen() {
                     {meta.k}
                   </Text>
                   <Text
-                    style={{ fontFamily: fonts.manrope700 }}
+                    style={{ fontFamily: fonts.semibold }}
                     className="pt-1 text-[14.5px]"
                   >
                     {meta.v}
@@ -108,7 +108,7 @@ export default function ReviewScreen() {
                 className="flex-row gap-3 border-t border-crust py-3"
               >
                 <Text
-                  style={{ fontFamily: fonts.manrope700 }}
+                  style={{ fontFamily: fonts.semibold }}
                   className="w-[70px]"
                 >
                   {formatQty(ing.quantity, ing.unit)}

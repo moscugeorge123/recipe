@@ -3,19 +3,19 @@ import type { ReactNode } from 'react';
 import { useEffect } from 'react';
 import { Pressable, View } from 'react-native';
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
-    CaptureTomato,
-    ExploreFoodIcon,
-    HomeFoodIcon,
-    KitchenFoodIcon,
-    YouFoodIcon,
+  CaptureTomato,
+  ExploreFoodIcon,
+  HomeFoodIcon,
+  KitchenFoodIcon,
+  YouFoodIcon,
 } from '@/components/icons/food-tab-icons';
 import { Text } from '@/components/ui/text';
 import { hapticLight } from '@/lib/haptics';
@@ -25,15 +25,16 @@ import { useUiStore } from '@/stores/ui-store';
 import { colors, fonts } from '@/theme/tokens';
 
 const ICON_SIZE = 28;
+const ORB_SIZE = 48;
 
 function TabLabel({ label, active }: { label: string; active: boolean }) {
   return (
     <Text
       style={{
-        fontFamily: active ? fonts.mono700 : fonts.mono600,
-        fontSize: 10.5,
-        letterSpacing: 0.2,
-        color: active ? colors.espresso : colors.sage,
+        fontFamily: fonts.semibold,
+        fontSize: 12,
+        lineHeight: 16,
+        color: active ? colors.espresso : colors.olive,
       }}
     >
       {label}
@@ -78,10 +79,7 @@ function AnimatedTabIcon({
   return (
     <Animated.View
       className="h-11 w-11 items-center justify-center rounded-full"
-      style={[
-        { backgroundColor: active ? colors.paprikaSoft : 'transparent' },
-        style,
-      ]}
+      style={style}
     >
       {children}
       {badge ? (
@@ -131,7 +129,7 @@ export function MiseTabBar() {
 
   return (
     <View
-      className="bg-bg/92 flex-row items-center border-t border-crust px-2.5 pt-1.5"
+      className="flex-row items-center border-t border-crust bg-bg px-2.5 pt-1.5"
       style={{ paddingBottom: Math.max(insets.bottom, 12) }}
     >
       <Pressable
@@ -139,7 +137,7 @@ export function MiseTabBar() {
         accessibilityLabel="Home"
         accessibilityState={{ selected: home }}
         onPress={() => go('/')}
-        className="h-[62px] min-h-11 flex-1 items-center justify-center gap-0.5"
+        className="h-[62px] min-h-12 flex-1 items-center justify-center gap-0.5"
       >
         <AnimatedTabIcon active={home}>
           <HomeFoodIcon size={ICON_SIZE} />
@@ -152,7 +150,7 @@ export function MiseTabBar() {
         accessibilityLabel="Explore"
         accessibilityState={{ selected: explore }}
         onPress={() => go('/explore')}
-        className="h-[62px] min-h-11 flex-1 items-center justify-center gap-0.5"
+        className="h-[62px] min-h-12 flex-1 items-center justify-center gap-0.5"
       >
         <AnimatedTabIcon active={explore}>
           <ExploreFoodIcon size={ICON_SIZE} />
@@ -172,10 +170,13 @@ export function MiseTabBar() {
             openCapture();
           }
         }}
-        className="h-[62px] min-h-11 flex-1 items-center justify-center"
+        className="h-[62px] min-h-12 flex-1 items-center justify-center"
       >
-        <View className="h-11 w-11 items-center justify-center">
-          <CaptureTomato size={40} />
+        <View
+          className="items-center justify-center"
+          style={{ height: ORB_SIZE, width: ORB_SIZE }}
+        >
+          <CaptureTomato size={ORB_SIZE} />
           <Animated.View
             className="absolute items-center justify-center"
             style={plusStyle}
@@ -191,7 +192,7 @@ export function MiseTabBar() {
         accessibilityLabel="Kitchen"
         accessibilityState={{ selected: kitchen }}
         onPress={() => go('/kitchen')}
-        className="h-[62px] min-h-11 flex-1 items-center justify-center gap-0.5"
+        className="h-[62px] min-h-12 flex-1 items-center justify-center gap-0.5"
       >
         <AnimatedTabIcon active={kitchen} badge={inboxCount > 0}>
           <KitchenFoodIcon size={ICON_SIZE} />
@@ -204,7 +205,7 @@ export function MiseTabBar() {
         accessibilityLabel="You"
         accessibilityState={{ selected: you }}
         onPress={() => go('/you')}
-        className="h-[62px] min-h-11 flex-1 items-center justify-center gap-0.5"
+        className="h-[62px] min-h-12 flex-1 items-center justify-center gap-0.5"
       >
         <AnimatedTabIcon active={you}>
           <YouFoodIcon size={ICON_SIZE} />

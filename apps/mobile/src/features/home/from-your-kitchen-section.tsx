@@ -15,7 +15,7 @@ export function FromYourKitchenSection() {
     .slice(0, 3);
 
   return (
-    <View className="mx-5 rounded-[20px] border border-crust bg-linen p-[18px]">
+    <View className="mx-5 rounded-card border border-crust bg-peach p-6">
       <SectionLabel>FROM YOUR KITCHEN</SectionLabel>
       <Text variant="caption" className="py-2">
         You marked chickpeas, spinach and lemon as in stock.
@@ -42,7 +42,7 @@ export function FromYourKitchenSection() {
             >
               <Text
                 style={{
-                  fontFamily: fonts.mono700,
+                  fontFamily: fonts.bold,
                   fontSize: 12.5,
                   color:
                     row.gap === 'everything in stock'
@@ -56,7 +56,7 @@ export function FromYourKitchenSection() {
             <View className="flex-1">
               <Text
                 className="text-[15px]"
-                style={{ fontFamily: fonts.manrope700 }}
+                style={{ fontFamily: fonts.semibold }}
               >
                 {row.recipe.title}
               </Text>

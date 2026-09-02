@@ -43,6 +43,7 @@ export default function CookIntroScreen() {
   }
 
   const plan = planRecipe(recipe);
+  const tokens = getCookTokens(theme);
 
   return (
     <CookShell theme={theme}>
@@ -60,15 +61,13 @@ export default function CookIntroScreen() {
           onPress={() => router.back()}
           className="h-11 justify-center"
         >
-          <Text style={{ color: theme === 'dark' ? '#B5A898' : '#6B7A62' }}>
-            Exit
-          </Text>
+          <Text style={{ color: tokens.muted }}>Exit</Text>
         </Pressable>
         <Text
           style={{
-            fontFamily: fonts.mono500,
-            letterSpacing: 2,
-            color: theme === 'dark' ? '#F6D56A' : '#C4472C',
+            fontFamily: fonts.bold,
+            fontSize: 12,
+            color: tokens.kicker,
             paddingTop: 12,
           }}
         >
@@ -76,9 +75,10 @@ export default function CookIntroScreen() {
         </Text>
         <Text
           style={{
-            fontFamily: fonts.manrope800,
-            fontSize: 32,
-            color: theme === 'dark' ? '#F5EDE4' : '#2A2118',
+            fontFamily: fonts.bold,
+            fontSize: 28,
+            lineHeight: 40,
+            color: tokens.text,
             paddingTop: 12,
           }}
         >
@@ -89,9 +89,9 @@ export default function CookIntroScreen() {
             <View key={stage.name}>
               <Text
                 style={{
-                  fontFamily: fonts.mono700,
-                  letterSpacing: 1.5,
-                  color: theme === 'dark' ? '#F6D56A' : '#C4472C',
+                  fontFamily: fonts.bold,
+                  fontSize: 12,
+                  color: tokens.kicker,
                 }}
               >
                 {stage.name} · {stage.mins} MIN
@@ -100,10 +100,11 @@ export default function CookIntroScreen() {
                 <Text
                   key={row.label}
                   style={{
-                    color: theme === 'dark' ? '#E3D9CC' : '#4A3D32',
+                    color: tokens.rowText,
                     paddingTop: 8,
-                    fontSize: 15.5,
-                    fontFamily: fonts.manrope500,
+                    fontSize: 16,
+                    lineHeight: 24,
+                    fontFamily: fonts.regular,
                   }}
                 >
                   {row.label}
@@ -116,7 +117,6 @@ export default function CookIntroScreen() {
           <Button
             label="I'm ready — step 1"
             size="lg"
-            className="h-[60px]"
             onPress={() => router.push(`/cook/${recipe.id}/step`)}
           />
         </View>

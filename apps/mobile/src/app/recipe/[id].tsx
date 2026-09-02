@@ -54,7 +54,7 @@ function NeedRow({
           className="h-[26px] w-[26px] items-center justify-center rounded-[9px] border border-crust"
           style={[
             style,
-            { backgroundColor: checked ? colors.basil : colors.butter },
+            { backgroundColor: checked ? colors.espresso : colors.butter },
           ]}
         >
           {checked ? <Text tone="inverse">✓</Text> : null}
@@ -63,7 +63,7 @@ function NeedRow({
       <Text
         style={{
           minWidth: 70,
-          fontFamily: fonts.manrope700,
+          fontFamily: fonts.semibold,
           color: checked ? colors.olive : colors.espresso,
         }}
       >
@@ -158,7 +158,7 @@ export default function RecipeDetailScreen() {
               accessibilityRole="button"
               accessibilityLabel="Back"
               onPress={() => router.back()}
-              className="bg-white/86 h-11 w-11 items-center justify-center rounded-[14px]"
+              className="bg-white/86 h-10 w-10 items-center justify-center rounded-full border border-crust"
             >
               <Text className="text-[22px]">‹</Text>
             </Pressable>
@@ -181,11 +181,9 @@ export default function RecipeDetailScreen() {
                 glyph: saved ? '·' : '♥',
               });
             }}
-            className="absolute right-4 top-12 h-11 w-11 items-center justify-center rounded-[14px]"
+            className="absolute right-4 top-12 h-8 w-8 items-center justify-center rounded-full"
             style={{
-              backgroundColor: saved
-                ? colors.paprika
-                : 'rgba(255,255,255,0.86)',
+              backgroundColor: saved ? colors.paprika : colors.linen,
             }}
           >
             <Animated.View style={heart.style}>
@@ -208,8 +206,8 @@ export default function RecipeDetailScreen() {
           </Text>
 
           {status ? (
-            <View className="mt-4 rounded-[16px] bg-[#FFF8E1] p-4">
-              <Text variant="kicker" style={{ color: '#7A5B0C' }}>
+            <View className="mt-4 rounded-card border border-crust bg-peach p-4">
+              <Text variant="kicker">
                 {status === 'needs_review' ? 'NEEDS REVIEW' : 'READY TO COOK'}
               </Text>
               <Text variant="caption" className="pt-2">
@@ -236,7 +234,7 @@ export default function RecipeDetailScreen() {
           <Button
             label="Start cooking"
             size="lg"
-            className="mt-5 h-[58px]"
+            className="mt-5"
             onPress={() => {
               if (status) {
                 confirmReviewed(recipe.id);
@@ -296,7 +294,7 @@ export default function RecipeDetailScreen() {
               <Animated.View style={servingsPop.style}>
                 <Text
                   className="min-w-[34px] text-center text-[17px]"
-                  style={{ fontFamily: fonts.manrope700 }}
+                  style={{ fontFamily: fonts.semibold }}
                 >
                   {servings}
                 </Text>

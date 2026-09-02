@@ -6,6 +6,7 @@ import { PhotoStandIn } from '@/components/ui/photo-stand-in';
 import { PressScale } from '@/components/ui/press-scale';
 import { Text } from '@/components/ui/text';
 import type { RecipeView } from '@/features/recipes/types';
+import { colors, fonts, radii, shadows } from '@/theme/tokens';
 
 type RecipeCardProps = {
   recipe: RecipeView;
@@ -30,34 +31,46 @@ export function RecipeCard({
       style={width ? { width } : undefined}
     >
       <View>
-        <PhotoStandIn
-          colors={recipe.placeholder}
-          height={photoHeight}
-          radius={16}
-          uri={recipe.thumbnailUrl}
-          label="photo"
-        >
-          {badge ? (
-            <View
-              className="absolute left-2 top-2 h-6 justify-center rounded-lg px-2"
-              style={{ backgroundColor: 'rgba(42, 33, 24, 0.8)' }}
-            >
-              <Text className="text-[9.5px] tracking-[0.06em]" tone="inverse">
-                {badge}
-              </Text>
-            </View>
-          ) : null}
-        </PhotoStandIn>
+        <View style={shadows.float}>
+          <PhotoStandIn
+            colors={recipe.placeholder}
+            height={photoHeight}
+            radius={radii.card}
+            uri={recipe.thumbnailUrl}
+            label="photo"
+          >
+            {badge ? (
+              <View
+                className="absolute left-2 top-2 h-6 justify-center px-2.5"
+                style={{
+                  backgroundColor: colors.cream,
+                  borderRadius: radii.pill,
+                  ...shadows.float,
+                }}
+              >
+                <Text
+                  className="text-[11px] leading-[13px]"
+                  style={{
+                    fontFamily: fonts.semibold,
+                    color: colors.espresso,
+                  }}
+                >
+                  {badge}
+                </Text>
+              </View>
+            ) : null}
+          </PhotoStandIn>
+        </View>
         <Text
-          className="pt-[11px] text-[15.5px] leading-[1.28]"
-          style={{ fontFamily: 'Manrope_700Bold' }}
+          className="pt-4 text-base leading-5"
+          style={{ fontFamily: fonts.semibold }}
           numberOfLines={2}
         >
           {recipe.title}
         </Text>
         <View className="flex-row items-center gap-1.5 pt-1">
           <SourceIcon source={recipe.sourceLabel} size={14} />
-          <Text variant="caption" className="text-[12px]">
+          <Text variant="caption" className="text-sm">
             {meta ?? `${recipe.creator}`}
           </Text>
         </View>

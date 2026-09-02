@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { formatTimer } from '@/features/cook/parse-hint';
 import { useBreathe } from '@/lib/motion';
 import { useCookStore } from '@/stores/cook-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, fonts, shadows } from '@/theme/tokens';
 
 export function TimerBar() {
   const timer = useCookStore((state) => state.timer);
@@ -20,24 +20,22 @@ export function TimerBar() {
     <View
       accessibilityLiveRegion="polite"
       accessibilityLabel={`${timer.label} timer ${formatTimer(timer.remainingSec)}`}
-      className="mx-3.5 mb-2 flex-row items-center gap-2.5 rounded-[14px] px-3 py-2.5"
-      style={{ backgroundColor: colors.espresso }}
+      className="mx-3.5 mb-2 flex-row items-center gap-2.5 rounded-card border border-crust bg-bg px-3 py-2.5"
+      style={shadows.float}
     >
       <Animated.View
         className="h-2 w-2 rounded-full"
-        style={[breathe, { backgroundColor: colors.honey }]}
+        style={[breathe, { backgroundColor: colors.paprika }]}
       />
       <Text
-        tone="inverse"
-        className="flex-1 text-[13px]"
-        style={{ fontFamily: fonts.manrope600 }}
+        className="flex-1 text-sm"
+        style={{ fontFamily: fonts.medium, color: colors.espresso }}
       >
         {timer.label} timer
       </Text>
       <Text
-        tone="inverse"
         className="text-[15px]"
-        style={{ fontFamily: fonts.mono700, letterSpacing: 0.3 }}
+        style={{ fontFamily: fonts.bold, color: colors.espresso }}
       >
         {formatTimer(timer.remainingSec)}
       </Text>
@@ -45,13 +43,12 @@ export function TimerBar() {
         accessibilityRole="button"
         accessibilityLabel={timer.running ? 'Pause timer' : 'Resume timer'}
         onPress={toggleTimer}
-        className="h-11 min-w-11 items-center justify-center rounded-[9px] px-3"
-        style={{ backgroundColor: 'rgba(255,255,255,0.14)' }}
+        className="h-11 min-w-11 items-center justify-center rounded-cta px-3"
+        style={{ borderWidth: 1, borderColor: colors.espresso }}
       >
         <Text
-          tone="inverse"
-          className="text-[11px] tracking-[0.08em]"
-          style={{ fontFamily: fonts.manrope700 }}
+          className="text-xs"
+          style={{ fontFamily: fonts.medium, color: colors.espresso }}
         >
           {timer.running ? 'Pause' : 'Resume'}
         </Text>

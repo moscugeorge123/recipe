@@ -55,7 +55,7 @@ export default function ExploreScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerClassName="gap-2 px-5 pb-5"
+          contentContainerClassName="gap-2 rounded-[32px] px-5 pb-5"
         >
           {FILTERS.map((label, index) => (
             <Chip key={label} label={label} selected={index === 0} />
@@ -67,11 +67,11 @@ export default function ExploreScreen() {
             onPress={() => router.push(`/recipe/${hero.id}`)}
             className="px-5 pb-6"
           >
-            <View className="overflow-hidden rounded-[22px]">
+            <View className="overflow-hidden rounded-card">
               <PhotoStandIn
                 colors={hero.placeholder}
                 height={220}
-                radius={22}
+                radius={14}
                 uri={hero.thumbnailUrl}
                 label="photo — editorial"
               />
@@ -79,14 +79,14 @@ export default function ExploreScreen() {
                 <Text
                   className="text-[10.5px] tracking-[0.14em]"
                   tone="accent"
-                  style={{ fontFamily: fonts.mono500 }}
+                  style={{ fontFamily: fonts.medium }}
                 >
                   THE 25-MINUTE ISSUE
                 </Text>
                 <Text
                   tone="inverse"
-                  className="max-w-[240px] pt-2 text-[24px] leading-[1.12]"
-                  style={{ fontFamily: fonts.manrope800 }}
+                  className="max-w-[240px] pt-2 text-[22px] leading-[26px] tracking-[-0.44px]"
+                  style={{ fontFamily: fonts.medium }}
                 >
                   Six dinners for the nights you have nothing left
                 </Text>
@@ -117,12 +117,12 @@ export default function ExploreScreen() {
           {creators.map((creator) => (
             <View
               key={creator.name}
-              className="w-[132px] rounded-[18px] border border-crust bg-bg-elevated p-3.5"
+              className="w-[132px] rounded-card border border-crust bg-bg p-3.5"
             >
               <SourceIcon source={creator.source} size={34} />
               <Text
                 className="pt-2.5 text-[14px]"
-                style={{ fontFamily: fonts.manrope700 }}
+                style={{ fontFamily: fonts.semibold }}
               >
                 {creator.name}
               </Text>

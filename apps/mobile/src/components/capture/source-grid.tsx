@@ -48,7 +48,7 @@ export function SourceGrid({ sources, onSelect }: SourceGridProps) {
               accessibilityRole="button"
               accessibilityLabel={source}
               onPress={() => onSelect(source)}
-              className="items-center justify-center gap-2 rounded-[18px] border border-crust bg-bg-elevated"
+              className="items-center justify-center gap-2 rounded-card border border-crust bg-bg"
               style={{
                 width: tileWidth,
                 height: TILE_HEIGHT,

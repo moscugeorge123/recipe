@@ -42,7 +42,7 @@ export default function ImportPreviewScreen() {
   const create = useCreateExtraction();
   const showToast = useUiStore((state) => state.showToast);
   const pistachio = SEED_RECIPES[0];
-  const placeholder = pistachio?.placeholder ?? ['#E6D9C4', '#DCCBB0'];
+  const placeholder = pistachio?.placeholder ?? ['#f7f7f7', '#f2f2f2'];
 
   const detected = inspectClipboard(draftUrl);
   const sourceLabel =
@@ -132,7 +132,7 @@ export default function ImportPreviewScreen() {
           </View>
         ) : null}
         {hasUrl ? (
-          <View className="overflow-hidden rounded-[20px] border border-crust bg-bg-elevated">
+          <View className="overflow-hidden rounded-card border border-crust bg-bg">
             <PhotoStandIn
               uri={
                 preview.isSuccess
@@ -185,7 +185,7 @@ export default function ImportPreviewScreen() {
                   <Text
                     className="pt-3 text-[11px]"
                     tone="muted"
-                    style={{ fontFamily: fonts.mono500 }}
+                    style={{ fontFamily: fonts.medium }}
                   >
                     {displayUrl(draftUrl)}
                   </Text>

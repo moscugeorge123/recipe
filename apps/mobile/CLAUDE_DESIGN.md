@@ -1,4 +1,11 @@
+# Claude Design — superseded
+
+**Current source of truth:** [`DESIGN.md`](./DESIGN.md) (Airbnb marketing) and [`COLOR_SCHEMA.md`](./COLOR_SCHEMA.md). This note is the older Garden Plate restyle brief and is not used for tokens.
+
+---
+
 # Claude Design — Garden Plate on Mise
+
 
 **Audience:** Claude Design, restyling the existing **Mise** prototype.  
 **Palette:** [`COLOR_SCHEMA.md`](./COLOR_SCHEMA.md) (Garden Plate).  

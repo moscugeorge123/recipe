@@ -247,7 +247,7 @@ function mapStep(
 function placeholderForId(id: string): [string, string] {
   const hash = id.split('').reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
   return (
-    placeholderPairs[hash % placeholderPairs.length] ?? ['#E6D9C4', '#DCCBB0']
+    placeholderPairs[hash % placeholderPairs.length] ?? ['#f7f7f7', '#f2f2f2']
   );
 }
 

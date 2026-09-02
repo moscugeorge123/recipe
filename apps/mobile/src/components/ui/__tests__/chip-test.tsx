@@ -4,25 +4,26 @@ import { Chip } from '@/components/ui/chip';
 import { colors } from '@/theme/tokens';
 
 describe('Chip', () => {
-  test('unselected uses peach fill and cocoa label', async () => {
+  test('unselected uses muted label without espresso fill', async () => {
     await render(<Chip label="Comfort" />);
 
     expect(screen.getByRole('button', { name: 'Comfort' })).toHaveStyle({
-      backgroundColor: colors.peach,
+      backgroundColor: 'transparent',
     });
     expect(screen.getByText('Comfort')).toHaveStyle({
-      color: colors.cocoa,
+      color: colors.olive,
     });
   });
 
-  test('selected uses espresso fill and steamed-milk label', async () => {
+  test('selected uses ink label and underline', async () => {
     await render(<Chip label="Comfort" selected />);
 
     expect(screen.getByRole('button', { name: 'Comfort' })).toHaveStyle({
-      backgroundColor: colors.espresso,
+      backgroundColor: 'transparent',
+      borderBottomColor: colors.espresso,
     });
     expect(screen.getByText('Comfort')).toHaveStyle({
-      color: colors.steamedMilk,
+      color: colors.espresso,
     });
   });
 });

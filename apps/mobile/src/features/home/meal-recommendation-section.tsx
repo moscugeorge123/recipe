@@ -80,11 +80,11 @@ export function MealRecommendationSection({
           onPress={() => router.push(`/recipe/${pick.recipe?.id}`)}
           className="px-5 pb-[26px]"
         >
-          <View className="overflow-hidden rounded-[22px]">
+          <View className="overflow-hidden rounded-card">
             <PhotoStandIn
               colors={pick.recipe.placeholder}
               height={230}
-              radius={22}
+              radius={14}
               uri={pick.recipe.thumbnailUrl}
               label={`photo — ${pick.recipe.title.toLowerCase()}`}
             />
@@ -92,14 +92,14 @@ export function MealRecommendationSection({
               <Text
                 className="pb-2 text-[10.5px] tracking-[0.14em]"
                 tone="accent"
-                style={{ fontFamily: fonts.mono500 }}
+                style={{ fontFamily: fonts.medium }}
               >
                 {pick.why}
               </Text>
               <Text
                 tone="inverse"
-                className="max-w-[250px] text-[25px] leading-[1.1]"
-                style={{ fontFamily: fonts.manrope800 }}
+                className="max-w-[250px] text-[22px] leading-[26px] tracking-[-0.44px]"
+                style={{ fontFamily: fonts.medium }}
               >
                 {pick.recipe.title}
               </Text>

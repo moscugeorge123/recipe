@@ -26,19 +26,23 @@ export function Chip({
       accessibilityLabel={label}
       accessibilityState={{ selected: !!selected, disabled: !!disabled }}
       disabled={disabled}
-      className={`h-10 min-h-11 flex-row items-center justify-center gap-1.5 rounded-[13px] px-[15px] ${
+      className={`h-10 min-h-11 flex-row items-center justify-center gap-1.5 px-[15px] ${
         className ?? ''
       }`}
       style={{
-        backgroundColor: selected ? colors.espresso : colors.peach,
+        backgroundColor: 'transparent',
+        borderBottomWidth: selected ? 2 : 0,
+        borderBottomColor: selected ? colors.espresso : 'transparent',
       }}
       {...props}
     >
       {icon}
       <Text
-        className="text-[13px]"
-        tone={selected ? 'inverse' : 'icon'}
-        style={{ fontFamily: fonts.manrope600 }}
+        className="text-sm"
+        style={{
+          fontFamily: fonts.medium,
+          color: selected ? colors.espresso : colors.olive,
+        }}
       >
         {label}
       </Text>

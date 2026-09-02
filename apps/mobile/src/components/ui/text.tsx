@@ -22,30 +22,30 @@ type TextProps = RNTextProps & {
 };
 
 const variantClass: Record<TextVariant, string> = {
-  display: 'text-[27px] leading-[1.14] tracking-[-0.02em]',
-  title: 'text-[23px] leading-[1.14] tracking-[-0.02em]',
-  section: 'text-[13px] font-bold tracking-[0.1em]',
-  kicker: 'text-[11px] tracking-[0.14em]',
-  body: 'text-[15.5px] leading-[1.45]',
-  caption: 'text-[13.5px] leading-[1.4]',
-  mono: 'text-[11.5px] tracking-[0.04em]',
+  display: 'text-[28px] leading-[40px]',
+  title: 'text-[22px] leading-[26px] tracking-[-0.44px]',
+  section: 'text-[21px] leading-[30px]',
+  kicker: 'text-[12px] leading-4',
+  body: 'text-base leading-6',
+  caption: 'text-sm leading-5',
+  mono: 'text-sm leading-5',
 };
 
 const variantFont: Record<TextVariant, string> = {
-  display: fonts.manrope800,
-  title: fonts.manrope800,
-  section: fonts.manrope700,
-  kicker: fonts.mono500,
-  body: fonts.manrope500,
-  caption: fonts.manrope500,
-  mono: fonts.mono500,
+  display: fonts.bold,
+  title: fonts.medium,
+  section: fonts.bold,
+  kicker: fonts.bold,
+  body: fonts.regular,
+  caption: fonts.regular,
+  mono: fonts.medium,
 };
 
 const variantTone: Record<TextVariant, TextTone> = {
   display: 'default',
   title: 'default',
   section: 'default',
-  kicker: 'primary',
+  kicker: 'muted',
   body: 'default',
   caption: 'muted',
   mono: 'muted',
@@ -56,9 +56,9 @@ export const toneColors: Record<TextTone, string> = {
   muted: colors.olive,
   disabled: colors.sage,
   inverse: colors.steamedMilk,
-  primary: colors.paprikaPressed,
-  secondary: colors.basil,
-  accent: colors.honey,
+  primary: colors.paprika,
+  secondary: colors.espresso,
+  accent: colors.espresso,
   icon: colors.cocoa,
 };
 
