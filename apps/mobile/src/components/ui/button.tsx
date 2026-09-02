@@ -1,17 +1,20 @@
 import type { ReactNode } from 'react';
 import {
-    type PressableProps,
-    type StyleProp,
-    type ViewStyle,
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 
 import { PressScale } from '@/components/ui/press-scale';
 import { Text } from '@/components/ui/text';
-import { useCookTheme } from '@/theme/cook-shell';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, radii, typeface } from '@/theme/tokens';
 
 type ButtonVariant =
-  'primary' | 'secondary' | 'ghost' | 'destructive' | 'inverse';
+  | 'primary'
+  | 'secondary'
+  | 'ghost'
+  | 'destructive'
+  | 'inverse';
 
 type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
@@ -23,40 +26,41 @@ type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 };
 
 const sizeClasses = {
-  lg: 'h-[56px] rounded-[17px] px-5',
-  md: 'h-[48px] rounded-[15px] px-4',
-  icon: 'h-11 w-11 rounded-[14px] px-0',
+  lg: 'min-h-11 rounded-full px-7 py-3.5',
+  md: 'min-h-11 rounded-full px-[22px] py-[11px]',
+  icon: 'h-11 w-11 rounded-full px-0',
 };
 
-function variantFill(
+function variantChrome(
   variant: ButtonVariant,
-  cookDark: boolean,
-): string | undefined {
+): Pick<ViewStyle, 'backgroundColor' | 'borderColor' | 'borderWidth' | 'borderRadius'> {
   switch (variant) {
     case 'primary':
-      return cookDark ? colors.paprika400 : colors.paprika;
+      return { backgroundColor: colors.primary, borderRadius: radii.pill };
     case 'secondary':
-      return colors.basil600;
-    case 'inverse':
-      return colors.espresso;
-    case 'destructive':
-      return colors.chili;
     case 'ghost':
-      return undefined;
+      return {
+        backgroundColor: 'transparent',
+        borderColor: colors.primary,
+        borderWidth: 1,
+        borderRadius: radii.pill,
+      };
+    case 'inverse':
+    case 'destructive':
+      return { backgroundColor: colors.ink, borderRadius: radii.sm };
   }
 }
 
-function variantLabel(variant: ButtonVariant, cookDark: boolean): string {
+function variantLabel(variant: ButtonVariant): string {
   switch (variant) {
     case 'primary':
-      return cookDark ? colors.espresso : colors.onPrimary;
-    case 'secondary':
-    case 'destructive':
       return colors.onPrimary;
-    case 'inverse':
-      return colors.steamedMilk;
+    case 'secondary':
     case 'ghost':
-      return colors.paprikaPressed;
+      return colors.primary;
+    case 'inverse':
+    case 'destructive':
+      return colors.onDark;
   }
 }
 
@@ -70,26 +74,10 @@ export function Button({
   style,
   ...props
 }: ButtonProps) {
-  const cookDark = useCookTheme().dark;
-  const fill = variantFill(variant, cookDark);
-  const labelColor = variantLabel(variant, cookDark);
-  const labelSize =
-    variant === 'ghost'
-      ? 'text-[14.5px]'
-      : variant === 'secondary'
-        ? 'text-[15.5px]'
-        : 'text-[16.5px]';
-
-  const shadowStyle: StyleProp<ViewStyle> =
-    variant === 'primary' && size === 'lg'
-      ? {
-          shadowColor: colors.paprika,
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.28,
-          shadowRadius: 18,
-          elevation: 6,
-        }
-      : undefined;
+  const chrome = variantChrome(variant);
+  const labelColor = variantLabel(variant);
+  const storeHero = variant === 'primary' && size === 'lg';
+  const utility = variant === 'inverse' || variant === 'destructive';
 
   return (
     <PressScale
@@ -101,8 +89,8 @@ export function Button({
         disabled ? 'opacity-50' : ''
       } ${className ?? ''}`}
       style={[
-        shadowStyle,
-        fill ? { backgroundColor: fill } : undefined,
+        chrome,
+        utility && size !== 'icon' ? { paddingHorizontal: 15, paddingVertical: 8 } : undefined,
         disabled ? { opacity: 0.5 } : undefined,
         style,
       ]}
@@ -110,11 +98,17 @@ export function Button({
     >
       {icon ?? (
         <Text
-          className={labelSize}
+          className={
+            storeHero
+              ? 'text-[18px] leading-[1]'
+              : utility
+                ? 'text-[14px] leading-[1.29]'
+                : 'text-[17px] leading-[1.47]'
+          }
           style={{
             color: labelColor,
-            fontFamily:
-              variant === 'ghost' ? fonts.manrope600 : fonts.manrope700,
+            letterSpacing: utility ? -0.224 : storeHero ? 0 : -0.374,
+            ...typeface(storeHero ? 'light' : 'regular'),
           }}
         >
           {label}

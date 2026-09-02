@@ -18,7 +18,7 @@ import {
   type DaisyPhase,
 } from '@/components/daisy/phase';
 import { Text } from '@/components/ui/text';
-import { fonts } from '@/theme/tokens';
+import { typeface } from '@/theme/tokens';
 
 const spring = Easing.bezier(0.34, 1.56, 0.64, 1);
 
@@ -161,7 +161,7 @@ function DaisyChip({
         <DaisyFoodGlyph id={food} size={20} />
         <Text
           style={{
-            fontFamily: fonts.manrope600,
+            ...typeface('semibold'),
             fontSize: 13,
             color: daisy.chipText,
           }}
@@ -172,7 +172,7 @@ function DaisyChip({
           <Text
             numberOfLines={1}
             style={{
-              fontFamily: fonts.manrope700,
+              ...typeface('semibold'),
               fontSize: 13,
               color: daisy.apron,
             }}
@@ -195,7 +195,7 @@ function DaisyChip({
               style={{
                 color: daisy.highlight,
                 fontSize: 10,
-                fontFamily: fonts.manrope800,
+                ...typeface('semibold'),
               }}
             >
               ✓

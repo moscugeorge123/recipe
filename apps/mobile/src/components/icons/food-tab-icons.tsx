@@ -8,9 +8,15 @@ type FoodIconProps = {
   muted?: boolean;
 };
 
+const ink = colors.ink;
+const blue = colors.primary;
+const white = colors.onDark;
+const chip = colors.steam;
+const muted = colors.bodyMuted;
+
 function Canvas({
   size,
-  muted,
+  muted: dim,
   testID,
   children,
 }: FoodIconProps & { testID: string; children: ReactNode }) {
@@ -19,7 +25,7 @@ function Canvas({
       testID={testID}
       accessibilityElementsHidden
       importantForAccessibility="no"
-      style={{ width: size, height: size, opacity: muted ? 0.48 : 1 }}
+      style={{ width: size, height: size, opacity: dim ? 0.48 : 1 }}
     >
       {children}
     </View>
@@ -31,10 +37,10 @@ function px(size: number, n: number, base = 22) {
 }
 
 /** Round burger — home cooking. */
-export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
+export function HomeFoodIcon({ size = 22, muted: dim }: FoodIconProps) {
   const s = (n: number) => px(size, n);
   return (
-    <Canvas size={size} muted={muted} testID="food-tab-home">
+    <Canvas size={size} muted={dim} testID="food-tab-home">
       <View
         style={{
           position: 'absolute',
@@ -46,7 +52,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           borderTopRightRadius: s(9),
           borderBottomLeftRadius: s(4.5),
           borderBottomRightRadius: s(4.5),
-          backgroundColor: colors.honey,
+          backgroundColor: chip,
         }}
       />
       <View
@@ -57,7 +63,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(1.5),
           width: s(1.5),
           borderRadius: s(0.8),
-          backgroundColor: colors.honey50,
+          backgroundColor: white,
         }}
       />
       <View
@@ -68,7 +74,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(1.4),
           width: s(1.4),
           borderRadius: s(0.7),
-          backgroundColor: colors.honey50,
+          backgroundColor: white,
         }}
       />
       <View
@@ -79,7 +85,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(1.5),
           width: s(1.5),
           borderRadius: s(0.8),
-          backgroundColor: colors.honey50,
+          backgroundColor: white,
         }}
       />
       <View
@@ -90,7 +96,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(3.2),
           width: s(18),
           borderRadius: s(1.6),
-          backgroundColor: colors.basil,
+          backgroundColor: muted,
         }}
       />
       <View
@@ -101,7 +107,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(3),
           width: s(15.6),
           borderRadius: s(1.5),
-          backgroundColor: colors.paprika,
+          backgroundColor: blue,
         }}
       />
       <View
@@ -115,7 +121,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           borderTopRightRadius: s(3.5),
           borderBottomLeftRadius: s(8.5),
           borderBottomRightRadius: s(8.5),
-          backgroundColor: '#C49212',
+          backgroundColor: chip,
         }}
       />
     </Canvas>
@@ -123,10 +129,10 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
 }
 
 /** Lemon-wheel compass — explore flavors. */
-export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
+export function ExploreFoodIcon({ size = 22, muted: dim }: FoodIconProps) {
   const s = (n: number) => px(size, n);
   return (
-    <Canvas size={size} muted={muted} testID="food-tab-explore">
+    <Canvas size={size} muted={dim} testID="food-tab-explore">
       <View
         style={{
           position: 'absolute',
@@ -137,7 +143,7 @@ export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: s(10),
-          backgroundColor: colors.honey,
+          backgroundColor: chip,
         }}
       >
         <View
@@ -147,7 +153,7 @@ export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
             alignItems: 'center',
             justifyContent: 'center',
             borderRadius: s(7),
-            backgroundColor: colors.honey50,
+            backgroundColor: white,
           }}
         >
           <View
@@ -159,7 +165,7 @@ export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
               borderBottomWidth: s(5.8),
               borderLeftColor: 'transparent',
               borderRightColor: 'transparent',
-              borderBottomColor: colors.paprika,
+              borderBottomColor: blue,
             }}
           />
           <View
@@ -171,7 +177,7 @@ export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
               borderTopWidth: s(5.2),
               borderLeftColor: 'transparent',
               borderRightColor: 'transparent',
-              borderTopColor: colors.basil,
+              borderTopColor: ink,
             }}
           />
         </View>
@@ -181,10 +187,10 @@ export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
 }
 
 /** Stock pot with steam — the kitchen. */
-export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
+export function KitchenFoodIcon({ size = 22, muted: dim }: FoodIconProps) {
   const s = (n: number) => px(size, n);
   return (
-    <Canvas size={size} muted={muted} testID="food-tab-kitchen">
+    <Canvas size={size} muted={dim} testID="food-tab-kitchen">
       <View
         style={{
           position: 'absolute',
@@ -193,7 +199,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(4.2),
           width: s(1.6),
           borderRadius: s(1),
-          backgroundColor: colors.steam,
+          backgroundColor: muted,
         }}
       />
       <View
@@ -204,7 +210,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(4.2),
           width: s(1.6),
           borderRadius: s(1),
-          backgroundColor: colors.steam,
+          backgroundColor: muted,
         }}
       />
       <View
@@ -215,7 +221,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(4.2),
           width: s(1.6),
           borderRadius: s(1),
-          backgroundColor: colors.steam,
+          backgroundColor: muted,
         }}
       />
       <View
@@ -226,7 +232,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(2.4),
           width: s(2.4),
           borderRadius: s(1.2),
-          backgroundColor: colors.cocoa,
+          backgroundColor: white,
         }}
       />
       <View
@@ -237,7 +243,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(2.8),
           width: s(16),
           borderRadius: s(1.4),
-          backgroundColor: colors.cocoa,
+          backgroundColor: white,
         }}
       />
       <View
@@ -249,7 +255,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           width: s(13.6),
           borderBottomLeftRadius: s(3.4),
           borderBottomRightRadius: s(3.4),
-          backgroundColor: colors.paprika,
+          backgroundColor: chip,
         }}
       />
       <View
@@ -260,7 +266,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(2.6),
           width: s(4.2),
           borderRadius: s(1.3),
-          backgroundColor: colors.cocoa,
+          backgroundColor: white,
         }}
       />
     </Canvas>
@@ -268,10 +274,10 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
 }
 
 /** Ripe apple — you. */
-export function YouFoodIcon({ size = 22, muted }: FoodIconProps) {
+export function YouFoodIcon({ size = 22, muted: dim }: FoodIconProps) {
   const s = (n: number) => px(size, n);
   return (
-    <Canvas size={size} muted={muted} testID="food-tab-you">
+    <Canvas size={size} muted={dim} testID="food-tab-you">
       <View
         style={{
           position: 'absolute',
@@ -281,7 +287,7 @@ export function YouFoodIcon({ size = 22, muted }: FoodIconProps) {
           width: s(7),
           transform: [{ rotate: '28deg' }],
           borderRadius: s(4),
-          backgroundColor: colors.basil,
+          backgroundColor: chip,
         }}
       />
       <View
@@ -292,7 +298,7 @@ export function YouFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(4.5),
           width: s(2),
           borderRadius: s(1),
-          backgroundColor: colors.cocoa,
+          backgroundColor: white,
         }}
       />
       <View
@@ -303,7 +309,7 @@ export function YouFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(16),
           width: s(17),
           borderRadius: s(8.5),
-          backgroundColor: colors.berry,
+          backgroundColor: blue,
         }}
       />
       <View
@@ -314,16 +320,15 @@ export function YouFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(5),
           width: s(3.6),
           borderRadius: s(2),
-          backgroundColor: 'rgba(255, 248, 242, 0.55)',
+          backgroundColor: 'rgba(255, 255, 255, 0.55)',
         }}
       />
     </Canvas>
   );
 }
 
-/** Tomato — capture a recipe. Plus is drawn by the tab bar so it can rotate. */
+/** Capture control — Action Blue circular 44×44. Plus is drawn by the tab bar. */
 export function CaptureTomato({ size = 28 }: { size?: number }) {
-  const s = (n: number) => px(size, n, 28);
   return (
     <View
       testID="food-tab-capture"
@@ -335,19 +340,8 @@ export function CaptureTomato({ size = 28 }: { size?: number }) {
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: size / 2,
-        backgroundColor: colors.paprika,
+        backgroundColor: blue,
       }}
-    >
-      <View
-        style={{
-          position: 'absolute',
-          top: s(2),
-          height: s(5),
-          width: s(8),
-          borderRadius: s(3),
-          backgroundColor: colors.basil,
-        }}
-      />
-    </View>
+    />
   );
 }

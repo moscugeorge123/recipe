@@ -15,7 +15,7 @@ import {
   type ClipboardOffer,
 } from '@/features/capture/sources';
 import { useUiStore } from '@/stores/ui-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 const HIDDEN_CLIPBOARD: ClipboardOffer = { kind: 'hidden' };
 
@@ -106,7 +106,7 @@ export function CaptureSheet() {
               numberOfLines={1}
               className="text-[11.5px]"
               tone="muted"
-              style={{ fontFamily: fonts.mono500 }}
+              style={typeface('regular')}
             >
               {clipboard.preview}
             </Text>
@@ -121,7 +121,7 @@ export function CaptureSheet() {
             <Text
               className="text-[12.5px]"
               tone="inverse"
-              style={{ fontFamily: fonts.manrope700 }}
+              style={typeface('semibold')}
             >
               Use
             </Text>

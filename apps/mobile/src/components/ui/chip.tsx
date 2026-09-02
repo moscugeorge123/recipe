@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Pressable, type PressableProps } from 'react-native';
 
 import { Text } from '@/components/ui/text';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, radii, typeface } from '@/theme/tokens';
 
 type ChipProps = Omit<PressableProps, 'children'> & {
   label: string;
@@ -26,19 +26,24 @@ export function Chip({
       accessibilityLabel={label}
       accessibilityState={{ selected: !!selected, disabled: !!disabled }}
       disabled={disabled}
-      className={`h-10 min-h-11 flex-row items-center justify-center gap-1.5 rounded-[13px] px-[15px] ${
+      className={`h-10 min-h-11 flex-row items-center justify-center gap-1.5 px-4 ${
         className ?? ''
       }`}
       style={{
-        backgroundColor: selected ? colors.espresso : colors.peach,
+        backgroundColor: colors.canvas,
+        borderRadius: radii.pill,
+        borderWidth: selected ? 2 : 1,
+        borderColor: selected ? colors.primaryFocus : colors.hairline,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
       }}
       {...props}
     >
       {icon}
       <Text
-        className="text-[13px]"
-        tone={selected ? 'inverse' : 'icon'}
-        style={{ fontFamily: fonts.manrope600 }}
+        className="text-[14px] leading-[1.43]"
+        tone="default"
+        style={{ ...typeface('regular'), letterSpacing: -0.224 }}
       >
         {label}
       </Text>

@@ -5,7 +5,7 @@ import { SectionLabel } from '@/components/ui/section-label';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Text } from '@/components/ui/text';
 import { useCatalog } from '@/features/catalog/use-catalog';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 export function FromYourKitchenSection() {
   const catalog = useCatalog();
@@ -34,20 +34,17 @@ export function FromYourKitchenSection() {
             <View
               className="h-[46px] w-[46px] items-center justify-center rounded-[14px]"
               style={{
-                backgroundColor:
-                  row.gap === 'everything in stock'
-                    ? colors.basilSoft
-                    : colors.paprikaSoft,
+                backgroundColor: colors.parchment,
               }}
             >
               <Text
                 style={{
-                  fontFamily: fonts.mono700,
+                  ...typeface('semibold'),
                   fontSize: 12.5,
                   color:
                     row.gap === 'everything in stock'
-                      ? colors.basil700
-                      : colors.paprika,
+                      ? colors.ink
+                      : colors.primary,
                 }}
               >
                 {row.have}/{row.total}
@@ -56,7 +53,7 @@ export function FromYourKitchenSection() {
             <View className="flex-1">
               <Text
                 className="text-[15px]"
-                style={{ fontFamily: fonts.manrope700 }}
+                style={typeface('semibold')}
               >
                 {row.recipe.title}
               </Text>

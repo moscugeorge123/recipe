@@ -6,6 +6,7 @@ import { PhotoStandIn } from '@/components/ui/photo-stand-in';
 import { PressScale } from '@/components/ui/press-scale';
 import { Text } from '@/components/ui/text';
 import type { RecipeView } from '@/features/recipes/types';
+import { typeface } from '@/theme/tokens';
 
 type RecipeCardProps = {
   recipe: RecipeView;
@@ -33,7 +34,7 @@ export function RecipeCard({
         <PhotoStandIn
           colors={recipe.placeholder}
           height={photoHeight}
-          radius={16}
+          radius={8}
           uri={recipe.thumbnailUrl}
           label="photo"
         >
@@ -49,8 +50,8 @@ export function RecipeCard({
           ) : null}
         </PhotoStandIn>
         <Text
-          className="pt-[11px] text-[15.5px] leading-[1.28]"
-          style={{ fontFamily: 'Manrope_700Bold' }}
+          className="pt-[11px] text-[17px] leading-[1.24]"
+          style={typeface('semibold')}
           numberOfLines={2}
         >
           {recipe.title}

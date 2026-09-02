@@ -9,7 +9,7 @@ import { PhotoStandIn } from '@/components/ui/photo-stand-in';
 import { useRecipeSearch } from '@/features/recipes/hooks/use-recipes';
 import { mapRecipeListItem } from '@/features/recipes/mapper';
 import { useKitchenStore } from '@/stores/kitchen-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 const SUGGESTIONS = [
   'pasta under 20 minutes',
@@ -63,7 +63,10 @@ export default function SearchScreen() {
             ‹
           </Text>
         </Pressable>
-        <View className="h-12 flex-1 flex-row items-center gap-2.5 rounded-[15px] border border-crust bg-peach px-[15px]">
+        <View
+          className="h-11 flex-1 flex-row items-center gap-2.5 rounded-full bg-bg px-5"
+          style={{ borderWidth: 1, borderColor: colors.searchBorder }}
+        >
           <View className="h-3 w-3 rounded-full border-2 border-olive" />
           <TextInput
             value={query}
@@ -71,8 +74,12 @@ export default function SearchScreen() {
             placeholder="pasta under 20 minutes"
             placeholderTextColor={colors.olive}
             accessibilityLabel="Search recipes"
-            className="flex-1 text-[15.5px]"
-            style={{ fontFamily: fonts.manrope600, color: colors.espresso }}
+            className="flex-1 text-[17px]"
+            style={{
+              ...typeface('regular'),
+              color: colors.ink,
+              letterSpacing: -0.374,
+            }}
             onSubmitEditing={() => addRecentSearch(query)}
           />
           {query ? (
@@ -149,7 +156,7 @@ export default function SearchScreen() {
                 <View className="flex-1">
                   <Text
                     className="text-[15.5px]"
-                    style={{ fontFamily: fonts.manrope700 }}
+                    style={typeface('semibold')}
                   >
                     {recipe.title}
                   </Text>

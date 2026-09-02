@@ -19,7 +19,7 @@ import { isHave } from '@/stores/contracts';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { useShopStore } from '@/stores/shop-store';
 import { useUiStore } from '@/stores/ui-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 function NeedRow({
   name,
@@ -54,7 +54,7 @@ function NeedRow({
           className="h-[26px] w-[26px] items-center justify-center rounded-[9px] border border-crust"
           style={[
             style,
-            { backgroundColor: checked ? colors.basil : colors.butter },
+            { backgroundColor: checked ? colors.primary : colors.canvas },
           ]}
         >
           {checked ? <Text tone="inverse">✓</Text> : null}
@@ -63,7 +63,7 @@ function NeedRow({
       <Text
         style={{
           minWidth: 70,
-          fontFamily: fonts.manrope700,
+          ...typeface('semibold'),
           color: checked ? colors.olive : colors.espresso,
         }}
       >
@@ -184,8 +184,8 @@ export default function RecipeDetailScreen() {
             className="absolute right-4 top-12 h-11 w-11 items-center justify-center rounded-[14px]"
             style={{
               backgroundColor: saved
-                ? colors.paprika
-                : 'rgba(255,255,255,0.86)',
+                ? colors.primary
+                : colors.chipTranslucent,
             }}
           >
             <Animated.View style={heart.style}>
@@ -208,8 +208,8 @@ export default function RecipeDetailScreen() {
           </Text>
 
           {status ? (
-            <View className="mt-4 rounded-[16px] bg-[#FFF8E1] p-4">
-              <Text variant="kicker" style={{ color: '#7A5B0C' }}>
+            <View className="mt-4 rounded-lg border border-crust bg-linen p-6">
+              <Text variant="kicker" style={{ color: colors.inkMuted80 }}>
                 {status === 'needs_review' ? 'NEEDS REVIEW' : 'READY TO COOK'}
               </Text>
               <Text variant="caption" className="pt-2">
@@ -296,7 +296,7 @@ export default function RecipeDetailScreen() {
               <Animated.View style={servingsPop.style}>
                 <Text
                   className="min-w-[34px] text-center text-[17px]"
-                  style={{ fontFamily: fonts.manrope700 }}
+                  style={typeface('semibold')}
                 >
                   {servings}
                 </Text>
@@ -328,7 +328,7 @@ export default function RecipeDetailScreen() {
                   >
                     <Text
                       className="text-[13px]"
-                      style={{ color: colors.basil700 }}
+                      style={{ color: colors.ink }}
                     >
                       {ing.name}
                     </Text>

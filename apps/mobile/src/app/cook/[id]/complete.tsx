@@ -31,7 +31,7 @@ import { useCookStore } from '@/stores/cook-store';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { CookShell, useCookTheme } from '@/theme/cook-shell';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 const recordedCookedKeys = new Set<string>();
 
@@ -113,7 +113,7 @@ function CompleteInner() {
   const catalog = useCatalog();
   const fetched = useRecipe(id);
   const recipe = fetched.data ?? catalog.get(id ?? '');
-  const { dark, tokens } = useCookTheme();
+  const { tokens } = useCookTheme();
   const reduced = useReducedMotion();
   const [startedAt] = useState(() => useCookStore.getState().startedAt);
   const { markCompleted, clearLocal } = useFinishCooking();
@@ -229,7 +229,7 @@ function CompleteInner() {
             right: 0,
             bottom: 0,
             left: 0,
-            backgroundColor: colors.paprika,
+            backgroundColor: colors.primary,
             zIndex: 2,
           },
         ]}
@@ -249,22 +249,22 @@ function CompleteInner() {
           <View className="h-[86px] w-[86px] items-center justify-center">
             <Animated.View
               className="absolute h-[86px] w-[86px] rounded-full border-2"
-              style={[ringStyle, { borderColor: colors.paprika }]}
+              style={[ringStyle, { borderColor: colors.primary }]}
             />
             <View
               className="h-[70px] w-[70px] items-center justify-center rounded-full"
               style={{
-                backgroundColor: dark ? colors.paprika400 : colors.paprika,
+                backgroundColor: colors.primary,
               }}
             >
-              <Text className="text-[30px]" style={{ color: colors.espresso }}>
+              <Text className="text-[30px]" style={{ color: colors.onPrimary }}>
                 ✓
               </Text>
             </View>
           </View>
           <Text
             style={{
-              fontFamily: fonts.manrope800,
+              ...typeface('semibold'),
               fontSize: 33,
               lineHeight: 36,
               color: tokens.text,
@@ -285,7 +285,7 @@ function CompleteInner() {
               >
                 <Text
                   style={{
-                    fontFamily: fonts.mono500,
+                    ...typeface('regular'),
                     fontSize: 10,
                     color: tokens.muted,
                   }}
@@ -294,7 +294,7 @@ function CompleteInner() {
                 </Text>
                 <Text
                   style={{
-                    fontFamily: fonts.manrope700,
+                    ...typeface('semibold'),
                     fontSize: 19,
                     color: tokens.text,
                     paddingTop: 8,
@@ -309,7 +309,7 @@ function CompleteInner() {
             <Text
               style={{
                 color: tokens.muted,
-                fontFamily: fonts.manrope600,
+                ...typeface('semibold'),
                 paddingBottom: 9,
               }}
             >
@@ -327,7 +327,7 @@ function CompleteInner() {
               style={{
                 backgroundColor: tokens.statBg,
                 color: tokens.text,
-                fontFamily: fonts.manrope500,
+                ...typeface('regular'),
                 fontSize: 15,
               }}
             />
@@ -356,7 +356,7 @@ function CompleteInner() {
           >
             <Text
               style={{
-                fontFamily: fonts.manrope700,
+                ...typeface('semibold'),
                 color: tokens.ghostText,
               }}
             >

@@ -23,6 +23,9 @@ export const duration = {
   toast: 260,
 } as const;
 
+/** System-wide press: `{component.button-primary-active}` scale(0.95). */
+export const PRESS_SCALE = 0.95;
+
 export function useReducedMotion(): boolean {
   const pref = usePreferencesStore((state) => state.reduceMotion);
   const [system, setSystem] = useState(false);

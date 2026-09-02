@@ -1,7 +1,7 @@
 import { TextInput, View, type TextInputProps } from 'react-native';
 
 import { Text } from '@/components/ui/text';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 type InputProps = TextInputProps & {
   label?: string;
@@ -19,18 +19,25 @@ export function Input({ label, error, className, ...props }: InputProps) {
       ) : null}
       <TextInput
         accessibilityLabel={label}
-        className={`h-12 rounded-[15px] border bg-peach px-[15px] text-[15.5px] ${
-          error ? 'border-chili' : 'border-crust'
+        className={`h-11 rounded-full border bg-bg px-5 text-[17px] ${
+          error ? 'border-crust' : ''
         } ${className ?? ''}`}
-        placeholderTextColor={colors.olive}
-        style={{ fontFamily: fonts.manrope600, color: colors.espresso }}
+        placeholderTextColor={colors.inkMuted48}
+        style={{
+          ...typeface('regular'),
+          color: colors.ink,
+          letterSpacing: -0.374,
+          borderColor: colors.searchBorder,
+          minHeight: 44,
+        }}
         {...props}
       />
       {error ? (
         <Text
           accessibilityRole="alert"
           className="text-sm"
-          style={{ color: colors.chili }}
+          variant="caption"
+          tone="muted"
         >
           {error}
         </Text>

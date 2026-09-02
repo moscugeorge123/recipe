@@ -5,7 +5,7 @@ import { Text } from '@/components/ui/text';
 import { formatTimer } from '@/features/cook/parse-hint';
 import { useBreathe } from '@/lib/motion';
 import { useCookStore } from '@/stores/cook-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, radii, typeface } from '@/theme/tokens';
 
 export function TimerBar() {
   const timer = useCookStore((state) => state.timer);
@@ -20,24 +20,28 @@ export function TimerBar() {
     <View
       accessibilityLiveRegion="polite"
       accessibilityLabel={`${timer.label} timer ${formatTimer(timer.remainingSec)}`}
-      className="mx-3.5 mb-2 flex-row items-center gap-2.5 rounded-[14px] px-3 py-2.5"
-      style={{ backgroundColor: colors.espresso }}
+      className="mx-3.5 mb-2 flex-row items-center gap-2.5 px-8 py-3"
+      style={{
+        backgroundColor: 'rgba(245, 245, 247, 0.8)',
+        borderRadius: radii.lg,
+        minHeight: 64,
+      }}
     >
       <Animated.View
         className="h-2 w-2 rounded-full"
-        style={[breathe, { backgroundColor: colors.honey }]}
+        style={[breathe, { backgroundColor: colors.primary }]}
       />
       <Text
-        tone="inverse"
-        className="flex-1 text-[13px]"
-        style={{ fontFamily: fonts.manrope600 }}
+        tone="default"
+        className="flex-1 text-[17px]"
+        style={typeface('regular')}
       >
         {timer.label} timer
       </Text>
       <Text
-        tone="inverse"
-        className="text-[15px]"
-        style={{ fontFamily: fonts.mono700, letterSpacing: 0.3 }}
+        tone="default"
+        className="text-[17px]"
+        style={{ ...typeface('semibold'), letterSpacing: -0.374 }}
       >
         {formatTimer(timer.remainingSec)}
       </Text>
@@ -45,13 +49,12 @@ export function TimerBar() {
         accessibilityRole="button"
         accessibilityLabel={timer.running ? 'Pause timer' : 'Resume timer'}
         onPress={toggleTimer}
-        className="h-11 min-w-11 items-center justify-center rounded-[9px] px-3"
-        style={{ backgroundColor: 'rgba(255,255,255,0.14)' }}
+        className="h-11 min-w-11 items-center justify-center rounded-full px-[22px]"
+        style={{ backgroundColor: colors.primary }}
       >
         <Text
-          tone="inverse"
-          className="text-[11px] tracking-[0.08em]"
-          style={{ fontFamily: fonts.manrope700 }}
+          className="text-[17px]"
+          style={{ ...typeface('regular'), color: colors.onPrimary }}
         >
           {timer.running ? 'Pause' : 'Resume'}
         </Text>

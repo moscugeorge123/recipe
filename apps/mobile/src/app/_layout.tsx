@@ -1,16 +1,11 @@
 import '../global.css';
 
 import {
-  IBMPlexMono_500Medium,
-  IBMPlexMono_600SemiBold,
-  IBMPlexMono_700Bold,
-} from '@expo-google-fonts/ibm-plex-mono';
-import {
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-  Manrope_800ExtraBold,
-} from '@expo-google-fonts/manrope';
+  Inter_300Light,
+  Inter_400Regular,
+  Inter_600SemiBold,
+  Inter_700Bold,
+} from '@expo-google-fonts/inter';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -67,13 +62,10 @@ function OnboardingGate() {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    Manrope_800ExtraBold,
-    IBMPlexMono_500Medium,
-    IBMPlexMono_600SemiBold,
-    IBMPlexMono_700Bold,
+    Inter_300Light,
+    Inter_400Regular,
+    Inter_600SemiBold,
+    Inter_700Bold,
   });
   const [fontsGaveUp, setFontsGaveUp] = useState(false);
   const prefsHydrated = usePreferencesHydrated();
@@ -138,6 +130,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.canvas,
   },
 });

@@ -7,7 +7,7 @@ import {
   useActiveCook,
   useFinishCooking,
 } from '@/features/cook-sessions/hooks';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 export function CookingNowCard() {
   const cooking = useActiveCook();
@@ -38,24 +38,23 @@ export function CookingNowCard() {
 
   return (
     <View
-      className="mx-5 mb-[26px] rounded-[20px] p-4"
-      style={{ backgroundColor: colors.espresso }}
+      className="mx-5 mb-[26px] rounded-lg p-6"
+      style={{ backgroundColor: colors.tile1 }}
     >
       <Text
-        className="text-[10.5px] tracking-[0.14em]"
-        tone="accent"
-        style={{ fontFamily: fonts.mono500 }}
+        className="text-[12px]"
+        style={{ ...typeface('regular'), color: colors.bodyMuted, letterSpacing: -0.12 }}
       >
         COOKING NOW
       </Text>
       <Text
         tone="inverse"
         className="pt-2 text-[18px]"
-        style={{ fontFamily: fonts.manrope800 }}
+        style={typeface('semibold')}
       >
         {cooking.title}
       </Text>
-      <Text className="pt-1 text-[12.5px]" style={{ color: '#B5A898' }}>
+      <Text className="pt-1 text-[14px]" style={{ color: colors.bodyMuted }}>
         Step {cooking.stepIndex + 1} of {cooking.stepCount}
       </Text>
       <View className="flex-row gap-1 py-3">
@@ -66,7 +65,7 @@ export function CookingNowCard() {
             style={{
               backgroundColor:
                 index <= cooking.stepIndex
-                  ? colors.paprika
+                  ? colors.primary
                   : 'rgba(255,255,255,0.16)',
             }}
           />

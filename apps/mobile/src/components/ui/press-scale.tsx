@@ -11,7 +11,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { duration, useReducedMotion } from '@/lib/motion';
+import { duration, PRESS_SCALE, useReducedMotion } from '@/lib/motion';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
@@ -45,7 +45,7 @@ export function PressScale({
         if (!reduced && !disabled) {
           // Reanimated shared values are mutated by design.
           // eslint-disable-next-line react-hooks/immutability
-          scale.value = withTiming(0.97, { duration: duration.instant });
+          scale.value = withTiming(PRESS_SCALE, { duration: duration.instant });
         }
         onPressIn?.(event);
       }}

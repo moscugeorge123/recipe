@@ -20,7 +20,7 @@ import { useCookStore } from '@/stores/cook-store';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { CookShell, useCookTheme } from '@/theme/cook-shell';
-import { fonts } from '@/theme/tokens';
+import { typeface } from '@/theme/tokens';
 
 function CookStepInner() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -125,7 +125,7 @@ function CookStepInner() {
           <Text
             accessibilityLiveRegion="polite"
             style={{
-              fontFamily: fonts.mono500,
+              ...typeface('regular'),
               color: tokens.muted,
               letterSpacing: 1.4,
             }}
@@ -161,7 +161,7 @@ function CookStepInner() {
                 />
                 <Text
                   style={{
-                    fontFamily: active ? fonts.mono700 : fonts.mono500,
+                    ...(active ? typeface('semibold') : typeface('regular')),
                     fontSize: 9.5,
                     letterSpacing: 1.2,
                     color: active ? tokens.text : tokens.muted,
@@ -180,7 +180,7 @@ function CookStepInner() {
         >
           <Text
             style={{
-              fontFamily: fonts.mono700,
+              ...typeface('semibold'),
               letterSpacing: 1.6,
               color: tokens.kicker,
               fontSize: 12,
@@ -192,7 +192,7 @@ function CookStepInner() {
             accessibilityRole="header"
             accessibilityLiveRegion="polite"
             style={{
-              fontFamily: fonts.manrope700,
+              ...typeface('semibold'),
               fontSize: 30,
               lineHeight: 36,
               color: tokens.text,
@@ -212,7 +212,7 @@ function CookStepInner() {
                   {item.qty ? (
                     <Text
                       style={{
-                        fontFamily: fonts.manrope700,
+                        ...typeface('semibold'),
                         color: tokens.text,
                       }}
                     >
@@ -254,7 +254,7 @@ function CookStepInner() {
                 >
                   <Text
                     style={{
-                      fontFamily: fonts.manrope700,
+                      ...typeface('semibold'),
                       fontSize: 16,
                       color: stepTimer ? tokens.timerOnText : tokens.text,
                     }}
@@ -275,7 +275,7 @@ function CookStepInner() {
                 >
                   <Text
                     style={{
-                      fontFamily: fonts.manrope700,
+                      ...typeface('semibold'),
                       fontSize: 16,
                       color: tokens.timerOnText,
                     }}
@@ -300,7 +300,7 @@ function CookStepInner() {
                 >
                   <Text
                     style={{
-                      fontFamily: fonts.manrope700,
+                      ...typeface('semibold'),
                       fontSize: 16,
                       color: tokens.ghostText,
                     }}
@@ -325,7 +325,7 @@ function CookStepInner() {
             >
               <Text
                 style={{
-                  fontFamily: fonts.mono700,
+                  ...typeface('semibold'),
                   fontSize: 10.5,
                   letterSpacing: 1,
                   color: tokens.kicker,
@@ -335,7 +335,7 @@ function CookStepInner() {
                 {`WHILE THAT'S COOKING`}
               </Text>
               <Text
-                style={{ fontFamily: fonts.manrope600, color: tokens.text }}
+                style={{ ...typeface('semibold'), color: tokens.text }}
               >
                 {parallel.instruction}
               </Text>
@@ -357,7 +357,7 @@ function CookStepInner() {
             >
               <Text
                 style={{
-                  fontFamily: fonts.manrope700,
+                  ...typeface('semibold'),
                   fontSize: 28,
                   color: tokens.ghostText,
                   lineHeight: 32,
@@ -378,7 +378,7 @@ function CookStepInner() {
           <Text
             className="pt-2.5 text-center"
             style={{
-              fontFamily: fonts.mono500,
+              ...typeface('regular'),
               color: tokens.muted,
               fontSize: 11,
             }}

@@ -10,7 +10,7 @@ import { formatQty } from '@/features/recipes/plan';
 import { inboxStatusForRecipe } from '@/stores/contracts';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { useUiStore } from '@/stores/ui-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 export default function ReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -44,15 +44,15 @@ export default function ReviewScreen() {
           </Text>
         </Pressable>
         <View className="mb-4 h-8 flex-row items-center gap-2 self-start rounded-[11px] bg-secondary-soft px-[13px]">
-          <Text className="text-[13px]" style={{ color: colors.basil700 }}>
+          <Text className="text-[13px]" style={{ color: colors.ink }}>
             ✓
           </Text>
-          <Text className="text-[13px]" style={{ color: colors.basil700 }}>
+          <Text className="text-[13px]" style={{ color: colors.ink }}>
             Recipe built · {recipe.ingredients.length} ingredients,{' '}
             {recipe.steps.length} steps
           </Text>
         </View>
-        <View className="overflow-hidden rounded-[22px] border border-crust bg-bg-elevated">
+        <View className="overflow-hidden rounded-[18px] border border-crust bg-bg-elevated">
           <PhotoStandIn
             colors={recipe.placeholder}
             height={170}
@@ -94,7 +94,7 @@ export default function ReviewScreen() {
                     {meta.k}
                   </Text>
                   <Text
-                    style={{ fontFamily: fonts.manrope700 }}
+                    style={typeface('semibold')}
                     className="pt-1 text-[14.5px]"
                   >
                     {meta.v}
@@ -108,7 +108,7 @@ export default function ReviewScreen() {
                 className="flex-row gap-3 border-t border-crust py-3"
               >
                 <Text
-                  style={{ fontFamily: fonts.manrope700 }}
+                  style={typeface('semibold')}
                   className="w-[70px]"
                 >
                   {formatQty(ing.quantity, ing.unit)}

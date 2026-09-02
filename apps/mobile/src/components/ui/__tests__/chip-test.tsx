@@ -4,25 +4,28 @@ import { Chip } from '@/components/ui/chip';
 import { colors } from '@/theme/tokens';
 
 describe('Chip', () => {
-  test('unselected uses peach fill and cocoa label', async () => {
+  test('unselected uses canvas fill and hairline', async () => {
     await render(<Chip label="Comfort" />);
 
     expect(screen.getByRole('button', { name: 'Comfort' })).toHaveStyle({
-      backgroundColor: colors.peach,
+      backgroundColor: colors.canvas,
+      borderColor: colors.hairline,
     });
     expect(screen.getByText('Comfort')).toHaveStyle({
-      color: colors.cocoa,
+      color: colors.ink,
     });
   });
 
-  test('selected uses espresso fill and steamed-milk label', async () => {
+  test('selected uses a 2px Action Blue focus ring', async () => {
     await render(<Chip label="Comfort" selected />);
 
     expect(screen.getByRole('button', { name: 'Comfort' })).toHaveStyle({
-      backgroundColor: colors.espresso,
+      backgroundColor: colors.canvas,
+      borderColor: colors.primaryFocus,
+      borderWidth: 2,
     });
     expect(screen.getByText('Comfort')).toHaveStyle({
-      color: colors.steamedMilk,
+      color: colors.ink,
     });
   });
 });

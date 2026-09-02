@@ -16,7 +16,7 @@ import { useLinkPreview } from '@/features/link-preview/hooks/use-link-preview';
 import { SEED_RECIPES } from '@/features/recipes/seed';
 import { ApiError } from '@/services/api-client';
 import { useUiStore } from '@/stores/ui-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 function displayUrl(url: string): string {
   return url.replace(/^https?:\/\//i, '').replace(/\/$/, '');
@@ -42,7 +42,7 @@ export default function ImportPreviewScreen() {
   const create = useCreateExtraction();
   const showToast = useUiStore((state) => state.showToast);
   const pistachio = SEED_RECIPES[0];
-  const placeholder = pistachio?.placeholder ?? ['#E6D9C4', '#DCCBB0'];
+  const placeholder = pistachio?.placeholder ?? ['#f5f5f7', '#e0e0e0'];
 
   const detected = inspectClipboard(draftUrl);
   const sourceLabel =
@@ -177,7 +177,7 @@ export default function ImportPreviewScreen() {
                     <Text
                       accessibilityRole="alert"
                       className="pt-2 text-[13px]"
-                      style={{ color: colors.chili }}
+                      style={{ color: colors.inkMuted48 }}
                     >
                       {previewError}
                     </Text>
@@ -185,7 +185,7 @@ export default function ImportPreviewScreen() {
                   <Text
                     className="pt-3 text-[11px]"
                     tone="muted"
-                    style={{ fontFamily: fonts.mono500 }}
+                    style={typeface('regular')}
                   >
                     {displayUrl(draftUrl)}
                   </Text>
@@ -210,8 +210,8 @@ export default function ImportPreviewScreen() {
                         style={{
                           borderWidth: 2,
                           borderColor: selected
-                            ? colors.paprika
-                            : colors.espresso,
+                            ? colors.primaryFocus
+                            : colors.hairline,
                         }}
                       >
                         <View style={{ width: 72 }}>

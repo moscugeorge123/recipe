@@ -13,7 +13,7 @@ import { useCatalog } from '@/features/catalog/use-catalog';
 import type { KitchenTab } from '@/stores/contracts';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { useUiStore } from '@/stores/ui-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 const TABS: KitchenTab[] = [
   'Inbox',
@@ -217,7 +217,7 @@ export default function KitchenScreen() {
                         />
                         <View className="flex-1">
                           <Text
-                            style={{ fontFamily: fonts.manrope700 }}
+                            style={typeface('semibold')}
                             className="text-[15.5px]"
                           >
                             {recipe.title}
@@ -265,7 +265,7 @@ export default function KitchenScreen() {
                   />
                   <View className="flex-1">
                     <Text
-                      style={{ fontFamily: fonts.manrope700 }}
+                      style={typeface('semibold')}
                       className="text-[15.5px]"
                     >
                       {recipe.title}
@@ -311,7 +311,7 @@ export default function KitchenScreen() {
                     return (
                       <View key={id} className="flex-1">
                         <PhotoStandIn
-                          colors={recipe?.placeholder ?? ['#E6D9C4', '#DCCBB0']}
+                          colors={recipe?.placeholder ?? ['#f5f5f7', '#e0e0e0']}
                           height={44}
                           radius={9}
                           uri={recipe?.thumbnailUrl}
@@ -321,7 +321,7 @@ export default function KitchenScreen() {
                   })}
                 </View>
                 <Text
-                  style={{ fontFamily: fonts.manrope700 }}
+                  style={typeface('semibold')}
                   className="text-[15px]"
                 >
                   {collection.name}
@@ -352,7 +352,7 @@ export default function KitchenScreen() {
         {empty ? (
           <View className="items-center px-5 pt-[30px]">
             <Text
-              style={{ fontFamily: fonts.manrope700 }}
+              style={typeface('semibold')}
               className="text-[19px]"
             >
               {empty.title}
@@ -388,9 +388,9 @@ export default function KitchenScreen() {
               <View
                 className="h-4 w-4 rounded-full border-2"
                 style={{
-                  borderColor: tab === item ? colors.paprika : colors.crust,
+                  borderColor: tab === item ? colors.primary : colors.hairline,
                   backgroundColor:
-                    tab === item ? colors.paprika : 'transparent',
+                    tab === item ? colors.primary : 'transparent',
                 }}
               />
               <Text className="text-[14.5px]" tone="icon">

@@ -225,14 +225,14 @@ function FacebookMark({ size }: { size: number }) {
 function WebsiteMark({ size }: { size: number }) {
   const globe = size * 0.58;
   return (
-    <Tile size={size} backgroundColor={colors.basilSoft}>
+    <Tile size={size} backgroundColor={colors.parchment}>
       <View
         style={{
           width: globe,
           height: globe,
           overflow: 'hidden',
           borderRadius: globe / 2,
-          borderColor: colors.basil,
+          borderColor: colors.primary,
           borderWidth: Math.max(1.5, size * 0.055),
         }}
       >
@@ -243,7 +243,7 @@ function WebsiteMark({ size }: { size: number }) {
             right: 0,
             left: 0,
             height: Math.max(1.5, size * 0.05),
-            backgroundColor: colors.basil,
+            backgroundColor: colors.primary,
           }}
         />
         <View
@@ -253,7 +253,7 @@ function WebsiteMark({ size }: { size: number }) {
             bottom: 0,
             left: '46%',
             width: Math.max(1.5, size * 0.05),
-            backgroundColor: colors.basil,
+            backgroundColor: colors.primary,
           }}
         />
       </View>
@@ -266,7 +266,7 @@ function WebsiteMark({ size }: { size: number }) {
           width: size * 0.24,
           transform: [{ rotate: '32deg' }],
           borderRadius: size * 0.12,
-          backgroundColor: colors.basil,
+          backgroundColor: colors.primary,
         }}
       />
     </Tile>
@@ -275,7 +275,7 @@ function WebsiteMark({ size }: { size: number }) {
 
 function PhotoMark({ size }: { size: number }) {
   return (
-    <Tile size={size} backgroundColor={colors.honey50}>
+    <Tile size={size} backgroundColor={colors.parchment}>
       <View
         style={{
           position: 'absolute',
@@ -302,9 +302,9 @@ function PhotoMark({ size }: { size: number }) {
             width: size * 0.26,
             height: size * 0.26,
             borderRadius: size * 0.13,
-            borderColor: colors.honey50,
+            borderColor: colors.parchment,
             borderWidth: Math.max(1.4, size * 0.04),
-            backgroundColor: colors.paprika,
+            backgroundColor: colors.primary,
           }}
         />
       </View>
@@ -395,7 +395,7 @@ function VoiceMark({ size }: { size: number }) {
 function ShareMark({ size }: { size: number }) {
   const dot = size * 0.18;
   return (
-    <Tile size={size} backgroundColor={colors.paprikaSoft}>
+    <Tile size={size} backgroundColor={colors.pearl}>
       <View
         style={{
           position: 'absolute',
@@ -403,7 +403,7 @@ function ShareMark({ size }: { size: number }) {
           width: dot,
           height: dot,
           borderRadius: dot / 2,
-          backgroundColor: colors.paprika,
+          backgroundColor: colors.primary,
         }}
       />
       <View
@@ -414,7 +414,7 @@ function ShareMark({ size }: { size: number }) {
           width: dot,
           height: dot,
           borderRadius: dot / 2,
-          backgroundColor: colors.paprika,
+          backgroundColor: colors.primary,
         }}
       />
       <View
@@ -425,7 +425,7 @@ function ShareMark({ size }: { size: number }) {
           width: dot,
           height: dot,
           borderRadius: dot / 2,
-          backgroundColor: colors.paprika,
+          backgroundColor: colors.primary,
         }}
       />
     </Tile>
@@ -454,7 +454,7 @@ function AllMark({ size }: { size: number }) {
               width: dot,
               height: dot,
               borderRadius: dot / 2,
-              backgroundColor: colors.paprika,
+              backgroundColor: colors.primary,
             }}
           />
           <View
@@ -462,7 +462,7 @@ function AllMark({ size }: { size: number }) {
               width: dot,
               height: dot,
               borderRadius: dot / 2,
-              backgroundColor: colors.basil,
+              backgroundColor: colors.ink,
             }}
           />
           <View
@@ -470,7 +470,7 @@ function AllMark({ size }: { size: number }) {
               width: dot,
               height: dot,
               borderRadius: dot / 2,
-              backgroundColor: colors.honey,
+              backgroundColor: colors.steam,
             }}
           />
         </View>

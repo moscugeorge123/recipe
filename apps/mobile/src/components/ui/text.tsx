@@ -1,9 +1,17 @@
 import { Text as RNText, type TextProps as RNTextProps } from 'react-native';
 
-import { colors, fonts } from '@/theme/tokens';
+import { colors, substitutingInter, typeface } from '@/theme/tokens';
+
+type TypeWeight = 'light' | 'regular' | 'semibold' | 'bold';
 
 type TextVariant =
-  'display' | 'title' | 'section' | 'kicker' | 'body' | 'caption' | 'mono';
+  | 'display'
+  | 'title'
+  | 'section'
+  | 'kicker'
+  | 'body'
+  | 'caption'
+  | 'mono';
 
 export type TextTone =
   | 'default'
@@ -21,45 +29,58 @@ type TextProps = RNTextProps & {
   tone?: TextTone;
 };
 
+const bodyLeading = substitutingInter ? 1.44 : 1.47;
+const displayTracking = substitutingInter ? -0.714 : -0.374;
+
 const variantClass: Record<TextVariant, string> = {
-  display: 'text-[27px] leading-[1.14] tracking-[-0.02em]',
-  title: 'text-[23px] leading-[1.14] tracking-[-0.02em]',
-  section: 'text-[13px] font-bold tracking-[0.1em]',
-  kicker: 'text-[11px] tracking-[0.14em]',
-  body: 'text-[15.5px] leading-[1.45]',
-  caption: 'text-[13.5px] leading-[1.4]',
-  mono: 'text-[11.5px] tracking-[0.04em]',
+  display: 'text-[34px] leading-[1.47]',
+  title: 'text-[28px] leading-[1.14]',
+  section: 'text-[14px] leading-[1.29]',
+  kicker: 'text-[12px] leading-[1]',
+  body: 'text-[17px]',
+  caption: 'text-[14px] leading-[1.43]',
+  mono: 'text-[12px] leading-[1]',
 };
 
-const variantFont: Record<TextVariant, string> = {
-  display: fonts.manrope800,
-  title: fonts.manrope800,
-  section: fonts.manrope700,
-  kicker: fonts.mono500,
-  body: fonts.manrope500,
-  caption: fonts.manrope500,
-  mono: fonts.mono500,
+const variantWeight: Record<TextVariant, TypeWeight> = {
+  display: 'semibold',
+  title: 'regular',
+  section: 'semibold',
+  kicker: 'regular',
+  body: 'regular',
+  caption: 'regular',
+  mono: 'regular',
+};
+
+const variantTracking: Record<TextVariant, number> = {
+  display: displayTracking,
+  title: 0.196,
+  section: -0.224,
+  kicker: -0.12,
+  body: -0.374,
+  caption: -0.224,
+  mono: -0.12,
 };
 
 const variantTone: Record<TextVariant, TextTone> = {
   display: 'default',
   title: 'default',
   section: 'default',
-  kicker: 'primary',
+  kicker: 'muted',
   body: 'default',
   caption: 'muted',
   mono: 'muted',
 };
 
 export const toneColors: Record<TextTone, string> = {
-  default: colors.espresso,
-  muted: colors.olive,
-  disabled: colors.sage,
-  inverse: colors.steamedMilk,
-  primary: colors.paprikaPressed,
-  secondary: colors.basil,
-  accent: colors.honey,
-  icon: colors.cocoa,
+  default: colors.ink,
+  muted: colors.inkMuted48,
+  disabled: colors.inkMuted48,
+  inverse: colors.onDark,
+  primary: colors.primary,
+  secondary: colors.primary,
+  accent: colors.primary,
+  icon: colors.ink,
 };
 
 export function Text({
@@ -75,7 +96,12 @@ export function Text({
     <RNText
       className={`${variantClass[variant]} ${className ?? ''}`}
       style={[
-        { fontFamily: variantFont[variant], color: toneColors[resolvedTone] },
+        {
+          ...typeface(variantWeight[variant]),
+          color: toneColors[resolvedTone],
+          letterSpacing: variantTracking[variant],
+          ...(variant === 'body' ? { lineHeight: 17 * bodyLeading } : {}),
+        },
         style,
       ]}
       {...props}

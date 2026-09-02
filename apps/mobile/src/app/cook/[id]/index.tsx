@@ -12,7 +12,7 @@ import { useCookStore } from '@/stores/cook-store';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { CookShell } from '@/theme/cook-shell';
 import { getCookTokens } from '@/theme/cook-tokens';
-import { fonts } from '@/theme/tokens';
+import { typeface } from '@/theme/tokens';
 
 export default function CookIntroScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -60,15 +60,15 @@ export default function CookIntroScreen() {
           onPress={() => router.back()}
           className="h-11 justify-center"
         >
-          <Text style={{ color: theme === 'dark' ? '#B5A898' : '#6B7A62' }}>
+          <Text style={{ color: getCookTokens(theme).muted }}>
             Exit
           </Text>
         </Pressable>
         <Text
           style={{
-            fontFamily: fonts.mono500,
-            letterSpacing: 2,
-            color: theme === 'dark' ? '#F6D56A' : '#C4472C',
+            ...typeface('regular'),
+            letterSpacing: -0.12,
+            color: getCookTokens(theme).kicker,
             paddingTop: 12,
           }}
         >
@@ -76,9 +76,9 @@ export default function CookIntroScreen() {
         </Text>
         <Text
           style={{
-            fontFamily: fonts.manrope800,
+            ...typeface('semibold'),
             fontSize: 32,
-            color: theme === 'dark' ? '#F5EDE4' : '#2A2118',
+            color: getCookTokens(theme).text,
             paddingTop: 12,
           }}
         >
@@ -89,9 +89,9 @@ export default function CookIntroScreen() {
             <View key={stage.name}>
               <Text
                 style={{
-                  fontFamily: fonts.mono700,
-                  letterSpacing: 1.5,
-                  color: theme === 'dark' ? '#F6D56A' : '#C4472C',
+                  ...typeface('semibold'),
+                  letterSpacing: -0.224,
+                  color: getCookTokens(theme).kicker,
                 }}
               >
                 {stage.name} · {stage.mins} MIN
@@ -100,10 +100,10 @@ export default function CookIntroScreen() {
                 <Text
                   key={row.label}
                   style={{
-                    color: theme === 'dark' ? '#E3D9CC' : '#4A3D32',
+                    color: getCookTokens(theme).rowText,
                     paddingTop: 8,
-                    fontSize: 15.5,
-                    fontFamily: fonts.manrope500,
+                    fontSize: 17,
+                    ...typeface('regular'),
                   }}
                 >
                   {row.label}

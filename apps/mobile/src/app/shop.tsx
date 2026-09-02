@@ -19,7 +19,7 @@ import {
 } from '@/lib/motion';
 import { useShopStore } from '@/stores/shop-store';
 import { useUiStore } from '@/stores/ui-store';
-import { colors, fonts } from '@/theme/tokens';
+import { colors, typeface } from '@/theme/tokens';
 
 const CATS: IngredientCategory[] = [
   'Produce',
@@ -69,7 +69,7 @@ function ShopItemRow({
           {
             width: shoppingMode ? 30 : 26,
             height: shoppingMode ? 30 : 26,
-            backgroundColor: item.done ? colors.basil : colors.butter,
+            backgroundColor: item.done ? colors.primary : colors.canvas,
             borderWidth: item.done ? 0 : 1.5,
             borderColor: colors.crust,
           },
@@ -84,7 +84,7 @@ function ShopItemRow({
       <Text
         style={{
           minWidth: shoppingMode ? 78 : 66,
-          fontFamily: fonts.manrope700,
+          ...typeface('semibold'),
           fontSize: shoppingMode ? 18 : 15.5,
           color: colors.espresso,
         }}
@@ -94,7 +94,7 @@ function ShopItemRow({
       <View className="flex-1">
         <Text
           style={{
-            fontFamily: fonts.manrope500,
+            ...typeface('regular'),
             fontSize: shoppingMode ? 17 : 15,
             color: colors.cocoa,
             textDecorationLine: item.done ? 'line-through' : 'none',
@@ -175,7 +175,7 @@ export default function ShopScreen() {
           >
             <Text
               style={{
-                fontFamily: fonts.manrope700,
+                ...typeface('semibold'),
                 fontSize: 13,
                 color: shoppingMode ? colors.cream : colors.cocoa,
               }}
@@ -214,13 +214,13 @@ export default function ShopScreen() {
           <View className="mx-5 mt-6 items-center rounded-[20px] bg-secondary-soft p-5">
             <Text
               className="text-center text-[19px]"
-              style={{ fontFamily: fonts.manrope700, color: '#15462D' }}
+              style={{ ...typeface('semibold'), color: colors.ink }}
             >
               Basket done — {items.length} items.
             </Text>
             <Text
               className="py-2 text-center text-[13.5px]"
-              style={{ color: colors.basil700 }}
+              style={{ color: colors.ink }}
             >
               Everything for your recipes is in.
             </Text>

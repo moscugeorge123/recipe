@@ -27,7 +27,7 @@ import { cancelExtraction } from '@/features/extraction/api';
 import { useExtractionJob } from '@/features/extraction/hooks/use-extraction-job';
 import { announce } from '@/lib/announce';
 import { useReducedMotion } from '@/lib/motion';
-import { fonts } from '@/theme/tokens';
+import { typeface } from '@/theme/tokens';
 
 export default function ExtractScreen() {
   const { jobId, url } = useLocalSearchParams<{
@@ -90,7 +90,7 @@ export default function ExtractScreen() {
               <Text
                 numberOfLines={1}
                 style={{
-                  fontFamily: fonts.manrope600,
+                  ...typeface('semibold'),
                   fontSize: 12,
                   color: daisy.quiet,
                 }}
@@ -122,7 +122,7 @@ export default function ExtractScreen() {
           >
             <Text
               style={{
-                fontFamily: fonts.manrope700,
+                ...typeface('semibold'),
                 fontSize: 14,
                 color: daisy.quiet,
               }}
@@ -167,7 +167,7 @@ function StatusLine({
       <Text
         accessibilityLiveRegion="polite"
         style={{
-          fontFamily: fonts.manrope700,
+          ...typeface('semibold'),
           fontSize: 15,
           color,
           textAlign: 'center',
