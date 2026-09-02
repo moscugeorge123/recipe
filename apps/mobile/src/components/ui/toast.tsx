@@ -31,21 +31,21 @@ export function Toast({ toast, bottomOffset = 104 }: ToastProps) {
       }
       exiting={reduced ? undefined : FadeOut.duration(duration.instant)}
       pointerEvents="box-none"
-      className="absolute left-4 right-4 z-50 flex-row items-center gap-[11px] rounded-[17px] px-4 py-3.5"
-      style={{ bottom: bottomOffset, backgroundColor: colors.espresso }}
+      className="absolute left-4 right-4 z-50 flex-row items-center gap-[11px] rounded-[20px] px-4 py-3.5"
+      style={{ bottom: bottomOffset, backgroundColor: colors.canvasDark }}
     >
       <View
-        className="h-[26px] w-[26px] items-center justify-center rounded-[9px]"
-        style={{ backgroundColor: colors.paprika }}
+        className="h-[26px] w-[26px] items-center justify-center rounded-full"
+        style={{ backgroundColor: colors.primary }}
       >
-        <Text className="text-[13px]" style={{ color: colors.espresso }}>
+        <Text className="text-[13px]" style={{ color: colors.onPrimary }}>
           {toast.glyph}
         </Text>
       </View>
       <Text
         tone="inverse"
         className="flex-1 text-[14px] leading-[1.3]"
-        style={{ fontFamily: fonts.manrope600 }}
+        style={{ fontFamily: fonts.regular }}
       >
         {toast.text}
       </Text>
@@ -54,13 +54,13 @@ export function Toast({ toast, bottomOffset = 104 }: ToastProps) {
           accessibilityRole="button"
           accessibilityLabel={toast.action}
           onPress={toast.onAction}
-          className="h-[34px] min-h-11 justify-center rounded-[11px] px-3"
-          style={{ backgroundColor: 'rgba(255,255,255,0.14)' }}
+          className="h-11 min-h-11 justify-center rounded-full px-3"
+          style={{ backgroundColor: colors.surfaceElevated }}
         >
           <Text
             tone="inverse"
-            className="text-[12.5px]"
-            style={{ fontFamily: fonts.manrope700 }}
+            className="text-[14px]"
+            style={{ fontFamily: fonts.semibold }}
           >
             {toast.action}
           </Text>

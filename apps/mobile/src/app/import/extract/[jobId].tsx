@@ -90,7 +90,7 @@ export default function ExtractScreen() {
               <Text
                 numberOfLines={1}
                 style={{
-                  fontFamily: fonts.manrope600,
+                  fontFamily: fonts.semibold,
                   fontSize: 12,
                   color: daisy.quiet,
                 }}
@@ -122,7 +122,7 @@ export default function ExtractScreen() {
           >
             <Text
               style={{
-                fontFamily: fonts.manrope700,
+                fontFamily: fonts.semibold,
                 fontSize: 14,
                 color: daisy.quiet,
               }}
@@ -167,7 +167,7 @@ function StatusLine({
       <Text
         accessibilityLiveRegion="polite"
         style={{
-          fontFamily: fonts.manrope700,
+          fontFamily: fonts.semibold,
           fontSize: 15,
           color,
           textAlign: 'center',

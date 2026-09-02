@@ -2,9 +2,9 @@ import { router } from 'expo-router';
 import { useEffect } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withTiming,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,10 @@ import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import type { IngredientCategory } from '@/features/recipes/types';
 import {
-    duration,
-    reanimatedEasing,
-    usePopScale,
-    useReducedMotion,
+  duration,
+  reanimatedEasing,
+  usePopScale,
+  useReducedMotion,
 } from '@/lib/motion';
 import { useShopStore } from '@/stores/shop-store';
 import { useUiStore } from '@/stores/ui-store';
@@ -69,9 +69,9 @@ function ShopItemRow({
           {
             width: shoppingMode ? 30 : 26,
             height: shoppingMode ? 30 : 26,
-            backgroundColor: item.done ? colors.basil : colors.butter,
+            backgroundColor: item.done ? colors.canvasDark : colors.surfaceCard,
             borderWidth: item.done ? 0 : 1.5,
-            borderColor: colors.crust,
+            borderColor: colors.hairlineLight,
           },
         ]}
       >
@@ -84,9 +84,9 @@ function ShopItemRow({
       <Text
         style={{
           minWidth: shoppingMode ? 78 : 66,
-          fontFamily: fonts.manrope700,
+          fontFamily: fonts.semibold,
           fontSize: shoppingMode ? 18 : 15.5,
-          color: colors.espresso,
+          color: colors.ink,
         }}
       >
         {item.unit ? `${item.quantity} ${item.unit}` : item.quantity}
@@ -94,9 +94,9 @@ function ShopItemRow({
       <View className="flex-1">
         <Text
           style={{
-            fontFamily: fonts.manrope500,
+            fontFamily: fonts.regular,
             fontSize: shoppingMode ? 17 : 15,
-            color: colors.cocoa,
+            color: colors.charcoal,
             textDecorationLine: item.done ? 'line-through' : 'none',
           }}
         >
@@ -168,16 +168,18 @@ export default function ShopScreen() {
           <Pressable
             accessibilityRole="button"
             onPress={toggleShoppingMode}
-            className="h-11 justify-center rounded-[13px] px-4"
+            className="h-11 justify-center rounded-full px-4"
             style={{
-              backgroundColor: shoppingMode ? colors.espresso : colors.peach,
+              backgroundColor: shoppingMode
+                ? colors.canvasDark
+                : colors.surfaceSoft,
             }}
           >
             <Text
               style={{
-                fontFamily: fonts.manrope700,
+                fontFamily: fonts.semibold,
                 fontSize: 13,
-                color: shoppingMode ? colors.cream : colors.cocoa,
+                color: shoppingMode ? colors.canvasLight : colors.charcoal,
               }}
             >
               {shoppingMode ? 'Done' : 'Shopping mode'}
@@ -187,8 +189,8 @@ export default function ShopScreen() {
         <View className="px-5 py-4">
           <View className="h-1.5 overflow-hidden rounded-full bg-crust">
             <Animated.View
-              className="h-full rounded-full bg-secondary"
-              style={progressStyle}
+              className="h-full rounded-full"
+              style={[progressStyle, { backgroundColor: colors.canvasDark }]}
             />
           </View>
         </View>
@@ -214,13 +216,16 @@ export default function ShopScreen() {
           <View className="mx-5 mt-6 items-center rounded-[20px] bg-secondary-soft p-5">
             <Text
               className="text-center text-[19px]"
-              style={{ fontFamily: fonts.manrope700, color: '#15462D' }}
+              style={{
+                fontFamily: fonts.semibold,
+                color: colors.accentGreenText,
+              }}
             >
               Basket done — {items.length} items.
             </Text>
             <Text
               className="py-2 text-center text-[13.5px]"
-              style={{ color: colors.basil700 }}
+              style={{ color: colors.accentGreenText }}
             >
               Everything for your recipes is in.
             </Text>

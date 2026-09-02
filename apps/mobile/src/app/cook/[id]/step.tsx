@@ -125,7 +125,7 @@ function CookStepInner() {
           <Text
             accessibilityLiveRegion="polite"
             style={{
-              fontFamily: fonts.mono500,
+              fontFamily: fonts.semibold,
               color: tokens.muted,
               letterSpacing: 1.4,
             }}
@@ -161,7 +161,7 @@ function CookStepInner() {
                 />
                 <Text
                   style={{
-                    fontFamily: active ? fonts.mono700 : fonts.mono500,
+                    fontFamily: active ? fonts.semibold : fonts.semibold,
                     fontSize: 9.5,
                     letterSpacing: 1.2,
                     color: active ? tokens.text : tokens.muted,
@@ -180,7 +180,7 @@ function CookStepInner() {
         >
           <Text
             style={{
-              fontFamily: fonts.mono700,
+              fontFamily: fonts.semibold,
               letterSpacing: 1.6,
               color: tokens.kicker,
               fontSize: 12,
@@ -192,7 +192,7 @@ function CookStepInner() {
             accessibilityRole="header"
             accessibilityLiveRegion="polite"
             style={{
-              fontFamily: fonts.manrope700,
+              fontFamily: fonts.semibold,
               fontSize: 30,
               lineHeight: 36,
               color: tokens.text,
@@ -212,7 +212,7 @@ function CookStepInner() {
                   {item.qty ? (
                     <Text
                       style={{
-                        fontFamily: fonts.manrope700,
+                        fontFamily: fonts.semibold,
                         color: tokens.text,
                       }}
                     >
@@ -241,7 +241,7 @@ function CookStepInner() {
                     }
                     toggleTimer();
                   }}
-                  className="h-14 min-h-11 flex-1 items-center justify-center rounded-[17px] px-[22px]"
+                  className="h-12 min-h-11 flex-1 items-center justify-center rounded-full px-7"
                   style={{
                     backgroundColor: stepTimer
                       ? tokens.timerOnBg
@@ -254,7 +254,7 @@ function CookStepInner() {
                 >
                   <Text
                     style={{
-                      fontFamily: fonts.manrope700,
+                      fontFamily: fonts.semibold,
                       fontSize: 16,
                       color: stepTimer ? tokens.timerOnText : tokens.text,
                     }}
@@ -266,7 +266,7 @@ function CookStepInner() {
                 <View
                   accessibilityLiveRegion="polite"
                   accessibilityLabel={timerMain.label}
-                  className="h-14 min-h-11 flex-1 items-center justify-center rounded-[17px] px-[22px]"
+                  className="h-12 min-h-11 flex-1 items-center justify-center rounded-full px-7"
                   style={{
                     backgroundColor: tokens.timerOnBg,
                     borderWidth: 1,
@@ -275,7 +275,7 @@ function CookStepInner() {
                 >
                   <Text
                     style={{
-                      fontFamily: fonts.manrope700,
+                      fontFamily: fonts.semibold,
                       fontSize: 16,
                       color: tokens.timerOnText,
                     }}
@@ -295,12 +295,12 @@ function CookStepInner() {
                     }
                     clearTimer();
                   }}
-                  className="h-14 min-h-11 min-w-[88px] items-center justify-center rounded-[17px] px-5"
+                  className="h-12 min-h-11 min-w-[88px] items-center justify-center rounded-full px-5"
                   style={{ backgroundColor: tokens.ghostBg }}
                 >
                   <Text
                     style={{
-                      fontFamily: fonts.manrope700,
+                      fontFamily: fonts.semibold,
                       fontSize: 16,
                       color: tokens.ghostText,
                     }}
@@ -315,7 +315,7 @@ function CookStepInner() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={`While that's cooking: ${parallel.instruction}`}
-              className="mt-3 rounded-[15px] p-4"
+              className="mt-3 rounded-[20px] p-4"
               style={{
                 backgroundColor: tokens.parallelBg,
                 borderWidth: 1,
@@ -325,7 +325,7 @@ function CookStepInner() {
             >
               <Text
                 style={{
-                  fontFamily: fonts.mono700,
+                  fontFamily: fonts.semibold,
                   fontSize: 10.5,
                   letterSpacing: 1,
                   color: tokens.kicker,
@@ -334,9 +334,7 @@ function CookStepInner() {
               >
                 {`WHILE THAT'S COOKING`}
               </Text>
-              <Text
-                style={{ fontFamily: fonts.manrope600, color: tokens.text }}
-              >
+              <Text style={{ fontFamily: fonts.semibold, color: tokens.text }}>
                 {parallel.instruction}
               </Text>
             </Pressable>
@@ -349,7 +347,7 @@ function CookStepInner() {
               accessibilityLabel="Previous step"
               disabled={si === 0}
               onPress={goPrev}
-              className="h-[62px] w-[62px] items-center justify-center rounded-[17px]"
+              className="h-12 w-12 items-center justify-center rounded-full"
               style={{
                 backgroundColor: tokens.ghostBg,
                 opacity: si === 0 ? 0.4 : 1,
@@ -357,7 +355,7 @@ function CookStepInner() {
             >
               <Text
                 style={{
-                  fontFamily: fonts.manrope700,
+                  fontFamily: fonts.semibold,
                   fontSize: 28,
                   color: tokens.ghostText,
                   lineHeight: 32,
@@ -371,14 +369,14 @@ function CookStepInner() {
                 si === steps.length - 1 ? 'Finish cooking' : 'Done · next step'
               }
               size="lg"
-              className="h-[62px] flex-1"
+              className="flex-1"
               onPress={goNext}
             />
           </View>
           <Text
             className="pt-2.5 text-center"
             style={{
-              fontFamily: fonts.mono500,
+              fontFamily: fonts.semibold,
               color: tokens.muted,
               fontSize: 11,
             }}

@@ -44,10 +44,16 @@ export default function ReviewScreen() {
           </Text>
         </Pressable>
         <View className="mb-4 h-8 flex-row items-center gap-2 self-start rounded-[11px] bg-secondary-soft px-[13px]">
-          <Text className="text-[13px]" style={{ color: colors.basil700 }}>
+          <Text
+            className="text-[13px]"
+            style={{ color: colors.accentGreenText }}
+          >
             ✓
           </Text>
-          <Text className="text-[13px]" style={{ color: colors.basil700 }}>
+          <Text
+            className="text-[13px]"
+            style={{ color: colors.accentGreenText }}
+          >
             Recipe built · {recipe.ingredients.length} ingredients,{' '}
             {recipe.steps.length} steps
           </Text>
@@ -94,7 +100,7 @@ export default function ReviewScreen() {
                     {meta.k}
                   </Text>
                   <Text
-                    style={{ fontFamily: fonts.manrope700 }}
+                    style={{ fontFamily: fonts.semibold }}
                     className="pt-1 text-[14.5px]"
                   >
                     {meta.v}
@@ -108,7 +114,7 @@ export default function ReviewScreen() {
                 className="flex-row gap-3 border-t border-crust py-3"
               >
                 <Text
-                  style={{ fontFamily: fonts.manrope700 }}
+                  style={{ fontFamily: fonts.semibold }}
                   className="w-[70px]"
                 >
                   {formatQty(ing.quantity, ing.unit)}

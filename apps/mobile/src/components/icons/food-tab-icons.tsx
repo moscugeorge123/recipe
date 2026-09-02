@@ -46,7 +46,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           borderTopRightRadius: s(9),
           borderBottomLeftRadius: s(4.5),
           borderBottomRightRadius: s(4.5),
-          backgroundColor: colors.honey,
+          backgroundColor: colors.accentYellow,
         }}
       />
       <View
@@ -57,7 +57,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(1.5),
           width: s(1.5),
           borderRadius: s(0.8),
-          backgroundColor: colors.honey50,
+          backgroundColor: colors.faint,
         }}
       />
       <View
@@ -68,7 +68,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(1.4),
           width: s(1.4),
           borderRadius: s(0.7),
-          backgroundColor: colors.honey50,
+          backgroundColor: colors.faint,
         }}
       />
       <View
@@ -79,7 +79,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(1.5),
           width: s(1.5),
           borderRadius: s(0.8),
-          backgroundColor: colors.honey50,
+          backgroundColor: colors.faint,
         }}
       />
       <View
@@ -90,7 +90,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(3.2),
           width: s(18),
           borderRadius: s(1.6),
-          backgroundColor: colors.basil,
+          backgroundColor: colors.accentLightGreen,
         }}
       />
       <View
@@ -101,7 +101,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(3),
           width: s(15.6),
           borderRadius: s(1.5),
-          backgroundColor: colors.paprika,
+          backgroundColor: colors.accentPink,
         }}
       />
       <View
@@ -115,7 +115,7 @@ export function HomeFoodIcon({ size = 22, muted }: FoodIconProps) {
           borderTopRightRadius: s(3.5),
           borderBottomLeftRadius: s(8.5),
           borderBottomRightRadius: s(8.5),
-          backgroundColor: '#C49212',
+          backgroundColor: colors.accentBrown,
         }}
       />
     </Canvas>
@@ -137,7 +137,7 @@ export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: s(10),
-          backgroundColor: colors.honey,
+          backgroundColor: colors.accentYellow,
         }}
       >
         <View
@@ -147,7 +147,7 @@ export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
             alignItems: 'center',
             justifyContent: 'center',
             borderRadius: s(7),
-            backgroundColor: colors.honey50,
+            backgroundColor: colors.faint,
           }}
         >
           <View
@@ -159,7 +159,7 @@ export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
               borderBottomWidth: s(5.8),
               borderLeftColor: 'transparent',
               borderRightColor: 'transparent',
-              borderBottomColor: colors.paprika,
+              borderBottomColor: colors.accentPink,
             }}
           />
           <View
@@ -171,7 +171,7 @@ export function ExploreFoodIcon({ size = 22, muted }: FoodIconProps) {
               borderTopWidth: s(5.2),
               borderLeftColor: 'transparent',
               borderRightColor: 'transparent',
-              borderTopColor: colors.basil,
+              borderTopColor: colors.accentTeal,
             }}
           />
         </View>
@@ -193,7 +193,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(4.2),
           width: s(1.6),
           borderRadius: s(1),
-          backgroundColor: colors.steam,
+          backgroundColor: colors.faint,
         }}
       />
       <View
@@ -204,7 +204,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(4.2),
           width: s(1.6),
           borderRadius: s(1),
-          backgroundColor: colors.steam,
+          backgroundColor: colors.faint,
         }}
       />
       <View
@@ -215,7 +215,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(4.2),
           width: s(1.6),
           borderRadius: s(1),
-          backgroundColor: colors.steam,
+          backgroundColor: colors.faint,
         }}
       />
       <View
@@ -226,7 +226,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(2.4),
           width: s(2.4),
           borderRadius: s(1.2),
-          backgroundColor: colors.cocoa,
+          backgroundColor: colors.accentBrown,
         }}
       />
       <View
@@ -237,7 +237,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(2.8),
           width: s(16),
           borderRadius: s(1.4),
-          backgroundColor: colors.cocoa,
+          backgroundColor: colors.accentBrown,
         }}
       />
       <View
@@ -249,7 +249,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           width: s(13.6),
           borderBottomLeftRadius: s(3.4),
           borderBottomRightRadius: s(3.4),
-          backgroundColor: colors.paprika,
+          backgroundColor: colors.accentPink,
         }}
       />
       <View
@@ -260,7 +260,7 @@ export function KitchenFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(2.6),
           width: s(4.2),
           borderRadius: s(1.3),
-          backgroundColor: colors.cocoa,
+          backgroundColor: colors.accentBrown,
         }}
       />
     </Canvas>
@@ -281,7 +281,7 @@ export function YouFoodIcon({ size = 22, muted }: FoodIconProps) {
           width: s(7),
           transform: [{ rotate: '28deg' }],
           borderRadius: s(4),
-          backgroundColor: colors.basil,
+          backgroundColor: colors.accentLightGreen,
         }}
       />
       <View
@@ -292,7 +292,7 @@ export function YouFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(4.5),
           width: s(2),
           borderRadius: s(1),
-          backgroundColor: colors.cocoa,
+          backgroundColor: colors.accentBrown,
         }}
       />
       <View
@@ -303,7 +303,7 @@ export function YouFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(16),
           width: s(17),
           borderRadius: s(8.5),
-          backgroundColor: colors.berry,
+          backgroundColor: colors.accentPink,
         }}
       />
       <View
@@ -314,7 +314,7 @@ export function YouFoodIcon({ size = 22, muted }: FoodIconProps) {
           height: s(5),
           width: s(3.6),
           borderRadius: s(2),
-          backgroundColor: 'rgba(255, 248, 242, 0.55)',
+          backgroundColor: 'rgba(255, 255, 255, 0.55)',
         }}
       />
     </Canvas>
@@ -335,7 +335,7 @@ export function CaptureTomato({ size = 28 }: { size?: number }) {
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: size / 2,
-        backgroundColor: colors.paprika,
+        backgroundColor: colors.accentPink,
       }}
     >
       <View
@@ -345,7 +345,7 @@ export function CaptureTomato({ size = 28 }: { size?: number }) {
           height: s(5),
           width: s(8),
           borderRadius: s(3),
-          backgroundColor: colors.basil,
+          backgroundColor: colors.accentLightGreen,
         }}
       />
     </View>

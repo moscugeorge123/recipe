@@ -18,6 +18,20 @@ export function useCookTheme(): CookThemeContextValue {
   return useContext(CookThemeContext);
 }
 
+type CookThemeScopeProps = {
+  theme: 'dark' | 'light';
+  children: ReactNode;
+};
+
+export function CookThemeScope({ theme, children }: CookThemeScopeProps) {
+  const dark = theme === 'dark';
+  return (
+    <CookThemeContext.Provider value={{ dark, tokens: getCookTokens(theme) }}>
+      {children}
+    </CookThemeContext.Provider>
+  );
+}
+
 type CookShellProps = {
   theme?: 'dark' | 'light';
   children: ReactNode;
@@ -28,7 +42,7 @@ export function CookShell({ theme = 'dark', children }: CookShellProps) {
   const tokens = getCookTokens(theme);
 
   return (
-    <CookThemeContext.Provider value={{ dark, tokens }}>
+    <CookThemeScope theme={theme}>
       <View
         className={dark ? 'cook-dark flex-1' : 'flex-1'}
         style={{ backgroundColor: tokens.bg, flex: 1 }}
@@ -36,6 +50,6 @@ export function CookShell({ theme = 'dark', children }: CookShellProps) {
         <StatusBar style={dark ? 'light' : 'dark'} />
         {children}
       </View>
-    </CookThemeContext.Provider>
+    </CookThemeScope>
   );
 }

@@ -74,17 +74,11 @@ jest.mock('expo-font', () => ({
   loadAsync: jest.fn(),
 }));
 
-jest.mock('@expo-google-fonts/manrope', () => ({
-  Manrope_500Medium: 1,
-  Manrope_600SemiBold: 1,
-  Manrope_700Bold: 1,
-  Manrope_800ExtraBold: 1,
-}));
-
-jest.mock('@expo-google-fonts/ibm-plex-mono', () => ({
-  IBMPlexMono_500Medium: 1,
-  IBMPlexMono_600SemiBold: 1,
-  IBMPlexMono_700Bold: 1,
+jest.mock('@expo-google-fonts/inter', () => ({
+  Inter_400Regular: 1,
+  Inter_500Medium: 1,
+  Inter_600SemiBold: 1,
+  Inter_700Bold: 1,
 }));
 
 jest.mock('expo-haptics', () => ({

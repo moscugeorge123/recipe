@@ -9,7 +9,7 @@ type ChevronLeftProps = {
 
 export function ChevronLeft({
   size = 22,
-  color = colors.cocoa,
+  color = colors.charcoal,
 }: ChevronLeftProps) {
   return (
     <Svg

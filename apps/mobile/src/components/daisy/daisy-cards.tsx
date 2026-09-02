@@ -161,7 +161,7 @@ function DaisyChip({
         <DaisyFoodGlyph id={food} size={20} />
         <Text
           style={{
-            fontFamily: fonts.manrope600,
+            fontFamily: fonts.semibold,
             fontSize: 13,
             color: daisy.chipText,
           }}
@@ -172,7 +172,7 @@ function DaisyChip({
           <Text
             numberOfLines={1}
             style={{
-              fontFamily: fonts.manrope700,
+              fontFamily: fonts.semibold,
               fontSize: 13,
               color: daisy.apron,
             }}
@@ -195,7 +195,7 @@ function DaisyChip({
               style={{
                 color: daisy.highlight,
                 fontSize: 10,
-                fontFamily: fonts.manrope800,
+                fontFamily: fonts.medium,
               }}
             >
               ✓

@@ -67,7 +67,10 @@ function useKeyboardBottomInset(): KeyboardInset {
         const height = covered < 100 ? 0 : covered;
         setInset({
           height,
-          screenY: height > 0 ? viewport.offsetTop + viewport.height : window.innerHeight,
+          screenY:
+            height > 0
+              ? viewport.offsetTop + viewport.height
+              : window.innerHeight,
           durationMs: duration.sheet,
         });
       };
@@ -113,7 +116,7 @@ function CompleteInner() {
   const catalog = useCatalog();
   const fetched = useRecipe(id);
   const recipe = fetched.data ?? catalog.get(id ?? '');
-  const { dark, tokens } = useCookTheme();
+  const { tokens } = useCookTheme();
   const reduced = useReducedMotion();
   const [startedAt] = useState(() => useCookStore.getState().startedAt);
   const { markCompleted, clearLocal } = useFinishCooking();
@@ -229,7 +232,7 @@ function CompleteInner() {
             right: 0,
             bottom: 0,
             left: 0,
-            backgroundColor: colors.paprika,
+            backgroundColor: colors.onDark,
             zIndex: 2,
           },
         ]}
@@ -245,125 +248,127 @@ function CompleteInner() {
             paddingBottom: 26,
           }}
         >
-        <View className="flex-1 justify-center gap-5">
-          <View className="h-[86px] w-[86px] items-center justify-center">
-            <Animated.View
-              className="absolute h-[86px] w-[86px] rounded-full border-2"
-              style={[ringStyle, { borderColor: colors.paprika }]}
-            />
-            <View
-              className="h-[70px] w-[70px] items-center justify-center rounded-full"
-              style={{
-                backgroundColor: dark ? colors.paprika400 : colors.paprika,
-              }}
-            >
-              <Text className="text-[30px]" style={{ color: colors.espresso }}>
-                ✓
-              </Text>
-            </View>
-          </View>
-          <Text
-            style={{
-              fontFamily: fonts.manrope800,
-              fontSize: 33,
-              lineHeight: 36,
-              color: tokens.text,
-            }}
-          >
-            You cooked {recipe.title}.
-          </Text>
-          <View className="flex-row gap-2.5">
-            {[
-              { k: 'ON THE CLOCK', v: `${mins} min` },
-              { k: 'STEPS', v: String(recipe.steps.length) },
-              { k: 'TIMES COOKED', v: times === 1 ? '1st' : `${times}×` },
-            ].map((stat) => (
+          <View className="flex-1 justify-center gap-5">
+            <View className="h-[86px] w-[86px] items-center justify-center">
+              <Animated.View
+                className="absolute h-[86px] w-[86px] rounded-full border-2"
+                style={[ringStyle, { borderColor: colors.primary }]}
+              />
               <View
-                key={stat.k}
-                className="flex-1 rounded-[16px] p-3.5"
-                style={{ backgroundColor: tokens.statBg }}
+                className="h-[70px] w-[70px] items-center justify-center rounded-full"
+                style={{
+                  backgroundColor: colors.primary,
+                }}
               >
                 <Text
-                  style={{
-                    fontFamily: fonts.mono500,
-                    fontSize: 10,
-                    color: tokens.muted,
-                  }}
+                  className="text-[30px]"
+                  style={{ color: colors.onPrimary }}
                 >
-                  {stat.k}
-                </Text>
-                <Text
-                  style={{
-                    fontFamily: fonts.manrope700,
-                    fontSize: 19,
-                    color: tokens.text,
-                    paddingTop: 8,
-                  }}
-                >
-                  {stat.v}
+                  ✓
                 </Text>
               </View>
-            ))}
-          </View>
-          <View ref={notesRef} collapsable={false}>
+            </View>
             <Text
               style={{
-                color: tokens.muted,
-                fontFamily: fonts.manrope600,
-                paddingBottom: 9,
+                fontFamily: fonts.medium,
+                fontSize: 33,
+                lineHeight: 36,
+                color: tokens.text,
               }}
             >
-              Anything to remember for next time?
+              You cooked {recipe.title}.
             </Text>
-            <TextInput
-              value={note}
-              onChangeText={setNote}
-              placeholder="Add a note — less lemon, more heat…"
-              placeholderTextColor={tokens.noteText}
-              accessibilityLabel="Cooking note"
-              multiline
-              textAlignVertical="top"
-              className="min-h-[88px] rounded-[16px] p-[15px]"
-              style={{
-                backgroundColor: tokens.statBg,
-                color: tokens.text,
-                fontFamily: fonts.manrope500,
-                fontSize: 15,
+            <View className="flex-row gap-2.5">
+              {[
+                { k: 'ON THE CLOCK', v: `${mins} min` },
+                { k: 'STEPS', v: String(recipe.steps.length) },
+                { k: 'TIMES COOKED', v: times === 1 ? '1st' : `${times}×` },
+              ].map((stat) => (
+                <View
+                  key={stat.k}
+                  className="flex-1 rounded-[16px] p-3.5"
+                  style={{ backgroundColor: tokens.statBg }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: fonts.semibold,
+                      fontSize: 10,
+                      color: tokens.muted,
+                    }}
+                  >
+                    {stat.k}
+                  </Text>
+                  <Text
+                    style={{
+                      fontFamily: fonts.semibold,
+                      fontSize: 19,
+                      color: tokens.text,
+                      paddingTop: 8,
+                    }}
+                  >
+                    {stat.v}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <View ref={notesRef} collapsable={false}>
+              <Text
+                style={{
+                  color: tokens.muted,
+                  fontFamily: fonts.semibold,
+                  paddingBottom: 9,
+                }}
+              >
+                Anything to remember for next time?
+              </Text>
+              <TextInput
+                value={note}
+                onChangeText={setNote}
+                placeholder="Add a note — less lemon, more heat…"
+                placeholderTextColor={tokens.noteText}
+                accessibilityLabel="Cooking note"
+                multiline
+                textAlignVertical="top"
+                className="min-h-[88px] rounded-[16px] p-[15px]"
+                style={{
+                  backgroundColor: tokens.statBg,
+                  color: tokens.text,
+                  fontFamily: fonts.regular,
+                  fontSize: 15,
+                }}
+              />
+            </View>
+          </View>
+          <View className="gap-2.5">
+            <Button
+              label="Done"
+              size="lg"
+              onPress={() => {
+                persistNote();
+                clearLocal();
+                router.replace('/');
               }}
             />
-          </View>
-        </View>
-        <View className="gap-2.5">
-          <Button
-            label="Done"
-            size="lg"
-            className="h-[58px]"
-            onPress={() => {
-              persistNote();
-              clearLocal();
-              router.replace('/');
-            }}
-          />
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              persistNote();
-              startCooking(recipe.id, { reset: true }).catch(() => undefined);
-              router.replace(`/cook/${recipe.id}`);
-            }}
-            className="h-[52px] min-h-11 items-center justify-center rounded-[16px]"
-            style={{ backgroundColor: tokens.ghostBg }}
-          >
-            <Text
-              style={{
-                fontFamily: fonts.manrope700,
-                color: tokens.ghostText,
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                persistNote();
+                startCooking(recipe.id, { reset: true }).catch(() => undefined);
+                router.replace(`/cook/${recipe.id}`);
               }}
+              className="h-12 min-h-11 items-center justify-center rounded-full"
+              style={{ backgroundColor: tokens.ghostBg }}
             >
-              Cook again
-            </Text>
-          </Pressable>
-        </View>
+              <Text
+                style={{
+                  fontFamily: fonts.semibold,
+                  color: tokens.ghostText,
+                }}
+              >
+                Cook again
+              </Text>
+            </Pressable>
+          </View>
         </ScrollView>
       </Animated.View>
     </View>

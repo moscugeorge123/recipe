@@ -67,26 +67,26 @@ export default function ExploreScreen() {
             onPress={() => router.push(`/recipe/${hero.id}`)}
             className="px-5 pb-6"
           >
-            <View className="overflow-hidden rounded-[22px]">
+            <View className="overflow-hidden rounded-[20px]">
               <PhotoStandIn
                 colors={hero.placeholder}
                 height={220}
-                radius={22}
+                radius={20}
                 uri={hero.thumbnailUrl}
                 label="photo — editorial"
               />
               <View className="absolute inset-0 justify-end bg-black/50 px-[18px] pb-[18px]">
                 <Text
-                  className="text-[10.5px] tracking-[0.14em]"
-                  tone="accent"
-                  style={{ fontFamily: fonts.mono500 }}
+                  className="text-[13px]"
+                  tone="inverse"
+                  style={{ fontFamily: fonts.semibold }}
                 >
                   THE 25-MINUTE ISSUE
                 </Text>
                 <Text
                   tone="inverse"
                   className="max-w-[240px] pt-2 text-[24px] leading-[1.12]"
-                  style={{ fontFamily: fonts.manrope800 }}
+                  style={{ fontFamily: fonts.medium }}
                 >
                   Six dinners for the nights you have nothing left
                 </Text>
@@ -122,7 +122,7 @@ export default function ExploreScreen() {
               <SourceIcon source={creator.source} size={34} />
               <Text
                 className="pt-2.5 text-[14px]"
-                style={{ fontFamily: fonts.manrope700 }}
+                style={{ fontFamily: fonts.semibold }}
               >
                 {creator.name}
               </Text>

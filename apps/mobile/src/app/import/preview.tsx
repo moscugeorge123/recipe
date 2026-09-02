@@ -177,7 +177,7 @@ export default function ImportPreviewScreen() {
                     <Text
                       accessibilityRole="alert"
                       className="pt-2 text-[13px]"
-                      style={{ color: colors.chili }}
+                      style={{ color: colors.accentDanger }}
                     >
                       {previewError}
                     </Text>
@@ -185,7 +185,7 @@ export default function ImportPreviewScreen() {
                   <Text
                     className="pt-3 text-[11px]"
                     tone="muted"
-                    style={{ fontFamily: fonts.mono500 }}
+                    style={{ fontFamily: fonts.semibold }}
                   >
                     {displayUrl(draftUrl)}
                   </Text>
@@ -210,8 +210,8 @@ export default function ImportPreviewScreen() {
                         style={{
                           borderWidth: 2,
                           borderColor: selected
-                            ? colors.paprika
-                            : colors.espresso,
+                            ? colors.canvasDark
+                            : colors.hairlineLight,
                         }}
                       >
                         <View style={{ width: 72 }}>

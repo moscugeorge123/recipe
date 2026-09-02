@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 
 import { AppImage } from '@/components/ui/image';
 import { Text } from '@/components/ui/text';
+import { colors } from '@/theme/tokens';
 
 type PhotoStandInProps = {
   colors: [string, string];
@@ -18,7 +19,7 @@ type PhotoStandInProps = {
 export function PhotoStandIn({
   colors,
   height,
-  radius = 16,
+  radius = 20,
   uri,
   label,
   children,
@@ -50,7 +51,7 @@ export function PhotoStandIn({
           <Text
             variant="mono"
             className="text-[8.5px] tracking-[0.04em]"
-            style={{ color: 'rgba(42,33,24,0.42)' }}
+            style={{ color: colors.stone }}
           >
             {label}
           </Text>

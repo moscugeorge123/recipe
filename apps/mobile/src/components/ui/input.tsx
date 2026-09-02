@@ -19,18 +19,22 @@ export function Input({ label, error, className, ...props }: InputProps) {
       ) : null}
       <TextInput
         accessibilityLabel={label}
-        className={`h-12 rounded-[15px] border bg-peach px-[15px] text-[15.5px] ${
+        className={`h-14 rounded-[12px] border bg-bg px-4 py-[14px] text-[16px] ${
           error ? 'border-chili' : 'border-crust'
         } ${className ?? ''}`}
-        placeholderTextColor={colors.olive}
-        style={{ fontFamily: fonts.manrope600, color: colors.espresso }}
+        placeholderTextColor={colors.mute}
+        style={{
+          fontFamily: fonts.regular,
+          color: colors.ink,
+          letterSpacing: 0.24,
+        }}
         {...props}
       />
       {error ? (
         <Text
           accessibilityRole="alert"
           className="text-sm"
-          style={{ color: colors.chili }}
+          style={{ color: colors.accentDanger }}
         >
           {error}
         </Text>

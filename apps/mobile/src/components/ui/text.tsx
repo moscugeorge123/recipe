@@ -22,44 +22,54 @@ type TextProps = RNTextProps & {
 };
 
 const variantClass: Record<TextVariant, string> = {
-  display: 'text-[27px] leading-[1.14] tracking-[-0.02em]',
-  title: 'text-[23px] leading-[1.14] tracking-[-0.02em]',
-  section: 'text-[13px] font-bold tracking-[0.1em]',
-  kicker: 'text-[11px] tracking-[0.14em]',
-  body: 'text-[15.5px] leading-[1.45]',
-  caption: 'text-[13.5px] leading-[1.4]',
-  mono: 'text-[11.5px] tracking-[0.04em]',
+  display: 'text-[32px] leading-[1.19]',
+  title: 'text-[24px] leading-[1.33]',
+  section: 'text-[14px] leading-[1.43]',
+  kicker: 'text-[14px] leading-[1.43]',
+  body: 'text-[16px] leading-[1.5]',
+  caption: 'text-[14px] leading-[1.43]',
+  mono: 'text-[13px] leading-[1.4]',
 };
 
 const variantFont: Record<TextVariant, string> = {
-  display: fonts.manrope800,
-  title: fonts.manrope800,
-  section: fonts.manrope700,
-  kicker: fonts.mono500,
-  body: fonts.manrope500,
-  caption: fonts.manrope500,
-  mono: fonts.mono500,
+  display: fonts.medium,
+  title: fonts.medium,
+  section: fonts.semibold,
+  kicker: fonts.semibold,
+  body: fonts.regular,
+  caption: fonts.regular,
+  mono: fonts.regular,
+};
+
+const variantTracking: Record<TextVariant, number> = {
+  display: -0.32,
+  title: 0,
+  section: 0,
+  kicker: 0,
+  body: 0.24,
+  caption: 0,
+  mono: 0,
 };
 
 const variantTone: Record<TextVariant, TextTone> = {
   display: 'default',
   title: 'default',
   section: 'default',
-  kicker: 'primary',
+  kicker: 'muted',
   body: 'default',
   caption: 'muted',
   mono: 'muted',
 };
 
 export const toneColors: Record<TextTone, string> = {
-  default: colors.espresso,
-  muted: colors.olive,
-  disabled: colors.sage,
-  inverse: colors.steamedMilk,
-  primary: colors.paprikaPressed,
-  secondary: colors.basil,
-  accent: colors.honey,
-  icon: colors.cocoa,
+  default: colors.ink,
+  muted: colors.mute,
+  disabled: colors.stone,
+  inverse: colors.onDark,
+  primary: colors.link,
+  secondary: colors.accentGreenText,
+  accent: colors.accentYellow,
+  icon: colors.charcoal,
 };
 
 export function Text({
@@ -75,7 +85,11 @@ export function Text({
     <RNText
       className={`${variantClass[variant]} ${className ?? ''}`}
       style={[
-        { fontFamily: variantFont[variant], color: toneColors[resolvedTone] },
+        {
+          fontFamily: variantFont[variant],
+          color: toneColors[resolvedTone],
+          letterSpacing: variantTracking[variant],
+        },
         style,
       ]}
       {...props}

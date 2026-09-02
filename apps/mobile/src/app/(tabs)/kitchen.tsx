@@ -217,7 +217,7 @@ export default function KitchenScreen() {
                         />
                         <View className="flex-1">
                           <Text
-                            style={{ fontFamily: fonts.manrope700 }}
+                            style={{ fontFamily: fonts.semibold }}
                             className="text-[15.5px]"
                           >
                             {recipe.title}
@@ -265,7 +265,7 @@ export default function KitchenScreen() {
                   />
                   <View className="flex-1">
                     <Text
-                      style={{ fontFamily: fonts.manrope700 }}
+                      style={{ fontFamily: fonts.semibold }}
                       className="text-[15.5px]"
                     >
                       {recipe.title}
@@ -321,7 +321,7 @@ export default function KitchenScreen() {
                   })}
                 </View>
                 <Text
-                  style={{ fontFamily: fonts.manrope700 }}
+                  style={{ fontFamily: fonts.semibold }}
                   className="text-[15px]"
                 >
                   {collection.name}
@@ -352,7 +352,7 @@ export default function KitchenScreen() {
         {empty ? (
           <View className="items-center px-5 pt-[30px]">
             <Text
-              style={{ fontFamily: fonts.manrope700 }}
+              style={{ fontFamily: fonts.semibold }}
               className="text-[19px]"
             >
               {empty.title}
@@ -388,9 +388,10 @@ export default function KitchenScreen() {
               <View
                 className="h-4 w-4 rounded-full border-2"
                 style={{
-                  borderColor: tab === item ? colors.paprika : colors.crust,
+                  borderColor:
+                    tab === item ? colors.canvasDark : colors.hairlineLight,
                   backgroundColor:
-                    tab === item ? colors.paprika : 'transparent',
+                    tab === item ? colors.canvasDark : 'transparent',
                 }}
               />
               <Text className="text-[14.5px]" tone="icon">

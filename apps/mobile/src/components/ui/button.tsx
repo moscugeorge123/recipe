@@ -1,8 +1,8 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
-    type PressableProps,
-    type StyleProp,
-    type ViewStyle,
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 
 import { PressScale } from '@/components/ui/press-scale';
@@ -23,41 +23,53 @@ type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 };
 
 const sizeClasses = {
-  lg: 'h-[56px] rounded-[17px] px-5',
-  md: 'h-[48px] rounded-[15px] px-4',
-  icon: 'h-11 w-11 rounded-[14px] px-0',
+  lg: 'h-12 rounded-full px-7',
+  md: 'h-12 rounded-full px-7',
+  icon: 'h-12 w-12 rounded-full px-0',
 };
 
 function variantFill(
   variant: ButtonVariant,
   cookDark: boolean,
+  pressed: boolean,
 ): string | undefined {
   switch (variant) {
     case 'primary':
-      return cookDark ? colors.paprika400 : colors.paprika;
-    case 'secondary':
-      return colors.basil600;
     case 'inverse':
-      return colors.espresso;
+      if (cookDark) {
+        return pressed ? colors.faint : colors.canvasLight;
+      }
+      return colors.canvasDark;
+    case 'secondary':
+      return colors.surfaceSoft;
     case 'destructive':
-      return colors.chili;
     case 'ghost':
-      return undefined;
+      return cookDark ? colors.canvasDark : colors.canvasLight;
   }
 }
 
 function variantLabel(variant: ButtonVariant, cookDark: boolean): string {
   switch (variant) {
     case 'primary':
-      return cookDark ? colors.espresso : colors.onPrimary;
-    case 'secondary':
-    case 'destructive':
-      return colors.onPrimary;
     case 'inverse':
-      return colors.steamedMilk;
+      return cookDark ? colors.canvasDark : colors.onDark;
+    case 'secondary':
+      return colors.ink;
+    case 'destructive':
+      return colors.accentDanger;
     case 'ghost':
-      return colors.paprikaPressed;
+      return cookDark ? colors.onDark : colors.ink;
   }
+}
+
+function variantBorder(
+  variant: ButtonVariant,
+  cookDark: boolean,
+): string | undefined {
+  if (variant === 'ghost' || variant === 'destructive') {
+    return cookDark ? colors.onDark : colors.hairlineStrong;
+  }
+  return undefined;
 }
 
 export function Button({
@@ -68,28 +80,16 @@ export function Button({
   disabled,
   className,
   style,
+  onPressIn,
+  onPressOut,
   ...props
 }: ButtonProps) {
   const cookDark = useCookTheme().dark;
-  const fill = variantFill(variant, cookDark);
+  const [pressed, setPressed] = useState(false);
+  const fill = variantFill(variant, cookDark, pressed);
   const labelColor = variantLabel(variant, cookDark);
-  const labelSize =
-    variant === 'ghost'
-      ? 'text-[14.5px]'
-      : variant === 'secondary'
-        ? 'text-[15.5px]'
-        : 'text-[16.5px]';
-
-  const shadowStyle: StyleProp<ViewStyle> =
-    variant === 'primary' && size === 'lg'
-      ? {
-          shadowColor: colors.paprika,
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.28,
-          shadowRadius: 18,
-          elevation: 6,
-        }
-      : undefined;
+  const borderColor = variantBorder(variant, cookDark);
+  const isHero = size === 'lg';
 
   return (
     <PressScale
@@ -97,12 +97,22 @@ export function Button({
       accessibilityLabel={label}
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
-      className={`min-h-11 items-center justify-center ${sizeClasses[size]} ${
+      onPressIn={(event) => {
+        setPressed(true);
+        onPressIn?.(event);
+      }}
+      onPressOut={(event) => {
+        setPressed(false);
+        onPressOut?.(event);
+      }}
+      className={`min-h-12 items-center justify-center ${sizeClasses[size]} ${
         disabled ? 'opacity-50' : ''
       } ${className ?? ''}`}
       style={[
-        shadowStyle,
         fill ? { backgroundColor: fill } : undefined,
+        borderColor
+          ? { borderWidth: 1, borderColor, paddingHorizontal: 27 }
+          : undefined,
         disabled ? { opacity: 0.5 } : undefined,
         style,
       ]}
@@ -110,11 +120,11 @@ export function Button({
     >
       {icon ?? (
         <Text
-          className={labelSize}
+          className={isHero ? 'text-[20px] leading-[1.4]' : 'text-[16px]'}
           style={{
             color: labelColor,
-            fontFamily:
-              variant === 'ghost' ? fonts.manrope600 : fonts.manrope700,
+            fontFamily: isHero ? fonts.medium : fonts.semibold,
+            letterSpacing: isHero ? 0 : 0.24,
           }}
         >
           {label}

@@ -36,18 +36,18 @@ export function FromYourKitchenSection() {
               style={{
                 backgroundColor:
                   row.gap === 'everything in stock'
-                    ? colors.basilSoft
-                    : colors.paprikaSoft,
+                    ? colors.surfaceSoft
+                    : colors.surfaceSoft,
               }}
             >
               <Text
                 style={{
-                  fontFamily: fonts.mono700,
+                  fontFamily: fonts.semibold,
                   fontSize: 12.5,
                   color:
                     row.gap === 'everything in stock'
-                      ? colors.basil700
-                      : colors.paprika,
+                      ? colors.accentGreenText
+                      : colors.ink,
                 }}
               >
                 {row.have}/{row.total}
@@ -56,7 +56,7 @@ export function FromYourKitchenSection() {
             <View className="flex-1">
               <Text
                 className="text-[15px]"
-                style={{ fontFamily: fonts.manrope700 }}
+                style={{ fontFamily: fonts.semibold }}
               >
                 {row.recipe.title}
               </Text>

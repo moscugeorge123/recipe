@@ -63,16 +63,20 @@ export default function SearchScreen() {
             ‹
           </Text>
         </Pressable>
-        <View className="h-12 flex-1 flex-row items-center gap-2.5 rounded-[15px] border border-crust bg-peach px-[15px]">
+        <View className="h-14 flex-1 flex-row items-center gap-2.5 rounded-[12px] border border-crust bg-peach px-4">
           <View className="h-3 w-3 rounded-full border-2 border-olive" />
           <TextInput
             value={query}
             onChangeText={setQuery}
             placeholder="pasta under 20 minutes"
-            placeholderTextColor={colors.olive}
+            placeholderTextColor={colors.mute}
             accessibilityLabel="Search recipes"
-            className="flex-1 text-[15.5px]"
-            style={{ fontFamily: fonts.manrope600, color: colors.espresso }}
+            className="flex-1 text-[16px]"
+            style={{
+              fontFamily: fonts.regular,
+              color: colors.ink,
+              letterSpacing: 0.24,
+            }}
             onSubmitEditing={() => addRecentSearch(query)}
           />
           {query ? (
@@ -80,7 +84,7 @@ export default function SearchScreen() {
               accessibilityRole="button"
               accessibilityLabel="Clear search"
               onPress={() => setQuery('')}
-              className="h-11 w-11 items-center justify-center rounded-[9px] bg-linen"
+              className="h-11 w-11 items-center justify-center rounded-full bg-linen"
             >
               <Text className="text-[13px]" tone="muted">
                 ✕
@@ -149,7 +153,7 @@ export default function SearchScreen() {
                 <View className="flex-1">
                   <Text
                     className="text-[15.5px]"
-                    style={{ fontFamily: fonts.manrope700 }}
+                    style={{ fontFamily: fonts.semibold }}
                   >
                     {recipe.title}
                   </Text>

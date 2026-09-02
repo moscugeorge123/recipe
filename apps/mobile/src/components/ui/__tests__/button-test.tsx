@@ -1,4 +1,5 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
+import { Text } from 'react-native';
 
 import { Button } from '@/components/ui/button';
 import { CookShell } from '@/theme/cook-shell';
@@ -31,53 +32,51 @@ describe('Button', () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 
-  test('primary uses paprika fill and white label', async () => {
+  test('primary uses black pill fill and white label on browse', async () => {
     await render(<Button label="Start cooking" />);
 
     expect(screen.getByRole('button', { name: 'Start cooking' })).toHaveStyle({
-      backgroundColor: colors.paprika,
+      backgroundColor: colors.canvasDark,
     });
     expect(screen.getByText('Start cooking')).toHaveStyle({
-      color: colors.onPrimary,
+      color: colors.onDark,
     });
   });
 
-  test('inverse uses espresso fill and steamed-milk label', async () => {
+  test('inverse uses black pill fill and white label on browse', async () => {
     await render(<Button label="Show results" variant="inverse" />);
 
     expect(screen.getByRole('button', { name: 'Show results' })).toHaveStyle({
-      backgroundColor: colors.espresso,
+      backgroundColor: colors.canvasDark,
     });
     expect(screen.getByText('Show results')).toHaveStyle({
-      color: colors.steamedMilk,
+      color: colors.onDark,
     });
   });
 
-  test('secondary uses basil-600 fill and white label', async () => {
+  test('secondary uses soft surface fill and ink label', async () => {
     await render(<Button label="Clear the list" variant="secondary" />);
 
     expect(screen.getByRole('button', { name: 'Clear the list' })).toHaveStyle({
-      backgroundColor: colors.basil600,
+      backgroundColor: colors.surfaceSoft,
     });
     expect(screen.getByText('Clear the list')).toHaveStyle({
-      color: colors.onPrimary,
+      color: colors.ink,
     });
   });
 
   test('icon size uses the label as the accessible name', async () => {
-    await render(
-      <Button label="Back" size="icon" icon={<Text>‹</Text>} />,
-    );
+    await render(<Button label="Back" size="icon" icon={<Text>‹</Text>} />);
 
     expect(screen.getByRole('button', { name: 'Back' })).toBeOnTheScreen();
     expect(screen.queryByText('Back')).toBeNull();
   });
 
-  test('ghost uses paprika-600 label on a transparent fill', async () => {
+  test('ghost uses ink label on an outline fill', async () => {
     await render(<Button label="Skip" variant="ghost" />);
 
     expect(screen.getByText('Skip')).toHaveStyle({
-      color: colors.paprikaPressed,
+      color: colors.ink,
     });
   });
 
@@ -89,7 +88,7 @@ describe('Button', () => {
     });
   });
 
-  test('primary in the cook-dark shell uses paprika-400 and espresso label', async () => {
+  test('primary in the cook-dark shell uses a white pill and black label', async () => {
     await render(
       <CookShell theme="dark">
         <Button label="Next step" />
@@ -97,10 +96,10 @@ describe('Button', () => {
     );
 
     expect(screen.getByRole('button', { name: 'Next step' })).toHaveStyle({
-      backgroundColor: colors.paprika400,
+      backgroundColor: colors.canvasLight,
     });
     expect(screen.getByText('Next step')).toHaveStyle({
-      color: colors.espresso,
+      color: colors.canvasDark,
     });
   });
 });

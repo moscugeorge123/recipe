@@ -100,7 +100,7 @@ function AppIconFrame({
         overflow: 'hidden',
         borderRadius: iconRadius(size),
         borderWidth: bordered ? StyleSheet.hairlineWidth : 0,
-        borderColor: bordered ? 'rgba(42, 33, 24, 0.12)' : 'transparent',
+        borderColor: bordered ? colors.hairlineLight : 'transparent',
         backgroundColor,
       }}
     >
@@ -225,14 +225,14 @@ function FacebookMark({ size }: { size: number }) {
 function WebsiteMark({ size }: { size: number }) {
   const globe = size * 0.58;
   return (
-    <Tile size={size} backgroundColor={colors.basilSoft}>
+    <Tile size={size} backgroundColor={colors.surfaceSoft}>
       <View
         style={{
           width: globe,
           height: globe,
           overflow: 'hidden',
           borderRadius: globe / 2,
-          borderColor: colors.basil,
+          borderColor: colors.accentLightGreen,
           borderWidth: Math.max(1.5, size * 0.055),
         }}
       >
@@ -243,7 +243,7 @@ function WebsiteMark({ size }: { size: number }) {
             right: 0,
             left: 0,
             height: Math.max(1.5, size * 0.05),
-            backgroundColor: colors.basil,
+            backgroundColor: colors.accentLightGreen,
           }}
         />
         <View
@@ -253,7 +253,7 @@ function WebsiteMark({ size }: { size: number }) {
             bottom: 0,
             left: '46%',
             width: Math.max(1.5, size * 0.05),
-            backgroundColor: colors.basil,
+            backgroundColor: colors.accentLightGreen,
           }}
         />
       </View>
@@ -266,7 +266,7 @@ function WebsiteMark({ size }: { size: number }) {
           width: size * 0.24,
           transform: [{ rotate: '32deg' }],
           borderRadius: size * 0.12,
-          backgroundColor: colors.basil,
+          backgroundColor: colors.accentLightGreen,
         }}
       />
     </Tile>
@@ -275,7 +275,7 @@ function WebsiteMark({ size }: { size: number }) {
 
 function PhotoMark({ size }: { size: number }) {
   return (
-    <Tile size={size} backgroundColor={colors.honey50}>
+    <Tile size={size} backgroundColor={colors.surfaceSoft}>
       <View
         style={{
           position: 'absolute',
@@ -284,7 +284,7 @@ function PhotoMark({ size }: { size: number }) {
           width: size * 0.22,
           borderTopLeftRadius: 3,
           borderTopRightRadius: 3,
-          backgroundColor: colors.cocoa,
+          backgroundColor: colors.charcoal,
         }}
       />
       <View
@@ -294,7 +294,7 @@ function PhotoMark({ size }: { size: number }) {
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: size * 0.1,
-          backgroundColor: colors.cocoa,
+          backgroundColor: colors.charcoal,
         }}
       >
         <View
@@ -302,9 +302,9 @@ function PhotoMark({ size }: { size: number }) {
             width: size * 0.26,
             height: size * 0.26,
             borderRadius: size * 0.13,
-            borderColor: colors.honey50,
+            borderColor: colors.surfaceSoft,
             borderWidth: Math.max(1.4, size * 0.04),
-            backgroundColor: colors.paprika,
+            backgroundColor: colors.accentPink,
           }}
         />
       </View>
@@ -314,7 +314,7 @@ function PhotoMark({ size }: { size: number }) {
 
 function TextMark({ size }: { size: number }) {
   return (
-    <Tile size={size} backgroundColor={colors.linen}>
+    <Tile size={size} backgroundColor={colors.surfaceSoft}>
       <View
         style={{
           width: size * 0.56,
@@ -324,8 +324,8 @@ function TextMark({ size }: { size: number }) {
           paddingHorizontal: size * 0.08,
           borderRadius: size * 0.08,
           borderWidth: 1,
-          borderColor: colors.crust,
-          backgroundColor: colors.butter,
+          borderColor: colors.hairlineLight,
+          backgroundColor: colors.surfaceCard,
         }}
       >
         <View
@@ -333,7 +333,7 @@ function TextMark({ size }: { size: number }) {
             height: size * 0.07,
             width: '100%',
             borderRadius: 1,
-            backgroundColor: colors.espresso,
+            backgroundColor: colors.ink,
           }}
         />
         <View
@@ -341,7 +341,7 @@ function TextMark({ size }: { size: number }) {
             height: size * 0.055,
             width: '78%',
             borderRadius: 1,
-            backgroundColor: colors.steam,
+            backgroundColor: colors.faint,
           }}
         />
         <View
@@ -349,7 +349,7 @@ function TextMark({ size }: { size: number }) {
             height: size * 0.055,
             width: '90%',
             borderRadius: 1,
-            backgroundColor: colors.steam,
+            backgroundColor: colors.faint,
           }}
         />
       </View>
@@ -359,13 +359,13 @@ function TextMark({ size }: { size: number }) {
 
 function VoiceMark({ size }: { size: number }) {
   return (
-    <Tile size={size} backgroundColor={colors.peach}>
+    <Tile size={size} backgroundColor={colors.surfaceSoft}>
       <View
         style={{
           width: size * 0.28,
           height: size * 0.4,
           borderRadius: size * 0.14,
-          backgroundColor: colors.cocoa,
+          backgroundColor: colors.charcoal,
         }}
       />
       <View
@@ -375,7 +375,7 @@ function VoiceMark({ size }: { size: number }) {
           height: size * 0.14,
           width: size * 0.08,
           borderRadius: 1,
-          backgroundColor: colors.cocoa,
+          backgroundColor: colors.charcoal,
         }}
       />
       <View
@@ -385,7 +385,7 @@ function VoiceMark({ size }: { size: number }) {
           height: size * 0.06,
           width: size * 0.28,
           borderRadius: 2,
-          backgroundColor: colors.cocoa,
+          backgroundColor: colors.charcoal,
         }}
       />
     </Tile>
@@ -395,7 +395,7 @@ function VoiceMark({ size }: { size: number }) {
 function ShareMark({ size }: { size: number }) {
   const dot = size * 0.18;
   return (
-    <Tile size={size} backgroundColor={colors.paprikaSoft}>
+    <Tile size={size} backgroundColor={colors.surfaceSoft}>
       <View
         style={{
           position: 'absolute',
@@ -403,7 +403,7 @@ function ShareMark({ size }: { size: number }) {
           width: dot,
           height: dot,
           borderRadius: dot / 2,
-          backgroundColor: colors.paprika,
+          backgroundColor: colors.accentPink,
         }}
       />
       <View
@@ -414,7 +414,7 @@ function ShareMark({ size }: { size: number }) {
           width: dot,
           height: dot,
           borderRadius: dot / 2,
-          backgroundColor: colors.paprika,
+          backgroundColor: colors.accentPink,
         }}
       />
       <View
@@ -425,7 +425,7 @@ function ShareMark({ size }: { size: number }) {
           width: dot,
           height: dot,
           borderRadius: dot / 2,
-          backgroundColor: colors.paprika,
+          backgroundColor: colors.accentPink,
         }}
       />
     </Tile>
@@ -435,7 +435,7 @@ function ShareMark({ size }: { size: number }) {
 function AllMark({ size }: { size: number }) {
   const dot = size * 0.16;
   return (
-    <Tile size={size} backgroundColor={colors.peach}>
+    <Tile size={size} backgroundColor={colors.surfaceSoft}>
       <View
         style={{
           width: size * 0.62,
@@ -443,9 +443,9 @@ function AllMark({ size }: { size: number }) {
           alignItems: 'center',
           justifyContent: 'center',
           borderRadius: size * 0.31,
-          borderColor: colors.crust,
+          borderColor: colors.hairlineLight,
           borderWidth: Math.max(1.4, size * 0.045),
-          backgroundColor: colors.butter,
+          backgroundColor: colors.surfaceCard,
         }}
       >
         <View style={{ flexDirection: 'row', gap: size * 0.05 }}>
@@ -454,7 +454,7 @@ function AllMark({ size }: { size: number }) {
               width: dot,
               height: dot,
               borderRadius: dot / 2,
-              backgroundColor: colors.paprika,
+              backgroundColor: colors.accentPink,
             }}
           />
           <View
@@ -462,7 +462,7 @@ function AllMark({ size }: { size: number }) {
               width: dot,
               height: dot,
               borderRadius: dot / 2,
-              backgroundColor: colors.basil,
+              backgroundColor: colors.accentLightGreen,
             }}
           />
           <View
@@ -470,7 +470,7 @@ function AllMark({ size }: { size: number }) {
               width: dot,
               height: dot,
               borderRadius: dot / 2,
-              backgroundColor: colors.honey,
+              backgroundColor: colors.accentYellow,
             }}
           />
         </View>

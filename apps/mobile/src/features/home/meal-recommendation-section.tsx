@@ -84,22 +84,22 @@ export function MealRecommendationSection({
             <PhotoStandIn
               colors={pick.recipe.placeholder}
               height={230}
-              radius={22}
+              radius={20}
               uri={pick.recipe.thumbnailUrl}
               label={`photo — ${pick.recipe.title.toLowerCase()}`}
             />
             <View className="absolute inset-0 justify-end bg-black/40 px-[18px] pb-[18px]">
               <Text
-                className="pb-2 text-[10.5px] tracking-[0.14em]"
-                tone="accent"
-                style={{ fontFamily: fonts.mono500 }}
+                className="pb-2 text-[13px]"
+                tone="inverse"
+                style={{ fontFamily: fonts.semibold }}
               >
                 {pick.why}
               </Text>
               <Text
                 tone="inverse"
                 className="max-w-[250px] text-[25px] leading-[1.1]"
-                style={{ fontFamily: fonts.manrope800 }}
+                style={{ fontFamily: fonts.medium }}
               >
                 {pick.recipe.title}
               </Text>

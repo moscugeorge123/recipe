@@ -106,7 +106,7 @@ export function CaptureSheet() {
               numberOfLines={1}
               className="text-[11.5px]"
               tone="muted"
-              style={{ fontFamily: fonts.mono500 }}
+              style={{ fontFamily: fonts.semibold }}
             >
               {clipboard.preview}
             </Text>
@@ -115,13 +115,13 @@ export function CaptureSheet() {
             accessibilityRole="button"
             accessibilityLabel="Use clipboard"
             onPress={useClipboard}
-            className="h-[38px] min-h-11 justify-center rounded-[12px] px-[15px]"
-            style={{ backgroundColor: colors.espresso }}
+            className="h-11 min-h-11 justify-center rounded-full px-4"
+            style={{ backgroundColor: colors.canvasDark }}
           >
             <Text
               className="text-[12.5px]"
               tone="inverse"
-              style={{ fontFamily: fonts.manrope700 }}
+              style={{ fontFamily: fonts.semibold }}
             >
               Use
             </Text>
