@@ -130,7 +130,7 @@ async function buildLogStreams(config: AppConfig): Promise<StreamEntry[]> {
         translateTime: 'HH:MM:ss.l',
         ignore: 'pid,hostname,service,version,env',
         destination: 1,
-      }) as DestinationStream,
+      }),
     });
   } else if (config.logging.directory) {
     streams.push({

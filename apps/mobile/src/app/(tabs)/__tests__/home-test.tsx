@@ -1,9 +1,11 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { screen, userEvent, waitFor } from '@testing-library/react-native';
-import { Alert } from 'react-native';
 
 import HomeScreen from '@/app/(tabs)/index';
+import { writeCachedRecipeList } from '@/features/recipes/list-cache';
 import type { RecipeListItemView } from '@/features/recipes/types';
 import { useCookStore } from '@/stores/cook-store';
+import { useKitchenStore } from '@/stores/kitchen-store';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { useUiStore } from '@/stores/ui-store';
 import { renderWithProviders } from '@/test/render-with-providers';
@@ -40,6 +42,10 @@ function listItem(
     thumbnailUrl: null,
     ingredientCount: 6,
     stepCount: 4,
+    isFavorite: false,
+    rating: null,
+    cookCount: 0,
+    reviewState: 'READY',
     ...overrides,
   };
 }
@@ -49,39 +55,55 @@ const emptyListBody = {
   meta: { page: 1, pageSize: 50, total: 0, totalPages: 0 },
 };
 
+function mockOkLists() {
+  return jest
+    .spyOn(globalThis, 'fetch')
+    .mockImplementation(async () => mockJsonResponse(emptyListBody));
+}
+
 describe('HomeScreen', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    jest.restoreAllMocks();
+    await AsyncStorage.removeItem('mise.home.recipes.v1.latest');
+    await AsyncStorage.removeItem('mise.home.recipes.v1.engagement');
+    await AsyncStorage.removeItem('mise.kitchen.migration.v1');
+    await AsyncStorage.removeItem('mise.kitchen.v1');
+    useKitchenStore.setState({
+      inboxStatus: {},
+      savedIds: [],
+      wantIds: [],
+      cookedCounts: {},
+      recipeNotes: {},
+      collections: [],
+      pantryStaples: [],
+      pendingSync: [],
+      kitchenMigration: null,
+    });
     usePreferencesStore.getState().reset();
     usePreferencesStore.getState().completeOnboarding();
     useCookStore.getState().exit();
     useCookStore.setState({ terminalStatus: null });
     useUiStore.getState().closeCapture();
-    jest.restoreAllMocks();
   });
 
   test('renders the greeting and inbox without tonight or kitchen', async () => {
-    jest
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(mockJsonResponse(emptyListBody));
+    mockOkLists();
 
     await renderWithProviders(<HomeScreen />);
 
     expect(await screen.findByText(/Sam\./)).toBeOnTheScreen();
-    expect(screen.getByText(/RECIPE INBOX/)).toBeOnTheScreen();
+    expect(screen.queryByText(/RECIPE INBOX/)).toBeNull();
     expect(screen.queryByText('TONIGHT')).toBeNull();
     expect(screen.queryByText('FROM YOUR KITCHEN')).toBeNull();
+    expect(screen.getByText(/LAST UPLOADED/)).toBeOnTheScreen();
+    expect(screen.getByText(/MY RECIPES/)).toBeOnTheScreen();
     expect(
-      await screen.findByText(/haven’t added any recipes yet/i),
-    ).toBeOnTheScreen();
-    expect(
-      screen.getByRole('button', { name: 'Add your first recipe' }),
+      await screen.findByRole('button', { name: 'Add your first recipe' }),
     ).toBeOnTheScreen();
   });
 
   test('opens capture from the empty latest-added section', async () => {
-    jest
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(mockJsonResponse(emptyListBody));
+    mockOkLists();
     const user = userEvent.setup();
 
     await renderWithProviders(<HomeScreen />);
@@ -93,23 +115,27 @@ describe('HomeScreen', () => {
     expect(useUiStore.getState().captureOpen).toBe(true);
   });
 
-  test('renders seed inbox even when the API is down', async () => {
+  test('keeps the shell online-offline and does not invent seed inbox ownership', async () => {
     jest.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('offline'));
 
     await renderWithProviders(<HomeScreen />);
 
     expect(await screen.findByText(/Sam\./)).toBeOnTheScreen();
-    expect(screen.getByText(/RECIPE INBOX/)).toBeOnTheScreen();
+    expect(screen.queryByText(/RECIPE INBOX/)).toBeNull();
     expect(screen.queryByText('TONIGHT')).toBeNull();
     expect(screen.queryByText('FROM YOUR KITCHEN')).toBeNull();
     expect(
-      await screen.findByText(
-        /couldn’t load your latest recipes/i,
-        {},
-        { timeout: 4000 },
-      ),
-    ).toBeOnTheScreen();
-    expect(screen.getByRole('button', { name: 'Retry' })).toBeOnTheScreen();
+      (
+        await screen.findAllByText(
+          /couldn’t load this section/i,
+          {},
+          { timeout: 4000 },
+        )
+      ).length,
+    ).toBeGreaterThan(0);
+    expect(
+      screen.getAllByRole('button', { name: 'Retry' }).length,
+    ).toBeGreaterThan(0);
   });
 
   test('retries loading latest recipes', async () => {
@@ -120,22 +146,59 @@ describe('HomeScreen', () => {
 
     await renderWithProviders(<HomeScreen />);
 
-    const retry = await screen.findByRole(
+    const retries = await screen.findAllByRole(
       'button',
       { name: 'Retry' },
       { timeout: 4000 },
     );
     const callsBeforeRetry = fetchSpy.mock.calls.length;
-    await user.press(retry);
+    await user.press(retries[0]!);
 
     await waitFor(() => {
       expect(fetchSpy.mock.calls.length).toBeGreaterThan(callsBeforeRetry);
     });
   });
 
-  test('renders the three most recently added recipes', async () => {
-    jest.spyOn(globalThis, 'fetch').mockResolvedValue(
-      mockJsonResponse({
+  test('renders last uploaded and my recipes from independent backend sorts', async () => {
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/cook-sessions')) {
+        return mockJsonResponse({
+          data: [],
+          meta: { page: 1, pageSize: 1, total: 0, totalPages: 0 },
+        });
+      }
+      if (url.includes('/pantry')) {
+        return mockJsonResponse(emptyListBody);
+      }
+      if (url.includes('sort=engagement')) {
+        return mockJsonResponse({
+          data: [
+            listItem({
+              id: '22222222-2222-4222-8222-222222222222',
+              title: 'Miso Butter Noodles',
+              isFavorite: true,
+              cookCount: 1,
+              rating: 5,
+              categories: [
+                {
+                  id: 'cat-dinner',
+                  slug: 'dinner',
+                  name: 'Dinner',
+                  sortOrder: 0,
+                },
+              ],
+            }),
+            listItem({
+              id: '11111111-1111-4111-8111-111111111111',
+              title: 'Charred Broccoli Soup',
+              cookCount: 4,
+            }),
+          ],
+          meta: { page: 1, pageSize: 12, total: 2, totalPages: 1 },
+        });
+      }
+      return mockJsonResponse({
         data: [
           listItem({
             id: '11111111-1111-4111-8111-111111111111',
@@ -152,36 +215,29 @@ describe('HomeScreen', () => {
             title: 'Tomato Toast',
             createdAt: '2026-08-10T12:00:00.000Z',
           }),
-          listItem({
-            id: '44444444-4444-4444-8444-444444444444',
-            title: 'Old Stew',
-            createdAt: '2026-01-01T12:00:00.000Z',
-          }),
         ],
-        meta: { page: 1, pageSize: 50, total: 4, totalPages: 1 },
-      }),
-    );
+        meta: { page: 1, pageSize: 8, total: 3, totalPages: 1 },
+      });
+    });
 
     await renderWithProviders(<HomeScreen />);
 
-    expect(await screen.findByText('Charred Broccoli Soup')).toBeOnTheScreen();
-    expect(screen.getByText('LATEST ADDED')).toBeOnTheScreen();
-    expect(screen.getByText('Miso Butter Noodles')).toBeOnTheScreen();
-    expect(screen.getByText('Tomato Toast')).toBeOnTheScreen();
-    expect(screen.queryByText('Old Stew')).toBeNull();
+    expect(await screen.findByText('LAST UPLOADED')).toBeOnTheScreen();
+    expect(screen.getByText('MY RECIPES')).toBeOnTheScreen();
+    expect(
+      (await screen.findAllByText('Charred Broccoli Soup')).length,
+    ).toBeGreaterThan(0);
+    expect(
+      (await screen.findAllByText('Miso Butter Noodles')).length,
+    ).toBeGreaterThan(0);
+    expect(await screen.findByText('Tomato Toast')).toBeOnTheScreen();
+    expect(screen.getAllByText('Dinner').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/1× cooked/).length).toBeGreaterThan(0);
   });
 
   test('shows resume and stop, and clears the session after confirming stop', async () => {
-    jest
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(mockJsonResponse(emptyListBody));
+    mockOkLists();
     useCookStore.getState().start('seed:harissa');
-    const alertSpy = jest
-      .spyOn(Alert, 'alert')
-      .mockImplementation((_title, _message, buttons) => {
-        const stop = buttons?.find((button) => button.text === 'Stop');
-        stop?.onPress?.();
-      });
     const user = userEvent.setup();
 
     await renderWithProviders(<HomeScreen />);
@@ -191,12 +247,9 @@ describe('HomeScreen', () => {
     expect(screen.getByRole('button', { name: 'Stop' })).toBeOnTheScreen();
 
     await user.press(screen.getByRole('button', { name: 'Stop' }));
+    expect(await screen.findByText('Stop cooking?')).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Stop cooking' }));
 
-    expect(alertSpy).toHaveBeenCalledWith(
-      'Stop cooking?',
-      'This will mark the recipe as finished and hide it from Home.',
-      expect.any(Array),
-    );
     expect(screen.queryByText('COOKING NOW')).toBeNull();
     expect(useCookStore.getState().recipeId).toBeNull();
   });
@@ -268,12 +321,6 @@ describe('HomeScreen', () => {
       startedAt: Date.parse(session.startedAt),
       timer: null,
     });
-    const alertSpy = jest
-      .spyOn(Alert, 'alert')
-      .mockImplementation((_title, _message, buttons) => {
-        const stop = buttons?.find((button) => button.text === 'Stop');
-        stop?.onPress?.();
-      });
     const user = userEvent.setup();
 
     await renderWithProviders(<HomeScreen />);
@@ -283,8 +330,9 @@ describe('HomeScreen', () => {
     expect(screen.getByText('Step 2 of 4')).toBeOnTheScreen();
 
     await user.press(screen.getByRole('button', { name: 'Stop' }));
+    expect(await screen.findByText('Stop cooking?')).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Stop cooking' }));
 
-    expect(alertSpy).toHaveBeenCalled();
     await waitFor(() => {
       expect(screen.queryByText('COOKING NOW')).toBeNull();
     });
@@ -293,9 +341,7 @@ describe('HomeScreen', () => {
   });
 
   test('hides COOKING NOW after the cook is marked completed', async () => {
-    jest
-      .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(mockJsonResponse(emptyListBody));
+    mockOkLists();
     useCookStore.getState().start('seed:harissa');
     useCookStore.getState().setTerminalStatus('COMPLETED');
 
@@ -346,5 +392,73 @@ describe('HomeScreen', () => {
 
     expect(await screen.findByText(/Sam\./)).toBeOnTheScreen();
     expect(screen.queryByText('COOKING NOW')).toBeNull();
+  });
+
+  test('keeps My recipes visible when Last uploaded fails', async () => {
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/cook-sessions')) {
+        return mockJsonResponse({
+          data: [],
+          meta: { page: 1, pageSize: 1, total: 0, totalPages: 0 },
+        });
+      }
+      if (url.includes('sort=engagement')) {
+        return mockJsonResponse({
+          data: [
+            listItem({
+              id: '22222222-2222-4222-8222-222222222222',
+              title: 'Miso Butter Noodles',
+              isFavorite: true,
+            }),
+          ],
+          meta: { page: 1, pageSize: 12, total: 1, totalPages: 1 },
+        });
+      }
+      if (url.includes('sort=latest')) {
+        return Promise.reject(new Error('offline'));
+      }
+      return mockJsonResponse(emptyListBody);
+    });
+
+    await renderWithProviders(<HomeScreen />);
+
+    expect(await screen.findByText('MY RECIPES')).toBeOnTheScreen();
+    expect(await screen.findByText('Miso Butter Noodles')).toBeOnTheScreen();
+    expect(
+      await screen.findByText(
+        /couldn’t load this section/i,
+        {},
+        { timeout: 4000 },
+      ),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('LAST UPLOADED')).toBeOnTheScreen();
+  });
+
+  test('shows a stale last-uploaded cache when the network is down', async () => {
+    await writeCachedRecipeList('latest', {
+      items: [
+        listItem({
+          id: '11111111-1111-4111-8111-111111111111',
+          title: 'Charred Broccoli Soup',
+        }),
+      ],
+      meta: { page: 1, pageSize: 8, total: 1, totalPages: 1 },
+    });
+    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+      const url = String(input);
+      if (url.includes('/cook-sessions')) {
+        return mockJsonResponse({
+          data: [],
+          meta: { page: 1, pageSize: 1, total: 0, totalPages: 0 },
+        });
+      }
+      return Promise.reject(new Error('offline'));
+    });
+
+    await renderWithProviders(<HomeScreen />);
+
+    expect(await screen.findByText('Charred Broccoli Soup')).toBeOnTheScreen();
+    expect(screen.getByText(/Showing last loaded recipes/)).toBeOnTheScreen();
   });
 });

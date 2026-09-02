@@ -1,6 +1,18 @@
 import { z } from 'zod';
 
 export const recipeDifficultySchema = z.enum(['Easy', 'Medium', 'Hard']);
+const oneEmojiSchema = z
+  .string()
+  .refine(
+    (value) =>
+      /\p{Extended_Pictographic}/u.test(value) &&
+      [
+        ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
+          value,
+        ),
+      ].length === 1,
+    'Use one emoji',
+  );
 
 export const recipeIngredientSchema = z.object({
   id: z.string(),
@@ -10,6 +22,8 @@ export const recipeIngredientSchema = z.object({
   unit: z.string().nullable(),
   preparation: z.string().nullable(),
   optional: z.boolean(),
+  emoji: z.string().optional(),
+  colorToken: z.string().optional(),
   category: z.string(),
   confidence: z.number(),
   provenance: z.unknown(),
@@ -59,6 +73,38 @@ export const recipeDetailSchema = z.object({
   confidence: z.number(),
   warnings: z.unknown(),
   promptVersion: z.string().nullable(),
+  userRecipeId: z.string().optional(),
+  revisionId: z.string().optional(),
+  revisionNumber: z.number().int().nonnegative().optional(),
+  revisionSource: z
+    .enum(['IMPORT', 'USER_EDIT', 'AI_ASSISTED', 'RESTORE', 'MIGRATION'])
+    .optional(),
+  reviewState: z.enum(['NEEDS_REVIEW', 'READY']).optional(),
+  categories: z
+    .array(
+      z.object({
+        id: z.string(),
+        slug: z.string(),
+        name: z.string(),
+        sortOrder: z.number().int(),
+      }),
+    )
+    .optional(),
+  isFavorite: z.boolean().optional(),
+  rating: z.number().int().min(1).max(5).nullable().optional(),
+  ratingAverage: z.number().min(1).max(5).nullable().optional(),
+  ratingCount: z.number().int().nonnegative().optional(),
+  cookCount: z.number().int().nonnegative().optional(),
+  nutritionStatus: z
+    .enum([
+      'NOT_REQUESTED',
+      'PENDING',
+      'PROCESSING',
+      'COMPLETED',
+      'PARTIAL',
+      'FAILED',
+    ])
+    .optional(),
   ingredients: z.array(recipeIngredientSchema),
   steps: z.array(recipeStepSchema),
   source: recipeSourceSchema.nullable(),
@@ -89,6 +135,46 @@ export const recipeListItemSchema = z.object({
   thumbnailUrl: z.string().nullable(),
   ingredientCount: z.number().int(),
   stepCount: z.number().int(),
+  userRecipeId: z.string().optional(),
+  categories: z
+    .array(
+      z.object({
+        id: z.string(),
+        slug: z.string(),
+        name: z.string(),
+        sortOrder: z.number().int(),
+      }),
+    )
+    .optional()
+    .default([]),
+  isFavorite: z.boolean().optional().default(false),
+  rating: z.number().int().min(1).max(5).nullable().optional().default(null),
+  ratingAverage: z.number().min(1).max(5).nullable().optional().default(null),
+  ratingCount: z.number().int().nonnegative().optional().default(0),
+  cookCount: z.number().int().nonnegative().optional().default(0),
+  // Omit rather than default: missing reviewState must not invent inbox ownership.
+  reviewState: z.enum(['NEEDS_REVIEW', 'READY']).optional(),
+});
+
+export const recipeEngagementSchema = z.object({
+  id: z.string(),
+  userRecipeId: z.string(),
+  isFavorite: z.boolean(),
+  rating: z.number().int().min(1).max(5).nullable(),
+  ratingAverage: z.number().min(1).max(5).nullable(),
+  ratingCount: z.number().int().nonnegative(),
+  cookCount: z.number().int().nonnegative(),
+  reviewState: z.enum(['NEEDS_REVIEW', 'READY']).optional(),
+  updatedAt: z.string(),
+});
+
+export const recipeNoteSchema = z.object({
+  id: z.string(),
+  recipeId: z.string(),
+  body: z.string(),
+  cookSessionId: z.string().nullable(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
 });
 
 export const paginationMetaSchema = z.object({
@@ -104,6 +190,7 @@ export const deleteRecipeResponseSchema = z.object({
 });
 
 export const patchRecipeBodySchema = z.object({
+  expectedRevisionNumber: z.number().int().nonnegative(),
   title: z.string().optional(),
   description: z.string().nullable().optional(),
   servings: z.number().int().nullable().optional(),
@@ -112,12 +199,101 @@ export const patchRecipeBodySchema = z.object({
   totalTimeMinutes: z.number().int().nullable().optional(),
   calories: z.number().int().nullable().optional(),
   cuisine: z.string().nullable().optional(),
-  ingredients: z.array(z.unknown()).optional(),
-  steps: z.array(z.unknown()).optional(),
+  categoryIds: z.array(z.string()).min(1),
+  ingredients: z
+    .array(
+      z.object({
+        name: z.string().trim().min(1),
+        canonicalName: z.string().nullable(),
+        emoji: oneEmojiSchema,
+        colorToken: z.string().min(1),
+        quantity: z.union([z.string(), z.number()]).nullable(),
+        unit: z.string().nullable(),
+        preparation: z.string().nullable(),
+        optional: z.boolean(),
+        category: z.string(),
+        sortOrder: z.number().int().nonnegative(),
+      }),
+    )
+    .min(1),
+  steps: z
+    .array(
+      z.object({
+        stepOrder: z.number().int().positive(),
+        instruction: z.string().trim().min(1),
+        durationMinutes: z.number().int().nonnegative().nullable(),
+        temperature: z.string().nullable(),
+        stage: z.string(),
+      }),
+    )
+    .min(1),
 });
 
+export const categorySchema = z.object({
+  id: z.string(),
+  slug: z.string(),
+  name: z.string(),
+  sortOrder: z.number().int(),
+  recipeCount: z.number().int(),
+  isDefault: z.boolean(),
+});
+
+export const recipeRevisionSummarySchema = z.object({
+  id: z.string(),
+  revisionNumber: z.number().int().nonnegative(),
+  source: z.enum([
+    'IMPORT',
+    'USER_EDIT',
+    'AI_ASSISTED',
+    'RESTORE',
+    'MIGRATION',
+  ]),
+  createdAt: z.string(),
+  title: z.string(),
+  isOriginal: z.boolean(),
+  summary: z.string(),
+  changes: z.array(z.string()),
+});
+
+export const recipeRevisionDetailSchema = recipeDetailSchema.extend({
+  summary: z.string(),
+  changes: z.array(z.string()),
+});
+
+export type RecipeEngagementDto = z.infer<typeof recipeEngagementSchema>;
+export type RecipeNoteDto = z.infer<typeof recipeNoteSchema>;
 export type RecipeDetailDto = z.infer<typeof recipeDetailSchema>;
 export type RecipeListItemDto = z.infer<typeof recipeListItemSchema>;
 export type RecipeIngredientDto = z.infer<typeof recipeIngredientSchema>;
 export type RecipeStepDto = z.infer<typeof recipeStepSchema>;
 export type PatchRecipeBody = z.infer<typeof patchRecipeBodySchema>;
+export type CategoryDto = z.infer<typeof categorySchema>;
+export type RecipeRevisionSummaryDto = z.infer<
+  typeof recipeRevisionSummarySchema
+>;
+export const assignRecipeCategoriesBodySchema = z.object({
+  expectedRevisionNumber: z.number().int().nonnegative(),
+  categoryIds: z.array(z.string()).min(1),
+});
+
+export const assignRecipeCategoriesResponseSchema = z.object({
+  recipeId: z.string(),
+  revisionNumber: z.number().int().nonnegative(),
+  categories: z.array(
+    z.object({
+      id: z.string(),
+      slug: z.string(),
+      name: z.string(),
+    }),
+  ),
+});
+
+export type RecipeRevisionDetailDto = z.infer<
+  typeof recipeRevisionDetailSchema
+>;
+export type AssignRecipeCategoriesBody = z.infer<
+  typeof assignRecipeCategoriesBodySchema
+>;
+export type AssignRecipeCategoriesResponse = z.infer<
+  typeof assignRecipeCategoriesResponseSchema
+>;

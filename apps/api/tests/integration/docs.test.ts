@@ -44,15 +44,38 @@ describe('API documentation', () => {
     expect(response.statusCode).toBe(200);
     expect(spec.openapi).toMatch(/^3\./);
     expect(Object.keys(spec.paths).sort()).toEqual([
+      '/api/v1/categories',
+      '/api/v1/categories/{categoryId}',
+      '/api/v1/collections',
+      '/api/v1/collections/{id}',
+      '/api/v1/collections/{id}/recipes',
+      '/api/v1/collections/{id}/recipes/{recipeId}',
       '/api/v1/cook-sessions',
       '/api/v1/cook-sessions/{id}',
       '/api/v1/health',
+      '/api/v1/ops/summary',
+      '/api/v1/pantry',
+      '/api/v1/pantry/items',
+      '/api/v1/pantry/items/{id}',
+      '/api/v1/pantry/organize',
       '/api/v1/recipes',
       '/api/v1/recipes/extract',
       '/api/v1/recipes/extract/jobs/{id}',
       '/api/v1/recipes/extract/jobs/{id}/cancel',
       '/api/v1/recipes/preview',
       '/api/v1/recipes/{id}',
+      '/api/v1/recipes/{id}/categories',
+      '/api/v1/recipes/{id}/favorite',
+      '/api/v1/recipes/{id}/notes',
+      '/api/v1/recipes/{id}/notes/{noteId}',
+      '/api/v1/recipes/{id}/nutrition',
+      '/api/v1/recipes/{id}/nutrition/matches',
+      '/api/v1/recipes/{id}/nutrition/recalculate',
+      '/api/v1/recipes/{id}/rating',
+      '/api/v1/recipes/{id}/review-state',
+      '/api/v1/recipes/{id}/revisions',
+      '/api/v1/recipes/{id}/revisions/{revisionId}',
+      '/api/v1/recipes/{id}/revisions/{revisionId}/restore',
     ]);
   });
 
@@ -67,6 +90,7 @@ describe('API documentation', () => {
       'page',
       'pageSize',
       'q',
+      'sort',
       'sourceType',
     ]);
     expect(
@@ -85,6 +109,7 @@ describe('API documentation', () => {
     expect(patch?.requestBody?.content['application/json']?.schema).toBeDefined();
     expect(patch?.responses['200']).toBeDefined();
     expect(patch?.responses['404']).toBeDefined();
+    expect(patch?.responses['409']).toBeDefined();
   });
 
   it('documents the shared error envelope for failure responses', async () => {

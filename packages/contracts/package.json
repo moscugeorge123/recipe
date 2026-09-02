@@ -1,0 +1,30 @@
+{
+  "name": "@recipe/contracts",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "nx": {
+    "tags": [
+      "type:library",
+      "scope:shared"
+    ]
+  },
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepare": "npm run build",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -5,6 +5,8 @@ import { ScrollView, View } from 'react-native';
 import { ChevronLeft } from '@/components/icons/chevron-left';
 import { SourceIcon } from '@/components/icons/source-icon';
 import { Button } from '@/components/ui/button';
+import { ContentSkeleton } from '@/components/ui/content-skeleton';
+import { InlineErrorPanel } from '@/components/ui/inline-error';
 import { Input } from '@/components/ui/input';
 import { PhotoStandIn } from '@/components/ui/photo-stand-in';
 import { PressScale } from '@/components/ui/press-scale';
@@ -14,7 +16,7 @@ import { inspectClipboard } from '@/features/capture/sources';
 import { useCreateExtraction } from '@/features/extraction/hooks/use-create-extraction';
 import { useLinkPreview } from '@/features/link-preview/hooks/use-link-preview';
 import { SEED_RECIPES } from '@/features/recipes/seed';
-import { ApiError } from '@/services/api-client';
+import { mapUserError } from '@/lib/user-error';
 import { useUiStore } from '@/stores/ui-store';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -81,21 +83,23 @@ export default function ImportPreviewScreen() {
         },
       });
     } catch (error) {
-      const code = error instanceof ApiError ? error.code : 'EXTRACTION_FAILED';
+      const mapped = mapUserError(error, 'import');
       router.push({
         pathname: '/import/error',
-        params: { code: code ?? 'EXTRACTION_FAILED', source: sourceLabel },
+        params: {
+          code: mapped.code ?? 'EXTRACTION_FAILED',
+          source: sourceLabel,
+        },
       });
-      showToast({ text: 'Could not start extraction', glyph: '!' });
+      showToast({ text: mapped.title, glyph: '!' });
     }
   };
 
-  const previewError =
-    preview.error instanceof ApiError
-      ? preview.error.message
-      : preview.isError
-        ? "We couldn't unfurl this link. You can still turn it into a recipe."
-        : undefined;
+  const previewCopy = preview.isError
+    ? mapUserError(preview.error ?? new Error('offline'), 'preview', {
+        log: !!preview.error,
+      })
+    : undefined;
   const authorLabel = preview.data?.author?.trim()
     ? formatAuthor(preview.data.author.trim())
     : null;
@@ -146,10 +150,7 @@ export default function ImportPreviewScreen() {
             />
             <View className="p-4">
               {preview.isPending ? (
-                <View className="gap-2">
-                  <View className="h-3.5 w-28 rounded-md bg-linen" />
-                  <View className="h-4 w-4/5 rounded-md bg-linen" />
-                </View>
+                <ContentSkeleton shape="preview" />
               ) : (
                 <>
                   {authorLabel || titleLabel ? (
@@ -173,14 +174,17 @@ export default function ImportPreviewScreen() {
                       </View>
                     </View>
                   ) : null}
-                  {previewError ? (
-                    <Text
-                      accessibilityRole="alert"
-                      className="pt-2 text-[13px]"
-                      style={{ color: colors.chili }}
-                    >
-                      {previewError}
-                    </Text>
+                  {previewCopy ? (
+                    <View className="pt-2">
+                      <InlineErrorPanel
+                        message={previewCopy.message}
+                        retryLabel={previewCopy.actionLabel}
+                        retrying={preview.isFetching}
+                        onRetry={() => {
+                          void preview.refetch();
+                        }}
+                      />
+                    </View>
                   ) : null}
                   <Text
                     className="pt-3 text-[11px]"

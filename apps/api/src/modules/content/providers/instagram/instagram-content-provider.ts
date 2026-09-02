@@ -3,7 +3,7 @@ import type { SourceType } from '@prisma/client';
 import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
 import { logStep } from '../../../../infrastructure/logging/log-step.js';
 import type { AcquiredContent, AcquisitionContext, ContentProvider } from '../../domain/types.js';
-import type { ApifyClient } from './apify-client.js';
+import type { ApifyClient, ApifyInstagramPost } from './apify-client.js';
 
 const INSTAGRAM_HOSTS = ['instagram.com', 'www.instagram.com'];
 
@@ -22,8 +22,9 @@ export class InstagramContentProvider implements ContentProvider {
   }
 
   async acquire(url: string, ctx: AcquisitionContext): Promise<AcquiredContent> {
-    const posts = await (async () => {
-      const scrape = () => this.apify.runInstagramScraper({ directUrls: [url], resultsLimit: 1 });
+    const posts = await (async (): Promise<ApifyInstagramPost[]> => {
+      const scrape = (): Promise<ApifyInstagramPost[]> =>
+        this.apify.runInstagramScraper({ directUrls: [url], resultsLimit: 1 });
       try {
         return ctx.log
           ? await logStep(ctx.log, 'instagram.apify', { url }, scrape)

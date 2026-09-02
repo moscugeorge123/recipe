@@ -139,6 +139,8 @@ describe.skipIf(!dbAvailable)('recipe API endpoints', () => {
       expect(response.statusCode).toBe(200);
       const recipe = response.json().data;
       expect(recipe.title).toBe('Fake pasta recipe');
+      expect(recipe.revisionNumber).toBe(0);
+      expect(recipe.categories.length).toBeGreaterThan(0);
       expect(recipe.ingredients.length).toBeGreaterThan(0);
       expect(recipe.steps.length).toBeGreaterThan(0);
       expect(recipe.confidence).toBeGreaterThan(0);

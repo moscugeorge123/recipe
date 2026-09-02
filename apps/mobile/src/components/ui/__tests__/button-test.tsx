@@ -1,6 +1,7 @@
 import { render, screen, userEvent } from '@testing-library/react-native';
 
 import { Button } from '@/components/ui/button';
+import { Text } from '@/components/ui/text';
 import { CookShell } from '@/theme/cook-shell';
 import { colors } from '@/theme/tokens';
 
@@ -65,9 +66,7 @@ describe('Button', () => {
   });
 
   test('icon size uses the label as the accessible name', async () => {
-    await render(
-      <Button label="Back" size="icon" icon={<Text>‹</Text>} />,
-    );
+    await render(<Button label="Back" size="icon" icon={<Text>‹</Text>} />);
 
     expect(screen.getByRole('button', { name: 'Back' })).toBeOnTheScreen();
     expect(screen.queryByText('Back')).toBeNull();

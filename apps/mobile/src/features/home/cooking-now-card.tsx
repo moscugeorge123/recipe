@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import { router } from 'expo-router';
-import { Alert, View } from 'react-native';
+import { View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { ConfirmSheet } from '@/components/ui/confirm-sheet';
 import { Text } from '@/components/ui/text';
 import {
   useActiveCook,
@@ -12,27 +14,11 @@ import { colors, fonts } from '@/theme/tokens';
 export function CookingNowCard() {
   const cooking = useActiveCook();
   const { stopAndClear } = useFinishCooking();
+  const [stopOpen, setStopOpen] = useState(false);
 
   if (!cooking.isVisible || !cooking.recipeId || !cooking.title) {
     return null;
   }
-
-  const confirmStop = () => {
-    Alert.alert(
-      'Stop cooking?',
-      'This will mark the recipe as finished and hide it from Home.',
-      [
-        { text: 'Keep cooking', style: 'cancel' },
-        {
-          text: 'Stop',
-          style: 'destructive',
-          onPress: () => {
-            stopAndClear().catch(() => undefined);
-          },
-        },
-      ],
-    );
-  };
 
   const bars = Array.from({ length: Math.max(cooking.stepCount, 1) });
 
@@ -85,9 +71,22 @@ export function CookingNowCard() {
           size="md"
           className="flex-1"
           style={{ borderWidth: 1, borderColor: colors.steamedMilk }}
-          onPress={confirmStop}
+          onPress={() => setStopOpen(true)}
         />
       </View>
+      <ConfirmSheet
+        visible={stopOpen}
+        title="Stop cooking?"
+        message="This will mark the recipe as finished and hide it from Home."
+        confirmLabel="Stop cooking"
+        cancelLabel="Keep cooking"
+        destructive
+        onClose={() => setStopOpen(false)}
+        onConfirm={() => {
+          setStopOpen(false);
+          stopAndClear().catch(() => undefined);
+        }}
+      />
     </View>
   );
 }

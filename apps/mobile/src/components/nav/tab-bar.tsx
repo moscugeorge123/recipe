@@ -18,9 +18,9 @@ import {
     YouFoodIcon,
 } from '@/components/icons/food-tab-icons';
 import { Text } from '@/components/ui/text';
+import { useCatalog } from '@/features/catalog/use-catalog';
 import { hapticLight } from '@/lib/haptics';
 import { duration, reanimatedEasing, useReducedMotion } from '@/lib/motion';
-import { useKitchenStore } from '@/stores/kitchen-store';
 import { useUiStore } from '@/stores/ui-store';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -96,9 +96,7 @@ export function MiseTabBar() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
-  const inboxCount = Object.keys(
-    useKitchenStore((state) => state.inboxStatus),
-  ).length;
+  const inboxCount = Object.keys(useCatalog().inboxStatus).length;
   const openCapture = useUiStore((state) => state.openCapture);
   const closeCapture = useUiStore((state) => state.closeCapture);
   const captureOpen = useUiStore((state) => state.captureOpen);

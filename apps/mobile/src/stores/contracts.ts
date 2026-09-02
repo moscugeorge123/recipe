@@ -1,3 +1,5 @@
+import type { KitchenMigrationDocument } from '@/features/kitchen/migration';
+import type { PendingSyncOp } from '@/features/kitchen/pending-sync';
 import type {
   IngredientCategory,
   RecipeId,
@@ -48,6 +50,8 @@ export type KitchenState = {
   pantryStaples: string[];
   servingsByRecipe: Record<RecipeId, number>;
   recentSearches: string[];
+  pendingSync: PendingSyncOp[];
+  kitchenMigration: KitchenMigrationDocument | null;
   markInbox: (id: RecipeId, status: InboxStatus) => void;
   confirmReviewed: (id: RecipeId) => void;
   toggleSaved: (id: RecipeId) => void;
@@ -58,6 +62,10 @@ export type KitchenState = {
   addRecentSearch: (q: string) => void;
   addCollection: (name: string) => void;
   markStaple: (name: string) => void;
+  enqueuePending: (op: PendingSyncOp) => void;
+  patchPending: (id: string, patch: Partial<PendingSyncOp>) => void;
+  applyMigrationLeftovers: (patch: Partial<KitchenState>) => void;
+  setKitchenMigration: (doc: KitchenMigrationDocument) => void;
 };
 
 export type ShopItem = {
@@ -137,9 +145,21 @@ export const DEFAULT_PANTRY_STAPLES = [
   'onion',
 ] as const;
 
-export function isHave(name: string, staples: readonly string[]): boolean {
-  const n = name.toLowerCase();
-  return staples.some((staple) => n.includes(staple));
+export function isHave(
+  name: string,
+  staples: readonly string[],
+  canonicalName?: string | null,
+): boolean {
+  const keys = new Set(
+    staples
+      .map((key) => key.trim().toLowerCase())
+      .filter((key) => key.length > 0),
+  );
+  const canonical = canonicalName?.trim().toLowerCase();
+  if (canonical && keys.has(canonical)) {
+    return true;
+  }
+  return keys.has(name.trim().toLowerCase());
 }
 
 export function inboxStatusForRecipe(input: {

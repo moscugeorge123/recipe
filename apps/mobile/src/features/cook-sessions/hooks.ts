@@ -17,25 +17,23 @@ import {
   type CookSessionStatus,
   type PatchCookSessionBody,
 } from '@/features/cook-sessions/types';
+import {
+  QUERY_FRESHNESS,
+  cookSessionKeys,
+  recipeKeys,
+} from '@/features/query-keys';
 import type { RecipeId } from '@/features/recipes/types';
 import { useCookStore } from '@/stores/cook-store';
 
-const cookSessionRoot = ['cook-sessions'] as const;
-
-export const cookSessionKeys = {
-  all: cookSessionRoot,
-  list: (query: ListCookSessionsQuery) =>
-    [...cookSessionRoot, 'list', query] as const,
-  current: [...cookSessionRoot, 'current'] as const,
-  detail: (id: string) => [...cookSessionRoot, 'detail', id] as const,
-};
+export { cookSessionKeys } from '@/features/query-keys';
 
 export function useCookSessions(query: ListCookSessionsQuery = {}) {
   return useQuery({
     queryKey: cookSessionKeys.list(query),
     queryFn: ({ signal }) => listCookSessions(query, signal),
-    staleTime: 15_000,
+    staleTime: QUERY_FRESHNESS.cookSessions,
     retry: 1,
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -44,8 +42,9 @@ export function useCookSession(id: string | undefined) {
     queryKey: cookSessionKeys.detail(id ?? ''),
     queryFn: ({ signal }) => getCookSession(id as string, signal),
     enabled: !!id,
-    staleTime: 15_000,
+    staleTime: QUERY_FRESHNESS.cookSessions,
     retry: 1,
+    placeholderData: (previous) => previous,
   });
 }
 
@@ -63,12 +62,15 @@ export function useInProgressCookSession() {
   return useQuery({
     queryKey: cookSessionKeys.current,
     queryFn: ({ signal }) => fetchInProgressCookSession(signal),
-    staleTime: 15_000,
+    staleTime: QUERY_FRESHNESS.cookSessions,
     retry: 1,
+    placeholderData: (previous) => previous,
   });
 }
 
-function invalidateCookSessions(queryClient: ReturnType<typeof useQueryClient>) {
+function invalidateCookSessions(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
   return queryClient.invalidateQueries({ queryKey: cookSessionKeys.all });
 }
 
@@ -208,6 +210,9 @@ export function useFinishCooking() {
       }
 
       await invalidateCookSessions(queryClient);
+      if (status === 'COMPLETED') {
+        await queryClient.invalidateQueries({ queryKey: recipeKeys.all });
+      }
     },
     [queryClient],
   );

@@ -1,8 +1,8 @@
 import { Pressable, View } from 'react-native';
-import Animated, { FadeInDown, FadeOut } from 'react-native-reanimated';
+import Animated from 'react-native-reanimated';
 
 import { Text } from '@/components/ui/text';
-import { duration, useReducedMotion } from '@/lib/motion';
+import { enterToast, exitToast, useReducedMotion } from '@/lib/motion';
 import { colors, fonts } from '@/theme/tokens';
 
 export type ToastData = {
@@ -26,10 +26,8 @@ export function Toast({ toast, bottomOffset = 104 }: ToastProps) {
 
   return (
     <Animated.View
-      entering={
-        reduced ? undefined : FadeInDown.duration(duration.toast).springify()
-      }
-      exiting={reduced ? undefined : FadeOut.duration(duration.instant)}
+      entering={enterToast(reduced)}
+      exiting={exitToast(reduced)}
       pointerEvents="box-none"
       className="absolute left-4 right-4 z-50 flex-row items-center gap-[11px] rounded-[17px] px-4 py-3.5"
       style={{ bottom: bottomOffset, backgroundColor: colors.espresso }}
@@ -43,8 +41,8 @@ export function Toast({ toast, bottomOffset = 104 }: ToastProps) {
         </Text>
       </View>
       <Text
-        tone="inverse"
         className="flex-1 text-[14px] leading-[1.3]"
+        tone="inverse"
         style={{ fontFamily: fonts.manrope600 }}
       >
         {toast.text}

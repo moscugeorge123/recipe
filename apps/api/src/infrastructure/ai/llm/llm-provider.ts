@@ -3,11 +3,14 @@ export interface LLMMessage {
   content: string;
 }
 
+export type ReasoningEffort = 'none' | 'minimal' | 'low' | 'medium' | 'high';
+
 export interface LLMInput {
   messages: LLMMessage[];
   model?: string;
   temperature?: number;
   maxTokens?: number;
+  reasoningEffort?: ReasoningEffort;
 }
 
 export interface LLMUsage {

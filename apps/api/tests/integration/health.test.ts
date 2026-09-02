@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { createTestContainer } from '../../src/shared/di/container.js';
 import { buildTestApp } from '../helpers/build-test-app.js';
 
 describe('health endpoints', () => {
@@ -29,6 +30,27 @@ describe('health endpoints', () => {
     const response = await app.inject({ method: 'GET', url: '/health' });
 
     expect(response.headers['x-request-id']).toMatch(/^[0-9a-f-]{36}$/);
+  });
+
+  it('does not resolve a profile for either health route', async () => {
+    const resolve = vi.fn().mockRejectedValue(new Error('profile store unavailable'));
+    const isolated = await buildTestApp({
+      container: createTestContainer({ profileResolver: { resolve } }),
+    });
+
+    try {
+      for (const url of ['/health', '/api/v1/health']) {
+        const response = await isolated.inject({ method: 'GET', url });
+        expect(response.statusCode).toBe(200);
+      }
+      expect(resolve).not.toHaveBeenCalled();
+
+      const resource = await isolated.inject({ method: 'GET', url: '/api/v1/recipes' });
+      expect(resource.statusCode).toBe(500);
+      expect(resolve).toHaveBeenCalledOnce();
+    } finally {
+      await isolated.close();
+    }
   });
 
   it('reuses a well-formed client request id', async () => {

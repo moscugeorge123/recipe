@@ -3,12 +3,10 @@ import { Prisma } from '@prisma/client';
 import type { ExtractedIngredient } from '../../recipes/domain/types.js';
 import { isEnglishOutputLanguage } from '../../recipes/prompts/recipe-extraction-v1.js';
 import { toSentenceCase } from '../domain/casing.js';
-import { categorizeIngredient, isIngredientCategory } from '../domain/presentation-heuristics.js';
-import {
-  normalizeIngredientName,
-  normalizeUnit,
-  parseQuantity,
-} from '../domain/units.js';
+import { resolveIngredientPresentation } from '../domain/presentation.js';
+import { normalizeIngredientName, normalizeUnit, parseQuantity } from '../domain/units.js';
+
+export { isOneEmoji } from '../domain/presentation.js';
 
 export class IngredientNormalizer {
   normalize(
@@ -22,6 +20,8 @@ export class IngredientNormalizer {
     unit: string | null;
     preparation: string | null;
     optional: boolean;
+    emoji: string;
+    colorToken: string;
     category: string;
     confidence: number;
     provenance: Record<string, unknown>;
@@ -46,6 +46,13 @@ export class IngredientNormalizer {
       warnings.push('Missing quantity');
     }
 
+    const presentation = resolveIngredientPresentation({
+      name: trimmedName,
+      category: ingredient.category,
+      emoji: ingredient.emoji,
+      colorToken: ingredient.colorToken,
+    });
+
     return {
       name: toSentenceCase(ingredient.name),
       canonicalName,
@@ -53,9 +60,9 @@ export class IngredientNormalizer {
       unit,
       preparation: ingredient.preparation?.trim() ?? null,
       optional: ingredient.optional ?? false,
-      category: isIngredientCategory(ingredient.category)
-        ? ingredient.category
-        : categorizeIngredient(trimmedName),
+      emoji: presentation.emoji,
+      colorToken: presentation.colorToken,
+      category: presentation.category,
       confidence: ingredient.confidence,
       provenance: ingredient.provenance ? { source: ingredient.provenance } : {},
       warnings,

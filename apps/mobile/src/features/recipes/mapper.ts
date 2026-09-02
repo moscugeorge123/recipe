@@ -213,6 +213,9 @@ function mapIngredient(ingredient: RecipeIngredientDto): RecipeIngredientView {
   return {
     id: ingredient.id,
     name: ingredient.name,
+    canonicalName: ingredient.canonicalName,
+    emoji: ingredient.emoji ?? '🥣',
+    colorToken: ingredient.colorToken ?? 'peach',
     quantity: coerceQuantity(ingredient.quantity),
     unit: ingredient.unit,
     preparation: ingredient.preparation,
@@ -288,6 +291,9 @@ export function mapRecipeDetail(dto: RecipeDetailDto): RecipeView {
       stringField(meta, 'thumbnailUrl', 'thumbnail'),
     placeholder: placeholderForId(dto.id),
     minutes,
+    prepTimeMinutes: dto.prepTimeMinutes,
+    cookTimeMinutes: dto.cookTimeMinutes,
+    totalTimeMinutes: dto.totalTimeMinutes,
     difficulty: dto.difficulty ?? difficultyFromMinutes(minutes),
     servings: dto.servings ?? 4,
     cuisine:
@@ -304,6 +310,16 @@ export function mapRecipeDetail(dto: RecipeDetailDto): RecipeView {
       mapStep(step, index, sortedSteps.length, ingredients),
     ),
     createdAt: dto.createdAt,
+    revisionId: dto.revisionId,
+    revisionNumber: dto.revisionNumber ?? 0,
+    reviewState: dto.reviewState ?? 'NEEDS_REVIEW',
+    categories: dto.categories ?? [],
+    isFavorite: dto.isFavorite ?? false,
+    rating: dto.rating ?? null,
+    ratingAverage: dto.ratingAverage ?? dto.rating ?? null,
+    ratingCount: dto.ratingCount ?? (dto.rating == null ? 0 : 1),
+    cookCount: dto.cookCount ?? 0,
+    nutritionStatus: dto.nutritionStatus ?? 'NOT_REQUESTED',
   };
 }
 
@@ -323,6 +339,9 @@ export function mapRecipeListItem(dto: RecipeListItemView): RecipeView {
     thumbnailUrl: dto.thumbnailUrl,
     placeholder: placeholderForId(dto.id),
     minutes,
+    prepTimeMinutes: dto.prepTimeMinutes,
+    cookTimeMinutes: dto.cookTimeMinutes,
+    totalTimeMinutes: dto.totalTimeMinutes,
     difficulty: dto.difficulty ?? difficultyFromMinutes(minutes),
     servings: dto.servings ?? 4,
     cuisine: dto.cuisine ?? 'Imported',
@@ -334,5 +353,14 @@ export function mapRecipeListItem(dto: RecipeListItemView): RecipeView {
     ingredientCount: dto.ingredientCount,
     stepCount: dto.stepCount,
     createdAt: dto.createdAt,
+    revisionNumber: 0,
+    reviewState: dto.reviewState,
+    categories: dto.categories ?? [],
+    isFavorite: dto.isFavorite ?? false,
+    rating: dto.rating ?? null,
+    ratingAverage: dto.ratingAverage ?? dto.rating ?? null,
+    ratingCount: dto.ratingCount ?? (dto.rating == null ? 0 : 1),
+    cookCount: dto.cookCount ?? 0,
+    nutritionStatus: 'NOT_REQUESTED',
   };
 }

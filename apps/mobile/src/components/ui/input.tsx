@@ -1,3 +1,4 @@
+import { forwardRef } from 'react';
 import { TextInput, View, type TextInputProps } from 'react-native';
 
 import { Text } from '@/components/ui/text';
@@ -9,7 +10,10 @@ type InputProps = TextInputProps & {
   className?: string;
 };
 
-export function Input({ label, error, className, ...props }: InputProps) {
+export const Input = forwardRef<TextInput, InputProps>(function Input(
+  { label, error, className, multiline, style, ...props },
+  ref,
+) {
   return (
     <View className="w-full gap-1">
       {label ? (
@@ -18,13 +22,22 @@ export function Input({ label, error, className, ...props }: InputProps) {
         </Text>
       ) : null}
       <TextInput
+        ref={ref}
+        {...props}
         accessibilityLabel={label}
-        className={`h-12 rounded-[15px] border bg-peach px-[15px] text-[15.5px] ${
+        accessibilityHint={error}
+        aria-invalid={!!error}
+        multiline={multiline}
+        className={`${
+          multiline ? 'min-h-[88px] py-3' : 'min-h-12'
+        } rounded-[15px] border bg-peach px-[15px] py-3 text-[15.5px] ${
           error ? 'border-chili' : 'border-crust'
         } ${className ?? ''}`}
         placeholderTextColor={colors.olive}
-        style={{ fontFamily: fonts.manrope600, color: colors.espresso }}
-        {...props}
+        style={[
+          { fontFamily: fonts.manrope600, color: colors.espresso },
+          style,
+        ]}
       />
       {error ? (
         <Text
@@ -37,4 +50,4 @@ export function Input({ label, error, className, ...props }: InputProps) {
       ) : null}
     </View>
   );
-}
+});

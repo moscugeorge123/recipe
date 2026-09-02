@@ -15,6 +15,27 @@ jest.mock('react-native-reanimated', () => {
     createAnimatedComponent: (Component: unknown) => Component,
   };
 
+  const motionChain = () => {
+    const chain: Record<string, unknown> = {};
+    const methods = [
+      'duration',
+      'delay',
+      'springify',
+      'damping',
+      'stiffness',
+      'mass',
+      'withInitialValues',
+      'easing',
+      'randomDelay',
+      'build',
+      'reduceMotion',
+    ];
+    methods.forEach((name) => {
+      chain[name] = () => chain;
+    });
+    return chain;
+  };
+
   return {
     __esModule: true,
     default: Animated,
@@ -44,14 +65,17 @@ jest.mock('react-native-reanimated', () => {
       inOut: (fn: (t: number) => number) => fn,
       bezier: () => (t: number) => t,
     },
-    FadeIn: {
-      duration: () => ({ springify: () => ({ damping: () => ({}) }) }),
-    },
-    FadeOut: { duration: () => ({}) },
-    SlideInDown: {
-      duration: () => ({ springify: () => ({ damping: () => ({}) }) }),
-    },
-    FadeInDown: { duration: () => ({ springify: () => ({}) }) },
+    FadeIn: motionChain(),
+    FadeOut: motionChain(),
+    FadeInDown: motionChain(),
+    FadeInUp: motionChain(),
+    FadeOutUp: motionChain(),
+    FadeOutDown: motionChain(),
+    SlideInDown: motionChain(),
+    ZoomIn: motionChain(),
+    ZoomOut: motionChain(),
+    LinearTransition: motionChain(),
+    Layout: motionChain(),
     runOnJS: <T extends (...args: never[]) => unknown>(fn: T) => fn,
     runOnUI: <T extends (...args: never[]) => unknown>(fn: T) => fn,
   };
@@ -177,3 +201,4 @@ AccessibilityInfo.addEventListener = jest.fn(
     >,
 );
 AccessibilityInfo.announceForAccessibility = jest.fn();
+AccessibilityInfo.setAccessibilityFocus = jest.fn();

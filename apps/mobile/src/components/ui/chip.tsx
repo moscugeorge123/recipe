@@ -26,7 +26,7 @@ export function Chip({
       accessibilityLabel={label}
       accessibilityState={{ selected: !!selected, disabled: !!disabled }}
       disabled={disabled}
-      className={`h-10 min-h-11 flex-row items-center justify-center gap-1.5 rounded-[13px] px-[15px] ${
+      className={`min-h-11 max-w-full flex-row flex-wrap items-center justify-center gap-1.5 rounded-[13px] px-[15px] py-2 ${
         className ?? ''
       }`}
       style={{
@@ -36,9 +36,9 @@ export function Chip({
     >
       {icon}
       <Text
-        className="text-[13px]"
+        className="max-w-full text-[13px]"
         tone={selected ? 'inverse' : 'icon'}
-        style={{ fontFamily: fonts.manrope600 }}
+        style={{ fontFamily: fonts.manrope600, flexShrink: 1 }}
       >
         {label}
       </Text>

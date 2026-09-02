@@ -23,12 +23,13 @@ This document describes the target architecture for evolving the existing Fastif
 15. [Risks and mitigations](#15-risks-and-mitigations)
 16. [MVP scope](#16-mvp-scope)
 17. [Integration with existing code](#17-integration-with-existing-code)
+18. [Current platform (delivery)](#18-current-platform-delivery)
 
 ---
 
 ## 1. Context and goals
 
-The workspace contains a production-ready Fastify API foundation (`src/app/`, `src/config/env.ts`, Docker, Vitest, OpenAPI, rate limiting, structured errors). **Recipe domain logic, database persistence, job queue, and worker processes are being added incrementally.**
+The workspace contains a production Fastify API (`src/app/`, `src/config/env.ts`, Docker, Vitest, OpenAPI, rate limiting, structured errors) **plus** recipe domain logic: PostgreSQL persistence, BullMQ extraction and nutrition workers, singleton profile ownership, immutable revisions, pantry organization, collections, engagement, and cook sessions.
 
 This evolution **preserves existing conventions**:
 
@@ -551,9 +552,23 @@ Base prefix: `/api/v1` (existing). Interactive docs at `/docs`.
 | `POST` | `/recipes/extract` | Create extraction job |
 | `GET` | `/recipes/extract/jobs/:id` | Job status + progress |
 | `POST` | `/recipes/extract/jobs/:id/cancel` | Cancel queued/running job |
-| `GET` | `/recipes/:id` | Get normalized recipe |
-| `GET` | `/recipes` | List recipes (paginated) |
-| `DELETE` | `/recipes/:id` | Delete recipe + linked artifacts |
+| `POST` | `/recipes/preview` | Link preview (no job) |
+| `GET` | `/recipes/:id` | Get effective revision |
+| `PATCH` | `/recipes/:id` | Append immutable user revision |
+| `GET` | `/recipes` | List recipes (`sort=latest\|engagement`) |
+| `GET` | `/recipes/:id/revisions` | Revision history |
+| `POST` | `/recipes/:id/revisions/:revisionId/restore` | Restore as a new head |
+| `PUT` | `/recipes/:id/favorite` | Favorite |
+| `PUT` | `/recipes/:id/rating` | Profile rating 1–5 |
+| `POST` | `/recipes/:id/notes` | Annotation (not a revision) |
+| `GET` | `/recipes/:id/nutrition` | Per-portion / per-100g |
+| `GET` | `/categories` | Profile categories |
+| `GET` | `/collections` | Collections |
+| `GET` | `/pantry` | Pantry items |
+| `POST` | `/pantry/organize` | Plain-text organize (no save) |
+| `POST` | `/cook-sessions` | Start or resume a cook |
+| `GET` | `/ops/summary` | Operator aggregates (no PII) |
+| `GET` | `/health` | Liveness |
 
 ### `POST /recipes/extract`
 
@@ -907,13 +922,15 @@ flowchart TD
 | 1 | This document (`architecture.md`) | ✅ |
 | 2 | Project skeleton: dirs, worker entry, docker-compose, env config | ✅ |
 | 3 | Prisma schema, migrations, repositories, DB tests | ✅ |
-| 4 | BullMQ setup, fake pipeline, state machine | Planned |
-| 5 | Content acquisition providers + SSRF guard | Planned |
-| 6 | FFmpeg media processing + local storage | Planned |
-| 7 | AI providers (OpenAI adapters) | Planned |
-| 8 | Recipe extraction core (evidence, normalizer, validator) | Planned |
-| 9 | REST API endpoints; remove `example` feature | Planned |
-| 10 | S3, Sentry, production Dockerfiles, graceful worker shutdown | Planned |
+| 4 | BullMQ setup, fake pipeline, state machine | ✅ |
+| 5 | Content acquisition providers + SSRF guard | ✅ |
+| 6 | FFmpeg media processing + local storage | ✅ |
+| 7 | AI providers (OpenAI adapters) | ✅ |
+| 8 | Recipe extraction core (evidence, normalizer, validator) | ✅ |
+| 9 | REST API endpoints; remove `example` feature | ✅ |
+| 10 | S3, Sentry, production Dockerfiles, graceful worker shutdown | ✅ |
+| 11 | Singleton profile, revisions, nutrition, pantry, collections, engagement | ✅ |
+| 12 | Journey tests, ops summary, docs, Maestro | ✅ |
 
 Each phase ends with: tests pass, typecheck, lint, docs update.
 
@@ -953,18 +970,21 @@ Each phase ends with: tests pass, typecheck, lint, docs update.
 - Docker Compose dev environment
 - Vitest unit + integration tests
 
-**Deferred post-MVP:**
+**Deferred post-MVP / remaining:**
 
 - Facebook/TikTok real implementations (stubs only)
 - Playwright for JS-rendered pages
 - Second AI validation pass
-- Nutrition/allergens/cuisine classification
-- User corrections / recipe revisions
 - Semantic search
 - SQS migration
 - Full AWS Terraform/CDK
+- Authentication (extension point only; singleton implicit profile today)
+- Multi-user isolation beyond the profile resolver
+- Persisted USDA 429 / revision-conflict counters (log queries today)
 
-**Success criteria:** `POST /recipes/extract` with an Instagram reel or YouTube URL returns a job immediately; the worker produces a structured recipe with ingredients, steps, confidence, warnings, and provenance within reasonable time.
+Nutrition, pantry organization, user revisions, collections, favorites/ratings/notes, and cook sessions **shipped** after the original MVP list.
+
+**Success criteria:** `POST /recipes/extract` with an Instagram reel or YouTube URL returns a job immediately; the worker produces a structured recipe with ingredients, steps, confidence, warnings, and provenance within reasonable time. Home ranking and kitchen data survive restarts via Postgres.
 
 ---
 
@@ -972,10 +992,46 @@ Each phase ends with: tests pass, typecheck, lint, docs update.
 
 | Existing module | Extension |
 |-----------------|-----------|
-| `src/app/app.ts` | Register recipe/extraction routes; wire DB/Redis health checks via `buildApp({ healthChecks })` |
+| `src/app/app.ts` | Register recipe/extraction/nutrition/pantry/collections/ops routes; wire DB/Redis health checks via `buildApp({ healthChecks })` |
 | `src/config/env.ts` | Grouped config for `database`, `redis`, `storage`, `ai`, `extraction` |
 | `src/shared/errors/error-codes.ts` | Extraction-specific codes |
 | `src/shared/http/response.ts` | Keep `{ data }` envelope |
 | `tests/helpers/build-test-app.ts` | Keep `buildApp()` / `app.inject()` pattern |
 
 Health checks remain a registry: dependency failures degrade the report rather than throwing, and `/health` stays simple for the ALB.
+
+---
+
+## 18. Current platform (delivery)
+
+### Singleton profile
+
+Every versioned resource route runs `registerProfileContext`, which calls `ImplicitProfileResolver` and sets `request.profile = { userId: DEFAULT_PROFILE_ID, mode: 'implicit' }`. Recipes, categories, pantry, collections, notes, ratings, favorites, and cooks are owned by that user. Cross-profile ids 404.
+
+**Future auth:** implement `app/plugins/auth.ts` as documented in `app.ts`, replace `ImplicitProfileResolver`, and keep decorating `request.profile`. Do not change controllers. Gate `GET /api/v1/ops/summary` at the same time. `/health` stays public.
+
+### Revision semantics
+
+Import writes revision 0 (`IMPORT`) as a complete categorized snapshot (emoji + grocery category on each ingredient). `PATCH /recipes/:id` requires `expectedRevisionNumber` and appends a new complete snapshot. The `recipes` / `recipe_ingredients` / `recipe_steps` base rows stay byte-for-byte as imported. Restore copies an old snapshot to a new head (`RESTORE`) and never deletes history. Notes, favorites, ratings, and review-state writes are not revisions.
+
+### Nutrition and USDA
+
+`USDA_FDC_API_KEY` selects the live FoodData Central provider. Tests (`NODE_ENV=test`) always use `FakeNutritionProvider`. Missing key → `UnconfiguredNutritionProvider` (unavailable, non-destructive). Calculation is queued on `nutrition-jobs`. Values are per-portion and per-100g with `READY` / `PARTIAL` / `FAILED` / `PENDING`. Query/food caches persist in Postgres. HTTP 429s retry then throw `NutritionRateLimitError` (snapshot stays `PENDING`); they are **not** counted in the database — filter logs with `NutritionRateLimitError`.
+
+### Ingredient AI policy
+
+Dictionary + cache first. Unknown lines go in one compact batch to `AI_INGREDIENT_MODEL` (`gpt-5-nano`). Compatibility fallback: `AI_INGREDIENT_FALLBACK_MODEL` (`gpt-4.1-nano`). At most `AI_INGREDIENT_MAX_ESCALATIONS` items escalate to `gpt-4o-mini`. GPT-5.6 is rejected by env validation. Change models and budgets in environment variables only.
+
+### Workers
+
+One worker process registers both processors:
+
+- `extraction-jobs` → `RecipeExtractionPipeline`
+- `nutrition-jobs` → `NutritionService.processSnapshot`
+
+API process never blocks on media or USDA. Tests use `InMemoryQueueProvider` so `inject()` completes both pipelines synchronously.
+
+### Operational checks
+
+`GET /api/v1/ops/summary` (profile context, no auth today) returns aggregated AI tokens/cost/cache/escalation, USDA cache sizes, nutrition statuses, pantry fallback rate, extraction/nutrition in-flight counts, and applied Prisma migrations. It never includes titles, notes, URLs, or pantry names. Revision conflicts are log-only (`RECIPE_REVISION_CONFLICT`).
+

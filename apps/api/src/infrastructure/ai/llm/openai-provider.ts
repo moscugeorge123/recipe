@@ -30,8 +30,6 @@ export class OpenAIProvider implements LLMProvider {
     const response = await this.client.chat.completions.create({
       model,
       messages: input.messages.map((m) => ({ role: m.role, content: m.content })),
-      temperature: input.temperature ?? 0.2,
-      max_tokens: input.maxTokens ?? 4096,
       response_format: {
         type: 'json_schema',
         json_schema: {
@@ -40,6 +38,12 @@ export class OpenAIProvider implements LLMProvider {
           schema,
         },
       },
+      ...(input.reasoningEffort !== undefined
+        ? { reasoning_effort: input.reasoningEffort }
+        : { temperature: input.temperature ?? 0.2 }),
+      ...(input.maxTokens !== undefined
+        ? { max_completion_tokens: input.maxTokens }
+        : { max_tokens: 4096 }),
     });
 
     const durationMs = Date.now() - startedAt;

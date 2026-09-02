@@ -4,6 +4,8 @@ import {
   isResponseSerializationError,
 } from 'fastify-type-provider-zod';
 
+import { isRetryableFailure } from '@recipe/contracts';
+
 import { AppError, isAppError, type ErrorDetail } from '../../shared/errors/app-error.js';
 import { ErrorCode } from '../../shared/errors/error-codes.js';
 import type { ErrorResponse } from '../../shared/errors/error-response.js';
@@ -49,7 +51,12 @@ function toValidationDetails(
 }
 
 function buildErrorResponse(
-  error: { code: ErrorCode; message: string; details?: ErrorDetail[] | undefined },
+  error: {
+    code: ErrorCode;
+    message: string;
+    details?: ErrorDetail[] | undefined;
+    statusCode?: number;
+  },
   requestId: string,
 ): ErrorResponse {
   return {
@@ -58,6 +65,7 @@ function buildErrorResponse(
       message: error.message,
       ...(error.details ? { details: error.details } : {}),
       requestId,
+      retryable: isRetryableFailure(error.statusCode ?? 500, error.code),
     },
   };
 }
@@ -121,7 +129,9 @@ export function registerErrorHandler(app: FastifyInstance): void {
       );
     }
 
-    return reply.status(resolved.statusCode).send(buildErrorResponse(resolved, request.id));
+    return reply
+      .status(resolved.statusCode)
+      .send(buildErrorResponse(resolved, request.id));
   });
 
   // Unknown routes bypass route-level hooks, so the rate limiter is attached explicitly here.
@@ -134,6 +144,7 @@ export function registerErrorHandler(app: FastifyInstance): void {
         {
           code: ErrorCode.NOT_FOUND,
           message: `Route ${request.method} ${request.url} not found`,
+          statusCode: 404,
         },
         request.id,
       ),

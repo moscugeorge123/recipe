@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
@@ -10,8 +10,9 @@ import { Screen } from '@/components/ui/screen';
 import { Sheet } from '@/components/ui/sheet';
 import { Text } from '@/components/ui/text';
 import { useCatalog } from '@/features/catalog/use-catalog';
+import { KitchenCollections } from '@/features/collections/kitchen-collections';
+import { KitchenSyncBanner } from '@/features/kitchen/kitchen-sync-banner';
 import type { KitchenTab } from '@/stores/contracts';
-import { useKitchenStore } from '@/stores/kitchen-store';
 import { useUiStore } from '@/stores/ui-store';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -29,9 +30,7 @@ export default function KitchenScreen() {
   const [source, setSource] = useState('All');
   const [time, setTime] = useState('Any');
   const [filterOpen, setFilterOpen] = useState(false);
-  const showToast = useUiStore((state) => state.showToast);
   const openCapture = useUiStore((state) => state.openCapture);
-  const addCollection = useKitchenStore((state) => state.addCollection);
 
   const pass = (id: string) => {
     const recipe = catalog.get(id);
@@ -146,6 +145,7 @@ export default function KitchenScreen() {
             inbox
           </Text>
         </View>
+        <KitchenSyncBanner />
         <View className="flex-row items-center gap-2.5 px-5 pb-4">
           <Pressable
             accessibilityRole="button"
@@ -173,6 +173,17 @@ export default function KitchenScreen() {
           >
             <Text className="text-[13px]" tone="icon">
               Shopping →
+            </Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Open pantry"
+            onPress={() => router.push('/pantry' as Href)}
+            className="h-[46px] min-h-11 justify-center rounded-[14px] px-4"
+            style={{ backgroundColor: colors.basilSoft }}
+          >
+            <Text className="text-[13px]" tone="icon">
+              Pantry →
             </Text>
           </Pressable>
         </View>
@@ -291,63 +302,7 @@ export default function KitchenScreen() {
           </View>
         ) : null}
 
-        {tab === 'Collections' ? (
-          <View className="flex-row flex-wrap gap-3.5 px-5">
-            {catalog.collections.map((collection) => (
-              <Pressable
-                key={collection.id}
-                accessibilityRole="button"
-                onPress={() =>
-                  showToast({
-                    text: `Opening “${collection.name}”`,
-                    glyph: '›',
-                  })
-                }
-                className="w-[47%] rounded-[18px] border border-crust bg-bg-elevated p-[15px]"
-              >
-                <View className="flex-row gap-1 pb-3">
-                  {collection.recipeIds.slice(0, 3).map((id) => {
-                    const recipe = catalog.get(id);
-                    return (
-                      <View key={id} className="flex-1">
-                        <PhotoStandIn
-                          colors={recipe?.placeholder ?? ['#E6D9C4', '#DCCBB0']}
-                          height={44}
-                          radius={9}
-                          uri={recipe?.thumbnailUrl}
-                        />
-                      </View>
-                    );
-                  })}
-                </View>
-                <Text
-                  style={{ fontFamily: fonts.manrope700 }}
-                  className="text-[15px]"
-                >
-                  {collection.name}
-                </Text>
-                <Text variant="caption" className="pt-1.5 text-[12px]">
-                  {collection.recipeIds.length} recipes
-                </Text>
-              </Pressable>
-            ))}
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                addCollection('New collection');
-                showToast({
-                  text: 'New collection — name it anything',
-                  glyph: '+',
-                });
-              }}
-              className="min-h-[120px] w-[47%] items-center justify-center rounded-[18px] border-[1.5px] border-dashed border-crust"
-            >
-              <Text className="text-center text-[14px]" tone="muted">
-                + New{'\n'}collection
-              </Text>
-            </Pressable>
-          </View>
-        ) : null}
+        {tab === 'Collections' ? <KitchenCollections /> : null}
 
         {empty ? (
           <View className="items-center px-5 pt-[30px]">

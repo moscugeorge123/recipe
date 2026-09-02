@@ -1,8 +1,8 @@
 import type { ReactNode } from 'react';
 import {
-    type PressableProps,
-    type StyleProp,
-    type ViewStyle,
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
 } from 'react-native';
 
 import { PressScale } from '@/components/ui/press-scale';
@@ -23,9 +23,9 @@ type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 };
 
 const sizeClasses = {
-  lg: 'h-[56px] rounded-[17px] px-5',
-  md: 'h-[48px] rounded-[15px] px-4',
-  icon: 'h-11 w-11 rounded-[14px] px-0',
+  lg: 'min-h-[56px] rounded-[17px] px-5 py-3',
+  md: 'min-h-[48px] rounded-[15px] px-4 py-2',
+  icon: 'h-11 w-11 min-h-11 min-w-11 rounded-[14px] px-0',
 };
 
 function variantFill(
@@ -68,6 +68,7 @@ export function Button({
   disabled,
   className,
   style,
+  accessibilityState,
   ...props
 }: ButtonProps) {
   const cookDark = useCookTheme().dark;
@@ -95,7 +96,7 @@ export function Button({
     <PressScale
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: !!disabled }}
+      accessibilityState={{ disabled: !!disabled, ...accessibilityState }}
       disabled={disabled}
       className={`min-h-11 items-center justify-center ${sizeClasses[size]} ${
         disabled ? 'opacity-50' : ''

@@ -25,7 +25,10 @@ import {
   useFinishCooking,
   useStartCooking,
 } from '@/features/cook-sessions/hooks';
+import { createRecipeNote } from '@/features/recipes/api';
+import { writeNoteDraft } from '@/features/recipes/note-drafts';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
+import { isSeedRecipeId } from '@/features/kitchen/ids';
 import { duration, reanimatedEasing, useReducedMotion } from '@/lib/motion';
 import { useCookStore } from '@/stores/cook-store';
 import { useKitchenStore } from '@/stores/kitchen-store';
@@ -140,7 +143,9 @@ function CompleteInner() {
       return;
     }
     recordedCookedKeys.add(key);
-    incrementCooked(recipe.id);
+    if (isSeedRecipeId(recipe.id)) {
+      incrementCooked(recipe.id);
+    }
   }, [incrementCooked, recipe, startedAt]);
 
   const ring = useSharedValue(0.72);
@@ -214,7 +219,21 @@ function CompleteInner() {
   const times = (cookedCounts[recipe.id] ?? 0) + (pendingCooked ? 1 : 0);
 
   const persistNote = () => {
-    addRecipeNote(recipe.id, note);
+    const trimmed = note.trim();
+    if (!trimmed) {
+      return;
+    }
+    if (recipe.origin === 'api') {
+      const sessionId = useCookStore.getState().sessionId;
+      createRecipeNote(recipe.id, {
+        body: trimmed,
+        ...(sessionId ? { cookSessionId: sessionId } : {}),
+      }).catch(() => {
+        void writeNoteDraft(recipe.id, trimmed);
+      });
+      return;
+    }
+    addRecipeNote(recipe.id, trimmed);
   };
 
   return (

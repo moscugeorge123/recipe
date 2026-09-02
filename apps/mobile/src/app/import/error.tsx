@@ -5,20 +5,17 @@ import { DaisyMascot } from '@/components/daisy';
 import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
+import { importErrorCopy } from '@/lib/user-error';
 
 export default function ImportErrorScreen() {
   const { code = 'EXTRACTION_FAILED', source } = useLocalSearchParams<{
     code?: string;
     source?: string;
   }>();
-
-  const unsupported = code === 'UNSUPPORTED_SOURCE' || code === 'INVALID_URL';
-  const title = unsupported
-    ? 'This video is private'
-    : "We couldn't read that one. Try again?";
-  const body = unsupported
-    ? `${source ?? 'That source'} isn’t available yet — or the link is locked. Try a website, Instagram or YouTube URL.`
-    : 'The extraction failed. Check the link and try again.';
+  const copy = importErrorCopy(
+    Array.isArray(code) ? code[0] : code,
+    Array.isArray(source) ? source[0] : source,
+  );
 
   return (
     <Screen className="px-5">
@@ -26,12 +23,15 @@ export default function ImportErrorScreen() {
         <View className="mb-4 self-start">
           <DaisyMascot phase="error" size={132} showCards={false} />
         </View>
-        <Text variant="display">{title}</Text>
+        <Text variant="display" accessibilityRole="header">
+          {copy.title}
+        </Text>
         <Text
           variant="caption"
+          accessibilityRole="alert"
           className="max-w-[300px] py-4 text-[16px] leading-[1.45]"
         >
-          {body}
+          {copy.message}
         </Text>
         <Button
           label="Try again"

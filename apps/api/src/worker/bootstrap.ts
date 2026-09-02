@@ -9,6 +9,10 @@ import {
   closeExtractionProcessor,
   registerExtractionProcessor,
 } from './processors/extraction.processor.js';
+import {
+  closeNutritionProcessor,
+  registerNutritionProcessor,
+} from './processors/nutrition.processor.js';
 
 export async function createWorkerLogger(appConfig: AppConfig = config): Promise<AppLogger> {
   return createLogger(appConfig);
@@ -23,6 +27,15 @@ export async function startWorker(appConfig: AppConfig = config): Promise<AppLog
 
   const container = createContainer({ logger: log });
   await registerExtractionProcessor(container);
+  await registerNutritionProcessor(container);
+
+  log.info(
+    {
+      pantryCache: 'redis-when-ready',
+      ingredientModel: appConfig.ai.ingredientModel,
+    },
+    'Pantry organizer shares this Redis client for classification cache',
+  );
 
   const [ytdlpOk, ffmpegOk] = await Promise.all([
     isYtDlpAvailable(appConfig.providers.ytdlpPath),
@@ -68,6 +81,7 @@ export function registerWorkerShutdown(log: AppLogger, appConfig: AppConfig = co
 
     try {
       await closeExtractionProcessor();
+      await closeNutritionProcessor();
       await disconnectRedis();
       await disconnectPrisma();
       clearTimeout(watchdog);

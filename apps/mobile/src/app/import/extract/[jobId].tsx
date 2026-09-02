@@ -26,6 +26,7 @@ import { Text } from '@/components/ui/text';
 import { cancelExtraction } from '@/features/extraction/api';
 import { useExtractionJob } from '@/features/extraction/hooks/use-extraction-job';
 import { announce } from '@/lib/announce';
+import { errorCodeOf } from '@/lib/user-error';
 import { useReducedMotion } from '@/lib/motion';
 import { fonts } from '@/theme/tokens';
 
@@ -69,10 +70,10 @@ export default function ExtractScreen() {
     if (isFailed) {
       router.replace({
         pathname: '/import/error',
-        params: { code: 'EXTRACTION_FAILED' },
+        params: { code: errorCodeOf(job?.error) ?? 'EXTRACTION_FAILED' },
       });
     }
-  }, [isFailed]);
+  }, [isFailed, job?.error]);
 
   return (
     <Screen className="px-5">

@@ -8,6 +8,9 @@ export type IngredientCategory =
 export type RecipeIngredientView = {
   id: string;
   name: string;
+  canonicalName?: string | null;
+  emoji?: string;
+  colorToken?: string;
   quantity: number | null;
   unit: string | null;
   preparation: string | null;
@@ -39,6 +42,9 @@ export type RecipeView = {
   thumbnailUrl: string | null;
   placeholder: [string, string];
   minutes: number;
+  prepTimeMinutes?: number | null;
+  cookTimeMinutes?: number | null;
+  totalTimeMinutes?: number | null;
   difficulty: Difficulty;
   servings: number;
   cuisine: string;
@@ -50,6 +56,24 @@ export type RecipeView = {
   ingredientCount?: number;
   stepCount?: number;
   createdAt?: string;
+  revisionId?: string;
+  revisionNumber?: number;
+  reviewState?: 'NEEDS_REVIEW' | 'READY';
+  categories?: RecipeCategoryView[];
+  isFavorite?: boolean;
+  rating?: number | null;
+  ratingAverage?: number | null;
+  ratingCount?: number;
+  cookCount?: number;
+  nutritionStatus?: string;
+  fromCache?: boolean;
+};
+
+export type RecipeCategoryView = {
+  id: string;
+  slug: string;
+  name: string;
+  sortOrder: number;
 };
 
 export type RecipeListItemView = {
@@ -75,4 +99,12 @@ export type RecipeListItemView = {
   thumbnailUrl: string | null;
   ingredientCount: number;
   stepCount: number;
+  userRecipeId?: string;
+  categories?: RecipeCategoryView[];
+  isFavorite?: boolean;
+  rating?: number | null;
+  ratingAverage?: number | null;
+  ratingCount?: number;
+  cookCount?: number;
+  reviewState?: 'NEEDS_REVIEW' | 'READY';
 };

@@ -96,7 +96,7 @@ describe('YtDlpClient', () => {
   });
 
   it('fails the download when yt-dlp reports a path that was not written', async () => {
-    const destPath = path.join(os.tmpdir(), `ytdlp-missing-${Date.now()}`, 'video.mp4');
+    const destPath = path.join(os.tmpdir(), `ytdlp-missing-${String(Date.now())}`, 'video.mp4');
     const execFile = vi.fn<ExecFileFn>(async () => ({
       stdout: JSON.stringify({ title: 'Cake', _filename: destPath }),
       stderr: '',

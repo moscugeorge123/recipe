@@ -1,7 +1,22 @@
 import type { AIUsage, PrismaClient } from '@prisma/client';
 
-export interface CreateAIUsageInput {
-  jobId: string;
+export type AIUsageLink =
+  | {
+      jobId: string;
+      userId?: string;
+      recipeRevisionId?: string;
+      pantryItemId?: string;
+      nutritionSnapshotId?: string;
+    }
+  | {
+      jobId?: string;
+      userId: string;
+      recipeRevisionId?: string;
+      pantryItemId?: string;
+      nutritionSnapshotId?: string;
+    };
+
+export type CreateAIUsageInput = AIUsageLink & {
   provider: string;
   model: string;
   operation: string;
@@ -9,7 +24,7 @@ export interface CreateAIUsageInput {
   outputTokens: number;
   estimatedCostUsd: number;
   durationMs: number;
-}
+};
 
 export interface IAIUsageRepository {
   create(input: CreateAIUsageInput): Promise<AIUsage>;
@@ -22,7 +37,15 @@ export class PrismaAIUsageRepository implements IAIUsageRepository {
   create(input: CreateAIUsageInput): Promise<AIUsage> {
     return this.db.aIUsage.create({
       data: {
-        jobId: input.jobId,
+        ...(input.jobId !== undefined ? { jobId: input.jobId } : {}),
+        ...(input.userId !== undefined ? { userId: input.userId } : {}),
+        ...(input.recipeRevisionId !== undefined
+          ? { recipeRevisionId: input.recipeRevisionId }
+          : {}),
+        ...(input.pantryItemId !== undefined ? { pantryItemId: input.pantryItemId } : {}),
+        ...(input.nutritionSnapshotId !== undefined
+          ? { nutritionSnapshotId: input.nutritionSnapshotId }
+          : {}),
         provider: input.provider,
         model: input.model,
         operation: input.operation,

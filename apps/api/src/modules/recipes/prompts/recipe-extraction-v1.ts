@@ -1,4 +1,6 @@
-export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v7';
+import { GARDEN_PLATE_COLOR_TOKENS } from '../../normalization/domain/presentation.js';
+
+export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v8';
 
 const OUTPUT_LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
@@ -65,6 +67,8 @@ Rules:
 - Do not invent quantities, calories, or ingredients that are not present in evidence
 - Set cuisine from evidence of a cuisine style (for example Italian, Korean). Do not guess from unrelated words. Use null if unknown.
 - Set each ingredient category from the ingredient itself. Allowed values: Produce, Meat, Dairy, Pantry, Spices, Frozen.
+- Set each ingredient emoji to exactly one relevant emoji grapheme and colorToken to one Garden Plate token: paprikaSoft, basilSoft, honey50, peach, linen, steamedMilk, chili50.
+- Categorize the recipe with one or more stable categorySlugs. Allowed values: breakfast, lunch, dinner, sweet.
 - Set each step stage from the instruction: mise en place → PREP, heat/simmer → COOK, finish sauce → FINISH, plate → SERVE. Allowed values: PREP, COOK, FINISH, SERVE.
 - Return valid JSON matching the schema exactly`;
 
@@ -90,6 +94,11 @@ export const RECIPE_EXTRACTION_SCHEMA = {
       additionalProperties: false,
     },
     sourceLanguage: { type: 'string' },
+    categorySlugs: {
+      type: 'array',
+      items: { type: 'string', enum: ['breakfast', 'lunch', 'dinner', 'sweet'] },
+      minItems: 1,
+    },
     ingredients: {
       type: 'array',
       items: {
@@ -100,6 +109,11 @@ export const RECIPE_EXTRACTION_SCHEMA = {
           unit: { type: ['string', 'null'] },
           preparation: { type: ['string', 'null'] },
           optional: { type: 'boolean' },
+          emoji: { type: 'string', description: 'Exactly one relevant emoji grapheme' },
+          colorToken: {
+            type: 'string',
+            enum: [...GARDEN_PLATE_COLOR_TOKENS],
+          },
           category: {
             type: ['string', 'null'],
             description: 'Allowed values: Produce, Meat, Dairy, Pantry, Spices, Frozen',
@@ -113,6 +127,8 @@ export const RECIPE_EXTRACTION_SCHEMA = {
           'unit',
           'preparation',
           'optional',
+          'emoji',
+          'colorToken',
           'category',
           'confidence',
           'provenance',
@@ -159,6 +175,7 @@ export const RECIPE_EXTRACTION_SCHEMA = {
     'calories',
     'cuisine',
     'sourceLanguage',
+    'categorySlugs',
     'ingredients',
     'steps',
   ],

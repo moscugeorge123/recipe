@@ -157,6 +157,22 @@ describe.skipIf(!dbAvailable)('database repositories', () => {
 
       const loaded = await recipeRepo.findById(recipe.id);
       expect(loaded?.title).toBe('Pasta Aglio e Olio');
+      const userRecipe = await prisma.userRecipe.findFirstOrThrow({
+        where: { recipeId: recipe.id },
+      });
+      const initialRevision = await prisma.recipeRevision.findUnique({
+        where: {
+          userRecipeId_revisionNumber: {
+            userRecipeId: userRecipe.id,
+            revisionNumber: 0,
+          },
+        },
+        include: { ingredients: true, steps: true, categories: true },
+      });
+      expect(initialRevision?.title).toBe(recipe.title);
+      expect(initialRevision?.ingredients).toHaveLength(2);
+      expect(initialRevision?.steps).toHaveLength(2);
+      expect(initialRevision?.categories.length).toBeGreaterThan(0);
 
       const bySource = await recipeRepo.findBySourceId(source.id);
       expect(bySource?.id).toBe(recipe.id);

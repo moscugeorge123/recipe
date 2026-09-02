@@ -6,6 +6,8 @@ export interface ExtractedIngredient {
   unit?: string | null;
   preparation?: string | null;
   optional?: boolean;
+  emoji?: string | null;
+  colorToken?: string | null;
   category?: string | null;
   confidence: number;
   provenance?: string;
@@ -36,6 +38,7 @@ export interface ExtractedRecipe {
     carbsGrams?: number | null;
     fatGrams?: number | null;
   } | null;
+  categorySlugs?: string[] | null;
   ingredients: ExtractedIngredient[];
   steps: ExtractedStep[];
 }
@@ -47,6 +50,8 @@ export interface NormalizedIngredient {
   unit: string | null;
   preparation: string | null;
   optional: boolean;
+  emoji?: string;
+  colorToken?: string;
   category: string;
   confidence: number;
   provenance: Prisma.InputJsonValue;
@@ -78,6 +83,7 @@ export interface NormalizedRecipe {
   nutrition: Prisma.InputJsonValue | null;
   confidence: number;
   warnings: Prisma.InputJsonValue;
+  categorySlugs?: string[];
   ingredients: NormalizedIngredient[];
   steps: NormalizedStep[];
 }

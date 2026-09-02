@@ -80,7 +80,12 @@ export class StageOrchestrator {
 
     for (const stage of PIPELINE_STAGE_ORDER) {
       const job = await this.jobRepo.findById(ctx.jobId);
-      if (!job || job.status === 'CANCELLED' || job.status === 'COMPLETED' || job.status === 'FAILED') {
+      if (
+        !job ||
+        job.status === 'CANCELLED' ||
+        job.status === 'COMPLETED' ||
+        job.status === 'FAILED'
+      ) {
         log.info(
           { step: 'pipeline.stage', stage, status: job?.status ?? 'missing' },
           'pipeline.execute stopped',
@@ -227,7 +232,9 @@ export interface StageHandlerDeps {
   log?: AppLogger;
 }
 
-export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Record<PipelineStage, StageHandler>> {
+export function createDefaultStageHandlers(
+  deps: StageHandlerDeps,
+): Partial<Record<PipelineStage, StageHandler>> {
   const evidenceBuilder = new EvidenceBuilder();
   const recipeNormalizer = new RecipeNormalizer();
   const confidenceCalculator = new ConfidenceCalculator();
@@ -270,12 +277,18 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
       };
 
       if (options.extractImages) {
-        metadata.thumbnailUrl = options.selectedThumbnailUrl ?? ctx.acquiredContent.thumbnailUrl ?? null;
+        metadata.thumbnailUrl =
+          options.selectedThumbnailUrl ?? ctx.acquiredContent.thumbnailUrl ?? null;
       } else {
         delete metadata.thumbnailUrl;
       }
 
-      await deps.sourceRepo.updateMetadata(source.id, metadata as Prisma.InputJsonValue);
+      // Once a recipe exists, its source metadata is the immutable import provenance.
+      // Force-refresh may re-run extraction for diagnostics, but never rewrites that original.
+      const importedRecipe = await deps.recipeRepo.findBySourceId(source.id);
+      if (!importedRecipe) {
+        await deps.sourceRepo.updateMetadata(source.id, metadata as Prisma.InputJsonValue);
+      }
 
       await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
     },
@@ -339,7 +352,7 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
           }),
       );
 
-        await deps.transcriptRepo.create({
+      await deps.transcriptRepo.create({
         mediaAssetId: audioAsset.id,
         language: ctx.transcript.language,
         fullText: ctx.transcript.fullText,
@@ -479,7 +492,11 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
       const ai = createAIProviders(deps.config, usageTracker, ctx.jobId);
       const extractor = new RecipeExtractor(ai.llm);
 
-      const { recipe: extracted, promptVersion, rawExtraction } = await logStep(
+      const {
+        recipe: extracted,
+        promptVersion,
+        rawExtraction,
+      } = await logStep(
         log.child({ jobId: ctx.jobId }),
         'ai.extract-recipe',
         { evidenceCount: evidence.length, extractNutrition: options.extractNutrition },
@@ -492,18 +509,19 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
       );
 
       const normalized = recipeNormalizer.normalize(extracted, ctx.outputLanguage);
-      const confidence = confidenceCalculator.calculate(normalized);
-      normalized.confidence = confidence;
+      const validation = recipeValidator.validate(normalized);
+      normalized.warnings = validation.warnings as unknown as Prisma.InputJsonValue;
+      normalized.confidence = confidenceCalculator.calculate(normalized);
 
       const originalPostText =
-        ctx.acquiredContent?.description?.trim() ||
-        ctx.acquiredContent?.caption?.trim() ||
-        null;
+        ctx.acquiredContent?.description?.trim() || ctx.acquiredContent?.caption?.trim() || null;
       const extractedDescription = normalized.description?.trim() || null;
       const copiedSourceCaption =
         originalPostText !== null &&
         extractedDescription !== null &&
-        extractedDescription.localeCompare(originalPostText, undefined, { sensitivity: 'accent' }) === 0 &&
+        extractedDescription.localeCompare(originalPostText, undefined, {
+          sensitivity: 'accent',
+        }) === 0 &&
         primaryLanguage(ctx.outputLanguage) !== primaryLanguage(normalized.sourceLanguage);
 
       const recipeFields = {
@@ -521,6 +539,11 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
         warnings: normalized.warnings,
         promptVersion,
         rawExtraction: rawExtraction as unknown as Prisma.InputJsonValue,
+        categorySlugs: normalized.categorySlugs ?? ['dinner'],
+        reviewState:
+          validation.valid && validation.warnings.length === 0 && normalized.confidence >= 0.8
+            ? ('READY' as const)
+            : ('NEEDS_REVIEW' as const),
         ingredients: normalized.ingredients.map((ing) => ({
           name: ing.name,
           canonicalName: ing.canonicalName,
@@ -528,6 +551,8 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
           unit: ing.unit,
           preparation: ing.preparation,
           optional: ing.optional,
+          emoji: ing.emoji ?? '🥣',
+          colorToken: ing.colorToken ?? 'peach',
           category: ing.category,
           confidence: ing.confidence,
           provenance: ing.provenance,
@@ -548,7 +573,7 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
 
       const existing = await deps.recipeRepo.findBySourceId(job.recipeSourceId);
       const recipe = existing
-        ? await deps.recipeRepo.update(existing.id, recipeFields)
+        ? existing
         : await deps.recipeRepo.create({
             recipeSourceId: job.recipeSourceId,
             ...recipeFields,
@@ -583,42 +608,36 @@ export function createDefaultStageHandlers(deps: StageHandlerDeps): Partial<Reco
         throw new ExtractionFailedError({ message: 'Recipe not found during validation' });
       }
 
-      const normalized = recipeNormalizer.normalize({
-        title: recipe.title,
-        description: recipe.description,
-        servings: recipe.servings,
-        prepTimeMinutes: recipe.prepTimeMinutes,
-        cookTimeMinutes: recipe.cookTimeMinutes,
-        totalTimeMinutes: recipe.totalTimeMinutes,
-        calories: recipe.calories,
-        sourceLanguage: recipe.sourceLanguage ?? 'en',
-        ingredients: recipe.ingredients.map((ing) => ({
-          name: ing.name,
-          quantity: ing.quantity?.toString() ?? null,
-          unit: ing.unit,
-          preparation: ing.preparation,
-          optional: ing.optional,
-          confidence: ing.confidence,
-        })),
-        steps: recipe.steps.map((step) => ({
-          stepOrder: step.stepOrder,
-          instruction: step.instruction,
-          durationMinutes: step.durationMinutes,
-          temperature: step.temperature,
-          confidence: step.confidence,
-        })),
-      }, ctx.outputLanguage);
+      const normalized = recipeNormalizer.normalize(
+        {
+          title: recipe.title,
+          description: recipe.description,
+          servings: recipe.servings,
+          prepTimeMinutes: recipe.prepTimeMinutes,
+          cookTimeMinutes: recipe.cookTimeMinutes,
+          totalTimeMinutes: recipe.totalTimeMinutes,
+          calories: recipe.calories,
+          sourceLanguage: recipe.sourceLanguage ?? 'en',
+          ingredients: recipe.ingredients.map((ing) => ({
+            name: ing.name,
+            quantity: ing.quantity?.toString() ?? null,
+            unit: ing.unit,
+            preparation: ing.preparation,
+            optional: ing.optional,
+            confidence: ing.confidence,
+          })),
+          steps: recipe.steps.map((step) => ({
+            stepOrder: step.stepOrder,
+            instruction: step.instruction,
+            durationMinutes: step.durationMinutes,
+            temperature: step.temperature,
+            confidence: step.confidence,
+          })),
+        },
+        ctx.outputLanguage,
+      );
 
-      const validation = recipeValidator.validate(normalized);
-      const confidence = confidenceCalculator.calculate({
-        ...normalized,
-        warnings: validation.warnings as unknown as Prisma.InputJsonValue,
-      });
-
-      await deps.recipeRepo.update(recipeId, {
-        confidence,
-        warnings: validation.warnings as unknown as Prisma.InputJsonValue,
-      });
+      recipeValidator.validate(normalized);
     },
   };
 }

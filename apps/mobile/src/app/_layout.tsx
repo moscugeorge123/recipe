@@ -22,6 +22,8 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { CaptureSheet } from '@/components/capture/capture-sheet';
 import { Toast } from '@/components/ui/toast';
 import { prefetchHomeQueries } from '@/features/home/prefetch';
+import { useKitchenMigration } from '@/features/kitchen/use-kitchen-migration';
+import { usePendingSyncFlush } from '@/features/kitchen/use-pending-sync';
 import { QueryProvider } from '@/lib/query-provider';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { useUiStore } from '@/stores/ui-store';
@@ -48,6 +50,12 @@ function usePreferencesHydrated(): boolean {
   }, []);
 
   return hydrated;
+}
+
+function KitchenDataHost() {
+  useKitchenMigration();
+  usePendingSyncFlush();
+  return null;
 }
 
 function OnboardingGate() {
@@ -99,22 +107,28 @@ export default function RootLayout() {
     if (!toast) {
       return;
     }
-    const id = setTimeout(() => hideToast(), 2600);
+    const id = setTimeout(() => hideToast(), toast.action ? 7000 : 2600);
     return () => clearTimeout(id);
   }, [toast, hideToast]);
 
   return (
     <GestureHandlerRootView style={styles.root}>
       <QueryProvider>
+        <KitchenDataHost />
         {ready ? (
           <>
             <OnboardingGate />
-            <Stack screenOptions={{ headerShown: false, animation: 'fade' }}>
+            <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="onboarding" />
               <Stack.Screen name="search" />
               <Stack.Screen name="shop" />
+              <Stack.Screen name="pantry" />
+              <Stack.Screen name="collection/[id]" />
               <Stack.Screen name="recipe/[id]" />
+              <Stack.Screen name="recipe/[id]/edit" />
+              <Stack.Screen name="recipe/[id]/history" />
+              <Stack.Screen name="recipe/[id]/revision/[revisionId]" />
               <Stack.Screen name="import/preview" />
               <Stack.Screen name="import/extract/[jobId]" />
               <Stack.Screen name="import/review/[id]" />
@@ -123,7 +137,10 @@ export default function RootLayout() {
               <Stack.Screen name="cook/[id]/index" />
               <Stack.Screen name="cook/[id]/step" />
               <Stack.Screen name="cook/[id]/complete" />
-              <Stack.Screen name="+not-found" options={{ title: 'Not found' }} />
+              <Stack.Screen
+                name="+not-found"
+                options={{ title: 'Not found' }}
+              />
             </Stack>
             <CaptureSheet />
             <Toast toast={toast} />

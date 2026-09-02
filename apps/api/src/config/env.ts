@@ -96,6 +96,26 @@ const rawEnvSchema = z.object({
   AI_DEFAULT_MODEL: z.string().min(1).default('gpt-4o-mini'),
   AI_WHISPER_MODEL: z.string().min(1).default('whisper-1'),
   AI_VISION_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  AI_INGREDIENT_MODEL: z
+    .string()
+    .min(1)
+    .default('gpt-5-nano')
+    .refine((value) => !/gpt-5\.6/i.test(value), 'GPT-5.6 is not allowed for pantry organization'),
+  AI_INGREDIENT_FALLBACK_MODEL: z
+    .string()
+    .min(1)
+    .default('gpt-4.1-nano')
+    .refine((value) => !/gpt-5\.6/i.test(value), 'GPT-5.6 is not allowed for pantry organization'),
+  AI_INGREDIENT_ESCALATION_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  AI_INGREDIENT_REASONING_EFFORT: z
+    .enum(['none', 'minimal', 'low', 'medium', 'high'])
+    .default('none'),
+  AI_INGREDIENT_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().max(4096).default(1024),
+  AI_INGREDIENT_MAX_INPUT_TOKENS: z.coerce.number().int().positive().max(16_000).default(2500),
+  AI_INGREDIENT_MAX_ITEMS: z.coerce.number().int().positive().max(100).default(40),
+  AI_INGREDIENT_MAX_ESCALATIONS: z.coerce.number().int().nonnegative().max(20).default(5),
+  AI_INGREDIENT_LOW_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.55),
+  AI_INGREDIENT_PROMPT_VERSION: z.string().min(1).default('ingredient-enrichment-v1'),
 
   // --- Sentry (optional) -------------------------------------------------------
   SENTRY_DSN: z.string().optional(),
@@ -120,6 +140,12 @@ const rawEnvSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   /** Path or name of the yt-dlp binary used for YouTube preview and extraction. */
   YTDLP_PATH: z.string().min(1).default('yt-dlp'),
+
+  // --- Nutrition (USDA FoodData Central) --------------------------------------
+  USDA_FDC_API_KEY: z.string().optional(),
+  NUTRITION_QUEUE_CONCURRENCY: z.coerce.number().int().positive().default(2),
+  NUTRITION_MAX_RETRIES: z.coerce.number().int().nonnegative().default(3),
+  NUTRITION_BACKOFF_MS: z.coerce.number().int().positive().default(250),
 });
 
 export const DEFAULT_TEST_DATABASE_URL =
@@ -225,6 +251,16 @@ const configSchema = rawEnvSchema.transform((raw) => ({
     defaultModel: raw.AI_DEFAULT_MODEL,
     whisperModel: raw.AI_WHISPER_MODEL,
     visionModel: raw.AI_VISION_MODEL,
+    ingredientModel: raw.AI_INGREDIENT_MODEL,
+    ingredientFallbackModel: raw.AI_INGREDIENT_FALLBACK_MODEL,
+    ingredientEscalationModel: raw.AI_INGREDIENT_ESCALATION_MODEL,
+    ingredientReasoningEffort: raw.AI_INGREDIENT_REASONING_EFFORT,
+    ingredientMaxOutputTokens: raw.AI_INGREDIENT_MAX_OUTPUT_TOKENS,
+    ingredientMaxInputTokens: raw.AI_INGREDIENT_MAX_INPUT_TOKENS,
+    ingredientMaxItems: raw.AI_INGREDIENT_MAX_ITEMS,
+    ingredientMaxEscalations: raw.AI_INGREDIENT_MAX_ESCALATIONS,
+    ingredientLowConfidence: raw.AI_INGREDIENT_LOW_CONFIDENCE,
+    ingredientPromptVersion: raw.AI_INGREDIENT_PROMPT_VERSION,
   },
   sentry: raw.SENTRY_DSN
     ? {
@@ -249,6 +285,12 @@ const configSchema = rawEnvSchema.transform((raw) => ({
     metaAppId: raw.META_APP_ID,
     metaAppSecret: raw.META_APP_SECRET,
     ytdlpPath: raw.YTDLP_PATH,
+  },
+  nutrition: {
+    usdaFdcApiKey: raw.USDA_FDC_API_KEY,
+    queueConcurrency: raw.NUTRITION_QUEUE_CONCURRENCY,
+    maxRetries: raw.NUTRITION_MAX_RETRIES,
+    backoffMs: raw.NUTRITION_BACKOFF_MS,
   },
 }));
 

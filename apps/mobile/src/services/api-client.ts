@@ -11,6 +11,8 @@ export class ApiError extends Error {
   readonly status: number;
   readonly body: unknown;
   readonly code?: string;
+  readonly requestId?: string;
+  readonly retryable: boolean;
 
   constructor(message: string, status: number, body: unknown, code?: string) {
     super(message);
@@ -18,7 +20,28 @@ export class ApiError extends Error {
     this.status = status;
     this.body = body;
     this.code = code;
+    this.requestId = isErrorEnvelope(body) ? body.error.requestId : undefined;
+    const flagged =
+      isErrorEnvelope(body) && typeof body.error.retryable === 'boolean'
+        ? body.error.retryable
+        : undefined;
+    this.retryable = flagged ?? isRetryableApiFailure(status, code);
   }
+}
+
+function isRetryableApiFailure(status: number, code?: string): boolean {
+  if (status === 429 || status === 503 || status >= 500) {
+    return true;
+  }
+  return (
+    code === 'TOO_MANY_REQUESTS' ||
+    code === 'SERVICE_UNAVAILABLE' ||
+    code === 'INTERNAL_SERVER_ERROR' ||
+    code === 'PROVIDER_RATE_LIMITED' ||
+    code === 'EXTRACTION_FAILED' ||
+    code === 'CONTENT_ACQUISITION_FAILED' ||
+    code === 'MEDIA_PROCESSING_FAILED'
+  );
 }
 
 type ErrorEnvelope = {
@@ -27,6 +50,7 @@ type ErrorEnvelope = {
     message: string;
     details?: { path: string; message: string }[];
     requestId?: string;
+    retryable?: boolean;
   };
 };
 

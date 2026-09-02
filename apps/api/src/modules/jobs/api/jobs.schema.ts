@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+import { dbUuid } from '../../../shared/validation/uuid.js';
+
 export const createExtractionJobBodySchema = z
   .object({
     url: z.url('url must be a valid URL'),
@@ -32,29 +34,29 @@ export const linkPreviewResponseSchema = z.object({
 });
 
 export const jobIdParamsSchema = z.object({
-  id: z.uuid('id must be a UUID'),
+  id: dbUuid('id must be a UUID'),
 });
 
 export const extractionJobResponseSchema = z.object({
-  jobId: z.uuid(),
+  jobId: dbUuid(),
   status: z.enum(['queued', 'completed']),
-  recipeId: z.uuid().optional(),
+  recipeId: dbUuid().optional(),
   deduplicated: z.boolean().optional(),
 });
 
 export const jobStatusResponseSchema = z.object({
-  id: z.uuid(),
+  id: dbUuid(),
   status: z.string(),
   progress: z.number().int(),
   currentStage: z.string().nullable(),
-  recipeId: z.uuid().nullable(),
+  recipeId: dbUuid().nullable(),
   error: z.unknown().nullable(),
   startedAt: z.iso.datetime().nullable(),
   completedAt: z.iso.datetime().nullable(),
 });
 
 export const cancelJobResponseSchema = z.object({
-  id: z.uuid(),
+  id: dbUuid(),
   status: z.literal('CANCELLED'),
 });
 

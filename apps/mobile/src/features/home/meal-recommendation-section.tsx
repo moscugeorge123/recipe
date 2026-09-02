@@ -8,7 +8,6 @@ import { PhotoStandIn } from '@/components/ui/photo-stand-in';
 import { SectionLabel } from '@/components/ui/section-label';
 import { Text } from '@/components/ui/text';
 import { useCatalog } from '@/features/catalog/use-catalog';
-import { useKitchenStore } from '@/stores/kitchen-store';
 import { fonts } from '@/theme/tokens';
 
 export type MealSlot = 'breakfast' | 'brunch' | 'lunch' | 'dinner' | 'other';
@@ -29,7 +28,7 @@ export function MealRecommendationSection({
   slot = 'dinner',
 }: MealRecommendationSectionProps) {
   const catalog = useCatalog();
-  const inboxStatus = useKitchenStore((state) => state.inboxStatus);
+  const inboxStatus = catalog.inboxStatus;
   const [mood, setMood] = useState<'quick' | 'comfort' | 'fresh' | null>(null);
 
   const pick = useMemo(() => {

@@ -10,6 +10,7 @@ export const colors = {
   honey: '#E8B923',
   honey50: '#FFF8E1',
   honey200: '#F6D56A',
+  honey800: '#7A5B0C',
   berry: '#D94F70',
   cream: '#FFF8F2',
   peach: '#FFE8D6',

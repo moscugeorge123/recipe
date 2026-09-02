@@ -12,7 +12,7 @@ describe('kitchen store', () => {
       cookedCounts: { 'seed:dal': 2 },
       recipeNotes: {},
       servingsByRecipe: {},
-      recentSearches: [],
+      pendingSync: [],
     });
   });
 
@@ -28,6 +28,19 @@ describe('kitchen store', () => {
     expect(useKitchenStore.getState().servingsByRecipe['seed:dal']).toBe(1);
     useKitchenStore.getState().setServings('seed:dal', 99);
     expect(useKitchenStore.getState().servingsByRecipe['seed:dal']).toBe(12);
+  });
+
+  test('addCollection queues a collection.upsert for Agent 9', () => {
+    useKitchenStore.getState().addCollection('Weeknights');
+    const state = useKitchenStore.getState();
+    expect(state.collections.some((item) => item.name === 'Weeknights')).toBe(
+      true,
+    );
+    expect(
+      state.pendingSync.some(
+        (item) => item.kind === 'collection.upsert' && item.status === 'pending',
+      ),
+    ).toBe(true);
   });
 
   test('addRecipeNote prepends trimmed notes per recipe', () => {

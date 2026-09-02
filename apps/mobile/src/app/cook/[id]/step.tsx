@@ -3,7 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { FadeIn, runOnJS } from 'react-native-reanimated';
+import Animated, { runOnJS } from 'react-native-reanimated';
 
 import { Button } from '@/components/ui/button';
 import { Sheet } from '@/components/ui/sheet';
@@ -15,7 +15,7 @@ import { useRecipe } from '@/features/recipes/hooks/use-recipe';
 import { formatQty } from '@/features/recipes/plan';
 import { announce } from '@/lib/announce';
 import { hapticMedium } from '@/lib/haptics';
-import { duration, useReducedMotion } from '@/lib/motion';
+import { enterStep, useReducedMotion } from '@/lib/motion';
 import { useCookStore } from '@/stores/cook-store';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { usePreferencesStore } from '@/stores/preferences-store';
@@ -175,7 +175,7 @@ function CookStepInner() {
         </View>
         <Animated.View
           key={current.id}
-          entering={reduced ? undefined : FadeIn.duration(duration.step)}
+          entering={enterStep(reduced)}
           className="flex-1 justify-center px-[22px] py-[26px]"
         >
           <Text

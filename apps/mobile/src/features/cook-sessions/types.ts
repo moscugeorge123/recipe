@@ -1,3 +1,5 @@
+import type { PaginationRequest } from '@recipe/contracts';
+
 export type CookSessionStatus = 'IN_PROGRESS' | 'COMPLETED' | 'STOPPED';
 
 export type CookSessionRecipe = {
@@ -38,9 +40,7 @@ export type PatchCookSessionBody = {
   status?: CookSessionStatus;
 };
 
-export type ListCookSessionsQuery = {
-  page?: number;
-  pageSize?: number;
+export type ListCookSessionsQuery = PaginationRequest & {
   status?: CookSessionStatus;
 };
 

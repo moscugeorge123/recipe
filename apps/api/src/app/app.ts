@@ -5,13 +5,19 @@ import { config as defaultConfig, type AppConfig } from '../config/env.js';
 import { healthRoutes } from '../features/health/health.routes.js';
 import type { DependencyCheck } from '../features/health/health.types.js';
 import { cookSessionsRoutes } from '../modules/cook-sessions/api/cook-sessions.routes.js';
+import { categoriesRoutes } from '../modules/categories/api/categories.routes.js';
 import { jobsRoutes } from '../modules/jobs/api/jobs.routes.js';
 import { recipesRoutes } from '../modules/recipes/api/recipes.routes.js';
+import { nutritionRoutes } from '../modules/nutrition/api/nutrition.routes.js';
+import { collectionsRoutes } from '../modules/collections/api/collections.routes.js';
+import { pantryRoutes } from '../modules/pantry/api/pantry.routes.js';
+import { opsRoutes } from '../modules/ops/api/ops.routes.js';
 import { createLogger, type AppLogger } from '../infrastructure/logging/logger.js';
 import type { AppContainer } from '../shared/di/container.js';
 import { createContainer } from '../shared/di/container.js';
 import { registerCors } from './plugins/cors.js';
 import { registerErrorHandler } from './plugins/error-handler.js';
+import { registerProfileContext } from './plugins/profile-context.js';
 import { registerRateLimit } from './plugins/rate-limit.js';
 import { registerRequestId, REQUEST_ID_HEADER, resolveRequestId } from './plugins/request-id.js';
 import { registerSecurityHeaders } from './plugins/security-headers.js';
@@ -29,6 +35,8 @@ export interface BuildAppOptions {
   container?: AppContainer;
   /** Shared with the container so API and pipeline lines land in the same daily file. */
   logger?: AppLogger;
+  /** Runs the idempotent singleton/category repair at a real process boundary. */
+  bootstrapProfile?: boolean;
 }
 
 /**
@@ -43,7 +51,13 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const logger = options.logger ?? (await createLogger(config));
   const container = options.container ?? createContainer({ logger });
 
+  if (options.bootstrapProfile === true) {
+    await container.profileBootstrap.ensureDefaults();
+  }
+
   const app = Fastify({
+    // Widen AppLogger so the returned Fastify instance remains compatible with route plugins.
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
     loggerInstance: logger as FastifyBaseLogger,
     logController: new LogController({ requestIdLogLabel: 'requestId' }),
     // Request ids are resolved by our own function so untrusted header values are validated.
@@ -103,17 +117,36 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(
     async (versioned) => {
       await versioned.register(healthRoutes, { checks: healthChecks });
-      await versioned.register(jobsRoutes, {
-        extractionJobService: container.extractionJobService,
-        linkPreviewService: container.linkPreviewService,
-        extractRateLimitMax: config.extraction.extractRateLimitMax,
-        extractRateLimitWindowMs: config.extraction.extractRateLimitWindowMs,
-      });
-      await versioned.register(recipesRoutes, {
-        recipeService: container.recipeService,
-      });
-      await versioned.register(cookSessionsRoutes, {
-        cookSessionService: container.cookSessionService,
+      await versioned.register(async (resources) => {
+        registerProfileContext(resources, container.profileResolver);
+        await resources.register(jobsRoutes, {
+          extractionJobService: container.extractionJobService,
+          linkPreviewService: container.linkPreviewService,
+          extractRateLimitMax: config.extraction.extractRateLimitMax,
+          extractRateLimitWindowMs: config.extraction.extractRateLimitWindowMs,
+        });
+        await resources.register(recipesRoutes, {
+          recipeService: container.recipeService,
+        });
+        await resources.register(nutritionRoutes, {
+          nutritionService: container.nutritionService,
+        });
+        await resources.register(categoriesRoutes, {
+          categoryService: container.categoryService,
+          recipeService: container.recipeService,
+        });
+        await resources.register(cookSessionsRoutes, {
+          cookSessionService: container.cookSessionService,
+        });
+        await resources.register(pantryRoutes, {
+          pantryService: container.pantryService,
+        });
+        await resources.register(collectionsRoutes, {
+          collectionService: container.collectionService,
+        });
+        await resources.register(opsRoutes, {
+          prisma: container.prisma,
+        });
       });
     },
     { prefix: config.api.prefix },

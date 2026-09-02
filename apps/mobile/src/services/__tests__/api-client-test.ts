@@ -49,6 +49,29 @@ describe('api client envelopes', () => {
     } satisfies Partial<ApiError>);
   });
 
+  test('captures retryable and requestId without using them as copy', async () => {
+    jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      jsonResponse(
+        {
+          error: {
+            code: 'TOO_MANY_REQUESTS',
+            message: 'Too many requests',
+            requestId: 'req-abc',
+            retryable: true,
+          },
+        },
+        429,
+      ),
+    );
+
+    await expect(apiClient.get('/nutrition')).rejects.toMatchObject({
+      name: 'ApiError',
+      code: 'TOO_MANY_REQUESTS',
+      requestId: 'req-abc',
+      retryable: true,
+    });
+  });
+
   test('treats HTTP 202 as success', async () => {
     jest
       .spyOn(globalThis, 'fetch')
