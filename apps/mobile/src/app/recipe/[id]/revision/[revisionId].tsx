@@ -1,10 +1,12 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { ScrollView, View } from 'react-native';
+import { ChevronLeft } from 'lucide-react-native';
 
 import { Button } from '@/components/ui/button';
 import { ConfirmSheet } from '@/components/ui/confirm-sheet';
 import { ContentSkeleton } from '@/components/ui/content-skeleton';
+import { IconButton } from '@/components/ui/icon-button';
 import { InlineErrorPanel } from '@/components/ui/inline-error';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -20,6 +22,7 @@ import {
 import { mapUserError } from '@/lib/user-error';
 import { useUiStore } from '@/stores/ui-store';
 import { ApiError } from '@/services/api-client';
+import { colors } from '@/theme/tokens';
 
 export default function RecipeRevisionScreen() {
   const { id, revisionId } = useLocalSearchParams<{
@@ -89,14 +92,12 @@ export default function RecipeRevisionScreen() {
   return (
     <Screen>
       <ScrollView contentContainerClassName="px-5 pb-10">
-        <Pressable
-          accessibilityRole="button"
+        <IconButton
           accessibilityLabel="Back"
           onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center"
         >
-          <Text className="text-[22px]">‹</Text>
-        </Pressable>
+          <ChevronLeft size={22} color={colors.espresso} strokeWidth={2.2} />
+        </IconButton>
         <View className="flex-row items-center gap-2">
           <Text variant="display">
             {data.revisionNumber === 0

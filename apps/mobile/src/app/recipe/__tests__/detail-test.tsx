@@ -1,5 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { screen, userEvent, waitFor } from '@testing-library/react-native';
+import { screen, userEvent } from '@testing-library/react-native';
 import { useLocalSearchParams } from 'expo-router';
 
 import RecipeDetailScreen from '@/app/recipe/[id]';
@@ -204,6 +204,9 @@ function mockDetailFetch(options?: {
     .mockImplementation(async (input, init) => {
       const url = String(input);
       const method = (init?.method ?? 'GET').toUpperCase();
+      if (url.includes('/shopping-list/from-recipe') && method === 'POST') {
+        return jsonResponse({ data: [] }, 201);
+      }
       if (url.includes('/pantry') && method === 'GET') {
         return jsonResponse({
           data: [pantryItem('p-1', 'Olive oil', 'olive oil')],
@@ -294,43 +297,44 @@ describe('RecipeDetailScreen', () => {
     jest.restoreAllMocks();
   });
 
-  test('keeps identity, start cooking, then pantry, nutrition, rating, notes, collections', async () => {
+  test('keeps identity, start cooking, pantry, nutrition, collections', async () => {
     mockDetailFetch();
     await renderWithProviders(<RecipeDetailScreen />);
 
     expect(await screen.findByText('Charred Broccoli Soup')).toBeOnTheScreen();
     expect(screen.getByText('Dinner')).toBeOnTheScreen();
-    expect(screen.getByText('2× cooked')).toBeOnTheScreen();
+    expect(screen.queryByText(/cooked/i)).toBeNull();
+    expect(screen.queryByText('YOUR RATING')).toBeNull();
+    expect(screen.queryByText('NOTES')).toBeNull();
     expect(
       screen.getByRole('button', { name: 'Start cooking' }),
     ).toBeOnTheScreen();
-    expect(screen.getByText(/YOU HAVE/)).toBeOnTheScreen();
-    expect(screen.getByText(/TO BUY/)).toBeOnTheScreen();
+    expect(screen.getByLabelText('4 servings')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Decrease servings' }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Increase servings' }),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText(/YOU HAVE/)).toBeNull();
+    expect(screen.queryByText(/TO BUY/)).toBeNull();
     expect(screen.getByText('Olive oil')).toBeOnTheScreen();
     expect(screen.getByText('NUTRITION')).toBeOnTheScreen();
-    expect(screen.getByText('YOUR RATING')).toBeOnTheScreen();
-    expect(await screen.findByText('NOTES')).toBeOnTheScreen();
-    expect(screen.getByText('COLLECTIONS')).toBeOnTheScreen();
     expect(
-      screen.getByRole('button', { name: 'Add to a collection' }),
+      screen.getByRole('button', { name: 'Add to cookbooks' }),
     ).toBeOnTheScreen();
-    expect(
-      screen.getByRole('button', { name: 'Revision history' }),
-    ).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'More' })).toBeOnTheScreen();
 
     const json = JSON.stringify(screen.toJSON());
-    const start = json.indexOf('Start cooking');
-    const pantry = json.indexOf('YOU HAVE');
+    const cookbooks = json.indexOf('Add to cookbooks');
     const nutrition = json.indexOf('NUTRITION');
-    const rating = json.indexOf('YOUR RATING');
-    const notes = json.indexOf('NOTES');
-    const collections = json.indexOf('COLLECTIONS');
-    expect(start).toBeGreaterThan(-1);
-    expect(pantry).toBeGreaterThan(start);
-    expect(nutrition).toBeGreaterThan(pantry);
-    expect(rating).toBeGreaterThan(nutrition);
-    expect(notes).toBeGreaterThan(rating);
-    expect(collections).toBeGreaterThan(notes);
+    const start = json.indexOf('Start cooking');
+    const decreaseServings = json.indexOf('Decrease servings');
+    expect(cookbooks).toBeGreaterThan(-1);
+    expect(nutrition).toBeGreaterThan(cookbooks);
+    expect(start).toBeGreaterThan(nutrition);
+    expect(decreaseServings).toBeGreaterThan(nutrition);
   });
 
   test('nutrition failure still leaves the recipe and start cooking visible', async () => {
@@ -349,54 +353,16 @@ describe('RecipeDetailScreen', () => {
     ).toBeOnTheScreen();
   });
 
-  test('notes failure still leaves start cooking visible and can refetch', async () => {
-    const fetchSpy = mockDetailFetch({ notesError: true });
-    const user = userEvent.setup();
-    await renderWithProviders(<RecipeDetailScreen />);
-
-    expect(await screen.findByText('Charred Broccoli Soup')).toBeOnTheScreen();
-    expect(
-      screen.getByRole('button', { name: 'Start cooking' }),
-    ).toBeOnTheScreen();
-    expect(
-      await screen.findByText(/load your notes/i, {}, { timeout: 4000 }),
-    ).toBeOnTheScreen();
-    const before = fetchSpy.mock.calls.length;
-    await user.press(screen.getByRole('button', { name: 'Retry' }));
-    await waitFor(() => {
-      expect(fetchSpy.mock.calls.length).toBeGreaterThan(before);
-    });
-  });
-
   test('favorite updates optimistically', async () => {
     mockDetailFetch();
     const user = userEvent.setup();
     await renderWithProviders(<RecipeDetailScreen />);
 
     await screen.findByText('Charred Broccoli Soup');
-    await user.press(screen.getByRole('button', { name: 'Save recipe' }));
+    await user.press(screen.getByRole('button', { name: 'Pin recipe' }));
     expect(
-      await screen.findByRole('button', { name: 'Remove from saved' }),
+      await screen.findByRole('button', { name: 'Unpin recipe' }),
     ).toBeOnTheScreen();
-  });
-
-  test('rating input is labeled and can be set', async () => {
-    mockDetailFetch();
-    const user = userEvent.setup();
-    await renderWithProviders(<RecipeDetailScreen />);
-
-    await screen.findByText('YOUR RATING');
-    expect(screen.getByLabelText('Your rating, not set')).toBeOnTheScreen();
-    await user.press(screen.getByLabelText('Rate 4 stars'));
-    expect(
-      await screen.findByLabelText('Your rating, 4 of 5 stars'),
-    ).toBeOnTheScreen();
-  });
-
-  test('cook count comes from the recipe payload and refreshes with it', async () => {
-    mockDetailFetch({ cookCount: 5 });
-    await renderWithProviders(<RecipeDetailScreen />);
-    expect(await screen.findByText('5× cooked')).toBeOnTheScreen();
   });
 
   test('nutrition modes stay on the recipe page', async () => {
@@ -416,9 +382,8 @@ describe('RecipeDetailScreen', () => {
     mockDetailFetch();
     await renderWithProviders(<RecipeDetailScreen />);
     await screen.findByText('Charred Broccoli Soup');
-    expect(screen.getByRole('button', { name: 'Save recipe' })).toHaveStyle({
-      height: 44,
-      width: 44,
+    expect(screen.getByRole('button', { name: 'Pin recipe' })).toHaveStyle({
+      minHeight: 44,
     });
     expect(
       screen.getByRole('button', { name: 'Start cooking' }),
@@ -430,9 +395,6 @@ describe('RecipeDetailScreen', () => {
     await renderWithProviders(<RecipeDetailScreen />);
     await screen.findByText('Charred Broccoli Soup');
     await screen.findByText('NUTRITION');
-    await waitFor(() => {
-      expect(screen.getByText('NOTES')).toBeOnTheScreen();
-    });
 
     const urls = fetchSpy.mock.calls.map(([input]) => String(input));
     expect(urls.some(isFanOutDetailRequest)).toBe(false);

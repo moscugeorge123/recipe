@@ -1,14 +1,20 @@
 appId: com.recipe.app
 ---
-# Best-effort shell flow. Expo Go cannot reliably open API-backed import, recipe
-# detail, nutrition, or history screens. Run against a development/preview build.
+# Recipes wordmark → profile → capture chooser.
+# Best-effort shell flow. Expo Go cannot reliably open API-backed screens.
 - launchApp
 - tapOn:
     text: Skip
     optional: true
-- assertVisible: LAST UPLOADED
-- assertVisible: MY RECIPES
-- tapOn: Kitchen
-- assertVisible: My kitchen
-- tapOn: Capture a recipe
-- assertVisible: Send me anything.
+- assertVisible: Recipe
+- assertVisible: Cookbooks
+- tapOn: Profile
+- assertVisible: Units
+- assertVisible: Reduce motion
+- tapOn: Back
+- tapOn:
+    text: Capture a recipe
+    optional: true
+- assertVisible:
+    text: Add a Recipe
+    optional: true

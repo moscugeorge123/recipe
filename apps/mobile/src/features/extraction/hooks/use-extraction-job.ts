@@ -12,7 +12,10 @@ const POLL_INTERVAL_MS = 5000;
 const RATE_LIMIT_BACKOFF_MS = 5000;
 
 function isRateLimited(error: unknown): boolean {
-  return error instanceof ApiError && (error.status === 429 || error.code === 'TOO_MANY_REQUESTS');
+  return (
+    error instanceof ApiError &&
+    (error.status === 429 || error.code === 'TOO_MANY_REQUESTS')
+  );
 }
 
 export function extractionPollInterval(args: {

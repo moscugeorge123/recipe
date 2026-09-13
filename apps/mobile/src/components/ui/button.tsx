@@ -7,7 +7,6 @@ import {
 
 import { PressScale } from '@/components/ui/press-scale';
 import { Text } from '@/components/ui/text';
-import { useCookTheme } from '@/theme/cook-shell';
 import { colors, fonts } from '@/theme/tokens';
 
 type ButtonVariant =
@@ -23,18 +22,21 @@ type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
 };
 
 const sizeClasses = {
-  lg: 'min-h-[56px] rounded-[17px] px-5 py-3',
-  md: 'min-h-[48px] rounded-[15px] px-4 py-2',
-  icon: 'h-11 w-11 min-h-11 min-w-11 rounded-[14px] px-0',
+  lg: 'min-h-[56px] w-full rounded-[28px] px-5 py-3',
+  md: 'min-h-[48px] rounded-[28px] px-4 py-2',
+  icon: 'h-11 w-11 min-h-11 min-w-11 rounded-full px-0',
 };
 
 function variantFill(
   variant: ButtonVariant,
-  cookDark: boolean,
+  disabled: boolean,
 ): string | undefined {
+  if (variant === 'primary' && disabled) {
+    return colors.ctaDisabled;
+  }
   switch (variant) {
     case 'primary':
-      return cookDark ? colors.paprika400 : colors.paprika;
+      return colors.cta;
     case 'secondary':
       return colors.basil600;
     case 'inverse':
@@ -46,17 +48,16 @@ function variantFill(
   }
 }
 
-function variantLabel(variant: ButtonVariant, cookDark: boolean): string {
+function variantLabel(variant: ButtonVariant): string {
   switch (variant) {
     case 'primary':
-      return cookDark ? colors.espresso : colors.onPrimary;
     case 'secondary':
     case 'destructive':
       return colors.onPrimary;
     case 'inverse':
       return colors.steamedMilk;
     case 'ghost':
-      return colors.paprikaPressed;
+      return colors.paprika;
   }
 }
 
@@ -71,26 +72,17 @@ export function Button({
   accessibilityState,
   ...props
 }: ButtonProps) {
-  const cookDark = useCookTheme().dark;
-  const fill = variantFill(variant, cookDark);
-  const labelColor = variantLabel(variant, cookDark);
+  const fill =
+    size === 'icon' && variant === 'ghost'
+      ? colors.paper
+      : variantFill(variant, !!disabled);
+  const labelColor = variantLabel(variant);
   const labelSize =
     variant === 'ghost'
       ? 'text-[14.5px]'
       : variant === 'secondary'
         ? 'text-[15.5px]'
         : 'text-[16.5px]';
-
-  const shadowStyle: StyleProp<ViewStyle> =
-    variant === 'primary' && size === 'lg'
-      ? {
-          shadowColor: colors.paprika,
-          shadowOffset: { width: 0, height: 8 },
-          shadowOpacity: 0.28,
-          shadowRadius: 18,
-          elevation: 6,
-        }
-      : undefined;
 
   return (
     <PressScale
@@ -99,12 +91,11 @@ export function Button({
       accessibilityState={{ disabled: !!disabled, ...accessibilityState }}
       disabled={disabled}
       className={`min-h-11 items-center justify-center ${sizeClasses[size]} ${
-        disabled ? 'opacity-50' : ''
-      } ${className ?? ''}`}
+        className ?? ''
+      }`}
       style={[
-        shadowStyle,
         fill ? { backgroundColor: fill } : undefined,
-        disabled ? { opacity: 0.5 } : undefined,
+        disabled && variant !== 'primary' ? { opacity: 0.5 } : undefined,
         style,
       ]}
       {...props}

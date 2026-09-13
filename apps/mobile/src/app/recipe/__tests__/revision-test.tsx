@@ -67,7 +67,9 @@ describe('RecipeRevisionScreen', () => {
       screen.getByRole('button', { name: 'Restore as new revision' }),
     );
 
-    expect(await screen.findByText('Restore original recipe?')).toBeOnTheScreen();
+    expect(
+      await screen.findByText('Restore original recipe?'),
+    ).toBeOnTheScreen();
     expect(
       screen.getByText(/Nothing already in history will be deleted/),
     ).toBeOnTheScreen();

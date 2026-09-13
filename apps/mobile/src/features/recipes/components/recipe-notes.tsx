@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { TextInput } from '@/components/ui/text-input';
 import { InlineErrorPanel } from '@/components/ui/inline-error';
 import { Text } from '@/components/ui/text';
 import { useRecipeNotes } from '@/features/recipes/hooks/use-recipe-notes';

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
 import { Sheet } from '@/components/ui/sheet';
 import { Text } from '@/components/ui/text';
@@ -56,7 +57,7 @@ export function RecipeCollectionsEntry({ recipeId }: { recipeId: string }) {
         announce(`Added to ${name}`);
       }
     } catch {
-      announce('Could not update collections. Try again.');
+      announce('Could not update cookbooks. Try again.');
     }
   };
 
@@ -76,39 +77,30 @@ export function RecipeCollectionsEntry({ recipeId }: { recipeId: string }) {
   };
 
   return (
-    <View className="mt-6">
-      <Text variant="section">COLLECTIONS</Text>
+    <View>
+      <View className="flex-row flex-wrap items-center gap-2">
+        <Chip label="Add to cookbooks" onPress={() => setOpen(true)} />
+      </View>
       {names.length ? (
         <Text variant="caption" className="pt-2">
           {names.join(' · ')}
         </Text>
       ) : (
         <Text variant="caption" className="pt-2">
-          Not in a collection yet.
+          Not in a cookbook yet.
         </Text>
       )}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Add to a collection"
-        onPress={() => setOpen(true)}
-        className="min-h-11 flex-row items-center justify-between border-b border-crust py-3"
-      >
-        <Text tone="icon">Add to a collection</Text>
-        <Text variant="caption">
-          {apiRecipe ? 'File it' : 'On this device'}
-        </Text>
-      </Pressable>
       <Sheet
         visible={open}
         onClose={() => setOpen(false)}
-        accessibilityLabel="Collections"
+        accessibilityLabel="Cookbooks"
       >
         <Text variant="title" className="pb-2">
           File this recipe
         </Text>
         <Text variant="caption" className="pb-4">
           {apiRecipe
-            ? 'Choose a collection or make a new one. You can keep this sheet open.'
+            ? 'Choose a cookbook or make a new one. You can keep this sheet open.'
             : 'Demo recipes stay on this device until they’re imported.'}
         </Text>
         <ScrollView style={{ maxHeight: 280 }}>
@@ -160,7 +152,7 @@ export function RecipeCollectionsEntry({ recipeId }: { recipeId: string }) {
         {apiRecipe ? (
           <View className="pt-4">
             <Input
-              label="New collection"
+              label="New cookbook"
               value={newName}
               onChangeText={(value) => {
                 setNewName(value);

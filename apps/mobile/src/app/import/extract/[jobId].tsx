@@ -28,7 +28,7 @@ import { useExtractionJob } from '@/features/extraction/hooks/use-extraction-job
 import { announce } from '@/lib/announce';
 import { errorCodeOf } from '@/lib/user-error';
 import { useReducedMotion } from '@/lib/motion';
-import { fonts } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
 
 export default function ExtractScreen() {
   const { jobId, url } = useLocalSearchParams<{
@@ -78,7 +78,19 @@ export default function ExtractScreen() {
   return (
     <Screen className="px-5">
       <View className="flex-1">
-        <View className="items-center pt-10">
+        <View className="items-center pt-4">
+          <Text
+            accessibilityRole="header"
+            style={{
+              fontFamily: fonts.manrope800,
+              fontSize: 22,
+              color: colors.paprika,
+            }}
+          >
+            Recipe
+          </Text>
+        </View>
+        <View className="items-center pt-6">
           {source ? (
             <View
               style={{
@@ -226,7 +238,7 @@ function StatusDot({ index, reduced }: { index: number; reduced: boolean }) {
           width: 6,
           height: 6,
           borderRadius: 3,
-          backgroundColor: daisy.apron,
+          backgroundColor: colors.paprika,
         },
       ]}
     />

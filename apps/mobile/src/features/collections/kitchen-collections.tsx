@@ -8,6 +8,10 @@ import { InlineErrorPanel } from '@/components/ui/inline-error';
 import { MotionItem } from '@/components/ui/motion-item';
 import { StaleIndicator } from '@/components/ui/stale-indicator';
 import { Text } from '@/components/ui/text';
+import {
+  DeleteCookbookIcon,
+  RenameCookbookIcon,
+} from '@/components/icons/cookbook-action-icons';
 import { useCatalog } from '@/features/catalog/use-catalog';
 import { CollectionFormSheet } from '@/features/collections/collection-form-sheet';
 import { collectionDeleteCopy } from '@/features/collections/confirm-delete';
@@ -96,7 +100,7 @@ export function KitchenCollections() {
       {list.data?.fromCache ? (
         <StaleIndicator
           className="pb-3"
-          message="Showing last loaded collections. Retry if this looks old."
+          message="Showing last loaded cookbooks. Retry if this looks old."
         />
       ) : null}
       {list.isError ? (
@@ -162,8 +166,9 @@ export function KitchenCollections() {
                     name: collection.name,
                   });
                 }}
-                className="min-h-11 flex-1 justify-center"
+                className="min-h-11 flex-1 flex-row items-center gap-2"
               >
+                <RenameCookbookIcon size={16} color={colors.paprika} />
                 <Text tone="primary" className="text-[13px]">
                   Rename
                 </Text>
@@ -177,8 +182,9 @@ export function KitchenCollections() {
                     name: collection.name,
                   })
                 }
-                className="min-h-11 flex-1 justify-center"
+                className="min-h-11 flex-1 flex-row items-center gap-2"
               >
+                <DeleteCookbookIcon size={16} color={colors.chili} />
                 <Text className="text-[13px]" style={{ color: colors.chili }}>
                   Delete
                 </Text>
@@ -211,7 +217,7 @@ export function KitchenCollections() {
         ))}
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="New collection"
+          accessibilityLabel="New cookbook"
           onPress={() => {
             setFormError(null);
             setForm({ mode: 'create' });
@@ -219,13 +225,13 @@ export function KitchenCollections() {
           className="min-h-[120px] w-[47%] items-center justify-center rounded-[18px] border-[1.5px] border-dashed border-crust"
         >
           <Text className="text-center text-[14px]" tone="muted">
-            + New{'\n'}collection
+            + New{'\n'}cookbook
           </Text>
         </Pressable>
       </View>
       <CollectionFormSheet
         visible={!!form}
-        title={form?.mode === 'rename' ? 'Rename collection' : 'New collection'}
+        title={form?.mode === 'rename' ? 'Rename cookbook' : 'New cookbook'}
         submitLabel={form?.mode === 'rename' ? 'Save name' : 'Create'}
         initialName={form && form.mode === 'rename' ? form.name : ''}
         pending={create.isPending || rename.isPending}
@@ -240,12 +246,12 @@ export function KitchenCollections() {
         title={
           pendingDelete
             ? collectionDeleteCopy(pendingDelete.name).title
-            : 'Delete collection?'
+            : 'Delete cookbook?'
         }
         message={
           pendingDelete ? collectionDeleteCopy(pendingDelete.name).message : ''
         }
-        confirmLabel="Delete collection"
+        confirmLabel="Delete cookbook"
         cancelLabel="Keep"
         destructive
         pending={remove.isPending}

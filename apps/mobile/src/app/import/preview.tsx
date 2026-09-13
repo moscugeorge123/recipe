@@ -6,6 +6,7 @@ import { ChevronLeft } from '@/components/icons/chevron-left';
 import { SourceIcon } from '@/components/icons/source-icon';
 import { Button } from '@/components/ui/button';
 import { ContentSkeleton } from '@/components/ui/content-skeleton';
+import { IconButton } from '@/components/ui/icon-button';
 import { InlineErrorPanel } from '@/components/ui/inline-error';
 import { Input } from '@/components/ui/input';
 import { PhotoStandIn } from '@/components/ui/photo-stand-in';
@@ -111,15 +112,27 @@ export default function ImportPreviewScreen() {
         contentContainerClassName="px-5 pb-10"
         showsVerticalScrollIndicator={false}
       >
-        <View className="flex-row items-center gap-1.5 pb-5 pt-1">
-          <Button
-            label="Back"
-            size="icon"
-            variant="ghost"
-            icon={<ChevronLeft />}
+        <View className="flex-row items-center justify-between pb-2 pt-1">
+          <IconButton
+            accessibilityLabel="Back"
             onPress={() => router.back()}
             className="-ml-[11px]"
-          />
+          >
+            <ChevronLeft />
+          </IconButton>
+          <Text
+            accessibilityRole="header"
+            style={{
+              fontFamily: fonts.manrope800,
+              fontSize: 22,
+              color: colors.paprika,
+            }}
+          >
+            Recipe
+          </Text>
+          <View className="w-11" />
+        </View>
+        <View className="flex-row items-center gap-1.5 pb-5">
           <SourceIcon source={sourceLabel} size={22} />
           <Text className="text-[15px]">Importing from {sourceLabel}</Text>
         </View>
@@ -213,9 +226,7 @@ export default function ImportPreviewScreen() {
                         className="mr-2 overflow-hidden rounded-[10px]"
                         style={{
                           borderWidth: 2,
-                          borderColor: selected
-                            ? colors.paprika
-                            : colors.espresso,
+                          borderColor: selected ? colors.cta : colors.espresso,
                         }}
                       >
                         <View style={{ width: 72 }}>

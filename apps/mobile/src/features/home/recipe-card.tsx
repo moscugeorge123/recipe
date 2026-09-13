@@ -9,7 +9,7 @@ import { Text } from '@/components/ui/text';
 import { useRecipeFavorite } from '@/features/recipes/hooks/use-engagement';
 import type { RecipeView } from '@/features/recipes/types';
 import { usePopScale } from '@/lib/motion';
-import { colors } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
 
 type RecipeCardProps = {
   recipe: RecipeView;
@@ -99,7 +99,7 @@ export function RecipeCard({
         </PhotoStandIn>
         <Text
           className="pt-[11px] text-[15.5px] leading-[1.28]"
-          style={{ fontFamily: 'Manrope_700Bold' }}
+          style={{ fontFamily: fonts.manrope700 }}
           numberOfLines={2}
         >
           {recipe.title}

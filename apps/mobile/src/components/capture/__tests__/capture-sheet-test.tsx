@@ -3,31 +3,169 @@ import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 
 import { CaptureSheet } from '@/components/capture/capture-sheet';
-import { SUPPORTED_CAPTURE_SOURCES } from '@/features/capture/sources';
 import { useUiStore } from '@/stores/ui-store';
+import { colors } from '@/theme/tokens';
 import { renderWithProviders } from '@/test/render-with-providers';
+
+const mockCreate = jest.fn();
+
+jest.mock('@/features/collections/hooks', () => ({
+  useCreateCollection: () => ({
+    mutateAsync: mockCreate,
+    isPending: false,
+  }),
+}));
 
 describe('CaptureSheet', () => {
   beforeEach(() => {
     useUiStore.getState().closeCapture();
+    mockCreate.mockReset();
     jest.mocked(Clipboard.getStringAsync).mockResolvedValue('');
     jest.spyOn(router, 'push').mockImplementation(() => undefined);
   });
 
-  test('shows supported sources and hides TikTok, Facebook and Share sheet', async () => {
+  test('opens Add a Recipe and Add a Cookbook', async () => {
     useUiStore.getState().openCapture();
 
     await renderWithProviders(<CaptureSheet />);
 
-    for (const source of SUPPORTED_CAPTURE_SOURCES) {
-      expect(
-        await screen.findByRole('button', { name: source }),
-      ).toBeOnTheScreen();
-    }
-
+    expect(
+      await screen.findByRole('button', { name: 'Add a Recipe' }),
+    ).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Add a Cookbook' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('Import from anywhere')).toBeOnTheScreen();
     expect(screen.queryByRole('button', { name: 'TikTok' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Facebook' })).toBeNull();
     expect(screen.queryByRole('button', { name: 'Share sheet' })).toBeNull();
+  });
+
+  test('Add a Recipe shows social import and a 2x2 of methods', async () => {
+    useUiStore.getState().openCapture();
+    const user = userEvent.setup();
+
+    await renderWithProviders(<CaptureSheet />);
+    await user.press(
+      await screen.findByRole('button', { name: 'Add a Recipe' }),
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Import from social media' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Photo' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Text' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Web' })).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Write from scratch' }),
+    ).toBeOnTheScreen();
+  });
+
+  test('social import opens preview with an empty URL', async () => {
+    useUiStore.getState().openCapture();
+    const user = userEvent.setup();
+
+    await renderWithProviders(<CaptureSheet />);
+    await user.press(
+      await screen.findByRole('button', { name: 'Add a Recipe' }),
+    );
+    await user.press(
+      screen.getByRole('button', { name: 'Import from social media' }),
+    );
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/import/preview',
+      params: { source: 'Instagram', url: '' },
+    });
+  });
+
+  test('Web opens preview with an empty URL', async () => {
+    useUiStore.getState().openCapture();
+    const user = userEvent.setup();
+
+    await renderWithProviders(<CaptureSheet />);
+    await user.press(
+      await screen.findByRole('button', { name: 'Add a Recipe' }),
+    );
+    await user.press(screen.getByRole('button', { name: 'Web' }));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/import/preview',
+      params: { source: 'Website', url: '' },
+    });
+  });
+
+  test('Photo opens manual import', async () => {
+    useUiStore.getState().openCapture();
+    const user = userEvent.setup();
+
+    await renderWithProviders(<CaptureSheet />);
+    await user.press(
+      await screen.findByRole('button', { name: 'Add a Recipe' }),
+    );
+    await user.press(screen.getByRole('button', { name: 'Photo' }));
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/import/manual',
+      params: {},
+    });
+  });
+
+  test('Write from scratch opens manual import', async () => {
+    useUiStore.getState().openCapture();
+    const user = userEvent.setup();
+
+    await renderWithProviders(<CaptureSheet />);
+    await user.press(
+      await screen.findByRole('button', { name: 'Add a Recipe' }),
+    );
+    await user.press(
+      screen.getByRole('button', { name: 'Write from scratch' }),
+    );
+
+    expect(router.push).toHaveBeenCalledWith({
+      pathname: '/import/manual',
+      params: {},
+    });
+  });
+
+  test('Add a Cookbook opens the 0/50 form with gray Create until typed', async () => {
+    useUiStore.getState().openCapture();
+    const user = userEvent.setup();
+
+    await renderWithProviders(<CaptureSheet />);
+    await user.press(
+      await screen.findByRole('button', { name: 'Add a Cookbook' }),
+    );
+
+    expect(await screen.findByText('0/50')).toBeOnTheScreen();
+    expect(
+      screen.getByPlaceholderText('e.g. Weeknight Dinner'),
+    ).toBeOnTheScreen();
+    const create = screen.getByRole('button', { name: 'Create' });
+    expect(create).toBeDisabled();
+    expect(create).toHaveStyle({ backgroundColor: colors.ctaDisabled });
+
+    await user.type(screen.getByLabelText('Cookbook name'), 'Weeknight Dinner');
+    expect(screen.getByText('16/50')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Create' })).toHaveStyle({
+      backgroundColor: colors.cta,
+    });
+  });
+
+  test('creates a cookbook from the FAB sheet', async () => {
+    mockCreate.mockResolvedValue({ name: 'Weeknight Dinner' });
+    useUiStore.getState().openCapture();
+    const user = userEvent.setup();
+
+    await renderWithProviders(<CaptureSheet />);
+    await user.press(
+      await screen.findByRole('button', { name: 'Add a Cookbook' }),
+    );
+    await user.type(screen.getByLabelText('Cookbook name'), 'Weeknight Dinner');
+    await user.press(screen.getByRole('button', { name: 'Create' }));
+
+    expect(mockCreate).toHaveBeenCalledWith({ name: 'Weeknight Dinner' });
   });
 
   test('hides clipboard when it is empty or not a usable recipe source', async () => {
@@ -37,7 +175,7 @@ describe('CaptureSheet', () => {
     await renderWithProviders(<CaptureSheet />);
 
     expect(
-      await screen.findByRole('button', { name: 'Instagram' }),
+      await screen.findByRole('button', { name: 'Add a Recipe' }),
     ).toBeOnTheScreen();
     await waitFor(() => {
       expect(Clipboard.getStringAsync).toHaveBeenCalled();
@@ -80,7 +218,7 @@ describe('CaptureSheet', () => {
     await renderWithProviders(<CaptureSheet />);
 
     expect(
-      await screen.findByRole('button', { name: 'YouTube' }),
+      await screen.findByRole('button', { name: 'Add a Recipe' }),
     ).toBeOnTheScreen();
     await waitFor(() => {
       expect(Clipboard.getStringAsync).toHaveBeenCalled();

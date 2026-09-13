@@ -21,17 +21,13 @@ import { ApiError } from '@/services/api-client';
 import { usePreferencesStore } from '@/stores/preferences-store';
 
 const mockMutateAsync = jest.fn();
-const mockGetRecipe = jest.fn();
+const mockFetchRecipe = jest.fn();
 
 jest.mock('expo-router', () => ({
   useNavigation: () => ({
     addListener: jest.fn(() => jest.fn()),
     dispatch: jest.fn(),
   }),
-}));
-
-jest.mock('@/features/recipes/api', () => ({
-  getRecipe: (...args: unknown[]) => mockGetRecipe(...args),
 }));
 
 jest.mock('@/features/recipes/hooks/use-recipe-editor', () => ({
@@ -59,6 +55,7 @@ jest.mock('@/features/recipes/hooks/use-recipe-editor', () => ({
     mutateAsync: mockMutateAsync,
     isPending: false,
   }),
+  useFetchRecipe: () => mockFetchRecipe,
 }));
 
 const recipe: RecipeView = {
@@ -204,8 +201,8 @@ describe('RecipeEditor', () => {
   beforeEach(async () => {
     mockMutateAsync.mockReset();
     mockMutateAsync.mockResolvedValue({ ...recipe, revisionNumber: 1 });
-    mockGetRecipe.mockReset();
-    mockGetRecipe.mockResolvedValue({
+    mockFetchRecipe.mockReset();
+    mockFetchRecipe.mockResolvedValue({
       ...recipe,
       title: 'Server pasta',
       revisionNumber: 2,
@@ -350,7 +347,7 @@ describe('RecipeEditor', () => {
     mockMutateAsync.mockRejectedValueOnce(
       new ApiError('changed', 409, {}, 'RECIPE_REVISION_CONFLICT'),
     );
-    mockGetRecipe.mockResolvedValue({
+    mockFetchRecipe.mockResolvedValue({
       ...recipe,
       id: 'recipe-conflict-keep',
       title: 'Server pasta',
@@ -384,7 +381,7 @@ describe('RecipeEditor', () => {
     mockMutateAsync.mockRejectedValueOnce(
       new ApiError('changed', 409, {}, 'RECIPE_REVISION_CONFLICT'),
     );
-    mockGetRecipe.mockResolvedValue({
+    mockFetchRecipe.mockResolvedValue({
       ...recipe,
       id: 'recipe-conflict-reload',
       title: 'Server pasta',

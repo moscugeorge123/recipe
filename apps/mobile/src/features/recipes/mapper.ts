@@ -1,4 +1,5 @@
 import { placeholderPairs } from '@/theme/tokens';
+import { displayUnit } from '@/features/recipes/plan';
 import type {
   Difficulty,
   IngredientCategory,
@@ -202,8 +203,9 @@ function hintFromIngredients(
     .slice(0, 2)
     .map((ing) => {
       const qty = ing.quantity ?? '';
-      const unit = ing.unit ? ` ${ing.unit}` : '';
-      return `${qty}${unit} ${ing.name}`.trim();
+      const unit = displayUnit(ing.unit);
+      const unitPart = unit ? ` ${unit}` : '';
+      return `${qty}${unitPart} ${ing.name}`.trim();
     });
 
   return hintParts.length ? hintParts.join('|') : null;

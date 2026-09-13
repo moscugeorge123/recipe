@@ -63,9 +63,7 @@ describe('RecipeCollectionsEntry', () => {
     const user = userEvent.setup();
     await renderWithProviders(<RecipeCollectionsEntry recipeId={recipeId} />);
     expect(await screen.findByText('Appetizers')).toBeOnTheScreen();
-    await user.press(
-      screen.getByRole('button', { name: 'Add to a collection' }),
-    );
+    await user.press(screen.getByRole('button', { name: 'Add to cookbooks' }));
     const row = await screen.findByRole('checkbox', { name: 'Appetizers' });
     expect(row.props.accessibilityState).toEqual(
       expect.objectContaining({ checked: true }),
@@ -88,12 +86,10 @@ describe('RecipeCollectionsEntry', () => {
     );
     const user = userEvent.setup();
     await renderWithProviders(<RecipeCollectionsEntry recipeId={recipeId} />);
-    await user.press(
-      screen.getByRole('button', { name: 'Add to a collection' }),
-    );
-    await user.type(screen.getByLabelText('New collection'), 'Friends Dinners');
+    await user.press(screen.getByRole('button', { name: 'Add to cookbooks' }));
+    await user.type(screen.getByLabelText('New cookbook'), 'Friends Dinners');
     await user.press(screen.getByRole('button', { name: 'Create and add' }));
-    expect(screen.getByLabelText('New collection').props.value).toBe(
+    expect(screen.getByLabelText('New cookbook').props.value).toBe(
       'Friends Dinners',
     );
     expect(screen.getByText('File this recipe')).toBeOnTheScreen();
@@ -110,7 +106,7 @@ describe('RecipeCollectionsEntry', () => {
       }),
     );
     await waitFor(() =>
-      expect(screen.getByLabelText('New collection').props.value).toBe(''),
+      expect(screen.getByLabelText('New cookbook').props.value).toBe(''),
     );
   });
 
@@ -120,9 +116,7 @@ describe('RecipeCollectionsEntry', () => {
     );
     const user = userEvent.setup();
     await renderWithProviders(<RecipeCollectionsEntry recipeId={recipeId} />);
-    await user.press(
-      screen.getByRole('button', { name: 'Add to a collection' }),
-    );
+    await user.press(screen.getByRole('button', { name: 'Add to cookbooks' }));
     const row = await screen.findByRole('checkbox', { name: 'Appetizers' });
     expect(row.props.accessibilityState).toEqual(
       expect.objectContaining({ checked: false }),

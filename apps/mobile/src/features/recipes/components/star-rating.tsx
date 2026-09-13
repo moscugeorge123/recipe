@@ -1,7 +1,7 @@
 import { Pressable, View } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { Star } from 'lucide-react-native';
 
-import { Text } from '@/components/ui/text';
 import { usePopScale } from '@/lib/motion';
 import { colors } from '@/theme/tokens';
 
@@ -34,12 +34,12 @@ function StarButton({
       className="h-11 w-11 items-center justify-center"
     >
       <Animated.View style={style}>
-        <Text
-          className="text-[22px]"
-          style={{ color: filled ? colors.honey : colors.steam }}
-        >
-          {filled ? '★' : '☆'}
-        </Text>
+        <Star
+          size={22}
+          color={filled ? colors.honey : colors.steam}
+          fill={filled ? colors.honey : 'transparent'}
+          strokeWidth={1.75}
+        />
       </Animated.View>
     </Pressable>
   );

@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Pressable, TextInput, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 
 import { Button } from '@/components/ui/button';
+import { TextInput } from '@/components/ui/text-input';
 import { Chip } from '@/components/ui/chip';
 import { ContentSkeleton } from '@/components/ui/content-skeleton';
 import { EmptyStatePanel } from '@/components/ui/empty-state';
@@ -15,6 +16,7 @@ import type {
   PantryItemView,
   UnresolvedPantryLine,
 } from '@/features/pantry/types';
+import { formatGroceryQty, groupByAisle } from '@/features/shopping-list/aisle';
 import { colors, fonts } from '@/theme/tokens';
 
 const CATEGORIES: (GroceryCategory | 'All')[] = [
@@ -58,6 +60,7 @@ export function PantryWorkspace({
   onRetrySaved,
   organizeError = null,
   onRetryOrganize,
+  showComposer = true,
 }: {
   draftText: string;
   onChangeDraft: (value: string) => void;
@@ -85,49 +88,53 @@ export function PantryWorkspace({
   onRetrySaved?: () => void;
   organizeError?: string | null;
   onRetryOrganize?: () => void;
+  showComposer?: boolean;
 }) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingSavedId, setEditingSavedId] = useState<string | null>(null);
   const [savedName, setSavedName] = useState('');
   const retryable = unresolved.filter((item) => item.retryable);
+  const aisleGroups = groupByAisle(saved);
 
   return (
     <View className="gap-5">
-      <View>
-        <Text variant="caption" className="pb-2">
-          Type or paste ingredients — one per line or separated by commas.
-        </Text>
-        <TextInput
-          accessibilityLabel="Pantry ingredients"
-          multiline
-          value={draftText}
-          onChangeText={onChangeDraft}
-          placeholder={'olive oil\n2 tomatoes, salt'}
-          placeholderTextColor={colors.olive}
-          className="min-h-[140px] rounded-[16px] border border-crust bg-peach px-4 py-3 text-[15.5px]"
-          style={{
-            fontFamily: fonts.manrope600,
-            color: colors.espresso,
-            textAlignVertical: 'top',
-          }}
-        />
-        <Button
-          label={organizing ? 'Organizing…' : 'Organize'}
-          className="mt-3"
-          disabled={!draftText.trim() || organizing}
-          onPress={onOrganize}
-        />
-        {organizeError ? (
-          <View className="mt-3">
-            <InlineErrorPanel
-              message={organizeError}
-              retryLabel="Retry"
-              retrying={organizing}
-              onRetry={onRetryOrganize}
-            />
-          </View>
-        ) : null}
-      </View>
+      {showComposer ? (
+        <View>
+          <Text variant="caption" className="pb-2">
+            Type or paste ingredients — one per line or separated by commas.
+          </Text>
+          <TextInput
+            accessibilityLabel="Pantry ingredients"
+            multiline
+            value={draftText}
+            onChangeText={onChangeDraft}
+            placeholder={'olive oil\n2 tomatoes, salt'}
+            placeholderTextColor={colors.olive}
+            className="min-h-[140px] rounded-[16px] border border-crust bg-peach px-4 py-3 text-[15.5px]"
+            style={{
+              fontFamily: fonts.manrope600,
+              color: colors.espresso,
+              textAlignVertical: 'top',
+            }}
+          />
+          <Button
+            label={organizing ? 'Organizing…' : 'Organize'}
+            className="mt-3"
+            disabled={!draftText.trim() || organizing}
+            onPress={onOrganize}
+          />
+          {organizeError ? (
+            <View className="mt-3">
+              <InlineErrorPanel
+                message={organizeError}
+                retryLabel="Retry"
+                retrying={organizing}
+                onRetry={onRetryOrganize}
+              />
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {preview.length ? (
         <View>
@@ -264,65 +271,85 @@ export function PantryWorkspace({
         ) : saved.length === 0 && !savedError ? (
           <EmptyStatePanel title="Nothing saved yet. Organize a list and accept it." />
         ) : (
-          saved.map((item, index) => (
-            <MotionItem
-              key={item.id}
-              preset="pantry"
-              index={index}
-              reduced={reducedMotion}
-              className="min-h-11 flex-row items-center gap-3 border-b border-crust py-3"
-            >
-              <View
-                className="h-11 w-11 items-center justify-center rounded-[14px]"
-                style={{ backgroundColor: tokenColor(item.colorToken) }}
-              >
-                <Text className="text-[18px]">{item.emoji ?? '🥣'}</Text>
-              </View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Edit ${item.name}`}
-                onPress={() => {
-                  setEditingSavedId(item.id);
-                  setSavedName(item.name);
-                }}
-                className="min-h-11 flex-1 justify-center"
-              >
-                {editingSavedId === item.id ? (
-                  <TextInput
-                    accessibilityLabel={`Rename ${item.name}`}
-                    value={savedName}
-                    onChangeText={setSavedName}
-                    onEndEditing={() => {
-                      const trimmed = savedName.trim();
-                      if (trimmed && trimmed !== item.name) {
-                        onRenameSaved(item.id, trimmed);
-                      }
-                      setEditingSavedId(null);
-                    }}
-                    className="min-h-11 text-[15.5px]"
-                    style={{
-                      fontFamily: fonts.manrope700,
-                      color: colors.espresso,
-                    }}
-                  />
-                ) : (
-                  <>
-                    <Text style={{ fontFamily: fonts.manrope700 }}>
-                      {item.name}
+          aisleGroups.map((group) => (
+            <View key={group.category} className="pt-1">
+              <Text variant="section" className="pb-1 pt-3">
+                {group.label.toUpperCase()}
+              </Text>
+              {group.items.map((item, index) => {
+                const qty = formatGroceryQty(item.quantity, item.unit);
+                return (
+                  <MotionItem
+                    key={item.id}
+                    preset="pantry"
+                    index={index}
+                    reduced={reducedMotion}
+                    className="min-h-11 flex-row items-center gap-3 border-b border-crust py-3"
+                  >
+                    <Text
+                      accessibilityLabel={`${item.emoji ?? '🥣'} ${item.name}`}
+                      className="w-8 text-center text-[22px]"
+                    >
+                      {item.emoji ?? '🥣'}
                     </Text>
-                    <Text variant="caption">{item.category ?? 'Pantry'}</Text>
-                  </>
-                )}
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Delete ${item.name}`}
-                onPress={() => onDeleteSaved(item.id)}
-                className="h-11 justify-center"
-              >
-                <Text style={{ color: colors.chili }}>Delete</Text>
-              </Pressable>
-            </MotionItem>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Edit ${item.name}`}
+                      onPress={() => {
+                        setEditingSavedId(item.id);
+                        setSavedName(item.name);
+                      }}
+                      className="min-h-11 flex-1 justify-center"
+                    >
+                      {editingSavedId === item.id ? (
+                        <TextInput
+                          accessibilityLabel={`Rename ${item.name}`}
+                          value={savedName}
+                          onChangeText={setSavedName}
+                          onEndEditing={() => {
+                            const trimmed = savedName.trim();
+                            if (trimmed && trimmed !== item.name) {
+                              onRenameSaved(item.id, trimmed);
+                            }
+                            setEditingSavedId(null);
+                          }}
+                          className="min-h-11 text-[15.5px]"
+                          style={{
+                            fontFamily: fonts.manrope700,
+                            color: colors.espresso,
+                          }}
+                        />
+                      ) : (
+                        <Text
+                          style={{
+                            fontFamily: fonts.manrope600,
+                            color: colors.espresso,
+                          }}
+                        >
+                          {item.name}
+                        </Text>
+                      )}
+                    </Pressable>
+                    {qty ? (
+                      <Text
+                        variant="caption"
+                        style={{ fontFamily: fonts.manrope600 }}
+                      >
+                        {qty}
+                      </Text>
+                    ) : null}
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${item.name}`}
+                      onPress={() => onDeleteSaved(item.id)}
+                      className="h-11 justify-center"
+                    >
+                      <Text style={{ color: colors.chili }}>Delete</Text>
+                    </Pressable>
+                  </MotionItem>
+                );
+              })}
+            </View>
           ))
         )}
       </View>

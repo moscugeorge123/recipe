@@ -1,39 +1,40 @@
-import { usePathname, useRouter } from 'expo-router';
+import { type Href, usePathname, useRouter } from 'expo-router';
 import type { ReactNode } from 'react';
 import { useEffect } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 import Animated, {
-    useAnimatedStyle,
-    useSharedValue,
-    withSpring,
-    withTiming,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Plus } from 'lucide-react-native';
 
 import {
-    CaptureTomato,
-    ExploreFoodIcon,
-    HomeFoodIcon,
-    KitchenFoodIcon,
-    YouFoodIcon,
-} from '@/components/icons/food-tab-icons';
+  DiscoverCompassIcon,
+  GroceriesBasketIcon,
+  MealPlanCalendarIcon,
+  RecipesBookmarkIcon,
+} from '@/components/icons/recime-tab-icons';
 import { Text } from '@/components/ui/text';
-import { useCatalog } from '@/features/catalog/use-catalog';
 import { hapticLight } from '@/lib/haptics';
 import { duration, reanimatedEasing, useReducedMotion } from '@/lib/motion';
 import { useUiStore } from '@/stores/ui-store';
 import { colors, fonts } from '@/theme/tokens';
 
-const ICON_SIZE = 28;
+const ICON_SIZE = 26;
+const PLUS_SIZE = 56;
+
+type TabHref = '/' | '/plan' | '/groceries' | '/discover';
 
 function TabLabel({ label, active }: { label: string; active: boolean }) {
   return (
     <Text
       style={{
-        fontFamily: active ? fonts.mono700 : fonts.mono600,
-        fontSize: 10.5,
-        letterSpacing: 0.2,
-        color: active ? colors.espresso : colors.sage,
+        fontFamily: active ? fonts.manrope600 : fonts.manrope500,
+        fontSize: 11,
+        letterSpacing: 0.02,
+        color: active ? colors.espresso : colors.tabInactive,
       }}
     >
       {label}
@@ -43,11 +44,9 @@ function TabLabel({ label, active }: { label: string; active: boolean }) {
 
 function AnimatedTabIcon({
   active,
-  badge,
   children,
 }: {
   active: boolean;
-  badge?: boolean;
   children: ReactNode;
 }) {
   const reduced = useReducedMotion();
@@ -60,9 +59,9 @@ function AnimatedTabIcon({
       opacity.value = active ? 1 : 0.52;
       return;
     }
-    scale.value = withSpring(active ? 1 : 0.84, {
-      damping: 16,
-      stiffness: 220,
+    scale.value = withTiming(active ? 1 : 0.84, {
+      duration: duration.fast,
+      easing: reanimatedEasing,
     });
     opacity.value = withTiming(active ? 1 : 0.52, {
       duration: duration.fast,
@@ -79,14 +78,11 @@ function AnimatedTabIcon({
     <Animated.View
       className="h-11 w-11 items-center justify-center rounded-full"
       style={[
-        { backgroundColor: active ? colors.paprikaSoft : 'transparent' },
+        { backgroundColor: active ? colors.paper : 'transparent' },
         style,
       ]}
     >
       {children}
-      {badge ? (
-        <View className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full border border-bg bg-primary" />
-      ) : null}
     </Animated.View>
   );
 }
@@ -96,7 +92,6 @@ export function MiseTabBar() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
-  const inboxCount = Object.keys(useCatalog().inboxStatus).length;
   const openCapture = useUiStore((state) => state.openCapture);
   const closeCapture = useUiStore((state) => state.closeCapture);
   const captureOpen = useUiStore((state) => state.captureOpen);
@@ -117,45 +112,53 @@ export function MiseTabBar() {
     transform: [{ rotate: `${plusRotate.value}deg` }],
   }));
 
-  const go = (href: '/' | '/explore' | '/kitchen' | '/you') => {
+  const go = (href: TabHref) => {
     hapticLight().catch(() => undefined);
-    router.push(href);
+    router.push(href as Href);
   };
 
-  const home = pathname === '/' || pathname === '/index';
-  const explore = pathname.startsWith('/explore');
-  const kitchen = pathname.startsWith('/kitchen');
-  const you = pathname.startsWith('/you');
+  const recipes = pathname === '/' || pathname === '/index';
+  const plan = pathname.startsWith('/plan');
+  const groceries =
+    pathname.startsWith('/groceries') ||
+    pathname.startsWith('/pantry') ||
+    pathname.startsWith('/shop');
+  const discover = pathname.startsWith('/discover');
 
   return (
     <View
-      className="bg-bg/92 flex-row items-center border-t border-crust px-2.5 pt-1.5"
-      style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+      className="flex-row items-center px-2.5 pt-1.5"
+      style={{
+        backgroundColor: colors.page,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: colors.ctaDisabled,
+        paddingBottom: Math.max(insets.bottom, 12),
+      }}
     >
       <Pressable
         accessibilityRole="tab"
-        accessibilityLabel="Home"
-        accessibilityState={{ selected: home }}
+        accessibilityLabel="Recipes"
+        accessibilityState={{ selected: recipes }}
         onPress={() => go('/')}
         className="h-[62px] min-h-11 flex-1 items-center justify-center gap-0.5"
       >
-        <AnimatedTabIcon active={home}>
-          <HomeFoodIcon size={ICON_SIZE} />
+        <AnimatedTabIcon active={recipes}>
+          <RecipesBookmarkIcon size={ICON_SIZE} active={recipes} />
         </AnimatedTabIcon>
-        <TabLabel label="Home" active={home} />
+        <TabLabel label="Recipes" active={recipes} />
       </Pressable>
 
       <Pressable
         accessibilityRole="tab"
-        accessibilityLabel="Explore"
-        accessibilityState={{ selected: explore }}
-        onPress={() => go('/explore')}
+        accessibilityLabel="Meal Plan"
+        accessibilityState={{ selected: plan }}
+        onPress={() => go('/plan')}
         className="h-[62px] min-h-11 flex-1 items-center justify-center gap-0.5"
       >
-        <AnimatedTabIcon active={explore}>
-          <ExploreFoodIcon size={ICON_SIZE} />
+        <AnimatedTabIcon active={plan}>
+          <MealPlanCalendarIcon size={ICON_SIZE} active={plan} />
         </AnimatedTabIcon>
-        <TabLabel label="Explore" active={explore} />
+        <TabLabel label="Meal Plan" active={plan} />
       </Pressable>
 
       <Pressable
@@ -172,42 +175,48 @@ export function MiseTabBar() {
         }}
         className="h-[62px] min-h-11 flex-1 items-center justify-center"
       >
-        <View className="h-11 w-11 items-center justify-center">
-          <CaptureTomato size={40} />
+        <View
+          className="items-center justify-center"
+          style={{
+            width: PLUS_SIZE,
+            height: PLUS_SIZE,
+            borderRadius: PLUS_SIZE / 2,
+            backgroundColor: colors.paprika,
+          }}
+        >
           <Animated.View
-            className="absolute items-center justify-center"
+            className="items-center justify-center"
             style={plusStyle}
           >
-            <View className="absolute h-[2.4px] w-3.5 rounded-full bg-white" />
-            <View className="absolute h-3.5 w-[2.4px] rounded-full bg-white" />
+            <Plus size={28} color={colors.onPrimary} strokeWidth={2.4} />
           </Animated.View>
         </View>
       </Pressable>
 
       <Pressable
         accessibilityRole="tab"
-        accessibilityLabel="Kitchen"
-        accessibilityState={{ selected: kitchen }}
-        onPress={() => go('/kitchen')}
+        accessibilityLabel="Groceries"
+        accessibilityState={{ selected: groceries }}
+        onPress={() => go('/groceries')}
         className="h-[62px] min-h-11 flex-1 items-center justify-center gap-0.5"
       >
-        <AnimatedTabIcon active={kitchen} badge={inboxCount > 0}>
-          <KitchenFoodIcon size={ICON_SIZE} />
+        <AnimatedTabIcon active={groceries}>
+          <GroceriesBasketIcon size={ICON_SIZE} active={groceries} />
         </AnimatedTabIcon>
-        <TabLabel label="Kitchen" active={kitchen} />
+        <TabLabel label="Groceries" active={groceries} />
       </Pressable>
 
       <Pressable
         accessibilityRole="tab"
-        accessibilityLabel="You"
-        accessibilityState={{ selected: you }}
-        onPress={() => go('/you')}
+        accessibilityLabel="Discover"
+        accessibilityState={{ selected: discover }}
+        onPress={() => go('/discover')}
         className="h-[62px] min-h-11 flex-1 items-center justify-center gap-0.5"
       >
-        <AnimatedTabIcon active={you}>
-          <YouFoodIcon size={ICON_SIZE} />
+        <AnimatedTabIcon active={discover}>
+          <DiscoverCompassIcon size={ICON_SIZE} active={discover} />
         </AnimatedTabIcon>
-        <TabLabel label="You" active={you} />
+        <TabLabel label="Discover" active={discover} />
       </Pressable>
     </View>
   );

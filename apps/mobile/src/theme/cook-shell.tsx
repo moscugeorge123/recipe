@@ -11,7 +11,7 @@ type CookThemeContextValue = {
 
 const CookThemeContext = createContext<CookThemeContextValue>({
   dark: false,
-  tokens: getCookTokens('light'),
+  tokens: getCookTokens(),
 });
 
 export function useCookTheme(): CookThemeContextValue {
@@ -23,17 +23,13 @@ type CookShellProps = {
   children: ReactNode;
 };
 
-export function CookShell({ theme = 'dark', children }: CookShellProps) {
-  const dark = theme === 'dark';
-  const tokens = getCookTokens(theme);
+export function CookShell({ theme = 'light', children }: CookShellProps) {
+  const tokens = getCookTokens(theme === 'dark' ? 'light' : theme);
 
   return (
-    <CookThemeContext.Provider value={{ dark, tokens }}>
-      <View
-        className={dark ? 'cook-dark flex-1' : 'flex-1'}
-        style={{ backgroundColor: tokens.bg, flex: 1 }}
-      >
-        <StatusBar style={dark ? 'light' : 'dark'} />
+    <CookThemeContext.Provider value={{ dark: false, tokens }}>
+      <View className="flex-1" style={{ backgroundColor: tokens.bg, flex: 1 }}>
+        <StatusBar style="dark" />
         {children}
       </View>
     </CookThemeContext.Provider>

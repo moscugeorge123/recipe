@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { View } from 'react-native';
 
 import { ContentSkeleton } from '@/components/ui/content-skeleton';
 import { InlineErrorPanel } from '@/components/ui/inline-error';
@@ -8,6 +9,23 @@ import { RecipeEditor } from '@/features/recipes/components/recipe-editor';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
 import { mapUserError } from '@/lib/user-error';
 import { useUiStore } from '@/stores/ui-store';
+import { colors, fonts } from '@/theme/tokens';
+
+function ImportWordmark() {
+  return (
+    <Text
+      accessibilityRole="header"
+      className="pt-1"
+      style={{
+        fontFamily: fonts.manrope800,
+        fontSize: 22,
+        color: colors.paprika,
+      }}
+    >
+      Recipe
+    </Text>
+  );
+}
 
 export default function ReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -23,6 +41,7 @@ export default function ReviewScreen() {
   if (!recipe && fetched.isLoading) {
     return (
       <Screen className="px-5 pt-4">
+        <ImportWordmark />
         <ContentSkeleton shape="detail" />
       </Screen>
     );
@@ -31,6 +50,7 @@ export default function ReviewScreen() {
   if (!recipe && fetched.isError) {
     return (
       <Screen className="px-5 pt-4">
+        <ImportWordmark />
         <Text variant="display" className="pb-4">
           Review
         </Text>
@@ -52,6 +72,7 @@ export default function ReviewScreen() {
   if (!recipe) {
     return (
       <Screen className="px-5">
+        <ImportWordmark />
         <Text variant="display">Recipe missing</Text>
       </Screen>
     );
@@ -59,6 +80,9 @@ export default function ReviewScreen() {
 
   return (
     <Screen>
+      <View className="px-5">
+        <ImportWordmark />
+      </View>
       <RecipeEditor
         recipe={recipe}
         onCancel={() => router.back()}

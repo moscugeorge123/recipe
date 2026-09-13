@@ -6,8 +6,8 @@ export function collectionDeleteCopy(name: string): {
 } {
   return {
     title: `Delete “${name}”?`,
-    message: 'Recipes stay in your kitchen. Only this collection is removed.',
-    confirmLabel: 'Delete collection',
+    message: 'Recipes stay in your kitchen. Only this cookbook is removed.',
+    confirmLabel: 'Delete cookbook',
     cancelLabel: 'Keep',
   };
 }

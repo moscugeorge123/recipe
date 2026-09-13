@@ -15,6 +15,7 @@ import { Text } from '@/components/ui/text';
 import { duration, reanimatedEasing, useReducedMotion } from '@/lib/motion';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { useUiStore } from '@/stores/ui-store';
+import { colors, fonts } from '@/theme/tokens';
 
 const TASTE = [
   'Italian',
@@ -36,17 +37,17 @@ const SOURCES = [
 
 const STEPS = [
   {
-    kicker: 'MISE',
+    kicker: 'RECIME',
     title: 'Turn recipes you find anywhere into dinner.',
     body: 'Send us a reel, a link, a photo of a page. You get a recipe you can actually cook from.',
-    cta: 'Show me',
+    cta: 'Next',
     foot: 'No account needed yet.',
   },
   {
     kicker: 'STEP 2 OF 3',
     title: "Let's find something delicious.",
     body: "Pick a couple you like. We'll start there — you can change it any time.",
-    cta: 'Continue',
+    cta: 'Next',
     foot: 'Tap a few, or skip.',
   },
   {
@@ -76,7 +77,9 @@ function ProgressDot({ index, step }: { index: number; step: number }) {
       className="h-[7px] rounded-full"
       style={[
         style,
-        { backgroundColor: index <= step ? '#E25A3C' : '#E0D5C5' },
+        {
+          backgroundColor: index <= step ? colors.paprika : colors.ctaDisabled,
+        },
       ]}
     />
   );
@@ -101,7 +104,10 @@ export default function OnboardingScreen() {
   };
 
   return (
-    <Screen className="px-6 pb-[30px] pt-2">
+    <Screen
+      className="bg-bg px-6 pb-[30px] pt-2"
+      edges={['top', 'left', 'right', 'bottom']}
+    >
       <View className="flex-none flex-row items-center gap-1.5 py-1.5">
         {[0, 1, 2].map((index) => (
           <ProgressDot key={index} index={index} step={step} />
@@ -113,7 +119,12 @@ export default function OnboardingScreen() {
           onPress={() => finish(false)}
           className="min-h-11 justify-center"
         >
-          <Text variant="caption">Skip</Text>
+          <Text
+            className="text-[14.5px]"
+            style={{ color: colors.cta, fontFamily: fonts.manrope600 }}
+          >
+            Skip
+          </Text>
         </Pressable>
       </View>
 
@@ -154,7 +165,8 @@ export default function OnboardingScreen() {
             {SOURCES.map((source) => (
               <View
                 key={source}
-                className="h-[72px] w-[30%] flex-1 items-center justify-center gap-[7px] rounded-[15px] border border-crust bg-bg-elevated"
+                className="h-[72px] w-[30%] flex-1 items-center justify-center gap-[7px] rounded-[15px] border border-crust"
+                style={{ backgroundColor: colors.paper }}
               >
                 <SourceIcon source={source} size={28} />
                 <Text variant="caption" className="text-[11px]">

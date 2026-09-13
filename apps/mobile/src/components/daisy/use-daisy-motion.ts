@@ -15,7 +15,7 @@ import { affine, translate } from '@/components/daisy/matrix';
 import type { DaisyPose } from '@/components/daisy/pose';
 
 // Timings lifted verbatim from the prototype's keyframes and transitions.
-const SPRING = Easing.bezier(0.34, 1.56, 0.64, 1); // .55s pose spring
+const POSE_EASE = Easing.bezier(0.2, 0.8, 0.2, 1);
 const SINE = Easing.inOut(Easing.sin);
 const EASE_OUT = Easing.out(Easing.ease);
 const POSE_MS = 550;
@@ -103,23 +103,23 @@ export function useDaisyMotion(
 
   // Pose targets. Transforms snap under reduced motion; opacity always fades.
   useEffect(() => {
-    const spring = (value: { value: number }, to: number, ms = POSE_MS) => {
+    const easePose = (value: { value: number }, to: number, ms = POSE_MS) => {
       value.value = reduced
         ? withTiming(to, { duration: 0 })
-        : withTiming(to, { duration: ms, easing: SPRING });
+        : withTiming(to, { duration: ms, easing: POSE_EASE });
     };
     const fade = (value: { value: number }, to: number) => {
       value.value = withTiming(to, { duration: FADE_MS });
     };
 
-    spring(headX, pose.head[0]);
-    spring(headY, pose.head[1]);
-    spring(headRot, pose.head[2]);
-    spring(earL, pose.earL);
-    spring(earR, pose.earR);
-    spring(pupilX, pose.pupil[0], PUPIL_MS);
-    spring(pupilY, pose.pupil[1], PUPIL_MS);
-    spring(glassesDrop, pose.glasses ? 0 : 1);
+    easePose(headX, pose.head[0]);
+    easePose(headY, pose.head[1]);
+    easePose(headRot, pose.head[2]);
+    easePose(earL, pose.earL);
+    easePose(earR, pose.earR);
+    easePose(pupilX, pose.pupil[0], PUPIL_MS);
+    easePose(pupilY, pose.pupil[1], PUPIL_MS);
+    easePose(glassesDrop, pose.glasses ? 0 : 1);
 
     const paw =
       pose.paw === 'chin'
@@ -127,9 +127,9 @@ export function useDaisyMotion(
         : pose.paw === 'raise'
           ? { x: 12, y: -56, rot: 24 }
           : { x: 0, y: 0, rot: 0 };
-    spring(pawX, paw.x);
-    spring(pawY, paw.y);
-    spring(pawRot, paw.rot);
+    easePose(pawX, paw.x);
+    easePose(pawY, paw.y);
+    easePose(pawRot, paw.rot);
 
     fade(glassesOn, pose.glasses ? 1 : 0);
     fade(blush, pose.blushO);

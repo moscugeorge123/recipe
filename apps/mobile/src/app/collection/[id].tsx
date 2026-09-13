@@ -10,7 +10,7 @@ export default function CollectionDetailScreen() {
   if (!id || Array.isArray(id)) {
     return (
       <Screen>
-        <Text className="px-5 pt-6">Collection not found.</Text>
+        <Text className="px-5 pt-6">Cookbook not found.</Text>
       </Screen>
     );
   }

@@ -9,14 +9,13 @@ import { useStartCooking } from '@/features/cook-sessions/hooks';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
 import { planRecipe } from '@/features/recipes/plan';
 import { useCookStore } from '@/stores/cook-store';
-import { usePreferencesStore } from '@/stores/preferences-store';
 import { CookShell } from '@/theme/cook-shell';
 import { getCookTokens } from '@/theme/cook-tokens';
 import { fonts } from '@/theme/tokens';
 
 export default function CookIntroScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const theme = usePreferencesStore((state) => state.cookingTheme);
+  const tokens = getCookTokens();
   const catalog = useCatalog();
   const fetched = useRecipe(id);
   const recipe = fetched.data ?? catalog.get(id ?? '');
@@ -36,8 +35,8 @@ export default function CookIntroScreen() {
 
   if (!recipe) {
     return (
-      <CookShell theme={theme}>
-        <Text style={{ color: getCookTokens(theme).text }}>Loading</Text>
+      <CookShell>
+        <Text style={{ color: tokens.text }}>Loading</Text>
       </CookShell>
     );
   }
@@ -45,7 +44,7 @@ export default function CookIntroScreen() {
   const plan = planRecipe(recipe);
 
   return (
-    <CookShell theme={theme}>
+    <CookShell>
       <ScrollView
         contentContainerStyle={{
           paddingHorizontal: 22,
@@ -60,15 +59,13 @@ export default function CookIntroScreen() {
           onPress={() => router.back()}
           className="h-11 justify-center"
         >
-          <Text style={{ color: theme === 'dark' ? '#B5A898' : '#6B7A62' }}>
-            Exit
-          </Text>
+          <Text style={{ color: tokens.muted }}>Exit</Text>
         </Pressable>
         <Text
           style={{
             fontFamily: fonts.mono500,
             letterSpacing: 2,
-            color: theme === 'dark' ? '#F6D56A' : '#C4472C',
+            color: tokens.kicker,
             paddingTop: 12,
           }}
         >
@@ -78,7 +75,7 @@ export default function CookIntroScreen() {
           style={{
             fontFamily: fonts.manrope800,
             fontSize: 32,
-            color: theme === 'dark' ? '#F5EDE4' : '#2A2118',
+            color: tokens.text,
             paddingTop: 12,
           }}
         >
@@ -91,7 +88,7 @@ export default function CookIntroScreen() {
                 style={{
                   fontFamily: fonts.mono700,
                   letterSpacing: 1.5,
-                  color: theme === 'dark' ? '#F6D56A' : '#C4472C',
+                  color: tokens.kicker,
                 }}
               >
                 {stage.name} · {stage.mins} MIN
@@ -100,7 +97,7 @@ export default function CookIntroScreen() {
                 <Text
                   key={row.label}
                   style={{
-                    color: theme === 'dark' ? '#E3D9CC' : '#4A3D32',
+                    color: tokens.rowText,
                     paddingTop: 8,
                     fontSize: 15.5,
                     fontFamily: fonts.manrope500,

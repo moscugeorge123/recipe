@@ -57,6 +57,8 @@ export async function resetDatabase(
     'recipe_revision_ingredients',
     'recipe_revisions',
     'pantry_items',
+    'shopping_list_items',
+    'meal_plan_entries',
     'extraction_evidence',
     'vision_analyses',
     'ocr_results',

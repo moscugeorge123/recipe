@@ -32,11 +32,11 @@ describe('Button', () => {
     expect(onPress).not.toHaveBeenCalled();
   });
 
-  test('primary uses paprika fill and white label', async () => {
+  test('primary uses cta fill and white label', async () => {
     await render(<Button label="Start cooking" />);
 
     expect(screen.getByRole('button', { name: 'Start cooking' })).toHaveStyle({
-      backgroundColor: colors.paprika,
+      backgroundColor: colors.cta,
     });
     expect(screen.getByText('Start cooking')).toHaveStyle({
       color: colors.onPrimary,
@@ -72,34 +72,57 @@ describe('Button', () => {
     expect(screen.queryByText('Back')).toBeNull();
   });
 
-  test('ghost uses paprika-600 label on a transparent fill', async () => {
-    await render(<Button label="Skip" variant="ghost" />);
+  test('ghost icon size uses a paper disc', async () => {
+    await render(
+      <Button
+        label="Back"
+        size="icon"
+        variant="ghost"
+        icon={<Text>‹</Text>}
+      />,
+    );
 
-    expect(screen.getByText('Skip')).toHaveStyle({
-      color: colors.paprikaPressed,
+    expect(screen.getByRole('button', { name: 'Back' })).toHaveStyle({
+      backgroundColor: colors.paper,
     });
   });
 
-  test('disabled keeps 50% opacity', async () => {
+  test('ghost uses paprika label on a transparent fill', async () => {
+    await render(<Button label="Skip" variant="ghost" />);
+
+    expect(screen.getByText('Skip')).toHaveStyle({
+      color: colors.paprika,
+    });
+  });
+
+  test('primary disabled uses ctaDisabled fill', async () => {
     await render(<Button label="Save" disabled />);
 
     expect(screen.getByRole('button', { name: 'Save' })).toHaveStyle({
+      backgroundColor: colors.ctaDisabled,
+    });
+  });
+
+  test('non-primary disabled keeps 50% opacity', async () => {
+    await render(<Button label="Skip" variant="ghost" disabled />);
+
+    expect(screen.getByRole('button', { name: 'Skip' })).toHaveStyle({
       opacity: 0.5,
     });
   });
 
-  test('primary in the cook-dark shell uses paprika-400 and espresso label', async () => {
+  test('primary stays a black pill in the cook shell', async () => {
     await render(
-      <CookShell theme="dark">
+      <CookShell>
         <Button label="Next step" />
       </CookShell>,
     );
 
     expect(screen.getByRole('button', { name: 'Next step' })).toHaveStyle({
-      backgroundColor: colors.paprika400,
+      backgroundColor: colors.cta,
     });
     expect(screen.getByText('Next step')).toHaveStyle({
-      color: colors.espresso,
+      color: colors.onPrimary,
     });
   });
 });

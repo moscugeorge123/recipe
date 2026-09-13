@@ -47,28 +47,28 @@ export const cookTokensDark: CookTokens = {
 };
 
 export const cookTokensLight: CookTokens = {
-  bg: colors.cream,
+  bg: colors.page,
   text: colors.espresso,
-  muted: colors.olive,
+  muted: colors.tabInactive,
   kicker: colors.paprikaPressed,
   dot: colors.paprika,
-  rowText: colors.cocoa,
-  divider: colors.crust,
-  chipBg: colors.peach,
-  statBg: colors.linen,
-  ghostBg: colors.peach,
+  rowText: colors.espresso,
+  divider: colors.paper,
+  chipBg: colors.paper,
+  statBg: colors.paper,
+  ghostBg: colors.paper,
   ghostText: colors.espresso,
-  noteText: colors.sage,
-  parallelBg: colors.honey50,
-  parallelBorder: colors.honey200,
+  noteText: colors.tabInactive,
+  parallelBg: colors.paprikaSoft,
+  parallelBorder: colors.paprika400,
   timerOnBg: colors.paprikaSoft,
-  timerOnBorder: '#FFB9A8',
-  timerOffBg: colors.peach,
-  timerOffBorder: colors.crust,
-  timerOnText: '#A33822',
-  progressTrack: colors.crust,
+  timerOnBorder: colors.paprika400,
+  timerOffBg: colors.paper,
+  timerOffBorder: colors.ctaDisabled,
+  timerOnText: colors.paprikaPressed,
+  progressTrack: colors.ctaDisabled,
 };
 
-export function getCookTokens(theme: 'dark' | 'light'): CookTokens {
+export function getCookTokens(theme: 'dark' | 'light' = 'light'): CookTokens {
   return theme === 'dark' ? cookTokensDark : cookTokensLight;
 }

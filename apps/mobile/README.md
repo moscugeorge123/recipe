@@ -91,9 +91,9 @@ npm run typecheck
 
 Flows in `.maestro/flows/`:
 
-- `home-to-settings.yaml` — Skip onboarding, Last uploaded + My recipes, Kitchen, capture sheet
-- `kitchen-pantry.yaml` — Pantry empty/organize copy, collections
-- `recipe-surface.yaml` — best-effort import/review/rating/nutrition/history (mostly optional)
+- `home-to-settings.yaml` — Skip onboarding, Recipes wordmark, Profile, capture chooser
+- `kitchen-pantry.yaml` — Groceries → Pantry empty/organize copy
+- `recipe-surface.yaml` — best-effort Recipes / import / rating / nutrition / history (mostly optional)
 
 **Limitation:** Maestro needs a **development or preview build** (`com.recipe.app`). Expo Go is not
 a reliable target for API-backed screens (import extract/review, recipe detail, nutrition, history).

@@ -8,22 +8,24 @@ import {
 } from 'react';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import { useNavigation } from 'expo-router';
-import {
-  KeyboardAvoidingView,
-  Pressable,
-  ScrollView,
-  View,
-} from 'react-native';
+import { Pressable, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import {
+  ArrowDown,
+  ArrowDownToLine,
+  ArrowUp,
+  ArrowUpToLine,
+  X,
+} from 'lucide-react-native';
 
 import { Button } from '@/components/ui/button';
 import { ConfirmSheet } from '@/components/ui/confirm-sheet';
 import { Chip } from '@/components/ui/chip';
 import { Input } from '@/components/ui/input';
+import { KeyboardAwareScrollView } from '@/components/ui/keyboard-aware-scroll-view';
 import { Text } from '@/components/ui/text';
 import { ApiError } from '@/services/api-client';
-import { getRecipe } from '@/features/recipes/api';
 import {
   clearRecipeEditorDraft,
   peekRecipeEditorDraft,
@@ -42,8 +44,10 @@ import {
   warningMessages,
   type RecipeEditorValues,
 } from '@/features/recipes/editor-form';
+import { isOneEmoji } from '@/features/recipes/emoji';
 import {
   useCategories,
+  useFetchRecipe,
   useSaveRecipe,
 } from '@/features/recipes/hooks/use-recipe-editor';
 import type { RecipeView } from '@/features/recipes/types';
@@ -104,36 +108,38 @@ function MoveButtons({
 }) {
   return (
     <View className="flex-row flex-wrap justify-end">
-      {[
-        {
-          glyph: '⤒',
-          name: `Move ${label} to top`,
-          hint: `Moves ${label} to the first position. Dragging is not required.`,
-          disabled: index === 0,
-          run: () => move(index, 0),
-        },
-        {
-          glyph: '↑',
-          name: `Move ${label} up`,
-          hint: `Moves ${label} one position up. Dragging is not required.`,
-          disabled: index === 0,
-          run: () => move(index, index - 1),
-        },
-        {
-          glyph: '↓',
-          name: `Move ${label} down`,
-          hint: `Moves ${label} one position down. Dragging is not required.`,
-          disabled: index === length - 1,
-          run: () => move(index, index + 1),
-        },
-        {
-          glyph: '⤓',
-          name: `Move ${label} to bottom`,
-          hint: `Moves ${label} to the last position. Dragging is not required.`,
-          disabled: index === length - 1,
-          run: () => move(index, length - 1),
-        },
-      ].map((item) => (
+      {(
+        [
+          {
+            Icon: ArrowUpToLine,
+            name: `Move ${label} to top`,
+            hint: `Moves ${label} to the first position. Dragging is not required.`,
+            disabled: index === 0,
+            run: () => move(index, 0),
+          },
+          {
+            Icon: ArrowUp,
+            name: `Move ${label} up`,
+            hint: `Moves ${label} one position up. Dragging is not required.`,
+            disabled: index === 0,
+            run: () => move(index, index - 1),
+          },
+          {
+            Icon: ArrowDown,
+            name: `Move ${label} down`,
+            hint: `Moves ${label} one position down. Dragging is not required.`,
+            disabled: index === length - 1,
+            run: () => move(index, index + 1),
+          },
+          {
+            Icon: ArrowDownToLine,
+            name: `Move ${label} to bottom`,
+            hint: `Moves ${label} to the last position. Dragging is not required.`,
+            disabled: index === length - 1,
+            run: () => move(index, length - 1),
+          },
+        ] as const
+      ).map((item) => (
         <Pressable
           key={item.name}
           accessibilityRole="button"
@@ -144,7 +150,11 @@ function MoveButtons({
           onPress={item.run}
           className="h-11 w-11 items-center justify-center"
         >
-          <Text tone={item.disabled ? 'disabled' : 'icon'}>{item.glyph}</Text>
+          <item.Icon
+            size={18}
+            color={item.disabled ? colors.steam : colors.cocoa}
+            strokeWidth={2}
+          />
         </Pressable>
       ))}
       <Pressable
@@ -154,7 +164,7 @@ function MoveButtons({
         onPress={() => remove(index)}
         className="h-11 w-11 items-center justify-center"
       >
-        <Text style={{ color: colors.chili }}>×</Text>
+        <X size={18} color={colors.chili} strokeWidth={2.2} />
       </Pressable>
     </View>
   );
@@ -310,6 +320,7 @@ export function RecipeEditor({
 }) {
   const categories = useCategories();
   const save = useSaveRecipe(recipe.id);
+  const fetchRecipe = useFetchRecipe(recipe.id);
   const reducedMotion = useReducedMotion();
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
@@ -488,7 +499,7 @@ export function RecipeEditor({
       loading: true,
     }));
     try {
-      const latest = await getRecipe(recipe.id);
+      const latest = await fetchRecipe();
       setConflict({ latest, loading: false });
       return latest;
     } catch {
@@ -623,15 +634,11 @@ export function RecipeEditor({
     !!recoveredDraft && recoveredDraft.revisionNumber !== expectedRevision;
 
   return (
-    <KeyboardAvoidingView
+    <View
       testID={reducedMotion ? 'recipe-editor-reduced-motion' : 'recipe-editor'}
       className="flex-1"
-      behavior="padding"
-      keyboardVerticalOffset={24}
     >
-      <ScrollView
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerClassName="px-5 pb-12"
       >
@@ -671,8 +678,8 @@ export function RecipeEditor({
             <Text variant="kicker" className="pb-1">
               CHECK THESE
             </Text>
-            {notices.map((notice) => (
-              <Text key={notice} variant="caption">
+            {notices.map((notice, index) => (
+              <Text key={`${index}-${notice}`} variant="caption">
                 {notice}
               </Text>
             ))}
@@ -839,13 +846,7 @@ export function RecipeEditor({
                   rules={{
                     required: 'Required',
                     validate: (value) =>
-                      (/\p{Extended_Pictographic}/u.test(value) &&
-                        [
-                          ...new Intl.Segmenter(undefined, {
-                            granularity: 'grapheme',
-                          }).segment(value),
-                        ].length === 1) ||
-                      'Use one emoji',
+                      isOneEmoji(value) || 'Use one emoji',
                   }}
                   render={({ field }) => (
                     <Input
@@ -1067,7 +1068,7 @@ export function RecipeEditor({
             {errors.steps.message}
           </Text>
         ) : null}
-      </ScrollView>
+      </KeyboardAwareScrollView>
       <View
         className="border-t border-crust bg-bg px-5 pt-3"
         style={{
@@ -1127,6 +1128,6 @@ export function RecipeEditor({
           next?.();
         }}
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }

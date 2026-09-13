@@ -1,6 +1,8 @@
+import { useCallback } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
+  getRecipe,
   listCategories,
   listRecipeRevisions,
   getRecipeRevision,
@@ -159,6 +161,20 @@ export function useSaveRecipe(recipeId: string) {
       await refreshRecipeCaches(client, recipeId, recipe);
     },
   });
+}
+
+/** Fresh recipe detail via React Query (conflict reload / rebase). */
+export function useFetchRecipe(recipeId: string) {
+  const client = useQueryClient();
+  return useCallback(
+    () =>
+      client.fetchQuery({
+        queryKey: recipeKeys.detail(recipeId),
+        queryFn: ({ signal }) => getRecipe(recipeId, signal),
+        staleTime: 0,
+      }),
+    [client, recipeId],
+  );
 }
 
 export function useRecipeRevisions(recipeId: string) {

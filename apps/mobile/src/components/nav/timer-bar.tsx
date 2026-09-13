@@ -25,7 +25,7 @@ export function TimerBar() {
     >
       <Animated.View
         className="h-2 w-2 rounded-full"
-        style={[breathe, { backgroundColor: colors.honey }]}
+        style={[breathe, { backgroundColor: colors.paprika }]}
       />
       <Text
         tone="inverse"

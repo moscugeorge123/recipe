@@ -13,6 +13,7 @@
       "supportsTablet": true
     },
     "android": {
+      "softwareKeyboardLayoutMode": "pan",
       "package": "com.recipe.app",
       "adaptiveIcon": {
         "backgroundColor": "#FFF8F2",

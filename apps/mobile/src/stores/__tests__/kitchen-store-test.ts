@@ -1,7 +1,6 @@
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { useShopStore } from '@/stores/shop-store';
 import { usePreferencesStore } from '@/stores/preferences-store';
-import type { RecipeIngredientView } from '@/features/recipes/types';
 
 describe('kitchen store', () => {
   beforeEach(() => {
@@ -38,7 +37,8 @@ describe('kitchen store', () => {
     );
     expect(
       state.pendingSync.some(
-        (item) => item.kind === 'collection.upsert' && item.status === 'pending',
+        (item) =>
+          item.kind === 'collection.upsert' && item.status === 'pending',
       ),
     ).toBe(true);
   });
@@ -53,52 +53,25 @@ describe('kitchen store', () => {
 });
 
 describe('shop store', () => {
-  beforeEach(() => {
-    useShopStore.setState({
-      items: [
+  test('does not seed a demo grocery list', () => {
+    useShopStore.setState({ items: [], shoppingMode: false });
+    expect(useShopStore.getState().items).toEqual([]);
+    useShopStore.getState().addIngredients(
+      [
         {
-          id: 'shop-lemon',
+          id: '1',
           name: 'Lemon',
-          quantity: 2,
+          quantity: 1,
           unit: '',
+          optional: false,
+          preparation: null,
           category: 'Produce',
-          fromRecipeCount: 1,
-          done: false,
+          confidence: 1,
         },
       ],
-      shoppingMode: false,
-    });
-  });
-
-  test('addIngredients merges by name', () => {
-    const ings: RecipeIngredientView[] = [
-      {
-        id: '1',
-        name: 'Lemon',
-        quantity: 1,
-        unit: '',
-        optional: false,
-        preparation: null,
-        category: 'Produce',
-        confidence: 1,
-      },
-      {
-        id: '2',
-        name: 'Basil',
-        quantity: 1,
-        unit: 'handful',
-        optional: false,
-        preparation: null,
-        category: 'Produce',
-        confidence: 1,
-      },
-    ];
-    useShopStore.getState().addIngredients(ings, 'Test');
-    const items = useShopStore.getState().items;
-    const lemon = items.find((item) => item.name === 'Lemon');
-    expect(lemon?.quantity).toBe(3);
-    expect(lemon?.fromRecipeCount).toBe(2);
-    expect(items.some((item) => item.name === 'Basil')).toBe(true);
+      'Test',
+    );
+    expect(useShopStore.getState().items).toEqual([]);
   });
 });
 

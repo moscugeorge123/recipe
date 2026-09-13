@@ -70,15 +70,12 @@ describe('KitchenCollections', () => {
     );
   });
 
-  test('creates a collection from the new-collection sheet', async () => {
+  test('creates a cookbook from the new-cookbook sheet', async () => {
     mockCreate.mockResolvedValue({ name: 'Friends Dinners' });
     const user = userEvent.setup();
     await renderWithProviders(<KitchenCollections />);
-    await user.press(screen.getByRole('button', { name: 'New collection' }));
-    await user.type(
-      screen.getByLabelText('Collection name'),
-      'Friends Dinners',
-    );
+    await user.press(screen.getByRole('button', { name: 'New cookbook' }));
+    await user.type(screen.getByLabelText('Cookbook name'), 'Friends Dinners');
     await user.press(screen.getByRole('button', { name: 'Create' }));
     expect(mockCreate).toHaveBeenCalledWith({ name: 'Friends Dinners' });
   });
@@ -95,7 +92,7 @@ describe('KitchenCollections', () => {
     expect(mockDelete).not.toHaveBeenCalled();
     await user.press(screen.getByRole('button', { name: 'Delete Appetizers' }));
     await user.press(
-      await screen.findByRole('button', { name: 'Delete collection' }),
+      await screen.findByRole('button', { name: 'Delete cookbook' }),
     );
     expect(mockDelete).toHaveBeenCalledWith(
       '22222222-2222-4222-8222-222222222222',

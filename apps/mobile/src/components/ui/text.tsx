@@ -24,21 +24,21 @@ type TextProps = RNTextProps & {
 const variantClass: Record<TextVariant, string> = {
   display: 'text-[27px] leading-[1.14] tracking-[-0.02em]',
   title: 'text-[23px] leading-[1.14] tracking-[-0.02em]',
-  section: 'text-[13px] font-bold tracking-[0.1em]',
-  kicker: 'text-[11px] tracking-[0.14em]',
+  section: 'text-[13px] font-bold tracking-[0.04em]',
+  kicker: 'text-[11px] tracking-[0.02em]',
   body: 'text-[15.5px] leading-[1.45]',
   caption: 'text-[13.5px] leading-[1.4]',
-  mono: 'text-[11.5px] tracking-[0.04em]',
+  mono: 'text-[11.5px] tracking-[0.02em]',
 };
 
 const variantFont: Record<TextVariant, string> = {
   display: fonts.manrope800,
   title: fonts.manrope800,
   section: fonts.manrope700,
-  kicker: fonts.mono500,
+  kicker: fonts.manrope600,
   body: fonts.manrope500,
   caption: fonts.manrope500,
-  mono: fonts.mono500,
+  mono: fonts.manrope500,
 };
 
 const variantTone: Record<TextVariant, TextTone> = {

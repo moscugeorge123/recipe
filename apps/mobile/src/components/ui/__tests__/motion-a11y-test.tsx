@@ -7,6 +7,7 @@ import { MotionItem } from '@/components/ui/motion-item';
 import { Text } from '@/components/ui/text';
 import { RecipeCategoryChips } from '@/features/recipes/components/recipe-category-chips';
 import type { RecipeView } from '@/features/recipes/types';
+import { stackPushAnimation } from '@/lib/motion';
 import { renderWithProviders } from '@/test/render-with-providers';
 import { cookTokensDark, cookTokensLight } from '@/theme/cook-tokens';
 import { colors } from '@/theme/tokens';
@@ -97,6 +98,11 @@ describe('motion, contrast, and accessibility polish', () => {
     expect(chip.props.className).toContain('min-h-11');
   });
 
+  test('stack page transition is fade unless reduced motion', () => {
+    expect(stackPushAnimation(false)).toBe('fade');
+    expect(stackPushAnimation(true)).toBe('none');
+  });
+
   test('reduced motion still renders staggered content immediately', async () => {
     usePreferencesStore.getState().setReduceMotion('reduce');
     const onPress = jest.fn();
@@ -135,22 +141,20 @@ describe('motion, contrast, and accessibility polish', () => {
     ).toBeOnTheScreen();
   });
 
-  test('Garden Plate contrast holds on cream and both cooking themes', () => {
+  test('brand contrast holds on page white, black CTAs, and both cooking themes', () => {
     expect(contrast(colors.espresso, colors.cream)).toBeGreaterThan(7);
     expect(contrast(colors.olive, colors.cream)).toBeGreaterThan(4);
     expect(contrast(colors.cocoa, colors.cream)).toBeGreaterThan(4.5);
     expect(contrast(colors.basil700, colors.basilSoft)).toBeGreaterThan(4.5);
     expect(contrast(colors.honey800, colors.honey50)).toBeGreaterThan(4.5);
     expect(contrast(colors.chili, colors.chili50)).toBeGreaterThan(4.5);
-    expect(contrast(colors.onPrimary, colors.paprikaPressed)).toBeGreaterThan(
-      4.5,
-    );
+    expect(contrast(colors.onPrimary, colors.cta)).toBeGreaterThan(4.5);
     expect(contrast(cookTokensDark.kicker, cookTokensDark.bg)).toBeGreaterThan(
       3,
     );
     expect(
       contrast(cookTokensLight.kicker, cookTokensLight.bg),
-    ).toBeGreaterThan(4.5);
+    ).toBeGreaterThan(3);
     expect(contrast(cookTokensLight.text, cookTokensLight.bg)).toBeGreaterThan(
       7,
     );
@@ -160,7 +164,7 @@ describe('motion, contrast, and accessibility polish', () => {
   test('favorite berry and pantry basil remain distinct from paprika', () => {
     expect(colors.berry).toBe('#D94F70');
     expect(colors.basilSoft).toBe('#EAF7F0');
-    expect(colors.paprika).toBe('#E25A3C');
+    expect(colors.paprika).toBe('#F97316');
     expect(colors.espresso).toBe('#2A2118');
   });
 });

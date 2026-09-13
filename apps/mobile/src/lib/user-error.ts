@@ -8,6 +8,8 @@ export type UserErrorContext =
   | 'recipe'
   | 'nutrition'
   | 'pantry'
+  | 'shopping'
+  | 'mealPlan'
   | 'notes'
   | 'collections';
 
@@ -208,6 +210,18 @@ const CONTEXT_FALLBACK: Record<UserErrorContext, Copy> = {
   pantry: {
     title: 'Pantry',
     message: 'Could not organize right now. Your text is still here.',
+    actionLabel: 'Retry',
+    retryable: true,
+  },
+  shopping: {
+    title: 'Grocery list',
+    message: 'Could not update your list. Check your connection and try again.',
+    actionLabel: 'Retry',
+    retryable: true,
+  },
+  mealPlan: {
+    title: 'Meal plan',
+    message: 'Could not update your week. Check your connection and try again.',
     actionLabel: 'Retry',
     retryable: true,
   },

@@ -12,7 +12,6 @@ import Animated, {
   useSharedValue,
   withRepeat,
   withSequence,
-  withSpring,
   withTiming,
 } from 'react-native-reanimated';
 
@@ -47,13 +46,15 @@ export const duration = {
   toast: 260,
 } as const;
 
-export const spring = {
-  snappy: { damping: 14, stiffness: 320, mass: 0.5 },
-  gentle: { damping: 18, stiffness: 220, mass: 0.7 },
-} as const;
-
 export function staggerDelay(index: number, step = 40, cap = 240): number {
   return Math.min(Math.max(index, 0) * step, cap);
+}
+
+export type StackPushAnimation = 'none' | 'fade';
+
+/** Page transition for stack and tab routes — same crossfade as the tab menu. */
+export function stackPushAnimation(reduced: boolean): StackPushAnimation {
+  return reduced ? 'none' : 'fade';
 }
 
 export function useReducedMotion(): boolean {
@@ -100,30 +101,24 @@ export function enterSection(
   }
   return FadeInDown.delay(staggerDelay(index))
     .duration(duration.fast)
-    .springify()
-    .damping(spring.gentle.damping);
+    .easing(reanimatedEasing);
 }
 
 export function enterCard(
   reduced: boolean,
-  index = 0,
+  _index = 0,
 ): MotionEntering | undefined {
   if (reduced) {
     return undefined;
   }
-  return FadeInDown.delay(staggerDelay(index, 36, 180))
-    .duration(duration.fast)
-    .springify()
-    .damping(spring.gentle.damping);
+  return FadeIn.duration(duration.fast).withInitialValues({ opacity: 0.5 });
 }
 
 export function enterChip(reduced: boolean): MotionEntering | undefined {
   if (reduced) {
     return undefined;
   }
-  return ZoomIn.duration(duration.fast)
-    .springify()
-    .damping(spring.snappy.damping);
+  return ZoomIn.duration(duration.fast).easing(reanimatedEasing);
 }
 
 export function exitChip(reduced: boolean): MotionExiting | undefined {
@@ -142,8 +137,7 @@ export function enterTimeline(
   }
   return FadeInDown.delay(staggerDelay(index, 48, 200))
     .duration(duration.fast)
-    .springify()
-    .damping(spring.gentle.damping);
+    .easing(reanimatedEasing);
 }
 
 export function enterMosaic(
@@ -177,7 +171,7 @@ export function enterToast(reduced: boolean): MotionEntering | undefined {
   if (reduced) {
     return undefined;
   }
-  return FadeInDown.duration(duration.toast).springify();
+  return FadeInDown.duration(duration.toast).easing(reanimatedEasing);
 }
 
 export function exitToast(reduced: boolean): MotionExiting | undefined {
@@ -198,9 +192,7 @@ export function layoutReorder(reduced: boolean): MotionLayout | undefined {
   if (reduced) {
     return undefined;
   }
-  return LinearTransition.springify()
-    .damping(spring.gentle.damping)
-    .stiffness(spring.gentle.stiffness);
+  return LinearTransition.duration(duration.fast).easing(reanimatedEasing);
 }
 
 export function motionEntering(
@@ -256,8 +248,8 @@ export function usePopScale(
       return;
     }
     scale.value = withSequence(
-      withSpring(1.16, spring.snappy),
-      withSpring(1, spring.gentle),
+      withTiming(1.06, { duration: duration.instant, easing: reanimatedEasing }),
+      withTiming(1, { duration: duration.fast, easing: reanimatedEasing }),
     );
   };
 

@@ -121,6 +121,18 @@ enum PantryStorageLocation {
   OTHER
 }
 
+enum MealSlot {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum MealEntryKind {
+  RECIPE
+  NOTE
+}
+
 // --- Profiles & ownership ----------------------------------------------------
 
 model User {
@@ -133,13 +145,15 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  recipes      UserRecipe[]
-  categories   Category[]
-  revisions    RecipeRevision[]
-  cookSessions CookSession[]
-  collections  Collection[]
-  pantryItems  PantryItem[]
-  aiUsage      AIUsage[]
+  recipes           UserRecipe[]
+  categories        Category[]
+  revisions         RecipeRevision[]
+  cookSessions      CookSession[]
+  collections       Collection[]
+  pantryItems       PantryItem[]
+  shoppingListItems ShoppingListItem[]
+  mealPlanEntries   MealPlanEntry[]
+  aiUsage           AIUsage[]
 
   @@map("users")
 }
@@ -561,6 +575,47 @@ model PantryItem {
   @@index([userId, expiresAt])
   @@index([userId, category])
   @@map("pantry_items")
+}
+
+model ShoppingListItem {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @db.Uuid
+  name                  String
+  canonicalName         String?
+  quantity              Decimal? @db.Decimal(10, 3)
+  unit                  String?
+  category              String?
+  emoji                 String?
+  done                  Boolean  @default(false)
+  fromRecipeCount       Int      @default(0)
+  source                String   @default("MANUAL") // MANUAL | RECIPE | MEAL_PLAN
+  sourceRecipeId        String?  @db.Uuid
+  sourceMealPlanEntryId String?  @db.Uuid
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, done, updatedAt])
+  @@index([userId, canonicalName])
+  @@map("shopping_list_items")
+}
+
+model MealPlanEntry {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @db.Uuid
+  date      DateTime      @db.Date
+  slot      MealSlot
+  kind      MealEntryKind
+  recipeId  String?       @db.Uuid
+  note      String?
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date, slot, sortOrder])
+  @@map("meal_plan_entries")
 }
 
 model NutritionSnapshot {

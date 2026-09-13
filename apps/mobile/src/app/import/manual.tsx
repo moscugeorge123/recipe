@@ -1,10 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 
 import { SourceIcon } from '@/components/icons/source-icon';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { KeyboardAwareScrollView } from '@/components/ui/keyboard-aware-scroll-view';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { inspectClipboard } from '@/features/capture/sources';
@@ -32,7 +33,7 @@ export default function ManualImportScreen() {
 
   return (
     <Screen className="px-5">
-      <ScrollView contentContainerClassName="pt-2">
+      <KeyboardAwareScrollView contentContainerClassName="pt-2">
         <Text variant="display">Paste a recipe.</Text>
         <Text variant="caption" className="py-3">
           Drop in a link from Instagram, YouTube or the web. Photos and notes
@@ -56,7 +57,7 @@ export default function ManualImportScreen() {
         <View className="mt-5">
           <Button label="Make it a recipe" size="lg" onPress={submit} />
         </View>
-      </ScrollView>
+      </KeyboardAwareScrollView>
     </Screen>
   );
 }

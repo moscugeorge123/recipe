@@ -1,13 +1,25 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useMemo, useRef, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
+import {
+  Bookmark,
+  ChevronLeft,
+  Ellipsis,
+  Share2,
+} from 'lucide-react-native';
+import { useMemo, useRef, useState, type ReactNode } from 'react';
+import { Pressable, Share, View } from 'react-native';
 import Animated from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { SourceIcon } from '@/components/icons/source-icon';
+import {
+  GroceriesBasketIcon,
+  MealPlanCalendarIcon,
+} from '@/components/icons/recime-tab-icons';
 import { Button } from '@/components/ui/button';
-import { PhotoStandIn } from '@/components/ui/photo-stand-in';
 import { ContentSkeleton } from '@/components/ui/content-skeleton';
+import { IconButton } from '@/components/ui/icon-button';
 import { InlineErrorPanel } from '@/components/ui/inline-error';
+import { KeyboardAwareScrollView } from '@/components/ui/keyboard-aware-scroll-view';
+import { PhotoStandIn } from '@/components/ui/photo-stand-in';
 import { Screen } from '@/components/ui/screen';
 import { Sheet } from '@/components/ui/sheet';
 import { StaleIndicator } from '@/components/ui/stale-indicator';
@@ -16,26 +28,19 @@ import { reviewToInboxStatus } from '@/features/catalog/catalog';
 import { useStartCooking } from '@/features/cook-sessions/hooks';
 import { isSeedRecipeId } from '@/features/kitchen/ids';
 import { NutritionPanel } from '@/features/nutrition/nutrition-panel';
-import { pantryKeysFrom, partitionByPantry } from '@/features/pantry/match';
 import { usePantryItems } from '@/features/pantry/hooks';
-import { RecipeCategoryChips } from '@/features/recipes/components/recipe-category-chips';
+import { pantryKeysFrom, partitionByPantry } from '@/features/pantry/match';
 import { RecipeCollectionsEntry } from '@/features/recipes/components/recipe-collections-entry';
-import { RecipeNotesPanel } from '@/features/recipes/components/recipe-notes';
 import { RecipePantrySection } from '@/features/recipes/components/recipe-pantry-section';
-import { StarRatingInput } from '@/features/recipes/components/star-rating';
-import { useDeferredSecondary } from '@/features/recipes/hooks/use-deferred-secondary';
-import {
-  useRecipeFavorite,
-  useRecipeRating,
-} from '@/features/recipes/hooks/use-engagement';
-import { useConfirmReviewed } from '@/features/recipes/hooks/use-review-state';
+import { useRecipeFavorite } from '@/features/recipes/hooks/use-engagement';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
-import { planRecipe } from '@/features/recipes/plan';
+import { useConfirmReviewed } from '@/features/recipes/hooks/use-review-state';
+import type { RecipeView } from '@/features/recipes/types';
+import { useAddFromRecipe } from '@/features/shopping-list/hooks';
 import { hapticSuccess } from '@/lib/haptics';
-import { mapUserError } from '@/lib/user-error';
 import { usePopScale } from '@/lib/motion';
+import { mapUserError } from '@/lib/user-error';
 import { useKitchenStore } from '@/stores/kitchen-store';
-import { useShopStore } from '@/stores/shop-store';
 import { useUiStore } from '@/stores/ui-store';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -57,22 +62,127 @@ function inboxStatusFor(
   return undefined;
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function StepInstruction({
+  instruction,
+  names,
+}: {
+  instruction: string;
+  names: string[];
+}) {
+  const unique = [
+    ...new Set(
+      names
+        .map((name) => name.trim())
+        .filter((name) => name.length > 0)
+        .sort((a, b) => b.length - a.length),
+    ),
+  ];
+  if (!unique.length) {
+    return <Text className="flex-1">{instruction}</Text>;
+  }
+
+  const pattern = new RegExp(
+    `\\b(${unique.map(escapeRegExp).join('|')})\\b`,
+    'gi',
+  );
+  const nodes: ReactNode[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null = pattern.exec(instruction);
+  let key = 0;
+  while (match) {
+    if (match.index > lastIndex) {
+      nodes.push(instruction.slice(lastIndex, match.index));
+    }
+    const value = match[0];
+    nodes.push(
+      <Text key={`ing-${key}`} style={{ color: colors.ingredientLink }}>
+        {value}
+      </Text>,
+    );
+    key += 1;
+    lastIndex = match.index + value.length;
+    if (value.length === 0) {
+      pattern.lastIndex += 1;
+    }
+    match = pattern.exec(instruction);
+  }
+  if (lastIndex < instruction.length) {
+    nodes.push(instruction.slice(lastIndex));
+  }
+
+  return <Text className="flex-1">{nodes}</Text>;
+}
+
+function shareRecipe(recipe: RecipeView) {
+  const url = recipe.originalUrl ?? '';
+  void Share.share({
+    title: recipe.title,
+    message: url ? `${recipe.title}\n${url}` : recipe.title,
+    url: url || undefined,
+  }).catch(() => undefined);
+}
+
+const heroChromeFill = 'rgba(255,255,255,0.86)';
+
+function HeroChrome({
+  recipeId,
+  onOverflow,
+}: {
+  recipeId: string;
+  onOverflow: () => void;
+}) {
+  return (
+    <View className="absolute left-4 right-4 top-12 flex-row items-center justify-between">
+      <IconButton
+        accessibilityLabel="Back"
+        onPress={() => router.back()}
+        style={{ backgroundColor: heroChromeFill }}
+      >
+        <ChevronLeft size={22} color={colors.espresso} strokeWidth={2.2} />
+      </IconButton>
+      <View className="flex-row items-center gap-2">
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Edit"
+          onPress={() => router.push(`/recipe/${recipeId}/edit` as Href)}
+          className="h-11 items-center justify-center rounded-full px-3.5"
+          style={{ backgroundColor: heroChromeFill }}
+        >
+          <Text
+            className="text-[14px]"
+            style={{ fontFamily: fonts.manrope600 }}
+          >
+            Edit
+          </Text>
+        </Pressable>
+        <IconButton
+          accessibilityLabel="More"
+          onPress={onOverflow}
+          style={{ backgroundColor: heroChromeFill }}
+        >
+          <Ellipsis size={22} color={colors.espresso} strokeWidth={2} />
+        </IconButton>
+      </View>
+    </View>
+  );
+}
+
 export default function RecipeDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const fetched = useRecipe(id);
   const recipe = fetched.data;
-  const secondaryReady = useDeferredSecondary(!!recipe);
+  const insets = useSafeAreaInsets();
   const servingsByRecipe = useKitchenStore((state) => state.servingsByRecipe);
   const setServings = useKitchenStore((state) => state.setServings);
   const { confirm: confirmReviewed } = useConfirmReviewed();
   const pantryStaples = useKitchenStore((state) => state.pantryStaples);
-  const recipeNotes = useKitchenStore((state) => state.recipeNotes);
   const localInbox = useKitchenStore((state) => state.inboxStatus);
   const migrationComplete =
     useKitchenStore((state) => state.kitchenMigration?.status) === 'completed';
-  const localCooked = useKitchenStore((state) =>
-    recipe ? (state.cookedCounts[recipe.id] ?? 0) : 0,
-  );
   const pantryQuery = usePantryItems();
   const pantryKeys = useMemo(
     () =>
@@ -82,17 +192,13 @@ export default function RecipeDetailScreen() {
       }),
     [pantryQuery.data?.items, pantryStaples],
   );
-  const addIngredients = useShopStore((state) => state.addIngredients);
+  const addFromRecipe = useAddFromRecipe();
   const startCooking = useStartCooking();
   const showToast = useUiStore((state) => state.showToast);
-  const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [info, setInfo] = useState<{ title: string; body: string } | null>(
-    null,
-  );
+  const [overflow, setOverflow] = useState(false);
   const scrollY = useRef(0);
-  const heart = usePopScale();
+  const pinPop = usePopScale();
   const favorite = useRecipeFavorite(recipe);
-  const rating = useRecipeRating(recipe);
   const servings = recipe
     ? (servingsByRecipe[recipe.id] ?? recipe.servings)
     : 1;
@@ -134,28 +240,29 @@ export default function RecipeDetailScreen() {
   }
 
   const mult = servings / recipe.servings;
-  const plan = planRecipe(recipe);
   const saved = favorite.isFavorite;
   const { have, need } = partitionByPantry(recipe.ingredients, pantryKeys);
   const status = inboxStatusFor(recipe, localInbox, migrationComplete);
-  const notes = recipeNotes[recipe.id] ?? [];
-  const cookCount =
-    recipe.origin === 'api' ? (recipe.cookCount ?? 0) : localCooked;
+  const ingredientNames = recipe.ingredients.map((ing) => ing.name);
+
+  const beginCooking = () => {
+    if (status) {
+      confirmReviewed(recipe.id);
+    }
+    startCooking(recipe.id).catch(() => undefined);
+    router.push(`/cook/${recipe.id}`);
+  };
 
   return (
     <Screen edges={['left', 'right']}>
-      <ScrollView
+      <KeyboardAwareScrollView
         testID="recipe-detail-scroll"
         showsVerticalScrollIndicator={false}
-        contentContainerClassName="pb-10"
-        keyboardShouldPersistTaps="handled"
+        contentContainerClassName="pb-8"
         onScroll={(event) => {
-          // Keep offset across favorite/rating/note cache writes; do not remount.
           scrollY.current = event.nativeEvent.contentOffset.y;
         }}
-        scrollEventThrottle={16}
       >
-        {/* 1. Identity / categories */}
         <View>
           <PhotoStandIn
             colors={recipe.placeholder}
@@ -164,60 +271,21 @@ export default function RecipeDetailScreen() {
             uri={recipe.thumbnailUrl}
             label={`photo — ${recipe.title.toLowerCase()}`}
           />
-          <View className="absolute left-4 top-12 flex-row gap-2">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              onPress={() => router.back()}
-              className="bg-white/86 h-11 w-11 items-center justify-center rounded-[14px]"
-            >
-              <Text className="text-[22px]">‹</Text>
-            </Pressable>
-          </View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={saved ? 'Remove from saved' : 'Save recipe'}
-            accessibilityState={{ selected: saved }}
-            onPress={() => {
-              heart.pop();
-              if (!saved) {
-                confirmReviewed(recipe.id);
-              }
-              favorite.toggle();
-            }}
-            className="absolute right-4 top-12 items-center justify-center rounded-[14px]"
-            style={{
-              height: 44,
-              width: 44,
-              backgroundColor: saved ? colors.berry : 'rgba(255,255,255,0.86)',
-            }}
-          >
-            <Animated.View style={heart.style}>
-              <Text tone={saved ? 'inverse' : 'default'}>
-                {saved ? '♥' : '♡'}
-              </Text>
-            </Animated.View>
-          </Pressable>
+          <HeroChrome
+            recipeId={recipe.id}
+            onOverflow={() => setOverflow(true)}
+          />
         </View>
 
         <View className="px-5 pt-4">
-          <View className="flex-row items-center gap-2 pb-2">
-            <SourceIcon source={recipe.sourceLabel} size={16} />
-            <Text variant="caption">
-              {recipe.sourceLabel} · {recipe.creator}
-            </Text>
-          </View>
-          <Text variant="display" accessibilityRole="header">
-            {recipe.title}
-          </Text>
           {fetched.fromCache ? (
             <StaleIndicator
-              className="pt-1"
+              className="pb-2"
               message="Showing the last saved recipe. Retry if this looks old."
             />
           ) : null}
           {fetched.isError ? (
-            <View className="pt-2">
+            <View className="pb-2">
               <InlineErrorPanel
                 message={
                   mapUserError(
@@ -236,10 +304,13 @@ export default function RecipeDetailScreen() {
               />
             </View>
           ) : null}
-          <Text variant="caption" className="pt-1">
-            {cookCount > 0 ? `${cookCount}× cooked` : 'Not cooked yet'}
+
+          <Text variant="display" accessibilityRole="header">
+            {recipe.title}
           </Text>
-          <RecipeCategoryChips recipe={recipe} editable />
+          <View className="pt-3">
+            <RecipeCollectionsEntry recipeId={recipe.id} />
+          </View>
 
           {status ? (
             <View
@@ -270,199 +341,188 @@ export default function RecipeDetailScreen() {
             </View>
           ) : null}
 
-          {/* 2. Start cooking — only paprika primary */}
-          <Button
-            label="Start cooking"
-            size="lg"
-            className="mt-5 min-h-[58px]"
-            onPress={() => {
-              if (status) {
-                confirmReviewed(recipe.id);
+          <View className="mt-5 flex-row">
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Meal Plan"
+              onPress={() =>
+                router.push({
+                  pathname: '/plan',
+                  params: { addRecipeId: recipe.id },
+                } as never)
               }
-              startCooking(recipe.id).catch(() => undefined);
-              router.push(`/cook/${recipe.id}`);
+              className="min-h-11 flex-1 items-center justify-center gap-1 py-2"
+            >
+              <MealPlanCalendarIcon size={22} color={colors.espresso} />
+              <Text variant="caption">Meal Plan</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Groceries"
+              onPress={() => router.push('/groceries' as Href)}
+              className="min-h-11 flex-1 items-center justify-center gap-1 py-2"
+            >
+              <GroceriesBasketIcon size={22} color={colors.espresso} />
+              <Text variant="caption">Groceries</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={saved ? 'Unpin recipe' : 'Pin recipe'}
+              accessibilityState={{ selected: saved }}
+              onPress={() => {
+                pinPop.pop();
+                if (!saved) {
+                  confirmReviewed(recipe.id);
+                }
+                favorite.toggle();
+              }}
+              className="items-center justify-center gap-1 py-2"
+              style={{ flex: 1, minHeight: 44 }}
+            >
+              <Animated.View style={pinPop.style}>
+                <Bookmark
+                  size={22}
+                  color={colors.espresso}
+                  strokeWidth={1.75}
+                  fill={saved ? colors.espresso : 'transparent'}
+                />
+              </Animated.View>
+              <Text variant="caption">Pin</Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Share"
+              onPress={() => shareRecipe(recipe)}
+              className="min-h-11 flex-1 items-center justify-center gap-1 py-2"
+            >
+              <Share2 size={22} color={colors.espresso} strokeWidth={1.75} />
+              <Text variant="caption">Share</Text>
+            </Pressable>
+          </View>
+
+          <RecipePantrySection
+            ingredients={recipe.ingredients}
+            haveCount={have.length}
+            multiplier={mult}
+          />
+
+          <Button
+            label="Add to groceries"
+            size="lg"
+            className="mt-4"
+            disabled={!need.length || addFromRecipe.isPending}
+            onPress={() => {
+              void addFromRecipe
+                .mutateAsync({ recipeId: recipe.id, servings })
+                .then((added) => {
+                  hapticSuccess().catch(() => undefined);
+                  showToast({
+                    text: added.length
+                      ? `${added.length} ingredient${added.length === 1 ? '' : 's'} added`
+                      : 'Nothing to add — pantry already has these',
+                    glyph: '↓',
+                    action: 'View',
+                    onAction: () => router.push('/groceries' as Href),
+                  });
+                })
+                .catch((error: unknown) => {
+                  showToast({
+                    text: mapUserError(error, 'shopping').message,
+                    glyph: '!',
+                  });
+                });
             }}
           />
 
-          {/* 3. Plan / servings */}
-          <View className="mt-5 flex-row flex-wrap items-center gap-2 rounded-[16px] bg-linen p-3">
-            {plan.stages.map((stage, index) => (
-              <View key={stage.name} className="flex-row items-center gap-2">
-                <View className="rounded-full bg-bg px-3 py-1.5">
-                  <Text className="text-[12px]">
-                    <Text
-                      className="text-[12px]"
-                      style={{ color: colors.honey800 }}
-                    >
-                      {stage.name}
-                    </Text>
-                    {` · ${stage.mins}m`}
-                  </Text>
-                </View>
-                {index < plan.stages.length - 1 ? (
-                  <Text tone="disabled">→</Text>
-                ) : null}
+          <View className="mt-8">
+            <Text variant="section">INSTRUCTIONS</Text>
+            {recipe.steps.map((step, index) => (
+              <View key={step.id} className="mt-4 flex-row items-start gap-3">
+                <Text
+                  className="w-6 pt-0.5 text-center"
+                  style={{ fontFamily: fonts.manrope700 }}
+                >
+                  {index + 1}
+                </Text>
+                <StepInstruction
+                  instruction={step.instruction}
+                  names={ingredientNames}
+                />
               </View>
             ))}
           </View>
 
-          <View className="mt-6 flex-row items-center justify-between">
-            <Text variant="section">SERVINGS</Text>
-            <View className="flex-row items-center gap-3">
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Decrease servings"
-                onPress={() => setServings(recipe.id, servings - 1)}
-                className="h-11 w-11 items-center justify-center rounded-[14px] bg-peach"
-              >
-                <Text className="text-[18px]">−</Text>
-              </Pressable>
-              <Animated.View style={servingsPop.style}>
-                <Text
-                  className="min-w-[34px] text-center text-[17px]"
-                  style={{ fontFamily: fonts.manrope700 }}
-                >
-                  {servings}
-                </Text>
-              </Animated.View>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Increase servings"
-                onPress={() => setServings(recipe.id, servings + 1)}
-                className="h-11 w-11 items-center justify-center rounded-[14px] bg-peach"
-              >
-                <Text className="text-[18px]">+</Text>
-              </Pressable>
-            </View>
-          </View>
-          <Text variant="caption" className="pt-2">
-            {servings === recipe.servings
-              ? 'Detected from the source · tap to change'
-              : `Scaled from ${recipe.servings} · quantities updated`}
-          </Text>
-
-          {/* 4. Pantry-aware ingredients */}
-          <RecipePantrySection
-            have={have}
-            need={need}
-            servings={servings}
-            multiplier={mult}
-            recipeTitle={recipe.title}
-            checked={checked}
-            onToggle={(ingredientId) =>
-              setChecked((curr) => ({
-                ...curr,
-                [ingredientId]: !curr[ingredientId],
-              }))
-            }
-            onInfo={(title, body) => setInfo({ title, body })}
-            onAddAll={() => {
-              addIngredients(need, recipe.title);
-              hapticSuccess().catch(() => undefined);
-              showToast({
-                text: `${need.length} ingredients added`,
-                glyph: '↓',
-                action: 'View',
-                onAction: () => router.push('/shop'),
-              });
-            }}
-            onAddOne={(ing) => {
-              addIngredients([ing], recipe.title);
-              showToast({
-                text: `${ing.name} added to Shopping`,
-                glyph: '↓',
-              });
-            }}
-          />
-
-          {/* 5. Nutrition — section retry, never hides the recipe */}
           <NutritionPanel recipeId={recipe.id} />
-
-          {/* 6. Rating / notes */}
-          <View className="mt-6">
-            <Text variant="section">YOUR RATING</Text>
-            <StarRatingInput
-              rating={rating.rating}
-              onChange={rating.setRating}
-              disabled={rating.isPending}
-            />
-          </View>
-
-          {recipe.origin === 'api' ? (
-            <RecipeNotesPanel recipeId={recipe.id} enabled={secondaryReady} />
-          ) : notes.length ? (
-            <View className="mt-6">
-              <Text variant="section">NOTES</Text>
-              {notes.map((item) => (
-                <View
-                  key={`${item.cookedAt}-${item.text}`}
-                  className="mt-2 rounded-[16px] bg-linen p-4"
-                >
-                  <Text variant="caption">
-                    {new Date(item.cookedAt).toLocaleDateString(undefined, {
-                      month: 'short',
-                      day: 'numeric',
-                      year: 'numeric',
-                    })}
-                  </Text>
-                  <Text className="pt-1.5">{item.text}</Text>
-                </View>
-              ))}
-            </View>
-          ) : null}
-
-          {/* 7. Collections / history / source / editing */}
-          <RecipeCollectionsEntry recipeId={recipe.id} />
-
-          {[
-            { label: 'Original source', hint: recipe.sourceLabel },
-            {
-              label: 'Edit the extraction',
-              hint: `${recipe.ingredients.length} fields`,
-              route: `/recipe/${recipe.id}/edit`,
-            },
-            {
-              label: 'Revision history',
-              hint: `Revision ${recipe.revisionNumber ?? 0}`,
-              route: `/recipe/${recipe.id}/history`,
-            },
-          ].map((row) => (
-            <Pressable
-              key={row.label}
-              accessibilityRole="button"
-              accessibilityLabel={row.label}
-              onPress={() =>
-                row.route
-                  ? router.push(row.route as never)
-                  : showToast({
-                      text: `${row.label} coming soon`,
-                      glyph: '›',
-                    })
-              }
-              className="min-h-11 flex-row items-center justify-between border-b border-crust py-3"
-            >
-              <Text tone="icon">{row.label}</Text>
-              <Text variant="caption">{row.hint}</Text>
-            </Pressable>
-          ))}
         </View>
-      </ScrollView>
-      <Sheet
-        visible={!!info}
-        onClose={() => setInfo(null)}
-        accessibilityLabel="Ingredient"
+      </KeyboardAwareScrollView>
+
+      <View
+        className="flex-row items-center gap-3 border-t border-crust px-5 pt-3"
+        style={{
+          backgroundColor: colors.page,
+          paddingBottom: Math.max(insets.bottom, 16),
+        }}
       >
-        <Text variant="kicker">INGREDIENT</Text>
-        <Text variant="title" className="py-2">
-          {info?.title}
-        </Text>
-        <Text variant="caption">{info?.body}</Text>
+        <View className="flex-row items-center">
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Decrease servings"
+            hitSlop={8}
+            onPress={() => setServings(recipe.id, servings - 1)}
+            className="h-8 w-8 items-center justify-center rounded-full"
+            style={{ backgroundColor: colors.peach }}
+          >
+            <Text className="text-[15px]" style={{ fontFamily: fonts.manrope700 }}>
+              −
+            </Text>
+          </Pressable>
+          <Animated.View style={servingsPop.style}>
+            <Text
+              accessibilityLabel={`${servings} servings`}
+              className="min-w-[52px] px-1.5 text-center text-[14px]"
+              style={{ fontFamily: fonts.manrope700 }}
+            >
+              {servings}
+            </Text>
+          </Animated.View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Increase servings"
+            hitSlop={8}
+            onPress={() => setServings(recipe.id, servings + 1)}
+            className="h-8 w-8 items-center justify-center rounded-full"
+            style={{ backgroundColor: colors.peach }}
+          >
+            <Text className="text-[15px]" style={{ fontFamily: fonts.manrope700 }}>
+              +
+            </Text>
+          </Pressable>
+        </View>
         <Button
-          label="Got it"
-          variant="inverse"
-          className="mt-5"
-          onPress={() => setInfo(null)}
+          label="Start cooking"
+          size="md"
+          className="min-h-[48px] flex-1"
+          onPress={beginCooking}
         />
+      </View>
+
+      <Sheet
+        visible={overflow}
+        onClose={() => setOverflow(false)}
+        accessibilityLabel="More"
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Revision history"
+          onPress={() => {
+            setOverflow(false);
+            router.push(`/recipe/${recipe.id}/history` as Href);
+          }}
+          className="min-h-11 flex-row items-center justify-between border-b border-crust py-3"
+        >
+          <Text tone="icon">Revision history</Text>
+          <Text variant="caption">Revision {recipe.revisionNumber ?? 0}</Text>
+        </Pressable>
       </Sheet>
     </Screen>
   );

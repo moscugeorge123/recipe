@@ -30,7 +30,7 @@ export function Chip({
         className ?? ''
       }`}
       style={{
-        backgroundColor: selected ? colors.espresso : colors.peach,
+        backgroundColor: selected ? colors.cta : colors.paper,
       }}
       {...props}
     >

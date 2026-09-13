@@ -11,6 +11,8 @@ import { recipesRoutes } from '../modules/recipes/api/recipes.routes.js';
 import { nutritionRoutes } from '../modules/nutrition/api/nutrition.routes.js';
 import { collectionsRoutes } from '../modules/collections/api/collections.routes.js';
 import { pantryRoutes } from '../modules/pantry/api/pantry.routes.js';
+import { mealPlanRoutes } from '../modules/meal-plan/api/meal-plan.routes.js';
+import { shoppingListRoutes } from '../modules/shopping-list/api/shopping-list.routes.js';
 import { opsRoutes } from '../modules/ops/api/ops.routes.js';
 import { createLogger, type AppLogger } from '../infrastructure/logging/logger.js';
 import type { AppContainer } from '../shared/di/container.js';
@@ -140,6 +142,12 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         });
         await resources.register(pantryRoutes, {
           pantryService: container.pantryService,
+        });
+        await resources.register(shoppingListRoutes, {
+          shoppingListService: container.shoppingListService,
+        });
+        await resources.register(mealPlanRoutes, {
+          mealPlanService: container.mealPlanService,
         });
         await resources.register(collectionsRoutes, {
           collectionService: container.collectionService,

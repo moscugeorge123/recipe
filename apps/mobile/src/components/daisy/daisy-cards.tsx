@@ -20,7 +20,7 @@ import {
 import { Text } from '@/components/ui/text';
 import { fonts } from '@/theme/tokens';
 
-const spring = Easing.bezier(0.34, 1.56, 0.64, 1);
+const enterEase = Easing.bezier(0.2, 0.8, 0.2, 1);
 
 type DaisyCardsProps = {
   phase: DaisyPhase;
@@ -98,7 +98,7 @@ function DaisyChip({
     }
     enter.value = withDelay(
       index * 120,
-      withTiming(1, { duration: 500, easing: spring }),
+      withTiming(1, { duration: 500, easing: enterEase }),
     );
     float.value = withDelay(
       index * 600,

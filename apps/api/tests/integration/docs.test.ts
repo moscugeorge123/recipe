@@ -53,6 +53,10 @@ describe('API documentation', () => {
       '/api/v1/cook-sessions',
       '/api/v1/cook-sessions/{id}',
       '/api/v1/health',
+      '/api/v1/meal-plan',
+      '/api/v1/meal-plan/entries',
+      '/api/v1/meal-plan/entries/{id}',
+      '/api/v1/meal-plan/reorder',
       '/api/v1/ops/summary',
       '/api/v1/pantry',
       '/api/v1/pantry/items',
@@ -76,6 +80,11 @@ describe('API documentation', () => {
       '/api/v1/recipes/{id}/revisions',
       '/api/v1/recipes/{id}/revisions/{revisionId}',
       '/api/v1/recipes/{id}/revisions/{revisionId}/restore',
+      '/api/v1/shopping-list',
+      '/api/v1/shopping-list/clear-done',
+      '/api/v1/shopping-list/from-recipe',
+      '/api/v1/shopping-list/items',
+      '/api/v1/shopping-list/items/{id}',
     ]);
   });
 

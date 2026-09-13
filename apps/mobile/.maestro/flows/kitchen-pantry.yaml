@@ -1,25 +1,14 @@
 appId: com.recipe.app
 ---
-# Kitchen → pantry organize + collections empty states.
+# Groceries → pantry organize empty state.
 # Does not require a live API. Expo Go may still fail on native tab labels.
 - launchApp
 - tapOn:
     text: Skip
     optional: true
-- tapOn: Kitchen
-- assertVisible: My kitchen
-- tapOn:
-    text: Pantry →
+- tapOn: Groceries
+- assertVisible: Grocery List
+- tapOn: Pantry
 - assertVisible: Pantry
 - assertVisible: Organize
 - assertVisible: 'Nothing saved yet. Organize a list and accept it.'
-- tapOn: Back
-- tapOn:
-    text: Filter your kitchen
-    optional: true
-- tapOn:
-    text: Collections
-    optional: true
-- assertVisible:
-    text: New collection
-    optional: true

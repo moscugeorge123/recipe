@@ -1,8 +1,8 @@
 export const colors = {
-  paprika: '#E25A3C',
-  paprika400: '#EF6D52',
-  paprikaPressed: '#C4472C',
-  paprikaSoft: '#FFF1ED',
+  paprika: '#F97316',
+  paprika400: '#FB923C',
+  paprikaPressed: '#EA580C',
+  paprikaSoft: '#FFF4E8',
   basil: '#2F8F5B',
   basilSoft: '#EAF7F0',
   basil700: '#1C5C3A',
@@ -12,7 +12,7 @@ export const colors = {
   honey200: '#F6D56A',
   honey800: '#7A5B0C',
   berry: '#D94F70',
-  cream: '#FFF8F2',
+  cream: '#FFFFFF',
   peach: '#FFE8D6',
   butter: '#FFFDF9',
   linen: '#F3E6D8',
@@ -27,8 +27,20 @@ export const colors = {
   chili50: '#FDECEA',
   sky: '#3A8FBF',
   onPrimary: '#FFFFFF',
-  overlay: 'rgba(26, 22, 18, 0.42)',
-  paprikaShadow: 'rgba(226, 90, 60, 0.28)',
+  overlay: 'rgba(35, 34, 32, 0.42)',
+  paprikaShadow: 'rgba(249, 115, 22, 0.28)',
+  cta: '#232220',
+  ctaDisabled: '#E5E5E3',
+  page: '#FFFFFF',
+  paper: '#F8F7F2',
+  searchFill: '#FBFCF6',
+  tabInactive: '#757472',
+  ingredientLink: '#6B7C93',
+  mealBreakfast: '#FDECB8',
+  mealLunch: '#D6E6F5',
+  mealDinner: '#D6B9F3',
+  mealSnack: '#F3E0D0',
+  mango: '#F4A36E',
 } as const;
 
 export const sourceColors: Record<string, string> = {
@@ -41,7 +53,7 @@ export const sourceColors: Record<string, string> = {
   Note: '#6B7A62',
   Text: '#6B7A62',
   'Voice note': '#6B7A62',
-  'Share sheet': '#E25A3C',
+  'Share sheet': '#F97316',
 };
 
 export const placeholderPairs: [string, string][] = [
@@ -54,18 +66,18 @@ export const placeholderPairs: [string, string][] = [
 ];
 
 export const fonts = {
-  manrope500: 'Manrope_500Medium',
-  manrope600: 'Manrope_600SemiBold',
-  manrope700: 'Manrope_700Bold',
-  manrope800: 'Manrope_800ExtraBold',
-  mono500: 'IBMPlexMono_500Medium',
-  mono600: 'IBMPlexMono_600SemiBold',
-  mono700: 'IBMPlexMono_700Bold',
+  manrope500: 'Inter_500Medium',
+  manrope600: 'Inter_600SemiBold',
+  manrope700: 'Inter_700Bold',
+  manrope800: 'Inter_800ExtraBold',
+  mono500: 'Inter_500Medium',
+  mono600: 'Inter_600SemiBold',
+  mono700: 'Inter_700Bold',
 } as const;
 
 export const radii = {
   card: 16,
-  cta: 18,
+  cta: 28,
   icon: 14,
   sheet: 28,
 } as const;

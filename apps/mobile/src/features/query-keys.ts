@@ -14,13 +14,17 @@
  * | Notes           | `recipeKeys.notes(id)`              | `['recipes', 'detail', id, 'notes']`            | 15s            |
  * | Nutrition       | `nutritionKey(id)`                  | `['recipes', 'detail', id, 'nutrition']`        | 15s            |
  * | Pantry          | `pantryKeys.list(category?)`        | `['pantry', 'list', 'all']`                     | 15s            |
+ * | Shopping list   | `shoppingListKeys.list(done?)`      | `['shopping-list', 'list', 'all']`              | 15s            |
+ * | Meal plan       | `mealPlanKeys.range(from, to)`      | `['meal-plan', 'range', from, to]`              | 15s            |
  * | Cook sessions   | `cookSessionKeys.list(query)`       | `['cook-sessions', 'list', query]`              | 15s            |
  * | Current cook    | `cookSessionKeys.current`           | `['cook-sessions', 'current']`                  | 15s            |
  * | Collections     | `collectionKeys.list`               | `['collections', 'list']`                       | 30s, Agent 9   |
  * | Profile         | `profileKeys.current`               | `['profile', 'current']`                        | 5m             |
  *
  * Invalidation: favorite/rating/review/cook completion → `recipeKeys.all`.
- * Pantry writes → `pantryKeys.all`. Do not add a second `kitchen.*` tree.
+ * Pantry writes → `pantryKeys.all`. Shopping-list writes → `shoppingListKeys.all`.
+ * Meal-plan writes → `mealPlanKeys.all` and `shoppingListKeys.all`.
+ * Do not add a second `kitchen.*` tree.
  *
  * Recipe detail GET budget (Agent 8): `/recipes/:id`, `/pantry` (one list),
  * `/recipes/:id/nutrition`, deferred `/notes`, and `/categories` only when
@@ -60,6 +64,22 @@ export const pantryKeys = {
     [...pantryKeys.all, 'list', category ?? 'all'] as const,
 };
 
+export const shoppingListKeys = {
+  all: ['shopping-list'] as const,
+  list: (done?: boolean) =>
+    [
+      ...shoppingListKeys.all,
+      'list',
+      done === undefined ? 'all' : done,
+    ] as const,
+};
+
+export const mealPlanKeys = {
+  all: ['meal-plan'] as const,
+  range: (from: string, to: string) =>
+    [...mealPlanKeys.all, 'range', from, to] as const,
+};
+
 const cookSessionRoot = ['cook-sessions'] as const;
 
 export const cookSessionKeys = {
@@ -91,6 +111,8 @@ export const QUERY_FRESHNESS = {
   revisions: 60_000,
   nutrition: 15_000,
   pantry: 15_000,
+  shoppingList: 15_000,
+  mealPlan: 15_000,
   cookSessions: 15_000,
   collections: 30_000,
   profile: 5 * 60_000,

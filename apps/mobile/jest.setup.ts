@@ -98,6 +98,13 @@ jest.mock('expo-font', () => ({
   loadAsync: jest.fn(),
 }));
 
+jest.mock('@expo-google-fonts/inter', () => ({
+  Inter_500Medium: 1,
+  Inter_600SemiBold: 1,
+  Inter_700Bold: 1,
+  Inter_800ExtraBold: 1,
+}));
+
 jest.mock('@expo-google-fonts/manrope', () => ({
   Manrope_500Medium: 1,
   Manrope_600SemiBold: 1,
@@ -149,6 +156,30 @@ jest.mock('react-native-svg', () => {
     Polygon: create('Polygon'),
     Text: create('Text'),
   };
+});
+
+jest.mock('lucide-react-native', () => {
+  const React = require('react') as typeof import('react');
+  const { View } = require('react-native') as typeof import('react-native');
+
+  return new Proxy(
+    { __esModule: true },
+    {
+      get(target, prop) {
+        if (prop in target) {
+          return target[prop as keyof typeof target];
+        }
+        if (typeof prop !== 'string' || prop === 'then') {
+          return undefined;
+        }
+        function LucideIcon(props: Record<string, unknown>) {
+          return React.createElement(View, props as never);
+        }
+        LucideIcon.displayName = prop;
+        return LucideIcon;
+      },
+    },
+  );
 });
 
 jest.mock('expo-clipboard', () => ({

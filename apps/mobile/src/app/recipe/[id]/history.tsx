@@ -1,8 +1,10 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Pressable, RefreshControl, ScrollView, View } from 'react-native';
+import { ChevronLeft } from 'lucide-react-native';
 
 import { Button } from '@/components/ui/button';
 import { ContentSkeleton } from '@/components/ui/content-skeleton';
+import { IconButton } from '@/components/ui/icon-button';
 import { MotionItem } from '@/components/ui/motion-item';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
@@ -34,14 +36,12 @@ export default function RecipeHistoryScreen() {
           />
         }
       >
-        <Pressable
-          accessibilityRole="button"
+        <IconButton
           accessibilityLabel="Back"
           onPress={() => router.back()}
-          className="h-11 w-11 items-center justify-center"
         >
-          <Text className="text-[22px]">‹</Text>
-        </Pressable>
+          <ChevronLeft size={22} color={colors.espresso} strokeWidth={2.2} />
+        </IconButton>
         <Text variant="display">Revision history</Text>
         <Text variant="caption" className="pb-5 pt-2">
           {RESTORE_EXPLANATION}

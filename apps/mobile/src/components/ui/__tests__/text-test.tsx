@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react-native';
 
 import { Text, toneColors } from '@/components/ui/text';
-import { colors } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
 
 describe('Text', () => {
   test('default body uses espresso', async () => {
@@ -20,12 +20,24 @@ describe('Text', () => {
     });
   });
 
-  test('kicker defaults to paprika-600', async () => {
+  test('kicker defaults to paprika-600 on Inter', async () => {
     await render(<Text variant="kicker">MISE</Text>);
 
     expect(screen.getByText('MISE')).toHaveStyle({
       color: colors.paprikaPressed,
+      fontFamily: fonts.manrope600,
     });
+    expect(fonts.manrope600).toBe('Inter_600SemiBold');
+  });
+
+  test('section uses Inter, not mono', async () => {
+    await render(<Text variant="section">THIS WEEK</Text>);
+
+    expect(screen.getByText('THIS WEEK')).toHaveStyle({
+      fontFamily: fonts.manrope700,
+    });
+    expect(fonts.manrope700).toBe('Inter_700Bold');
+    expect(fonts.mono500).toBe('Inter_500Medium');
   });
 
   test('caller style color wins over tone', async () => {

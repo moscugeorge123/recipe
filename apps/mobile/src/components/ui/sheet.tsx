@@ -15,6 +15,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useKeyboardBottomInset } from '@/lib/keyboard';
 import { duration, reanimatedEasing, useReducedMotion } from '@/lib/motion';
 import { colors } from '@/theme/tokens';
 
@@ -34,6 +35,8 @@ export function Sheet({
   const reduced = useReducedMotion();
   const insets = useSafeAreaInsets();
   const { height: windowHeight } = useWindowDimensions();
+  const keyboard = useKeyboardBottomInset();
+  const keyboardPad = Math.max(0, keyboard.height);
   const [presented, setPresented] = useState(visible);
   const sheetHeight = useRef(0);
   const translateY = useSharedValue(visible ? 0 : windowHeight);
@@ -41,7 +44,7 @@ export function Sheet({
 
   useEffect(() => {
     if (visible) {
-      setPresented(true);
+      queueMicrotask(() => setPresented(true));
     }
   }, [visible]);
 
@@ -74,7 +77,7 @@ export function Sheet({
     if (reduced) {
       overlayOpacity.value = 0;
       translateY.value = travel;
-      setPresented(false);
+      queueMicrotask(() => setPresented(false));
       return;
     }
 
@@ -102,6 +105,8 @@ export function Sheet({
       return;
     }
 
+    // Shared values are mutated from layout; React Compiler treats them as render state.
+    // eslint-disable-next-line react-hooks/immutability -- Reanimated shared value
     translateY.value = nextHeight;
     if (reduced) {
       translateY.value = 0;
@@ -146,7 +151,10 @@ export function Sheet({
           onLayout={onSheetLayout}
           style={[
             sheetStyle,
-            { paddingBottom: Math.max(insets.bottom, 34) },
+            {
+              paddingBottom: Math.max(insets.bottom, 34),
+              marginBottom: keyboardPad,
+            },
           ]}
         >
           {children}

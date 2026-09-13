@@ -75,6 +75,8 @@ import { PrismaNutritionRepository } from '../../infrastructure/database/reposit
 import type { INutritionRepository } from '../../infrastructure/database/repositories/nutrition.repository.js';
 import { PrismaCollectionRepository } from '../../infrastructure/database/repositories/collection.repository.js';
 import { PrismaPantryRepository } from '../../infrastructure/database/repositories/pantry.repository.js';
+import { PrismaMealPlanRepository } from '../../infrastructure/database/repositories/meal-plan.repository.js';
+import { PrismaShoppingListRepository } from '../../infrastructure/database/repositories/shopping-list.repository.js';
 import { CollectionService } from '../../modules/collections/application/collection-service.js';
 import type { ICollectionRepository } from '../../modules/collections/repository/collection.repository.js';
 import { NutritionCalculator } from '../../modules/nutrition/application/nutrition-calculator.js';
@@ -96,6 +98,10 @@ import {
 import { IngredientOrganizer } from '../../modules/pantry/application/ingredient-organizer.js';
 import { PantryService } from '../../modules/pantry/application/pantry-service.js';
 import type { IPantryRepository } from '../../modules/pantry/repository/pantry.repository.js';
+import { MealPlanService } from '../../modules/meal-plan/application/meal-plan-service.js';
+import type { IMealPlanRepository } from '../../modules/meal-plan/repository/meal-plan.repository.js';
+import { ShoppingListService } from '../../modules/shopping-list/application/shopping-list-service.js';
+import type { IShoppingListRepository } from '../../modules/shopping-list/repository/shopping-list.repository.js';
 
 /**
  * Lightweight composition root. Grows as modules are wired in; no DI framework required.
@@ -121,6 +127,8 @@ export interface AppContainer {
     profileBootstrap: PrismaProfileBootstrapRepository;
     nutrition: INutritionRepository;
     pantry: IPantryRepository;
+    shoppingList: IShoppingListRepository;
+    mealPlan: IMealPlanRepository;
     collection: ICollectionRepository;
   };
   contentRegistry: ContentProviderRegistry;
@@ -136,6 +144,8 @@ export interface AppContainer {
   pipeline: RecipeExtractionPipeline;
   nutritionService: NutritionService;
   pantryService: PantryService;
+  shoppingListService: ShoppingListService;
+  mealPlanService: MealPlanService;
   collectionService: CollectionService;
   createQueue(): QueueProvider;
   createNutritionQueue(): QueueProvider;
@@ -189,6 +199,8 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     profileBootstrap: new PrismaProfileBootstrapRepository(prisma),
     nutrition: new PrismaNutritionRepository(prisma),
     pantry: new PrismaPantryRepository(prisma),
+    shoppingList: new PrismaShoppingListRepository(prisma),
+    mealPlan: new PrismaMealPlanRepository(prisma),
     collection: new PrismaCollectionRepository(prisma),
   };
 
@@ -326,6 +338,16 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     repositories.pantry,
     new IngredientOrganizer(appConfig, pantryCache, pantryLlm, pantryUsage),
   );
+  const shoppingListService = new ShoppingListService(
+    repositories.shoppingList,
+    repositories.pantry,
+    repositories.recipe,
+  );
+  const mealPlanService = new MealPlanService(
+    repositories.mealPlan,
+    repositories.recipe,
+    shoppingListService,
+  );
   const collectionService = new CollectionService(repositories.collection);
 
   return {
@@ -348,6 +370,8 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     pipeline,
     nutritionService,
     pantryService,
+    shoppingListService,
+    mealPlanService,
     collectionService,
     createQueue,
     createNutritionQueue,

@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 import { router } from 'expo-router';
+import { ChevronLeft, Search, X } from 'lucide-react-native';
 
 import { Screen } from '@/components/ui/screen';
+import { IconButton } from '@/components/ui/icon-button';
+import { TextInput } from '@/components/ui/text-input';
 import { SectionLabel } from '@/components/ui/section-label';
 import { Text } from '@/components/ui/text';
 import { PhotoStandIn } from '@/components/ui/photo-stand-in';
@@ -53,39 +56,39 @@ export default function SearchScreen() {
   return (
     <Screen className="px-5">
       <View className="flex-row items-center gap-2.5 pb-[18px] pt-1">
-        <Pressable
-          accessibilityRole="button"
+        <IconButton
           accessibilityLabel="Back"
           onPress={() => router.back()}
-          className="-ml-[11px] h-11 w-11 items-center justify-center"
+          className="-ml-[11px]"
         >
-          <Text className="text-[22px]" tone="icon">
-            ‹
-          </Text>
-        </Pressable>
+          <ChevronLeft size={22} color={colors.cocoa} strokeWidth={2.2} />
+        </IconButton>
         <View className="h-12 flex-1 flex-row items-center gap-2.5 rounded-[15px] border border-crust bg-peach px-[15px]">
-          <View className="h-3 w-3 rounded-full border-2 border-olive" />
+          <Search size={14} color={colors.olive} strokeWidth={2.2} />
           <TextInput
             value={query}
             onChangeText={setQuery}
             placeholder="pasta under 20 minutes"
             placeholderTextColor={colors.olive}
             accessibilityLabel="Search recipes"
-            className="flex-1 text-[15.5px]"
-            style={{ fontFamily: fonts.manrope600, color: colors.espresso }}
+            className="h-full flex-1 text-[15.5px]"
+            style={{
+              fontFamily: fonts.manrope600,
+              color: colors.espresso,
+              paddingVertical: 0,
+              textAlignVertical: 'center',
+              includeFontPadding: false,
+            }}
             onSubmitEditing={() => addRecentSearch(query)}
           />
           {query ? (
-            <Pressable
-              accessibilityRole="button"
+            <IconButton
               accessibilityLabel="Clear search"
               onPress={() => setQuery('')}
-              className="h-11 w-11 items-center justify-center rounded-[9px] bg-linen"
+              style={{ backgroundColor: colors.linen }}
             >
-              <Text className="text-[13px]" tone="muted">
-                ✕
-              </Text>
-            </Pressable>
+              <X size={16} color={colors.steam} strokeWidth={2.2} />
+            </IconButton>
           ) : null}
         </View>
       </View>

@@ -1,11 +1,10 @@
-import { screen, userEvent } from '@testing-library/react-native';
+import { fireEvent, screen, userEvent, waitFor } from '@testing-library/react-native';
 
 import { CollectionDetail } from '@/features/collections/collection-detail';
 import { renderWithProviders } from '@/test/render-with-providers';
 import type { CollectionDetail as CollectionDetailModel } from '@/features/collections/types';
 import type { RecipeListItemView } from '@/features/recipes/types';
 
-const mockReorder = jest.fn();
 const mockRemoveRecipe = jest.fn();
 const mockDelete = jest.fn();
 const mockRename = jest.fn();
@@ -32,8 +31,8 @@ jest.mock('@/features/recipes/hooks/use-recipes', () => ({
   useRecipes: () => ({ data: { items: [] } }),
 }));
 
-jest.mock('@/features/home/recipe-card', () => ({
-  RecipeCard: () => null,
+jest.mock('@/lib/haptics', () => ({
+  hapticMedium: jest.fn(() => Promise.resolve()),
 }));
 
 jest.mock('@/features/collections/hooks', () => ({
@@ -46,10 +45,6 @@ jest.mock('@/features/collections/hooks', () => ({
   useAddCollectionRecipe: () => ({ mutateAsync: mockAdd, isPending: false }),
   useRemoveCollectionRecipe: () => ({
     mutateAsync: mockRemoveRecipe,
-    isPending: false,
-  }),
-  useReorderCollectionRecipes: () => ({
-    mutateAsync: mockReorder,
     isPending: false,
   }),
 }));
@@ -117,7 +112,6 @@ function setQuery(
 
 describe('CollectionDetail', () => {
   beforeEach(() => {
-    mockReorder.mockReset().mockResolvedValue({});
     mockRemoveRecipe.mockReset().mockResolvedValue({});
     mockDelete.mockReset().mockResolvedValue({});
     mockRename.mockReset().mockResolvedValue({});
@@ -135,12 +129,35 @@ describe('CollectionDetail', () => {
     await renderWithProviders(
       <CollectionDetail collectionId={mockQueryState.data!.id} />,
     );
-    expect(
-      screen.getByText('Nothing in this collection yet.'),
-    ).toBeOnTheScreen();
+    expect(screen.getByText('Friends Dinners')).toBeOnTheScreen();
+    expect(screen.queryByText('Cookbook')).toBeNull();
+    expect(screen.getByText('Nothing in this cookbook yet.')).toBeOnTheScreen();
     expect(
       screen.getByRole('button', { name: 'Add a recipe' }),
     ).toBeOnTheScreen();
+  });
+
+  test('shows recipes in a library-style grid without actions', async () => {
+    await renderWithProviders(
+      <CollectionDetail collectionId="22222222-2222-4222-8222-222222222222" />,
+    );
+    expect(screen.getByLabelText('Soup')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Tart')).toBeOnTheScreen();
+    expect(screen.getByLabelText('Search recipes')).toBeOnTheScreen();
+    expect(screen.queryByRole('button', { name: 'Move Soup down' })).toBeNull();
+    expect(
+      screen.queryByRole('button', { name: 'Remove Soup from Friends Dinners' }),
+    ).toBeNull();
+  });
+
+  test('filters recipes by search', async () => {
+    const user = userEvent.setup();
+    await renderWithProviders(
+      <CollectionDetail collectionId="22222222-2222-4222-8222-222222222222" />,
+    );
+    await user.type(screen.getByLabelText('Search recipes'), 'sou');
+    expect(screen.getByLabelText('Soup')).toBeOnTheScreen();
+    expect(screen.queryByLabelText('Tart')).toBeNull();
   });
 
   test('shows an error state with retry', async () => {
@@ -149,23 +166,25 @@ describe('CollectionDetail', () => {
     await renderWithProviders(
       <CollectionDetail collectionId="22222222-2222-4222-8222-222222222222" />,
     );
-    expect(
-      screen.getByText('Couldn’t load this collection.'),
-    ).toBeOnTheScreen();
+    expect(screen.getByText('Couldn’t load this cookbook.')).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Retry' }));
     expect(mockRefetch).toHaveBeenCalled();
   });
 
-  test('reorders recipes with 44px move controls', async () => {
+  test('opens page actions from the menu button', async () => {
     const user = userEvent.setup();
     await renderWithProviders(
       <CollectionDetail collectionId="22222222-2222-4222-8222-222222222222" />,
     );
-    await user.press(screen.getByRole('button', { name: 'Move Soup down' }));
-    expect(mockReorder).toHaveBeenCalledWith([
-      '33333333-3333-4333-8333-333333333333',
-      '11111111-1111-4111-8111-111111111111',
-    ]);
+    await user.press(screen.getByRole('button', { name: 'More' }));
+    expect(screen.getByText('Options')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Rename Friends Dinners' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Add recipe' })).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Delete Friends Dinners' }),
+    ).toBeOnTheScreen();
   });
 
   test('confirms destructive delete without deleting recipes', async () => {
@@ -173,6 +192,7 @@ describe('CollectionDetail', () => {
     await renderWithProviders(
       <CollectionDetail collectionId="22222222-2222-4222-8222-222222222222" />,
     );
+    await user.press(screen.getByRole('button', { name: 'More' }));
     await user.press(
       screen.getByRole('button', { name: 'Delete Friends Dinners' }),
     );
@@ -181,5 +201,30 @@ describe('CollectionDetail', () => {
     ).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Keep' }));
     expect(mockDelete).not.toHaveBeenCalled();
+  });
+
+  test('removes a recipe from the cookbook via long-press options', async () => {
+    const user = userEvent.setup();
+    await renderWithProviders(
+      <CollectionDetail collectionId="22222222-2222-4222-8222-222222222222" />,
+    );
+
+    fireEvent(screen.getByLabelText('Soup'), 'accessibilityAction', {
+      nativeEvent: { actionName: 'longpress' },
+    });
+
+    expect(await screen.findByText('Options')).toBeOnTheScreen();
+    await user.press(
+      screen.getByRole('button', {
+        name: 'Remove Soup from Friends Dinners',
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mockRemoveRecipe).toHaveBeenCalledWith({
+        collectionId: '22222222-2222-4222-8222-222222222222',
+        recipeId: '11111111-1111-4111-8111-111111111111',
+      });
+    });
   });
 });

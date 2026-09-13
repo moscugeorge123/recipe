@@ -1,18 +1,24 @@
 appId: com.recipe.app
 ---
-# Best-effort recipe surface. Selectors are optional because a clean install has
-# no API recipes, and Expo Go cannot complete import → review against the API.
+# Best-effort recipe surface from the Recipes tab. Selectors are optional because
+# a clean install has no API recipes, and Expo Go cannot complete import → review.
 - launchApp
 - tapOn:
     text: Skip
     optional: true
-- assertVisible: LAST UPLOADED
-- assertVisible: MY RECIPES
+- assertVisible: Recipe
+- assertVisible: Cookbooks
 - tapOn:
-    text: Add your first recipe
+    text: All Recipes
+    optional: true
+- tapOn:
+    text: Capture a recipe
+    optional: true
+- tapOn:
+    text: Add a Recipe
     optional: true
 - assertVisible:
-    text: Send me anything.
+    text: Import from social media
     optional: true
 - tapOn:
     text: Website

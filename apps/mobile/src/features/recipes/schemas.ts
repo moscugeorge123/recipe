@@ -1,18 +1,11 @@
 import { z } from 'zod';
 
+import { isOneEmoji } from '@/features/recipes/emoji';
+
 export const recipeDifficultySchema = z.enum(['Easy', 'Medium', 'Hard']);
 const oneEmojiSchema = z
   .string()
-  .refine(
-    (value) =>
-      /\p{Extended_Pictographic}/u.test(value) &&
-      [
-        ...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
-          value,
-        ),
-      ].length === 1,
-    'Use one emoji',
-  );
+  .refine((value) => isOneEmoji(value), 'Use one emoji');
 
 export const recipeIngredientSchema = z.object({
   id: z.string(),

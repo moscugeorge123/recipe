@@ -1,16 +1,11 @@
 import '../global.css';
 
 import {
-  IBMPlexMono_500Medium,
-  IBMPlexMono_600SemiBold,
-  IBMPlexMono_700Bold,
-} from '@expo-google-fonts/ibm-plex-mono';
-import {
-  Manrope_500Medium,
-  Manrope_600SemiBold,
-  Manrope_700Bold,
-  Manrope_800ExtraBold,
-} from '@expo-google-fonts/manrope';
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+  Inter_800ExtraBold,
+} from '@expo-google-fonts/inter';
 import { useFonts } from 'expo-font';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -20,10 +15,13 @@ import { StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { CaptureSheet } from '@/components/capture/capture-sheet';
+import { KeyboardDock } from '@/components/ui/keyboard-dock';
 import { Toast } from '@/components/ui/toast';
 import { prefetchHomeQueries } from '@/features/home/prefetch';
 import { useKitchenMigration } from '@/features/kitchen/use-kitchen-migration';
 import { usePendingSyncFlush } from '@/features/kitchen/use-pending-sync';
+import { useLockWebDocumentScroll } from '@/lib/keyboard';
+import { stackPushAnimation, useReducedMotion } from '@/lib/motion';
 import { QueryProvider } from '@/lib/query-provider';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { useUiStore } from '@/stores/ui-store';
@@ -44,7 +42,7 @@ function usePreferencesHydrated(): boolean {
       setHydrated(true);
     });
     if (usePreferencesStore.persist.hasHydrated()) {
-      setHydrated(true);
+      queueMicrotask(() => setHydrated(true));
     }
     return unsub;
   }, []);
@@ -75,19 +73,19 @@ function OnboardingGate() {
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
-    Manrope_800ExtraBold,
-    IBMPlexMono_500Medium,
-    IBMPlexMono_600SemiBold,
-    IBMPlexMono_700Bold,
+    Inter_500Medium,
+    Inter_600SemiBold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
   });
   const [fontsGaveUp, setFontsGaveUp] = useState(false);
   const prefsHydrated = usePreferencesHydrated();
   const ready = (fontsLoaded || fontsGaveUp) && prefsHydrated;
   const toast = useUiStore((state) => state.toast);
   const hideToast = useUiStore((state) => state.hideToast);
+  const reducedMotion = useReducedMotion();
+  const pushAnimation = stackPushAnimation(reducedMotion);
+  useLockWebDocumentScroll();
 
   useEffect(() => {
     if (fontsLoaded) {
@@ -116,14 +114,22 @@ export default function RootLayout() {
       <QueryProvider>
         <KitchenDataHost />
         {ready ? (
-          <>
+          <KeyboardDock>
             <OnboardingGate />
-            <Stack screenOptions={{ headerShown: false, animation: 'none' }}>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                animation: pushAnimation,
+              }}
+            >
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="onboarding" />
               <Stack.Screen name="search" />
               <Stack.Screen name="shop" />
               <Stack.Screen name="pantry" />
+              <Stack.Screen name="groceries/add" />
+              <Stack.Screen name="plan/add" />
+              <Stack.Screen name="profile" />
               <Stack.Screen name="collection/[id]" />
               <Stack.Screen name="recipe/[id]" />
               <Stack.Screen name="recipe/[id]/edit" />
@@ -145,7 +151,7 @@ export default function RootLayout() {
             <CaptureSheet />
             <Toast toast={toast} />
             <StatusBar style="dark" />
-          </>
+          </KeyboardDock>
         ) : null}
       </QueryProvider>
     </GestureHandlerRootView>
@@ -155,6 +161,6 @@ export default function RootLayout() {
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: colors.cream,
+    backgroundColor: colors.page,
   },
 });

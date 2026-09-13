@@ -18,7 +18,6 @@ import { hapticMedium } from '@/lib/haptics';
 import { enterStep, useReducedMotion } from '@/lib/motion';
 import { useCookStore } from '@/stores/cook-store';
 import { useKitchenStore } from '@/stores/kitchen-store';
-import { usePreferencesStore } from '@/stores/preferences-store';
 import { CookShell, useCookTheme } from '@/theme/cook-shell';
 import { fonts } from '@/theme/tokens';
 
@@ -398,14 +397,18 @@ function CookStepInner() {
           {recipe.ingredients.map((ing) => (
             <View
               key={ing.id}
-              className="min-h-11 flex-row items-center justify-between border-b border-crust py-3"
+              className="min-h-11 flex-row items-center gap-3 border-b border-crust py-3"
             >
-              <Text className="flex-1" tone="icon">
-                {ing.name}
+              <Text className="w-7 text-center text-[16px]">
+                {ing.emoji ?? '🥣'}
               </Text>
-              <Text variant="caption">
+              <Text
+                className="min-w-[70px]"
+                style={{ fontFamily: fonts.manrope700 }}
+              >
                 {formatQty(ing.quantity, ing.unit, mult)}
               </Text>
+              <Text className="flex-1">{ing.name}</Text>
             </View>
           ))}
           <Button
@@ -421,9 +424,8 @@ function CookStepInner() {
 }
 
 export default function CookStepScreen() {
-  const theme = usePreferencesStore((state) => state.cookingTheme);
   return (
-    <CookShell theme={theme}>
+    <CookShell>
       <CookStepInner />
     </CookShell>
   );

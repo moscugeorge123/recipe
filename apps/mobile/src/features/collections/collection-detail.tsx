@@ -1,32 +1,38 @@
-import { router } from 'expo-router';
+import { type Href, router } from 'expo-router';
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Pressable, View } from 'react-native';
+import { ChevronLeft, Ellipsis } from 'lucide-react-native';
 
 import { Button } from '@/components/ui/button';
 import { ConfirmSheet } from '@/components/ui/confirm-sheet';
 import { ContentSkeleton } from '@/components/ui/content-skeleton';
+import { IconButton } from '@/components/ui/icon-button';
 import { InlineErrorPanel } from '@/components/ui/inline-error';
+import { KeyboardAwareScrollView } from '@/components/ui/keyboard-aware-scroll-view';
 import { MotionItem } from '@/components/ui/motion-item';
+import { PhotoStandIn } from '@/components/ui/photo-stand-in';
+import { PressScale } from '@/components/ui/press-scale';
 import { Screen } from '@/components/ui/screen';
 import { StaleIndicator } from '@/components/ui/stale-indicator';
 import { Sheet } from '@/components/ui/sheet';
 import { Text } from '@/components/ui/text';
+import { TextInput } from '@/components/ui/text-input';
 import { CollectionFormSheet } from '@/features/collections/collection-form-sheet';
+import { CookbookOptionsSheet } from '@/features/collections/cookbook-options-sheet';
+import { CookbookRecipeOptionsSheet } from '@/features/collections/cookbook-recipe-options-sheet';
 import { collectionDeleteCopy } from '@/features/collections/confirm-delete';
-import { CoverMosaic } from '@/features/collections/cover-mosaic';
 import {
   useAddCollectionRecipe,
   useCollection,
   useDeleteCollection,
   useRemoveCollectionRecipe,
   useRenameCollection,
-  useReorderCollectionRecipes,
 } from '@/features/collections/hooks';
-import { RecipeCard } from '@/features/home/recipe-card';
+import type { CollectionRecipe } from '@/features/collections/types';
 import { useRecipes } from '@/features/recipes/hooks/use-recipes';
 import { mapRecipeListItem } from '@/features/recipes/mapper';
 import { announce } from '@/lib/announce';
-import { showUndoToast } from '@/lib/undo-toast';
+import { hapticMedium } from '@/lib/haptics';
 import { mapUserError } from '@/lib/user-error';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -37,11 +43,14 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
   const removeCollection = useDeleteCollection();
   const addRecipe = useAddCollectionRecipe();
   const removeRecipe = useRemoveCollectionRecipe();
-  const reorder = useReorderCollectionRecipes(collectionId);
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameError, setRenameError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [recipeMenuTarget, setRecipeMenuTarget] =
+    useState<CollectionRecipe | null>(null);
+  const [search, setSearch] = useState('');
 
   const collection = query.data;
   const memberIds = useMemo(
@@ -55,32 +64,25 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
       ),
     [memberIds, recipesQuery.data?.items],
   );
+  const filteredRecipes = useMemo(() => {
+    const items = collection?.recipes ?? [];
+    const needle = search.trim().toLowerCase();
+    if (!needle) {
+      return items;
+    }
+    return items.filter((item) => item.title.toLowerCase().includes(needle));
+  }, [collection?.recipes, search]);
 
   const busy =
     rename.isPending ||
     removeCollection.isPending ||
     addRecipe.isPending ||
-    removeRecipe.isPending ||
-    reorder.isPending;
+    removeRecipe.isPending;
 
-  const move = (recipeId: string, direction: -1 | 1): void => {
-    if (!collection) {
-      return;
-    }
-    const ids = [...collection.recipeIds];
-    const index = ids.indexOf(recipeId);
-    const next = index + direction;
-    if (index < 0 || next < 0 || next >= ids.length) {
-      return;
-    }
-    const swap = ids[index]!;
-    ids[index] = ids[next]!;
-    ids[next] = swap;
-    void reorder.mutateAsync(ids).then(() => {
-      announce('Recipe order updated');
-    });
+  const openRecipeOptions = (recipe: CollectionRecipe): void => {
+    void hapticMedium();
+    setRecipeMenuTarget(recipe);
   };
-
   if (query.isLoading && !collection) {
     return (
       <Screen>
@@ -96,7 +98,7 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
       ? mapUserError(query.error, 'collections')
       : {
           code: undefined,
-          title: 'Couldn’t load this collection.',
+          title: 'Couldn’t load this cookbook.',
           message: 'Check your connection and try again.',
           actionLabel: 'Retry',
           retryable: true,
@@ -109,7 +111,7 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
             style={{ fontFamily: fonts.manrope700 }}
             className="pb-4 text-[19px]"
           >
-            {notFound ? mapped.title : 'Couldn’t load this collection.'}
+            {notFound ? mapped.title : 'Couldn’t load this cookbook.'}
           </Text>
           <InlineErrorPanel
             message={
@@ -136,27 +138,63 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
 
   return (
     <Screen>
-      <ScrollView
+      <KeyboardAwareScrollView
         contentContainerClassName="pb-10"
         showsVerticalScrollIndicator={false}
       >
-        <View className="flex-row items-center gap-3 px-5 pb-4 pt-1">
-          <Pressable
-            accessibilityRole="button"
+        <View className="mb-1 flex-row items-center gap-3 px-5 pb-3 pt-1">
+          <IconButton
             accessibilityLabel="Back"
             onPress={() => router.back()}
-            className="h-11 w-11 items-center justify-center"
+            style={{ backgroundColor: colors.cream }}
           >
-            <Text className="text-[22px]">‹</Text>
-          </Pressable>
-          <Text variant="display" accessibilityRole="header" className="flex-1">
+            <ChevronLeft size={22} color={colors.cta} strokeWidth={2.2} />
+          </IconButton>
+          <Text
+            accessibilityRole="header"
+            className="min-w-0 flex-1 text-center text-[16px]"
+            style={{ fontFamily: fonts.manrope500 }}
+            numberOfLines={1}
+          >
             {collection.name}
           </Text>
+          <IconButton
+            accessibilityLabel="More"
+            onPress={() => setMenuOpen(true)}
+            style={{ backgroundColor: colors.cream }}
+          >
+            <Ellipsis size={22} color={colors.espresso} strokeWidth={2} />
+          </IconButton>
         </View>
+
+        <View className="px-5 pb-4">
+          <View
+            className="h-12 flex-row items-center rounded-[24px] border border-crust px-4"
+            style={{ backgroundColor: colors.searchFill }}
+          >
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search recipes"
+              placeholderTextColor={colors.tabInactive}
+              accessibilityLabel="Search recipes"
+              className="h-full flex-1 text-[15px]"
+              style={{
+                fontFamily: fonts.manrope500,
+                color: colors.espresso,
+                paddingVertical: 0,
+                textAlignVertical: 'center',
+                includeFontPadding: false,
+              }}
+              returnKeyType="search"
+            />
+          </View>
+        </View>
+
         {collection.fromCache ? (
           <StaleIndicator
             className="px-5 pb-3"
-            message="Showing the last saved collection."
+            message="Showing the last saved cookbook."
           />
         ) : null}
         {query.isError ? (
@@ -179,53 +217,6 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
             />
           </View>
         ) : null}
-        <View className="px-5">
-          <CoverMosaic covers={collection.coverPreviews} height={72} />
-          <Text variant="caption">
-            {collection.recipeCount}{' '}
-            {collection.recipeCount === 1 ? 'recipe' : 'recipes'}
-          </Text>
-          <View className="flex-row gap-2 pt-3">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Rename ${collection.name}`}
-              onPress={() => {
-                setRenameError(null);
-                setRenameOpen(true);
-              }}
-              className="min-h-11 flex-1 justify-center rounded-[14px] bg-peach px-3"
-            >
-              <Text className="text-center text-[13px]" tone="icon">
-                Rename
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Add recipe"
-              onPress={() => setAddOpen(true)}
-              className="min-h-11 flex-1 justify-center rounded-[14px] px-3"
-              style={{ backgroundColor: colors.basilSoft }}
-            >
-              <Text className="text-center text-[13px]" tone="icon">
-                Add recipe
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={`Delete ${collection.name}`}
-              onPress={() => setDeleteOpen(true)}
-              className="min-h-11 flex-1 justify-center rounded-[14px] px-3"
-              style={{ backgroundColor: colors.chili50 }}
-            >
-              <Text
-                className="text-center text-[13px]"
-                style={{ color: colors.chili }}
-              >
-                Delete
-              </Text>
-            </Pressable>
-          </View>
-        </View>
 
         {collection.recipes.length === 0 ? (
           <View className="items-center px-5 pt-[30px]">
@@ -233,83 +224,121 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
               style={{ fontFamily: fonts.manrope700 }}
               className="text-[19px]"
             >
-              Nothing in this collection yet.
+              Nothing in this cookbook yet.
             </Text>
             <Text variant="caption" className="py-2.5 text-center">
               Add a recipe from here or from a recipe page.
             </Text>
             <Button label="Add a recipe" onPress={() => setAddOpen(true)} />
           </View>
+        ) : filteredRecipes.length === 0 ? (
+          <View className="items-center px-5 pt-6">
+            <Text
+              style={{ fontFamily: fonts.manrope700 }}
+              className="text-[17px]"
+            >
+              No recipes match that search.
+            </Text>
+          </View>
         ) : (
-          <View className="px-5 pt-5">
-            {collection.recipes.map((item, index) => {
+          <View className="flex-row flex-wrap gap-3.5 px-5">
+            {filteredRecipes.map((item, index) => {
               const recipe = mapRecipeListItem(item);
               return (
                 <MotionItem
                   key={item.id}
                   preset="card"
                   index={index}
-                  layout
-                  className="mb-5"
+                  className="w-[47%]"
                 >
-                  <RecipeCard recipe={recipe} photoHeight={132} />
-                  <View className="flex-row gap-2 pt-2">
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Move ${item.title} up`}
-                      disabled={busy || index === 0}
-                      onPress={() => move(item.id, -1)}
-                      className="min-h-11 flex-1 items-center justify-center rounded-[14px] bg-linen"
+                  <PressScale
+                    accessibilityRole="button"
+                    accessibilityLabel={recipe.title}
+                    accessibilityHint="Long press for options"
+                    accessibilityActions={[
+                      { name: 'longpress', label: 'Options' },
+                    ]}
+                    onAccessibilityAction={(event) => {
+                      if (event.nativeEvent.actionName === 'longpress') {
+                        openRecipeOptions(item);
+                      }
+                    }}
+                    testID={`collection-recipe-${recipe.id}`}
+                    onPress={() =>
+                      router.push(`/recipe/${recipe.id}` as Href)
+                    }
+                    onLongPress={() => openRecipeOptions(item)}
+                    delayLongPress={350}
+                  >
+                    <PhotoStandIn
+                      colors={recipe.placeholder}
+                      height={148}
+                      radius={16}
+                      uri={recipe.thumbnailUrl}
+                      label="photo"
+                    />
+                    <Text
+                      className="pt-[10px] text-[15px] leading-[1.28]"
+                      style={{ fontFamily: fonts.manrope700 }}
+                      numberOfLines={2}
                     >
-                      <Text tone="icon">Up</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Move ${item.title} down`}
-                      disabled={busy || index === collection.recipes.length - 1}
-                      onPress={() => move(item.id, 1)}
-                      className="min-h-11 flex-1 items-center justify-center rounded-[14px] bg-linen"
-                    >
-                      <Text tone="icon">Down</Text>
-                    </Pressable>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel={`Remove ${item.title} from ${collection.name}`}
-                      disabled={busy}
-                      onPress={() => {
-                        void removeRecipe
-                          .mutateAsync({
-                            collectionId: collection.id,
-                            recipeId: item.id,
-                          })
-                          .then(() => {
-                            announce(
-                              `${item.title} removed from ${collection.name}`,
-                            );
-                            showUndoToast(`${item.title} removed`, () => {
-                              void addRecipe.mutateAsync({
-                                collectionId: collection.id,
-                                recipeId: item.id,
-                              });
-                            });
-                          });
-                      }}
-                      className="min-h-11 flex-1 items-center justify-center rounded-[14px]"
-                      style={{ backgroundColor: colors.chili50 }}
-                    >
-                      <Text style={{ color: colors.chili }}>Remove</Text>
-                    </Pressable>
-                  </View>
+                      {recipe.title}
+                    </Text>
+                  </PressScale>
                 </MotionItem>
               );
             })}
           </View>
         )}
-      </ScrollView>
+      </KeyboardAwareScrollView>
+
+      <CookbookOptionsSheet
+        visible={menuOpen}
+        collectionName={collection.name}
+        onClose={() => setMenuOpen(false)}
+        onRename={() => {
+          setMenuOpen(false);
+          setRenameError(null);
+          setRenameOpen(true);
+        }}
+        onAddRecipe={() => {
+          setMenuOpen(false);
+          setAddOpen(true);
+        }}
+        onDelete={() => {
+          setMenuOpen(false);
+          setDeleteOpen(true);
+        }}
+      />
+
+      <CookbookRecipeOptionsSheet
+        visible={!!recipeMenuTarget}
+        recipeTitle={recipeMenuTarget?.title ?? ''}
+        collectionName={collection.name}
+        onClose={() => setRecipeMenuTarget(null)}
+        onRemove={() => {
+          if (!recipeMenuTarget) {
+            return;
+          }
+          const target = recipeMenuTarget;
+          setRecipeMenuTarget(null);
+          void removeRecipe
+            .mutateAsync({
+              collectionId: collection.id,
+              recipeId: target.id,
+            })
+            .then(() => {
+              announce(`${target.title} removed from ${collection.name}`);
+            })
+            .catch((error: unknown) => {
+              announce(mapUserError(error, 'collections').message);
+            });
+        }}
+      />
 
       <CollectionFormSheet
         visible={renameOpen}
-        title="Rename collection"
+        title="Rename cookbook"
         submitLabel="Save name"
         initialName={collection.name}
         pending={rename.isPending}
@@ -332,7 +361,6 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
             });
         }}
       />
-
       <Sheet
         visible={addOpen}
         onClose={() => setAddOpen(false)}
@@ -382,7 +410,7 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
         visible={deleteOpen}
         title={collectionDeleteCopy(collection.name).title}
         message={collectionDeleteCopy(collection.name).message}
-        confirmLabel="Delete collection"
+        confirmLabel="Delete cookbook"
         cancelLabel="Keep"
         destructive
         pending={removeCollection.isPending}

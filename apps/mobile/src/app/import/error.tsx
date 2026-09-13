@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Screen } from '@/components/ui/screen';
 import { Text } from '@/components/ui/text';
 import { importErrorCopy } from '@/lib/user-error';
+import { colors, fonts } from '@/theme/tokens';
 
 export default function ImportErrorScreen() {
   const { code = 'EXTRACTION_FAILED', source } = useLocalSearchParams<{
@@ -20,6 +21,17 @@ export default function ImportErrorScreen() {
   return (
     <Screen className="px-5">
       <ScrollView contentContainerClassName="flex-1 justify-center pb-10">
+        <Text
+          accessibilityRole="header"
+          className="mb-6"
+          style={{
+            fontFamily: fonts.manrope800,
+            fontSize: 22,
+            color: colors.paprika,
+          }}
+        >
+          Recipe
+        </Text>
         <View className="mb-4 self-start">
           <DaisyMascot phase="error" size={132} showCards={false} />
         </View>

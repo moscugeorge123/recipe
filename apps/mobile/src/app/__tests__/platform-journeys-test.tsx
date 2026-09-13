@@ -2,24 +2,33 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, screen, userEvent, waitFor } from '@testing-library/react-native';
 import { useLocalSearchParams } from 'expo-router';
 
-import HomeScreen from '@/app/(tabs)/index';
+import DiscoverScreen from '@/app/(tabs)/discover';
+import ExploreScreen from '@/app/(tabs)/explore';
+import GroceriesScreen from '@/app/(tabs)/groceries';
+import RecipesScreen from '@/app/(tabs)/index';
+import KitchenScreen from '@/app/(tabs)/kitchen';
+import YouScreen from '@/app/(tabs)/you';
 import ReviewScreen from '@/app/import/review/[id]';
 import PantryScreen from '@/app/pantry';
+import ShopScreen from '@/app/shop';
 import RecipeHistoryScreen from '@/app/recipe/[id]/history';
-import KitchenScreen from '@/app/(tabs)/kitchen';
 import { NutritionPanelView } from '@/features/nutrition/nutrition-panel';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { usePreferencesStore } from '@/stores/preferences-store';
 import { renderWithProviders } from '@/test/render-with-providers';
 
-jest.mock('expo-router', () => ({
-  router: {
-    back: jest.fn(),
-    push: jest.fn(),
-    replace: jest.fn(),
-  },
-  useLocalSearchParams: jest.fn(),
-}));
+jest.mock('expo-router', () => {
+  const { Text } = require('react-native') as typeof import('react-native');
+  return {
+    router: {
+      back: jest.fn(),
+      push: jest.fn(),
+      replace: jest.fn(),
+    },
+    useLocalSearchParams: jest.fn(),
+    Redirect: ({ href }: { href: string }) => <Text>{`Redirect ${href}`}</Text>,
+  };
+});
 
 const params = jest.mocked(useLocalSearchParams);
 
@@ -86,39 +95,47 @@ describe('platform journeys', () => {
     ).toBeOnTheScreen();
   });
 
-  test('kitchen exposes pantry organize and collections on a clean install', async () => {
-    jest.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
-      const url = String(input);
-      if (url.includes('/cook-sessions')) {
-        return jsonResponse(emptyList);
-      }
-      return jsonResponse(emptyList);
-    });
-
-    const user = userEvent.setup();
+  test('kitchen redirects to Recipes', async () => {
     await renderWithProviders(<KitchenScreen />);
-
-    expect(await screen.findByText('My kitchen')).toBeOnTheScreen();
-    expect(
-      screen.getByRole('button', { name: 'Open pantry' }),
-    ).toBeOnTheScreen();
-    await user.press(
-      screen.getByRole('button', { name: 'Filter your kitchen' }),
-    );
-    await user.press(screen.getByRole('radio', { name: /Collections/ }));
-    await user.press(screen.getByRole('button', { name: 'Show results' }));
-    expect(
-      await screen.findByRole('button', { name: 'New collection' }),
-    ).toBeOnTheScreen();
+    expect(screen.getByText('Redirect /')).toBeOnTheScreen();
   });
 
-  test('home keeps Last uploaded and My recipes as separate sections', async () => {
+  test('explore redirects to Discover', async () => {
+    await renderWithProviders(<ExploreScreen />);
+    expect(screen.getByText('Redirect /discover')).toBeOnTheScreen();
+  });
+
+  test('discover is an empty placeholder', async () => {
+    await renderWithProviders(<DiscoverScreen />);
+    expect(screen.getByRole('header', { name: 'Discover' })).toBeOnTheScreen();
+    expect(screen.getByText('Nothing here yet.')).toBeOnTheScreen();
+  });
+
+  test('you redirects to Profile', async () => {
+    await renderWithProviders(<YouScreen />);
+    expect(screen.getByText('Redirect /profile')).toBeOnTheScreen();
+  });
+
+  test('pantry redirects to Groceries', async () => {
+    await renderWithProviders(<PantryScreen />);
+    expect(screen.getByText('Redirect /groceries')).toBeOnTheScreen();
+  });
+
+  test('shop redirects to Groceries', async () => {
+    await renderWithProviders(<ShopScreen />);
+    expect(screen.getByText('Redirect /groceries')).toBeOnTheScreen();
+  });
+
+  test('recipes tab shows the orange wordmark instead of Home feed sections', async () => {
     jest
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async () => jsonResponse(emptyList));
-    await renderWithProviders(<HomeScreen />);
-    expect(await screen.findByText('LAST UPLOADED')).toBeOnTheScreen();
-    expect(screen.getByText('MY RECIPES')).toBeOnTheScreen();
+    await renderWithProviders(<RecipesScreen />);
+    expect(
+      await screen.findByRole('header', { name: 'Recipe' }),
+    ).toBeOnTheScreen();
+    expect(screen.queryByText('LAST UPLOADED')).toBeNull();
+    expect(screen.queryByText('MY RECIPES')).toBeNull();
   });
 
   test('nutrition toggle stays on the panel without dropping macros', async () => {
@@ -179,7 +196,7 @@ describe('platform journeys', () => {
     ).toBeOnTheScreen();
   });
 
-  test('pantry organize keeps typed text, previews, and saves', async () => {
+  test('groceries pantry organize keeps typed text, previews, and saves', async () => {
     let saved = false;
     jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
       const url = String(input);
@@ -285,15 +302,23 @@ describe('platform journeys', () => {
           },
         });
       }
+      if (url.includes('/shopping-list') && method === 'GET') {
+        return jsonResponse({
+          data: [],
+          meta: { page: 1, pageSize: 100, total: 0, totalPages: 0 },
+        });
+      }
       return jsonResponse(emptyList);
     });
 
     const user = userEvent.setup();
-    await renderWithProviders(<PantryScreen />);
+    await renderWithProviders(<GroceriesScreen />);
 
     expect(
-      await screen.findByRole('header', { name: 'Pantry' }),
+      await screen.findByRole('header', { name: 'Grocery List' }),
     ).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Pantry' }));
+    await user.press(screen.getByRole('button', { name: 'Add to pantry' }));
     expect(
       screen.getByText(/Nothing saved yet. Organize a list and accept it./),
     ).toBeOnTheScreen();
