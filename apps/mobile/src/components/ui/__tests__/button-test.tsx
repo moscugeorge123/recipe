@@ -74,12 +74,7 @@ describe('Button', () => {
 
   test('ghost icon size uses a paper disc', async () => {
     await render(
-      <Button
-        label="Back"
-        size="icon"
-        variant="ghost"
-        icon={<Text>‹</Text>}
-      />,
+      <Button label="Back" size="icon" variant="ghost" icon={<Text>‹</Text>} />,
     );
 
     expect(screen.getByRole('button', { name: 'Back' })).toHaveStyle({
@@ -87,11 +82,11 @@ describe('Button', () => {
     });
   });
 
-  test('ghost uses paprika label on a transparent fill', async () => {
+  test('ghost uses black label on a transparent fill', async () => {
     await render(<Button label="Skip" variant="ghost" />);
 
     expect(screen.getByText('Skip')).toHaveStyle({
-      color: colors.paprika,
+      color: colors.espresso,
     });
   });
 
@@ -107,6 +102,30 @@ describe('Button', () => {
     await render(<Button label="Skip" variant="ghost" disabled />);
 
     expect(screen.getByRole('button', { name: 'Skip' })).toHaveStyle({
+      opacity: 0.5,
+    });
+  });
+
+  test('link uses paprika label on a transparent fill with icon and text', async () => {
+    await render(
+      <Button label="Add to groceries" variant="link" icon={<Text>🛒</Text>} />,
+    );
+
+    expect(
+      screen.getByRole('button', { name: 'Add to groceries' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByText('Add to groceries')).toHaveStyle({
+      color: colors.paprikaPressed,
+    });
+    expect(screen.getByText('🛒')).toBeOnTheScreen();
+  });
+
+  test('link disabled keeps 50% opacity', async () => {
+    await render(<Button label="Add to groceries" variant="link" disabled />);
+
+    expect(
+      screen.getByRole('button', { name: 'Add to groceries' }),
+    ).toHaveStyle({
       opacity: 0.5,
     });
   });

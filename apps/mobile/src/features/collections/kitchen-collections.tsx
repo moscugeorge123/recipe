@@ -198,7 +198,7 @@ export function KitchenCollections() {
             className="w-[47%] rounded-[18px] border border-dashed border-crust bg-bg-elevated p-[15px]"
           >
             <CoverMosaic
-              covers={collection.recipeIds.slice(0, 3).map((id) => ({
+              covers={collection.recipeIds.slice(0, 4).map((id) => ({
                 recipeId: id,
                 thumbnailUrl: catalog.get(id)?.thumbnailUrl ?? null,
                 placeholder: catalog.get(id)?.placeholder,

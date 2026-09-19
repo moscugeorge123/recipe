@@ -10,7 +10,7 @@ import type {
   ICollectionRepository,
 } from '../../../modules/collections/repository/collection.repository.js';
 
-const COVER_LIMIT = 3;
+const COVER_LIMIT = 4;
 
 const memberInclude = {
   userRecipe: {

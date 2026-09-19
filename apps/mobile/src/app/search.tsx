@@ -63,7 +63,10 @@ export default function SearchScreen() {
         >
           <ChevronLeft size={22} color={colors.cocoa} strokeWidth={2.2} />
         </IconButton>
-        <View className="h-12 flex-1 flex-row items-center gap-2.5 rounded-[15px] border border-crust bg-peach px-[15px]">
+        <View
+          className="h-12 flex-1 flex-row items-center gap-2.5 rounded-[15px] border border-crust px-[15px]"
+          style={{ backgroundColor: colors.searchFill }}
+        >
           <Search size={14} color={colors.olive} strokeWidth={2.2} />
           <TextInput
             value={query}

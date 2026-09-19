@@ -187,8 +187,9 @@ export function RecipeNotesPanel({
         accessibilityLabel="New recipe note"
         multiline
         textAlignVertical="top"
-        className="mt-3 min-h-[88px] rounded-[16px] bg-linen p-4"
+        className="mt-3 min-h-[88px] rounded-[16px] p-4"
         style={{
+          backgroundColor: colors.searchFill,
           color: colors.espresso,
           fontFamily: fonts.manrope500,
           fontSize: 15,

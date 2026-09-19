@@ -1,23 +1,43 @@
+import { ShoppingBasket } from 'lucide-react-native';
 import { View } from 'react-native';
 
+import { Button } from '@/components/ui/button';
 import { Text } from '@/components/ui/text';
 import { formatQty } from '@/features/recipes/plan';
 import type { RecipeIngredientView } from '@/features/recipes/types';
-import { fonts } from '@/theme/tokens';
+import { colors, fonts } from '@/theme/tokens';
 
 type RecipePantrySectionProps = {
   ingredients: RecipeIngredientView[];
   haveCount: number;
   multiplier: number;
+  onAddToGroceries?: () => void;
 };
 
 export function RecipePantrySection({
   ingredients,
   haveCount,
   multiplier,
+  onAddToGroceries,
 }: RecipePantrySectionProps) {
   return (
     <View>
+      {onAddToGroceries ? (
+        <Button
+          label="Add to groceries"
+          variant="link"
+          onPress={onAddToGroceries}
+          icon={
+            <ShoppingBasket
+              size={18}
+              color={colors.paprikaPressed}
+              strokeWidth={2}
+              accessibilityElementsHidden
+              importantForAccessibility="no"
+            />
+          }
+        />
+      ) : null}
       {haveCount > 0 ? (
         <Text variant="caption" className="pt-1">
           {haveCount} already in Pantry

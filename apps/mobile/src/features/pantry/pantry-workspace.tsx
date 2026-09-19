@@ -110,8 +110,9 @@ export function PantryWorkspace({
             onChangeText={onChangeDraft}
             placeholder={'olive oil\n2 tomatoes, salt'}
             placeholderTextColor={colors.olive}
-            className="min-h-[140px] rounded-[16px] border border-crust bg-peach px-4 py-3 text-[15.5px]"
+            className="min-h-[140px] rounded-[16px] border border-crust px-4 py-3 text-[15.5px]"
             style={{
+              backgroundColor: colors.searchFill,
               fontFamily: fonts.manrope600,
               color: colors.espresso,
               textAlignVertical: 'top',

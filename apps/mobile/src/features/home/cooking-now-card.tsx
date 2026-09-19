@@ -60,18 +60,20 @@ export function CookingNowCard() {
       </View>
       <View className="flex-row gap-2">
         <Button
-          label="Resume"
-          size="md"
-          className="flex-1"
-          onPress={() => router.push(`/cook/${cooking.recipeId}/step`)}
-        />
-        <Button
           label="Stop"
-          variant="ghost"
+          variant="inverse"
           size="md"
           className="flex-1"
           style={{ borderWidth: 1, borderColor: colors.steamedMilk }}
           onPress={() => setStopOpen(true)}
+        />
+        <Button
+          label="Resume"
+          variant="primary"
+          size="md"
+          className="flex-1"
+          style={{ backgroundColor: colors.paprika }}
+          onPress={() => router.push(`/cook/${cooking.recipeId}/step`)}
         />
       </View>
       <ConfirmSheet

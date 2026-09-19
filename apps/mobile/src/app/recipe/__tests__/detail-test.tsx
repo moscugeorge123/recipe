@@ -9,6 +9,7 @@ import {
   uniqueRecipeDetailGets,
 } from '@/features/recipes/detail-request-budget';
 import { renderWithProviders } from '@/test/render-with-providers';
+import { colors } from '@/theme/tokens';
 
 jest.mock('expo-router', () => ({
   router: {
@@ -186,6 +187,7 @@ function mockDetailFetch(options?: {
   favorite?: boolean;
   rating?: number | null;
   cookCount?: number;
+  shoppingItems?: unknown[];
 }) {
   const extras = Array.from(
     { length: options?.extraIngredients ?? 0 },
@@ -206,6 +208,21 @@ function mockDetailFetch(options?: {
       const method = (init?.method ?? 'GET').toUpperCase();
       if (url.includes('/shopping-list/from-recipe') && method === 'POST') {
         return jsonResponse({ data: [] }, 201);
+      }
+      if (url.includes('/shopping-list/items') && method === 'POST') {
+        return jsonResponse({ data: [] }, 201);
+      }
+      if (url.includes('/shopping-list') && method === 'GET') {
+        const items = options?.shoppingItems ?? [];
+        return jsonResponse({
+          data: items,
+          meta: {
+            page: 1,
+            pageSize: 100,
+            total: items.length,
+            totalPages: 1,
+          },
+        });
       }
       if (url.includes('/pantry') && method === 'GET') {
         return jsonResponse({
@@ -299,10 +316,10 @@ describe('RecipeDetailScreen', () => {
 
   test('keeps identity, start cooking, pantry, nutrition, collections', async () => {
     mockDetailFetch();
+    const user = userEvent.setup();
     await renderWithProviders(<RecipeDetailScreen />);
 
     expect(await screen.findByText('Charred Broccoli Soup')).toBeOnTheScreen();
-    expect(screen.getByText('Dinner')).toBeOnTheScreen();
     expect(screen.queryByText(/cooked/i)).toBeNull();
     expect(screen.queryByText('YOUR RATING')).toBeNull();
     expect(screen.queryByText('NOTES')).toBeNull();
@@ -318,33 +335,42 @@ describe('RecipeDetailScreen', () => {
     ).toBeOnTheScreen();
     expect(screen.queryByText(/YOU HAVE/)).toBeNull();
     expect(screen.queryByText(/TO BUY/)).toBeNull();
-    expect(screen.getByText('Olive oil')).toBeOnTheScreen();
-    expect(screen.getByText('NUTRITION')).toBeOnTheScreen();
     expect(
-      screen.getByRole('button', { name: 'Add to cookbooks' }),
+      screen.getByRole('button', { name: 'Ingredients' }),
+    ).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Steps' })).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Calories' })).toBeOnTheScreen();
+    expect(screen.getByText('Olive oil')).toBeOnTheScreen();
+    expect(
+      screen.getByRole('button', { name: 'Add to cookbook' }),
     ).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'Edit' })).toBeOnTheScreen();
     expect(screen.getByRole('button', { name: 'More' })).toBeOnTheScreen();
 
+    await user.press(screen.getByRole('button', { name: 'Calories' }));
+    expect(await screen.findByText('NUTRITION')).toBeOnTheScreen();
+
     const json = JSON.stringify(screen.toJSON());
-    const cookbooks = json.indexOf('Add to cookbooks');
+    const cookbook = json.indexOf('Add to cookbook');
     const nutrition = json.indexOf('NUTRITION');
     const start = json.indexOf('Start cooking');
     const decreaseServings = json.indexOf('Decrease servings');
-    expect(cookbooks).toBeGreaterThan(-1);
-    expect(nutrition).toBeGreaterThan(cookbooks);
+    expect(cookbook).toBeGreaterThan(-1);
+    expect(nutrition).toBeGreaterThan(cookbook);
     expect(start).toBeGreaterThan(nutrition);
     expect(decreaseServings).toBeGreaterThan(nutrition);
   });
 
   test('nutrition failure still leaves the recipe and start cooking visible', async () => {
     mockDetailFetch({ nutritionError: true });
+    const user = userEvent.setup();
     await renderWithProviders(<RecipeDetailScreen />);
 
     expect(await screen.findByText('Charred Broccoli Soup')).toBeOnTheScreen();
     expect(
       screen.getByRole('button', { name: 'Start cooking' }),
     ).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Calories' }));
     expect(
       await screen.findByText(/couldn’t load nutrition/i),
     ).toBeOnTheScreen();
@@ -353,16 +379,14 @@ describe('RecipeDetailScreen', () => {
     ).toBeOnTheScreen();
   });
 
-  test('favorite updates optimistically', async () => {
+  test('opens cookbook drawer from the cookbook action', async () => {
     mockDetailFetch();
     const user = userEvent.setup();
     await renderWithProviders(<RecipeDetailScreen />);
 
     await screen.findByText('Charred Broccoli Soup');
-    await user.press(screen.getByRole('button', { name: 'Pin recipe' }));
-    expect(
-      await screen.findByRole('button', { name: 'Unpin recipe' }),
-    ).toBeOnTheScreen();
+    await user.press(screen.getByRole('button', { name: 'Add to cookbook' }));
+    expect(await screen.findByText('File this recipe')).toBeOnTheScreen();
   });
 
   test('nutrition modes stay on the recipe page', async () => {
@@ -370,6 +394,8 @@ describe('RecipeDetailScreen', () => {
     const user = userEvent.setup();
     await renderWithProviders(<RecipeDetailScreen />);
 
+    await screen.findByText('Charred Broccoli Soup');
+    await user.press(screen.getByRole('button', { name: 'Calories' }));
     expect(await screen.findByText('100')).toBeOnTheScreen();
     await user.press(screen.getByRole('button', { name: 'Per 100g' }));
     expect(screen.getByText('50')).toBeOnTheScreen();
@@ -378,13 +404,15 @@ describe('RecipeDetailScreen', () => {
     ).toBeOnTheScreen();
   });
 
-  test('exposes 44px favorite and start-cooking targets', async () => {
+  test('exposes 44px cookbook and start-cooking targets', async () => {
     mockDetailFetch();
     await renderWithProviders(<RecipeDetailScreen />);
     await screen.findByText('Charred Broccoli Soup');
-    expect(screen.getByRole('button', { name: 'Pin recipe' })).toHaveStyle({
-      minHeight: 44,
-    });
+    expect(screen.getByRole('button', { name: 'Add to cookbook' })).toHaveStyle(
+      {
+        minHeight: 44,
+      },
+    );
     expect(
       screen.getByRole('button', { name: 'Start cooking' }),
     ).toBeOnTheScreen();
@@ -392,8 +420,10 @@ describe('RecipeDetailScreen', () => {
 
   test('does not fan out unbounded requests as ingredients grow', async () => {
     const fetchSpy = mockDetailFetch({ extraIngredients: 12 });
+    const user = userEvent.setup();
     await renderWithProviders(<RecipeDetailScreen />);
     await screen.findByText('Charred Broccoli Soup');
+    await user.press(screen.getByRole('button', { name: 'Calories' }));
     await screen.findByText('NUTRITION');
 
     const urls = fetchSpy.mock.calls.map(([input]) => String(input));
@@ -411,5 +441,30 @@ describe('RecipeDetailScreen', () => {
     );
     expect(recipeGets.length).toBeGreaterThan(0);
     expect(recipeGets.length).toBeLessThan(4);
+  });
+
+  test('puts an add-to-groceries link above ingredients and opens the shelf sheet', async () => {
+    mockDetailFetch();
+    const user = userEvent.setup();
+    await renderWithProviders(<RecipeDetailScreen />);
+    await screen.findByText('Charred Broccoli Soup');
+
+    const addButtons = screen.getAllByRole('button', {
+      name: 'Add to groceries',
+    });
+    expect(addButtons).toHaveLength(1);
+    expect(screen.getByText('Add to groceries')).toHaveStyle({
+      color: colors.paprikaPressed,
+    });
+
+    const json = JSON.stringify(screen.toJSON());
+    expect(json.indexOf('Add to groceries')).toBeLessThan(
+      json.indexOf('Olive oil'),
+    );
+
+    await user.press(addButtons[0]!);
+    expect(await screen.findByText('PANTRY')).toBeOnTheScreen();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeOnTheScreen();
+    expect(screen.getByLabelText('Olive oil, in pantry')).toBeOnTheScreen();
   });
 });

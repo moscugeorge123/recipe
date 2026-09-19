@@ -1,13 +1,21 @@
 import { router, useLocalSearchParams, type Href } from 'expo-router';
+import { BookPlus, ChevronLeft, Ellipsis, Share2 } from 'lucide-react-native';
 import {
-  Bookmark,
-  ChevronLeft,
-  Ellipsis,
-  Share2,
-} from 'lucide-react-native';
-import { useMemo, useRef, useState, type ReactNode } from 'react';
-import { Pressable, Share, View } from 'react-native';
-import Animated from 'react-native-reanimated';
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import { Pressable, Share, useWindowDimensions, View } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
@@ -20,6 +28,7 @@ import { IconButton } from '@/components/ui/icon-button';
 import { InlineErrorPanel } from '@/components/ui/inline-error';
 import { KeyboardAwareScrollView } from '@/components/ui/keyboard-aware-scroll-view';
 import { PhotoStandIn } from '@/components/ui/photo-stand-in';
+import { PressScale } from '@/components/ui/press-scale';
 import { Screen } from '@/components/ui/screen';
 import { Sheet } from '@/components/ui/sheet';
 import { StaleIndicator } from '@/components/ui/stale-indicator';
@@ -32,13 +41,21 @@ import { usePantryItems } from '@/features/pantry/hooks';
 import { pantryKeysFrom, partitionByPantry } from '@/features/pantry/match';
 import { RecipeCollectionsEntry } from '@/features/recipes/components/recipe-collections-entry';
 import { RecipePantrySection } from '@/features/recipes/components/recipe-pantry-section';
-import { useRecipeFavorite } from '@/features/recipes/hooks/use-engagement';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
 import { useConfirmReviewed } from '@/features/recipes/hooks/use-review-state';
 import type { RecipeView } from '@/features/recipes/types';
-import { useAddFromRecipe } from '@/features/shopping-list/hooks';
+import { AddRecipeGroceriesSheet } from '@/features/shopping-list/add-recipe-groceries-sheet';
+import {
+  useAddShoppingItems,
+  useShoppingList,
+} from '@/features/shopping-list/hooks';
 import { hapticSuccess } from '@/lib/haptics';
-import { usePopScale } from '@/lib/motion';
+import {
+  duration,
+  reanimatedEasing,
+  usePopScale,
+  useReducedMotion,
+} from '@/lib/motion';
 import { mapUserError } from '@/lib/user-error';
 import { useKitchenStore } from '@/stores/kitchen-store';
 import { useUiStore } from '@/stores/ui-store';
@@ -128,6 +145,15 @@ function shareRecipe(recipe: RecipeView) {
 
 const heroChromeFill = 'rgba(255,255,255,0.86)';
 
+const DETAIL_TABS = ['ingredients', 'steps', 'calories'] as const;
+type DetailTab = (typeof DETAIL_TABS)[number];
+
+const DETAIL_TAB_LABELS: Record<DetailTab, string> = {
+  ingredients: 'Ingredients',
+  steps: 'Steps',
+  calories: 'Calories',
+};
+
 function HeroChrome({
   recipeId,
   onOverflow,
@@ -192,17 +218,118 @@ export default function RecipeDetailScreen() {
       }),
     [pantryQuery.data?.items, pantryStaples],
   );
-  const addFromRecipe = useAddFromRecipe();
+  const shoppingList = useShoppingList();
+  const addShoppingItems = useAddShoppingItems();
   const startCooking = useStartCooking();
   const showToast = useUiStore((state) => state.showToast);
   const [overflow, setOverflow] = useState(false);
+  const [cookbookOpen, setCookbookOpen] = useState(false);
+  const [groceriesOpen, setGroceriesOpen] = useState(false);
+  const [detailTab, setDetailTab] = useState<DetailTab>('ingredients');
+  const [paneHeights, setPaneHeights] = useState({
+    ingredients: 0,
+    steps: 0,
+    calories: 0,
+  });
   const scrollY = useRef(0);
-  const pinPop = usePopScale();
-  const favorite = useRecipeFavorite(recipe);
+  const reducedMotion = useReducedMotion();
+  const { width: windowWidth } = useWindowDimensions();
+  const position = useSharedValue(0);
+  const gestureStartX = useSharedValue(0);
+  const windowWidthSV = useSharedValue(windowWidth);
   const servings = recipe
     ? (servingsByRecipe[recipe.id] ?? recipe.servings)
     : 1;
   const servingsPop = usePopScale(servings);
+
+  useEffect(() => {
+    windowWidthSV.value = windowWidth;
+    position.value = -DETAIL_TABS.indexOf(detailTab) * windowWidth;
+    // Width changes need a rescale; tab changes animate `position` themselves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- detailTab read for rescale only
+  }, [windowWidth]);
+
+  const commitDetailTab = useCallback((index: number) => {
+    const next = DETAIL_TABS[index];
+    if (next) {
+      setDetailTab(next);
+    }
+  }, []);
+
+  const selectDetailTab = useCallback(
+    (next: DetailTab) => {
+      const to = DETAIL_TABS.indexOf(next);
+      if (to < 0 || next === detailTab) {
+        return;
+      }
+      const target = -to * windowWidthSV.value;
+      setDetailTab(next);
+      if (reducedMotion) {
+        position.value = target;
+        return;
+      }
+      position.value = withTiming(target, {
+        duration: duration.fast,
+        easing: reanimatedEasing,
+      });
+    },
+    [detailTab, position, reducedMotion, windowWidthSV],
+  );
+
+  const swipeTabs = useMemo(
+    () =>
+      Gesture.Pan()
+        .activeOffsetX([-24, 24])
+        .failOffsetY([-16, 16])
+        .onStart(() => {
+          gestureStartX.value = position.value;
+        })
+        .onUpdate((event) => {
+          const width = windowWidthSV.value;
+          const min = -(DETAIL_TABS.length - 1) * width;
+          let next = gestureStartX.value + event.translationX;
+          if (next > 0) {
+            next *= 0.35;
+          } else if (next < min) {
+            next = min + (next - min) * 0.35;
+          }
+          position.value = next;
+        })
+        .onEnd((event) => {
+          const width = windowWidthSV.value;
+          const startIndex = Math.round(-gestureStartX.value / width);
+          let nextIndex = startIndex;
+          const threshold = Math.min(56, width * 0.18);
+          if (
+            event.translationX < -threshold &&
+            startIndex < DETAIL_TABS.length - 1
+          ) {
+            nextIndex = startIndex + 1;
+          } else if (event.translationX > threshold && startIndex > 0) {
+            nextIndex = startIndex - 1;
+          }
+          const target = -nextIndex * width;
+          if (reducedMotion) {
+            position.value = target;
+            scheduleOnRN(commitDetailTab, nextIndex);
+            return;
+          }
+          position.value = withTiming(
+            target,
+            { duration: duration.fast, easing: reanimatedEasing },
+            (finished) => {
+              if (finished) {
+                scheduleOnRN(commitDetailTab, nextIndex);
+              }
+            },
+          );
+        }),
+    [commitDetailTab, gestureStartX, position, reducedMotion, windowWidthSV],
+  );
+
+  const paneStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: position.value }],
+  }));
 
   if (!recipe && fetched.isLoading) {
     return (
@@ -240,8 +367,7 @@ export default function RecipeDetailScreen() {
   }
 
   const mult = servings / recipe.servings;
-  const saved = favorite.isFavorite;
-  const { have, need } = partitionByPantry(recipe.ingredients, pantryKeys);
+  const { have } = partitionByPantry(recipe.ingredients, pantryKeys);
   const status = inboxStatusFor(recipe, localInbox, migrationComplete);
   const ingredientNames = recipe.ingredients.map((ing) => ing.name);
 
@@ -253,208 +379,270 @@ export default function RecipeDetailScreen() {
     router.push(`/cook/${recipe.id}`);
   };
 
+  const detailTabs = DETAIL_TABS.map((id) => ({
+    id,
+    label: DETAIL_TAB_LABELS[id],
+  }));
+
+  const setPaneHeight = (id: DetailTab, height: number) => {
+    setPaneHeights((prev) =>
+      prev[id] === height ? prev : { ...prev, [id]: height },
+    );
+  };
+
+  const ingredientsPane = (
+    <View>
+      <RecipePantrySection
+        ingredients={recipe.ingredients}
+        haveCount={have.length}
+        multiplier={mult}
+        onAddToGroceries={
+          recipe.ingredients.length ? () => setGroceriesOpen(true) : undefined
+        }
+      />
+    </View>
+  );
+
+  const stepsPane = (
+    <View>
+      {recipe.steps.map((step, index) => (
+        <View
+          key={step.id}
+          className={`flex-row items-start gap-3 ${index === 0 ? '' : 'mt-4'}`}
+        >
+          <Text
+            className="w-6 pt-0.5 text-center"
+            style={{ fontFamily: fonts.manrope700 }}
+          >
+            {index + 1}
+          </Text>
+          <StepInstruction
+            instruction={step.instruction}
+            names={ingredientNames}
+          />
+        </View>
+      ))}
+    </View>
+  );
+
+  const caloriesPane = (
+    <View className="-mt-6">
+      <NutritionPanel recipeId={recipe.id} />
+    </View>
+  );
+
+  const panes: Record<DetailTab, ReactNode> = {
+    ingredients: ingredientsPane,
+    steps: stepsPane,
+    calories: caloriesPane,
+  };
+
+  const trackHeight = paneHeights[detailTab] || undefined;
+
   return (
     <Screen edges={['left', 'right']}>
-      <KeyboardAwareScrollView
-        testID="recipe-detail-scroll"
-        showsVerticalScrollIndicator={false}
-        contentContainerClassName="pb-8"
-        onScroll={(event) => {
-          scrollY.current = event.nativeEvent.contentOffset.y;
-        }}
-      >
-        <View>
-          <PhotoStandIn
-            colors={recipe.placeholder}
-            height={268}
-            radius={0}
-            uri={recipe.thumbnailUrl}
-            label={`photo — ${recipe.title.toLowerCase()}`}
-          />
-          <HeroChrome
-            recipeId={recipe.id}
-            onOverflow={() => setOverflow(true)}
-          />
-        </View>
-
-        <View className="px-5 pt-4">
-          {fetched.fromCache ? (
-            <StaleIndicator
-              className="pb-2"
-              message="Showing the last saved recipe. Retry if this looks old."
+      <GestureDetector gesture={swipeTabs}>
+        <KeyboardAwareScrollView
+          testID="recipe-detail-scroll"
+          showsVerticalScrollIndicator={false}
+          contentContainerClassName="pb-8"
+          stickyHeaderIndices={[1]}
+          onScroll={(event) => {
+            scrollY.current = event.nativeEvent.contentOffset.y;
+          }}
+        >
+          <View>
+            <PhotoStandIn
+              colors={recipe.placeholder}
+              height={268}
+              radius={0}
+              uri={recipe.thumbnailUrl}
+              label={`photo — ${recipe.title.toLowerCase()}`}
             />
-          ) : null}
-          {fetched.isError ? (
-            <View className="pb-2">
-              <InlineErrorPanel
-                message={
-                  mapUserError(
-                    fetched.error ?? new Error('offline'),
-                    'recipe',
-                    {
-                      log: !!fetched.error,
-                    },
-                  ).message
-                }
-                retryLabel="Retry recipe"
-                retrying={fetched.isFetching}
-                onRetry={() => {
-                  void fetched.refetch();
-                }}
-              />
-            </View>
-          ) : null}
+            <HeroChrome
+              recipeId={recipe.id}
+              onOverflow={() => setOverflow(true)}
+            />
 
-          <Text variant="display" accessibilityRole="header">
-            {recipe.title}
-          </Text>
-          <View className="pt-3">
-            <RecipeCollectionsEntry recipeId={recipe.id} />
-          </View>
-
-          {status ? (
-            <View
-              className="mt-4 rounded-[16px] p-4"
-              style={{ backgroundColor: colors.honey50 }}
-            >
-              <Text variant="kicker" style={{ color: colors.honey800 }}>
-                {status === 'needs_review' ? 'NEEDS REVIEW' : 'READY TO COOK'}
-              </Text>
-              <Text variant="caption" className="pt-2">
-                {status === 'needs_review'
-                  ? 'Servings and cook time were inferred — check before cooking.'
-                  : 'Imported and ready. Give it a quick look before you cook.'}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  confirmReviewed(recipe.id);
-                  showToast({
-                    text: 'Marked reviewed — moved to Saved',
-                    glyph: '✓',
-                  });
-                }}
-                className="mt-3 min-h-11 justify-center"
-              >
-                <Text tone="primary">Looks good</Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          <View className="mt-5 flex-row">
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Meal Plan"
-              onPress={() =>
-                router.push({
-                  pathname: '/plan',
-                  params: { addRecipeId: recipe.id },
-                } as never)
-              }
-              className="min-h-11 flex-1 items-center justify-center gap-1 py-2"
-            >
-              <MealPlanCalendarIcon size={22} color={colors.espresso} />
-              <Text variant="caption">Meal Plan</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Groceries"
-              onPress={() => router.push('/groceries' as Href)}
-              className="min-h-11 flex-1 items-center justify-center gap-1 py-2"
-            >
-              <GroceriesBasketIcon size={22} color={colors.espresso} />
-              <Text variant="caption">Groceries</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={saved ? 'Unpin recipe' : 'Pin recipe'}
-              accessibilityState={{ selected: saved }}
-              onPress={() => {
-                pinPop.pop();
-                if (!saved) {
-                  confirmReviewed(recipe.id);
-                }
-                favorite.toggle();
-              }}
-              className="items-center justify-center gap-1 py-2"
-              style={{ flex: 1, minHeight: 44 }}
-            >
-              <Animated.View style={pinPop.style}>
-                <Bookmark
-                  size={22}
-                  color={colors.espresso}
-                  strokeWidth={1.75}
-                  fill={saved ? colors.espresso : 'transparent'}
+            <View className="px-5 pt-4">
+              {fetched.fromCache ? (
+                <StaleIndicator
+                  className="pb-2"
+                  message="Showing the last saved recipe. Retry if this looks old."
                 />
-              </Animated.View>
-              <Text variant="caption">Pin</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Share"
-              onPress={() => shareRecipe(recipe)}
-              className="min-h-11 flex-1 items-center justify-center gap-1 py-2"
-            >
-              <Share2 size={22} color={colors.espresso} strokeWidth={1.75} />
-              <Text variant="caption">Share</Text>
-            </Pressable>
-          </View>
+              ) : null}
+              {fetched.isError ? (
+                <View className="pb-2">
+                  <InlineErrorPanel
+                    message={
+                      mapUserError(
+                        fetched.error ?? new Error('offline'),
+                        'recipe',
+                        {
+                          log: !!fetched.error,
+                        },
+                      ).message
+                    }
+                    retryLabel="Retry recipe"
+                    retrying={fetched.isFetching}
+                    onRetry={() => {
+                      void fetched.refetch();
+                    }}
+                  />
+                </View>
+              ) : null}
 
-          <RecipePantrySection
-            ingredients={recipe.ingredients}
-            haveCount={have.length}
-            multiplier={mult}
-          />
+              <Text variant="display" accessibilityRole="header">
+                {recipe.title}
+              </Text>
 
-          <Button
-            label="Add to groceries"
-            size="lg"
-            className="mt-4"
-            disabled={!need.length || addFromRecipe.isPending}
-            onPress={() => {
-              void addFromRecipe
-                .mutateAsync({ recipeId: recipe.id, servings })
-                .then((added) => {
-                  hapticSuccess().catch(() => undefined);
-                  showToast({
-                    text: added.length
-                      ? `${added.length} ingredient${added.length === 1 ? '' : 's'} added`
-                      : 'Nothing to add — pantry already has these',
-                    glyph: '↓',
-                    action: 'View',
-                    onAction: () => router.push('/groceries' as Href),
-                  });
-                })
-                .catch((error: unknown) => {
-                  showToast({
-                    text: mapUserError(error, 'shopping').message,
-                    glyph: '!',
-                  });
-                });
-            }}
-          />
-
-          <View className="mt-8">
-            <Text variant="section">INSTRUCTIONS</Text>
-            {recipe.steps.map((step, index) => (
-              <View key={step.id} className="mt-4 flex-row items-start gap-3">
-                <Text
-                  className="w-6 pt-0.5 text-center"
-                  style={{ fontFamily: fonts.manrope700 }}
+              {status ? (
+                <View
+                  className="mt-4 rounded-[16px] p-4"
+                  style={{ backgroundColor: colors.honey50 }}
                 >
-                  {index + 1}
-                </Text>
-                <StepInstruction
-                  instruction={step.instruction}
-                  names={ingredientNames}
-                />
+                  <Text variant="kicker" style={{ color: colors.honey800 }}>
+                    {status === 'needs_review'
+                      ? 'NEEDS REVIEW'
+                      : 'READY TO COOK'}
+                  </Text>
+                  <Text variant="caption" className="pt-2">
+                    {status === 'needs_review'
+                      ? 'Servings and cook time were inferred — check before cooking.'
+                      : 'Imported and ready. Give it a quick look before you cook.'}
+                  </Text>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      confirmReviewed(recipe.id);
+                      showToast({
+                        text: 'Marked reviewed — moved to Saved',
+                        glyph: '✓',
+                      });
+                    }}
+                    className="mt-3 min-h-11 justify-center"
+                  >
+                    <Text tone="primary">Looks good</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+
+              <View className="mt-5 flex-row pb-2">
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Meal Plan"
+                  onPress={() =>
+                    router.push({
+                      pathname: '/plan',
+                      params: { addRecipeId: recipe.id },
+                    } as never)
+                  }
+                  className="min-h-11 flex-1 items-center justify-center gap-1 py-2"
+                >
+                  <MealPlanCalendarIcon size={22} color={colors.espresso} />
+                  <Text variant="caption">Meal Plan</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Groceries"
+                  onPress={() => router.push('/groceries' as Href)}
+                  className="min-h-11 flex-1 items-center justify-center gap-1 py-2"
+                >
+                  <GroceriesBasketIcon size={22} color={colors.espresso} />
+                  <Text variant="caption">Groceries</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Add to cookbook"
+                  onPress={() => setCookbookOpen(true)}
+                  className="items-center justify-center gap-1 py-2"
+                  style={{ flex: 1, minHeight: 44 }}
+                >
+                  <BookPlus
+                    size={22}
+                    color={colors.espresso}
+                    strokeWidth={1.75}
+                  />
+                  <Text variant="caption">Cookbook</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Share"
+                  onPress={() => shareRecipe(recipe)}
+                  className="min-h-11 flex-1 items-center justify-center gap-1 py-2"
+                >
+                  <Share2
+                    size={22}
+                    color={colors.espresso}
+                    strokeWidth={1.75}
+                  />
+                  <Text variant="caption">Share</Text>
+                </Pressable>
               </View>
-            ))}
+            </View>
           </View>
 
-          <NutritionPanel recipeId={recipe.id} />
-        </View>
-      </KeyboardAwareScrollView>
+          <View
+            className="flex-row gap-2 border-b border-crust px-5 py-3"
+            style={{ backgroundColor: colors.page }}
+          >
+            {detailTabs.map((item) => {
+              const selected = detailTab === item.id;
+              return (
+                <PressScale
+                  key={item.id}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.label}
+                  accessibilityState={{ selected }}
+                  onPress={() => selectDetailTab(item.id)}
+                  className="min-h-11 flex-1 items-center justify-center rounded-[28px] px-2 py-2"
+                  style={{
+                    backgroundColor: selected ? colors.cta : colors.paper,
+                  }}
+                >
+                  <Text
+                    className="text-[14.5px]"
+                    style={{
+                      color: selected ? colors.onPrimary : colors.espresso,
+                      fontFamily: fonts.manrope600,
+                    }}
+                  >
+                    {item.label}
+                  </Text>
+                </PressScale>
+              );
+            })}
+          </View>
+
+          <View
+            className="overflow-hidden"
+            style={trackHeight ? { height: trackHeight } : undefined}
+          >
+            <Animated.View
+              style={[
+                paneStyle,
+                {
+                  flexDirection: 'row',
+                  width: windowWidth * DETAIL_TABS.length,
+                },
+              ]}
+            >
+              {DETAIL_TABS.map((id) => (
+                <View
+                  key={id}
+                  className="px-5 pt-4"
+                  style={{ width: windowWidth }}
+                  onLayout={(event) => {
+                    setPaneHeight(id, event.nativeEvent.layout.height);
+                  }}
+                >
+                  {panes[id]}
+                </View>
+              ))}
+            </Animated.View>
+          </View>
+        </KeyboardAwareScrollView>
+      </GestureDetector>
 
       <View
         className="flex-row items-center gap-3 border-t border-crust px-5 pt-3"
@@ -472,7 +660,10 @@ export default function RecipeDetailScreen() {
             className="h-8 w-8 items-center justify-center rounded-full"
             style={{ backgroundColor: colors.peach }}
           >
-            <Text className="text-[15px]" style={{ fontFamily: fonts.manrope700 }}>
+            <Text
+              className="text-[15px]"
+              style={{ fontFamily: fonts.manrope700 }}
+            >
               −
             </Text>
           </Pressable>
@@ -493,7 +684,10 @@ export default function RecipeDetailScreen() {
             className="h-8 w-8 items-center justify-center rounded-full"
             style={{ backgroundColor: colors.peach }}
           >
-            <Text className="text-[15px]" style={{ fontFamily: fonts.manrope700 }}>
+            <Text
+              className="text-[15px]"
+              style={{ fontFamily: fonts.manrope700 }}
+            >
               +
             </Text>
           </Pressable>
@@ -524,6 +718,45 @@ export default function RecipeDetailScreen() {
           <Text variant="caption">Revision {recipe.revisionNumber ?? 0}</Text>
         </Pressable>
       </Sheet>
+
+      <RecipeCollectionsEntry
+        recipeId={recipe.id}
+        visible={cookbookOpen}
+        onClose={() => setCookbookOpen(false)}
+      />
+
+      <AddRecipeGroceriesSheet
+        visible={groceriesOpen}
+        recipeId={recipe.id}
+        ingredients={recipe.ingredients}
+        pantryKeys={pantryKeys}
+        groceryItems={shoppingList.data?.items}
+        multiplier={mult}
+        pending={addShoppingItems.isPending}
+        onClose={() => setGroceriesOpen(false)}
+        onConfirm={(items) => {
+          void addShoppingItems
+            .mutateAsync(items)
+            .then((added) => {
+              setGroceriesOpen(false);
+              hapticSuccess().catch(() => undefined);
+              showToast({
+                text: added.length
+                  ? `${added.length} ingredient${added.length === 1 ? '' : 's'} added`
+                  : 'Nothing to add — pantry already has these',
+                glyph: '↓',
+                action: 'View',
+                onAction: () => router.push('/groceries' as Href),
+              });
+            })
+            .catch((error: unknown) => {
+              showToast({
+                text: mapUserError(error, 'shopping').message,
+                glyph: '!',
+              });
+            });
+        }}
+      />
     </Screen>
   );
 }

@@ -43,6 +43,16 @@ function summary(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function renderEntry() {
+  return renderWithProviders(
+    <RecipeCollectionsEntry
+      recipeId={recipeId}
+      visible
+      onClose={() => undefined}
+    />,
+  );
+}
+
 describe('RecipeCollectionsEntry', () => {
   beforeEach(() => {
     mockListCollections.mockReset();
@@ -61,9 +71,8 @@ describe('RecipeCollectionsEntry', () => {
       meta: { page: 1, pageSize: 100, total: 1, totalPages: 1 },
     });
     const user = userEvent.setup();
-    await renderWithProviders(<RecipeCollectionsEntry recipeId={recipeId} />);
-    expect(await screen.findByText('Appetizers')).toBeOnTheScreen();
-    await user.press(screen.getByRole('button', { name: 'Add to cookbooks' }));
+    await renderEntry();
+    expect(await screen.findByText('File this recipe')).toBeOnTheScreen();
     const row = await screen.findByRole('checkbox', { name: 'Appetizers' });
     expect(row.props.accessibilityState).toEqual(
       expect.objectContaining({ checked: true }),
@@ -76,7 +85,7 @@ describe('RecipeCollectionsEntry', () => {
     );
   });
 
-  test('keeps the sheet and typed name while create-and-add is in flight', async () => {
+  test('opens create sheet from FAB and keeps file sheet while creating', async () => {
     let resolveCreate: (value: unknown) => void = () => undefined;
     mockCreateCollection.mockImplementation(
       () =>
@@ -85,11 +94,16 @@ describe('RecipeCollectionsEntry', () => {
         }),
     );
     const user = userEvent.setup();
-    await renderWithProviders(<RecipeCollectionsEntry recipeId={recipeId} />);
-    await user.press(screen.getByRole('button', { name: 'Add to cookbooks' }));
-    await user.type(screen.getByLabelText('New cookbook'), 'Friends Dinners');
-    await user.press(screen.getByRole('button', { name: 'Create and add' }));
-    expect(screen.getByLabelText('New cookbook').props.value).toBe(
+    await renderEntry();
+    await user.press(screen.getByRole('button', { name: 'New cookbook' }));
+    await user.type(
+      screen.getByLabelText('Cookbook name'),
+      'Friends Dinners',
+    );
+    await user.press(
+      screen.getByRole('button', { name: 'Create and add recipe' }),
+    );
+    expect(screen.getByLabelText('Cookbook name').props.value).toBe(
       'Friends Dinners',
     );
     expect(screen.getByText('File this recipe')).toBeOnTheScreen();
@@ -105,9 +119,7 @@ describe('RecipeCollectionsEntry', () => {
         recipeIds: [recipeId],
       }),
     );
-    await waitFor(() =>
-      expect(screen.getByLabelText('New cookbook').props.value).toBe(''),
-    );
+    expect(screen.getByText('File this recipe')).toBeOnTheScreen();
   });
 
   test('rolls membership back when add fails', async () => {
@@ -115,8 +127,7 @@ describe('RecipeCollectionsEntry', () => {
       new ApiError('offline', 500, {}, 'INTERNAL_SERVER_ERROR'),
     );
     const user = userEvent.setup();
-    await renderWithProviders(<RecipeCollectionsEntry recipeId={recipeId} />);
-    await user.press(screen.getByRole('button', { name: 'Add to cookbooks' }));
+    await renderEntry();
     const row = await screen.findByRole('checkbox', { name: 'Appetizers' });
     expect(row.props.accessibilityState).toEqual(
       expect.objectContaining({ checked: false }),

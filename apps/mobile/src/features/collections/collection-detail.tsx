@@ -14,9 +14,9 @@ import { PhotoStandIn } from '@/components/ui/photo-stand-in';
 import { PressScale } from '@/components/ui/press-scale';
 import { Screen } from '@/components/ui/screen';
 import { StaleIndicator } from '@/components/ui/stale-indicator';
-import { Sheet } from '@/components/ui/sheet';
 import { Text } from '@/components/ui/text';
 import { TextInput } from '@/components/ui/text-input';
+import { AddCookbookRecipeSheet } from '@/features/collections/add-cookbook-recipe-sheet';
 import { CollectionFormSheet } from '@/features/collections/collection-form-sheet';
 import { CookbookOptionsSheet } from '@/features/collections/cookbook-options-sheet';
 import { CookbookRecipeOptionsSheet } from '@/features/collections/cookbook-recipe-options-sheet';
@@ -361,51 +361,19 @@ export function CollectionDetail({ collectionId }: { collectionId: string }) {
             });
         }}
       />
-      <Sheet
+      <AddCookbookRecipeSheet
         visible={addOpen}
+        recipes={addable}
+        pending={addRecipe.isPending}
         onClose={() => setAddOpen(false)}
-        accessibilityLabel="Add a recipe"
-      >
-        <Text variant="title" className="pb-3">
-          Add a recipe
-        </Text>
-        {addable.length === 0 ? (
-          <Text variant="caption" className="pb-4">
-            Every recipe in your kitchen is already here.
-          </Text>
-        ) : (
-          addable.map((item) => (
-            <Pressable
-              key={item.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Add ${item.title}`}
-              disabled={busy}
-              onPress={() => {
-                void addRecipe
-                  .mutateAsync({
-                    collectionId: collection.id,
-                    recipeId: item.id,
-                  })
-                  .then(() => {
-                    announce(`${item.title} added to ${collection.name}`);
-                  });
-              }}
-              className="min-h-11 flex-row items-center justify-between border-b border-crust py-3"
-            >
-              <Text tone="icon" className="flex-1 pr-3">
-                {item.title}
-              </Text>
-              <Text variant="caption">Add</Text>
-            </Pressable>
-          ))
-        )}
-        <Button
-          label="Done"
-          variant="inverse"
-          className="mt-5"
-          onPress={() => setAddOpen(false)}
-        />
-      </Sheet>
+        onAdd={async (recipeId, title) => {
+          await addRecipe.mutateAsync({
+            collectionId: collection.id,
+            recipeId,
+          });
+          announce(`${title} added to ${collection.name}`);
+        }}
+      />
       <ConfirmSheet
         visible={deleteOpen}
         title={collectionDeleteCopy(collection.name).title}

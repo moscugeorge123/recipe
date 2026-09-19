@@ -143,8 +143,9 @@ export default function AddGroceriesScreen() {
             onChangeText={setText}
             placeholder="Type or paste"
             placeholderTextColor={colors.olive}
-            className="min-h-[56px] flex-1 rounded-[16px] border border-crust bg-peach px-4 py-3 text-[15.5px]"
+            className="min-h-[56px] flex-1 rounded-[16px] border border-crust px-4 py-3 text-[15.5px]"
             style={{
+              backgroundColor: colors.searchFill,
               fontFamily: fonts.manrope600,
               color: colors.espresso,
               textAlignVertical: 'top',

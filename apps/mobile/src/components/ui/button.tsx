@@ -10,7 +10,7 @@ import { Text } from '@/components/ui/text';
 import { colors, fonts } from '@/theme/tokens';
 
 type ButtonVariant =
-  'primary' | 'secondary' | 'ghost' | 'destructive' | 'inverse';
+  'primary' | 'secondary' | 'ghost' | 'destructive' | 'inverse' | 'link';
 
 type ButtonProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
@@ -44,6 +44,7 @@ function variantFill(
     case 'destructive':
       return colors.chili;
     case 'ghost':
+    case 'link':
       return undefined;
   }
 }
@@ -57,7 +58,9 @@ function variantLabel(variant: ButtonVariant): string {
     case 'inverse':
       return colors.steamedMilk;
     case 'ghost':
-      return colors.paprika;
+      return colors.espresso;
+    case 'link':
+      return colors.paprikaPressed;
   }
 }
 
@@ -72,17 +75,21 @@ export function Button({
   accessibilityState,
   ...props
 }: ButtonProps) {
+  const isLink = variant === 'link';
   const fill =
     size === 'icon' && variant === 'ghost'
       ? colors.paper
       : variantFill(variant, !!disabled);
   const labelColor = variantLabel(variant);
   const labelSize =
-    variant === 'ghost'
+    variant === 'ghost' || isLink
       ? 'text-[14.5px]'
       : variant === 'secondary'
         ? 'text-[15.5px]'
         : 'text-[16.5px]';
+  const sizeClass = isLink
+    ? 'min-h-11 flex-row self-start gap-2 rounded-none px-0 py-2'
+    : sizeClasses[size];
 
   return (
     <PressScale
@@ -90,7 +97,7 @@ export function Button({
       accessibilityLabel={label}
       accessibilityState={{ disabled: !!disabled, ...accessibilityState }}
       disabled={disabled}
-      className={`min-h-11 items-center justify-center ${sizeClasses[size]} ${
+      className={`min-h-11 items-center justify-center ${sizeClass} ${
         className ?? ''
       }`}
       style={[
@@ -100,17 +107,32 @@ export function Button({
       ]}
       {...props}
     >
-      {icon ?? (
-        <Text
-          className={labelSize}
-          style={{
-            color: labelColor,
-            fontFamily:
-              variant === 'ghost' ? fonts.manrope600 : fonts.manrope700,
-          }}
-        >
-          {label}
-        </Text>
+      {isLink ? (
+        <>
+          {icon}
+          <Text
+            className={labelSize}
+            style={{
+              color: labelColor,
+              fontFamily: fonts.manrope600,
+            }}
+          >
+            {label}
+          </Text>
+        </>
+      ) : (
+        (icon ?? (
+          <Text
+            className={labelSize}
+            style={{
+              color: labelColor,
+              fontFamily:
+                variant === 'ghost' ? fonts.manrope600 : fonts.manrope700,
+            }}
+          >
+            {label}
+          </Text>
+        ))
       )}
     </PressScale>
   );

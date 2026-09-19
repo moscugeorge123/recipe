@@ -1,6 +1,6 @@
 import { type Href, router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { Pressable, RefreshControl, View } from 'react-native';
 import { SlidersHorizontal } from 'lucide-react-native';
 
 import { ProfilePersonIcon } from '@/components/icons/recime-tab-icons';
@@ -20,6 +20,7 @@ import { StaleIndicator } from '@/components/ui/stale-indicator';
 import { Text } from '@/components/ui/text';
 import { TextInput } from '@/components/ui/text-input';
 import { useCatalog } from '@/features/catalog/use-catalog';
+import { AddCookbookRecipeSheet } from '@/features/collections/add-cookbook-recipe-sheet';
 import { CollectionFormSheet } from '@/features/collections/collection-form-sheet';
 import { CookbookOptionsSheet } from '@/features/collections/cookbook-options-sheet';
 import { collectionDeleteCopy } from '@/features/collections/confirm-delete';
@@ -200,11 +201,35 @@ export function RecipesLibrary() {
     }
   };
 
+  const refreshing =
+    segment === 'cookbooks'
+      ? !!list.isFetching && !list.isLoading
+      : !!recipesQuery.isFetching && !recipesQuery.isLoading;
+
   return (
     <Screen>
       <KeyboardAwareScrollView
+        testID="recipes-library-scroll"
         showsVerticalScrollIndicator={false}
         contentContainerClassName="pb-8"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              if (segment === 'cookbooks') {
+                void list.refetch();
+                return;
+              }
+              void recipesQuery.refetch();
+            }}
+            tintColor={colors.paprika}
+            accessibilityLabel={
+              segment === 'cookbooks'
+                ? 'Refresh cookbooks'
+                : 'Refresh recipes'
+            }
+          />
+        }
       >
         <View className="flex-row items-center justify-between px-5 pb-4 pt-1">
           <Text
@@ -393,7 +418,7 @@ export function RecipesLibrary() {
                   className="w-[47%] rounded-[18px] border border-dashed border-crust bg-bg-elevated p-[15px]"
                 >
                   <CoverMosaic
-                    covers={collection.recipeIds.slice(0, 3).map((id) => ({
+                    covers={collection.recipeIds.slice(0, 4).map((id) => ({
                       recipeId: id,
                       thumbnailUrl: catalog.get(id)?.thumbnailUrl ?? null,
                       placeholder: catalog.get(id)?.placeholder,
@@ -555,54 +580,22 @@ export function RecipesLibrary() {
             });
         }}
       />
-      <Sheet
+      <AddCookbookRecipeSheet
         visible={!!addTarget}
+        recipes={addableRecipes}
+        pending={addRecipe.isPending}
         onClose={() => setAddTarget(null)}
-        accessibilityLabel="Add a recipe"
-      >
-        <Text variant="title" className="pb-3">
-          Add a recipe
-        </Text>
-        {addableRecipes.length === 0 ? (
-          <Text variant="caption" className="pb-4">
-            Every recipe in your kitchen is already here.
-          </Text>
-        ) : (
-          addableRecipes.map((item) => (
-            <Pressable
-              key={item.id}
-              accessibilityRole="button"
-              accessibilityLabel={`Add ${item.title}`}
-              disabled={addRecipe.isPending}
-              onPress={() => {
-                if (!addTarget) {
-                  return;
-                }
-                void addRecipe
-                  .mutateAsync({
-                    collectionId: addTarget.id,
-                    recipeId: item.id,
-                  })
-                  .then(() => {
-                    announce(`${item.title} added to ${addTarget.name}`);
-                  });
-              }}
-              className="min-h-11 flex-row items-center justify-between border-b border-crust py-3"
-            >
-              <Text tone="icon" className="flex-1 pr-3">
-                {item.title}
-              </Text>
-              <Text variant="caption">Add</Text>
-            </Pressable>
-          ))
-        )}
-        <Button
-          label="Done"
-          variant="inverse"
-          className="mt-5"
-          onPress={() => setAddTarget(null)}
-        />
-      </Sheet>
+        onAdd={async (recipeId, title) => {
+          if (!addTarget) {
+            return;
+          }
+          await addRecipe.mutateAsync({
+            collectionId: addTarget.id,
+            recipeId,
+          });
+          announce(`${title} added to ${addTarget.name}`);
+        }}
+      />
       <ConfirmSheet
         visible={!!deleteTarget}
         title={

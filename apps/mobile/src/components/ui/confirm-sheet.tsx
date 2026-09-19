@@ -39,7 +39,7 @@ export function ConfirmSheet({
         <Button
           label={cancelLabel}
           variant="ghost"
-          className="flex-1 bg-peach"
+          className="flex-1"
           disabled={pending}
           onPress={onClose}
         />

@@ -35,12 +35,16 @@ export const Input = forwardRef<RNTextInput, InputProps>(function Input(
         multiline={multiline}
         className={`${
           multiline ? 'min-h-[88px] py-3' : 'min-h-12'
-        } rounded-[15px] border bg-peach px-[15px] py-3 text-[15.5px] ${
+        } rounded-[15px] border px-[15px] py-3 text-[15.5px] ${
           error ? 'border-chili' : 'border-crust'
         } ${className ?? ''}`}
         placeholderTextColor={colors.olive}
         style={[
-          { fontFamily: fonts.manrope600, color: colors.espresso },
+          {
+            fontFamily: fonts.manrope600,
+            color: colors.espresso,
+            backgroundColor: colors.searchFill,
+          },
           style,
         ]}
       />

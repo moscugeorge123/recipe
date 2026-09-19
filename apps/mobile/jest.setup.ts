@@ -2,7 +2,12 @@ import 'react-native-gesture-handler/jestSetup';
 
 process.env.EXPO_PUBLIC_API_URL = 'http://localhost:3000/api/v1';
 
-jest.mock('react-native-worklets', () => ({}));
+jest.mock('react-native-worklets', () => ({
+  scheduleOnRN: <T extends (...args: never[]) => unknown>(
+    fn: T,
+    ...args: Parameters<T>
+  ) => fn(...args),
+}));
 
 jest.mock('react-native-reanimated', () => {
   const RN = require('react-native') as typeof import('react-native');
@@ -43,8 +48,24 @@ jest.mock('react-native-reanimated', () => {
     useSharedValue: <T>(init: T) => ({ value: init }),
     useAnimatedStyle: (updater: () => unknown) => updater(),
     useAnimatedProps: (updater: () => unknown) => updater(),
-    withTiming: <T>(toValue: T) => toValue,
-    withSpring: <T>(toValue: T) => toValue,
+    useEvent: jest.fn(() => undefined),
+    useHandler: jest.fn(() => ({})),
+    withTiming: <T>(
+      toValue: T,
+      _config?: unknown,
+      callback?: (finished: boolean) => void,
+    ) => {
+      callback?.(true);
+      return toValue;
+    },
+    withSpring: <T>(
+      toValue: T,
+      _config?: unknown,
+      callback?: (finished: boolean) => void,
+    ) => {
+      callback?.(true);
+      return toValue;
+    },
     withSequence: <T>(...values: T[]) => values[values.length - 1],
     withDelay: <T>(_delay: number, value: T) => value,
     withRepeat: <T>(value: T) => value,
