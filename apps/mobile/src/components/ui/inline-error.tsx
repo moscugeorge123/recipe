@@ -33,7 +33,7 @@ export function InlineErrorPanel({
       accessible
       accessibilityRole="alert"
       accessibilityLiveRegion="assertive"
-      className="rounded-[20px] border border-crust bg-linen p-[18px]"
+      className="rounded-[24px] bg-linen px-5 py-6"
     >
       <Text variant="caption" className="pb-3">
         {message}

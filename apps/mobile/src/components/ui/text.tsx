@@ -22,23 +22,23 @@ type TextProps = RNTextProps & {
 };
 
 const variantClass: Record<TextVariant, string> = {
-  display: 'text-[27px] leading-[1.14] tracking-[-0.02em]',
-  title: 'text-[23px] leading-[1.14] tracking-[-0.02em]',
-  section: 'text-[13px] font-bold tracking-[0.04em]',
-  kicker: 'text-[11px] tracking-[0.02em]',
-  body: 'text-[15.5px] leading-[1.45]',
-  caption: 'text-[13.5px] leading-[1.4]',
-  mono: 'text-[11.5px] tracking-[0.02em]',
+  display: 'text-[32px] leading-[1.1] tracking-[-0.03em]',
+  title: 'text-[24px] leading-[1.12] tracking-[-0.025em]',
+  section: 'text-[12.5px] tracking-[0.02em]',
+  kicker: 'text-[11px] tracking-[0.04em]',
+  body: 'text-[15.5px] leading-[1.5]',
+  caption: 'text-[13.5px] leading-[1.45]',
+  mono: 'text-[12px] tracking-[0.01em]',
 };
 
 const variantFont: Record<TextVariant, string> = {
   display: fonts.manrope800,
   title: fonts.manrope800,
-  section: fonts.manrope700,
+  section: fonts.manrope600,
   kicker: fonts.manrope600,
   body: fonts.manrope500,
   caption: fonts.manrope500,
-  mono: fonts.manrope500,
+  mono: fonts.mono500,
 };
 
 const variantTone: Record<TextVariant, TextTone> = {
@@ -75,7 +75,11 @@ export function Text({
     <RNText
       className={`${variantClass[variant]} ${className ?? ''}`}
       style={[
-        { fontFamily: variantFont[variant], color: toneColors[resolvedTone] },
+        {
+          fontFamily: variantFont[variant],
+          color: toneColors[resolvedTone],
+          fontVariant: variant === 'mono' ? ['tabular-nums'] : undefined,
+        },
         style,
       ]}
       {...props}

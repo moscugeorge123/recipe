@@ -1,15 +1,21 @@
 import type { ReactNode } from 'react';
-import { Pressable, type PressableProps } from 'react-native';
+import {
+  type PressableProps,
+  type StyleProp,
+  type ViewStyle,
+} from 'react-native';
 
+import { PressScale } from '@/components/ui/press-scale';
 import { Text } from '@/components/ui/text';
 import { colors, fonts } from '@/theme/tokens';
 
-type ChipProps = Omit<PressableProps, 'children'> & {
+type ChipProps = Omit<PressableProps, 'children' | 'style'> & {
   label: string;
   selected?: boolean;
   className?: string;
   icon?: ReactNode;
   children?: ReactNode;
+  style?: StyleProp<ViewStyle>;
 };
 
 export function Chip({
@@ -18,10 +24,11 @@ export function Chip({
   className,
   disabled,
   icon,
+  style,
   ...props
 }: ChipProps) {
   return (
-    <Pressable
+    <PressScale
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ selected: !!selected, disabled: !!disabled }}
@@ -29,9 +36,12 @@ export function Chip({
       className={`min-h-11 max-w-full flex-row flex-wrap items-center justify-center gap-1.5 rounded-[13px] px-[15px] py-2 ${
         className ?? ''
       }`}
-      style={{
-        backgroundColor: selected ? colors.cta : colors.paper,
-      }}
+      style={[
+        {
+          backgroundColor: selected ? colors.cta : colors.paper,
+        },
+        style,
+      ]}
       {...props}
     >
       {icon}
@@ -42,6 +52,6 @@ export function Chip({
       >
         {label}
       </Text>
-    </Pressable>
+    </PressScale>
   );
 }

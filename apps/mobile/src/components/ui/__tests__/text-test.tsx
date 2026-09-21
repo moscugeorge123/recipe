@@ -20,24 +20,24 @@ describe('Text', () => {
     });
   });
 
-  test('kicker defaults to paprika-600 on Inter', async () => {
+  test('kicker defaults to paprika-600 on Manrope', async () => {
     await render(<Text variant="kicker">MISE</Text>);
 
     expect(screen.getByText('MISE')).toHaveStyle({
       color: colors.paprikaPressed,
       fontFamily: fonts.manrope600,
     });
-    expect(fonts.manrope600).toBe('Inter_600SemiBold');
+    expect(fonts.manrope600).toBe('Manrope_600SemiBold');
   });
 
-  test('section uses Inter, not mono', async () => {
+  test('section uses Manrope, not mono', async () => {
     await render(<Text variant="section">THIS WEEK</Text>);
 
     expect(screen.getByText('THIS WEEK')).toHaveStyle({
-      fontFamily: fonts.manrope700,
+      fontFamily: fonts.manrope600,
     });
-    expect(fonts.manrope700).toBe('Inter_700Bold');
-    expect(fonts.mono500).toBe('Inter_500Medium');
+    expect(fonts.manrope700).toBe('Manrope_700Bold');
+    expect(fonts.mono500).toBe('IBMPlexMono_500Medium');
   });
 
   test('caller style color wins over tone', async () => {

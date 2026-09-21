@@ -12,7 +12,7 @@ export const colors = {
   honey200: '#F6D56A',
   honey800: '#7A5B0C',
   berry: '#D94F70',
-  cream: '#FFFFFF',
+  cream: '#FFFDF9',
   peach: '#FFE8D6',
   butter: '#FFFDF9',
   linen: '#F3E6D8',
@@ -31,10 +31,10 @@ export const colors = {
   paprikaShadow: 'rgba(249, 115, 22, 0.28)',
   cta: '#232220',
   ctaDisabled: '#E5E5E3',
-  page: '#FFFFFF',
+  page: '#FFFDF9',
   paper: '#F8F7F2',
-  searchFill: '#FBFCF6',
-  tabInactive: '#757472',
+  searchFill: '#F8F7F2',
+  tabInactive: '#7A6F64',
   ingredientLink: '#6B7C93',
   mealBreakfast: '#FDECB8',
   mealLunch: '#D6E6F5',
@@ -66,13 +66,13 @@ export const placeholderPairs: [string, string][] = [
 ];
 
 export const fonts = {
-  manrope500: 'Inter_500Medium',
-  manrope600: 'Inter_600SemiBold',
-  manrope700: 'Inter_700Bold',
-  manrope800: 'Inter_800ExtraBold',
-  mono500: 'Inter_500Medium',
-  mono600: 'Inter_600SemiBold',
-  mono700: 'Inter_700Bold',
+  manrope500: 'Manrope_500Medium',
+  manrope600: 'Manrope_600SemiBold',
+  manrope700: 'Manrope_700Bold',
+  manrope800: 'Manrope_800ExtraBold',
+  mono500: 'IBMPlexMono_500Medium',
+  mono600: 'IBMPlexMono_600SemiBold',
+  mono700: 'IBMPlexMono_700Bold',
 } as const;
 
 export const radii = {

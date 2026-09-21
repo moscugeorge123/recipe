@@ -236,8 +236,9 @@ export function RecipesLibrary() {
             accessibilityRole="header"
             style={{
               fontFamily: fonts.manrope800,
-              fontSize: 28,
-              lineHeight: 32,
+              fontSize: 32,
+              lineHeight: 36,
+              letterSpacing: -0.8,
               color: colors.paprika,
             }}
           >

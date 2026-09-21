@@ -41,7 +41,10 @@ export function CookingNowCard() {
       >
         {cooking.title}
       </Text>
-      <Text className="pt-1 text-[12.5px]" style={{ color: '#B5A898' }}>
+      <Text
+        className="pt-1 text-[12.5px]"
+        style={{ color: colors.steam, fontFamily: fonts.mono500 }}
+      >
         Step {cooking.stepIndex + 1} of {cooking.stepCount}
       </Text>
       <View className="flex-row gap-1 py-3">

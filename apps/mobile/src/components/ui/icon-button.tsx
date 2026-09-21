@@ -1,11 +1,11 @@
 import type { ReactNode } from 'react';
 import {
-  Pressable,
   type PressableProps,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
 
+import { PressScale } from '@/components/ui/press-scale';
 import { colors } from '@/theme/tokens';
 
 type IconButtonProps = Omit<PressableProps, 'style'> & {
@@ -25,7 +25,7 @@ export function IconButton({
   ...props
 }: IconButtonProps) {
   return (
-    <Pressable
+    <PressScale
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
       accessibilityState={{ disabled: !!disabled }}
@@ -37,6 +37,6 @@ export function IconButton({
       {...props}
     >
       {children}
-    </Pressable>
+    </PressScale>
   );
 }

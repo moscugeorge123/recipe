@@ -21,9 +21,9 @@ export function EmptyStatePanel({
       testID={testID}
       accessible
       accessibilityRole="summary"
-      className="rounded-[20px] border border-crust bg-linen p-[18px]"
+      className="rounded-[24px] bg-linen px-5 py-6"
     >
-      <Text variant="caption" className={actionLabel ? 'pb-3' : undefined}>
+      <Text variant="body" className={actionLabel ? 'pb-4' : undefined}>
         {title}
       </Text>
       {actionLabel && onAction ? (

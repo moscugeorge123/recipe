@@ -119,13 +119,6 @@ jest.mock('expo-font', () => ({
   loadAsync: jest.fn(),
 }));
 
-jest.mock('@expo-google-fonts/inter', () => ({
-  Inter_500Medium: 1,
-  Inter_600SemiBold: 1,
-  Inter_700Bold: 1,
-  Inter_800ExtraBold: 1,
-}));
-
 jest.mock('@expo-google-fonts/manrope', () => ({
   Manrope_500Medium: 1,
   Manrope_600SemiBold: 1,

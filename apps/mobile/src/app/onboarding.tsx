@@ -44,18 +44,18 @@ const STEPS = [
     foot: 'No account needed yet.',
   },
   {
-    kicker: 'STEP 2 OF 3',
+    kicker: 'Your tastes',
     title: "Let's find something delicious.",
-    body: "Pick a couple you like. We'll start there — you can change it any time.",
+    body: "Pick a couple you like. We'll start there. You can change it any time.",
     cta: 'Next',
     foot: 'Tap a few, or skip.',
   },
   {
-    kicker: 'STEP 3 OF 3',
+    kicker: 'Your sources',
     title: 'Try it on something now.',
     body: "Pick where you usually find recipes and we'll capture one for you.",
     cta: 'Capture a recipe',
-    foot: "This one's on us — no signup.",
+    foot: "This one's on us. No signup.",
   },
 ] as const;
 
@@ -130,9 +130,7 @@ export default function OnboardingScreen() {
 
       <View className="flex-1 justify-center gap-[18px]">
         <Text variant="kicker">{current.kicker}</Text>
-        <Text variant="display" className="text-[36px] leading-[1.06]">
-          {current.title}
-        </Text>
+        <Text variant="display">{current.title}</Text>
         <Text
           variant="caption"
           className="max-w-[300px] text-[16.5px] leading-[1.5]"

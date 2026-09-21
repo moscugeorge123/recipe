@@ -98,7 +98,7 @@ export default function SearchScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         {!q ? (
           <View>
-            <SectionLabel className="pb-3">TRY ASKING</SectionLabel>
+            <SectionLabel className="pb-3">Try asking</SectionLabel>
             {SUGGESTIONS.map((suggestion) => (
               <Pressable
                 key={suggestion}
@@ -114,7 +114,7 @@ export default function SearchScreen() {
                 </Text>
               </Pressable>
             ))}
-            <SectionLabel className="pb-2 pt-6">RECENT</SectionLabel>
+            <SectionLabel className="pb-2 pt-6">Recent</SectionLabel>
             <View className="flex-row flex-wrap gap-2">
               {recent.map((item) => (
                 <Pressable
