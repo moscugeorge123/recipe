@@ -1,4 +1,4 @@
-import { router } from 'expo-router';
+import { router, type Href } from 'expo-router';
 import { Pressable, ScrollView, View } from 'react-native';
 
 import { ChevronLeft } from '@/components/icons/chevron-left';
@@ -23,6 +23,11 @@ export default function ProfileScreen() {
     hint: string;
     onTap: () => void;
   }[] = [
+    {
+      label: 'Component gallery',
+      hint: '',
+      onTap: () => router.push('/ui-gallery' as Href),
+    },
     {
       label: 'Units',
       hint: units,
@@ -54,10 +59,7 @@ export default function ProfileScreen() {
   return (
     <Screen>
       <View className="flex-row items-center gap-2 px-2 pb-2 pt-1">
-        <IconButton
-          accessibilityLabel="Back"
-          onPress={() => router.back()}
-        >
+        <IconButton accessibilityLabel="Back" onPress={() => router.back()}>
           <ChevronLeft />
         </IconButton>
         <Text variant="display" accessibilityRole="header">

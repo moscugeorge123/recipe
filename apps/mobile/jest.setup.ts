@@ -126,6 +126,17 @@ jest.mock('@expo-google-fonts/manrope', () => ({
   Manrope_800ExtraBold: 1,
 }));
 
+jest.mock('@expo-google-fonts/newsreader', () => ({
+  Newsreader_500Medium: 1,
+  Newsreader_600SemiBold: 1,
+}));
+
+jest.mock('@expo-google-fonts/plus-jakarta-sans', () => ({
+  PlusJakartaSans_400Regular: 1,
+  PlusJakartaSans_600SemiBold: 1,
+  PlusJakartaSans_700Bold: 1,
+}));
+
 jest.mock('@expo-google-fonts/ibm-plex-mono', () => ({
   IBMPlexMono_500Medium: 1,
   IBMPlexMono_600SemiBold: 1,
