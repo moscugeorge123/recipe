@@ -1,12 +1,9 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  Keyboard,
-  Platform,
   ScrollView,
-  TextInput,
   View,
   useWindowDimensions,
-  type ViewStyle,
+  type TextInput,
 } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
@@ -14,11 +11,12 @@ import { useCreateCollection } from '@/features/collections/hooks';
 import { LEVELS, useCookbook, useCookbookView } from '@/tortie/data/cookbook';
 import { useFrame } from '@/tortie/frame';
 import { toast, useNav } from '@/tortie/nav-store';
-import { C, CSS_EASE, EASE, F } from '@/tortie/theme';
+import { C, CSS_EASE, F } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Grabber, Label, Switch } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { iconText } from '@/tortie/ui/icon-text';
+import { Input, RevealBox } from '@/tortie/ui/input';
 import { Press } from '@/tortie/ui/press';
 import { Sheet } from '@/tortie/ui/sheet';
 import { ctl, em, sans, serif, T } from '@/tortie/ui/text';
@@ -178,32 +176,9 @@ export function CookbookFilterSheet() {
     >
       <View style={{ paddingTop: 10, paddingHorizontal: 20 }}>
         <Grabber />
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 12,
-          }}
-        >
-          <T style={serif(26, 500, C.ink, { letterSpacing: em(26, -0.01) })}>
-            {isC ? 'Sort collections' : 'Filter & sort'}
-          </T>
-          <Press
-            onPress={close}
-            accessibilityLabel="Close"
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 20,
-              backgroundColor: C.surface3,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Glyph name="close" size={20} color={C.ink} />
-          </Press>
-        </View>
+        <T style={serif(26, 500, C.ink, { letterSpacing: em(26, -0.01) })}>
+          {isC ? 'Sort collections' : 'Filter & sort'}
+        </T>
       </View>
       <ScrollView
         style={{ flexGrow: 0, flexShrink: 1 }}
@@ -319,13 +294,6 @@ export function CookbookFilterSheet() {
             <Label>Show</Label>
             <ShowCard>
               <SwitchRow
-                title="Saved only"
-                sub="Recipes you’ve bookmarked"
-                value={rf.saved}
-                onChange={() => setRF((cur) => ({ saved: !cur.saved }))}
-              />
-              <View style={{ height: 1, backgroundColor: C.surface3 }} />
-              <SwitchRow
                 title="Cook from my pantry"
                 sub="At least a third of the ingredients are at home"
                 value={rf.pantry}
@@ -396,37 +364,15 @@ export function CookbookFilterSheet() {
   );
 }
 
-/** iOS keyboard height (Android pans the window: `softwareKeyboardLayoutMode: pan`). */
-function useKeyboardLift() {
-  const [kb, setKb] = useState({ h: 0, ms: 250 });
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    const a = Keyboard.addListener('keyboardWillShow', (e) =>
-      setKb({ h: e.endCoordinates.height, ms: e.duration || 250 }),
-    );
-    const b = Keyboard.addListener('keyboardWillHide', (e) =>
-      setKb({ h: 0, ms: e.duration || 250 }),
-    );
-    return () => {
-      a.remove();
-      b.remove();
-    };
-  }, []);
-  const a = useAnimatedStyle(() => ({ bottom: tw(kb.h, kb.ms, EASE) }));
-  // Sheet renders `style` on its Animated.View, so an animated style is safe despite the ViewStyle type.
-  return a as unknown as ViewStyle;
-}
-
 export function NewCollectionSheet() {
   const f = useFrame();
   const { width } = useWindowDimensions();
   const open = useNav((s) => s.nc);
-  const forRecipe = useNav((s) => s.ncForRecipe);
+  const recipeIds = useNav((s) => s.ncRecipeIds);
   const [name, setName] = useState('');
   const [emo, setEmo] = useState('');
   const ref = useRef<TextInput>(null);
   const create = useCreateCollection();
-  const lift = useKeyboardLift();
   const has = name.trim().length > 0;
 
   const [wasOpen, setWasOpen] = useState(open);
@@ -457,7 +403,7 @@ export function NewCollectionSheet() {
     create.mutate(
       {
         name: emo ? emo + ' ' + n : n,
-        ...(forRecipe ? { recipeIds: [forRecipe] } : {}),
+        ...(recipeIds.length ? { recipeIds } : {}),
       },
       { onError: () => toast('Couldn’t create that collection. Try again.') },
     );
@@ -476,13 +422,14 @@ export function NewCollectionSheet() {
     <Sheet
       open={open}
       onClose={close}
-      style={[{ paddingBottom: Math.max(36, f.sheetBottom) }, lift]}
+      avoidKeyboard
+      style={{ paddingBottom: Math.max(36, f.sheetBottom) }}
     >
       <Grabber />
       <T style={serif(26, 500, C.ink, { letterSpacing: em(26, -0.01) })}>
         New collection
       </T>
-      <View
+      <RevealBox
         style={{
           flexDirection: 'row',
           alignItems: 'center',
@@ -522,7 +469,7 @@ export function NewCollectionSheet() {
             inputBd,
           ]}
         >
-          <TextInput
+          <Input
             ref={ref}
             value={name}
             onChangeText={setName}
@@ -542,7 +489,7 @@ export function NewCollectionSheet() {
             }}
           />
         </Animated.View>
-      </View>
+      </RevealBox>
       <T
         style={sans(12, 700, C.ink2, {
           letterSpacing: em(12, 0.08),

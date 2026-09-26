@@ -16,17 +16,24 @@ import {
   currentMonday,
   MEAL_KEYS,
   todayIndex,
+  usePlan,
   usePlanWeek,
-  useRecipeLite,
+  useRecipeSlot,
   type MealKey,
+  type TDay,
 } from '@/tortie/data/plan';
 import { useTRecipe, useTRecipes, type TRecipe } from '@/tortie/data/recipes';
-import { useToggleSave } from '@/tortie/data/saved';
-import { clock, DAYLETTERS, fmtT, greeting, todayLine } from '@/tortie/lib/fmt';
+import {
+  clock,
+  DAYLETTERS,
+  DAYNAMES,
+  fmtT,
+  greeting,
+  todayLine,
+} from '@/tortie/lib/fmt';
 import { toast, useNav } from '@/tortie/nav-store';
 import { C, CSS_EASE, EASE, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
-import { BookmarkButton } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { PulseDot } from '@/tortie/ui/keyframes';
 import { Photo } from '@/tortie/ui/photo';
@@ -162,13 +169,7 @@ function TodayHeader({ compact, on }: { compact: boolean; on: boolean }) {
               <T
                 style={[
                   sans(initials.length > 1 ? 13 : 16, 700, C.bg),
-                  {
-                    includeFontPadding: false,
-                    textAlign: 'center',
-                    textAlignVertical: 'center',
-                    lineHeight: initials.length > 1 ? 16 : 18,
-                    width: '100%',
-                  },
+                  { textAlign: 'center', width: '100%' },
                 ]}
               >
                 {initials}
@@ -497,16 +498,13 @@ function Tonight({ on }: { on: boolean }) {
   const id = plannedId ?? list[0]?.id ?? null;
   const { r: detail } = useTRecipe(id);
   const t: TRecipe | null = detail ?? list.find((x) => x.id === id) ?? null;
-  const toggleSave = useToggleSave();
   const active = useCook((s) => s.active);
   const activeOn = useCook((s) => s.activeOn);
   const openRecipe = useNav((s) => s.openRecipe);
 
   if (!id && !isLoading) return null;
   const hue = t?.hue ?? hueOf(id ?? '');
-  const saved = !!t?.saved;
   const open = () => id && openRecipe(id);
-  const save = () => id && toggleSave(id, !saved);
 
   return (
     <Stagger i={1} on={on}>
@@ -585,11 +583,6 @@ function Tonight({ on }: { on: boolean }) {
               Tonight’s focus
             </T>
           </View>
-          <BookmarkButton
-            saved={saved}
-            onPress={save}
-            style={{ position: 'absolute', top: 12, right: 12 }}
-          />
           <View
             style={{ position: 'absolute', left: 16, right: 16, bottom: 16 }}
           >
@@ -692,7 +685,7 @@ function Meta({ icon, text }: { icon: string; text: string }) {
 }
 
 function ThisWeek({ on }: { on: boolean }) {
-  const { week, planned } = usePlanWeek(currentMonday());
+  const { week, isLoading } = usePlanWeek(currentMonday());
   const goTab = useNav((s) => s.goTab);
   const mounted = useNav((s) => s.mounted);
   const [hi, setHi] = useState(todayIndex);
@@ -743,17 +736,12 @@ function ThisWeek({ on }: { on: boolean }) {
         style={{
           flexDirection: 'row',
           justifyContent: 'space-between',
-          alignItems: 'baseline',
+          alignItems: 'center',
           marginBottom: 12,
         }}
       >
         <T style={serif(19, 600)}>This week</T>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-          <T
-            style={sans(13, 600, C.green)}
-          >{`${planned} of 21 meals planned`}</T>
-          <Glyph name="chevron_right" size={18} color={C.green} />
-        </View>
+        <Glyph name="chevron_right" size={18} color={C.green} />
       </Press>
       <View style={{ flexDirection: 'row', gap: 4 }}>
         {DAYLETTERS.map((l, i) => (
@@ -768,9 +756,12 @@ function ThisWeek({ on }: { on: boolean }) {
         ))}
       </View>
       <Animated.View style={[{ paddingTop: 6 }, fx]}>
-        {MEAL_KEYS.map((k) => (
-          <MealRow key={k} label={MEAL_LABEL[k]} id={wd[k]} mounted={mounted} />
-        ))}
+        <DayMeals
+          day={wd}
+          dayIndex={sel}
+          mounted={mounted}
+          weekLoading={isLoading}
+        />
       </Animated.View>
     </Stagger>
   );
@@ -840,16 +831,102 @@ function DayChip({
   );
 }
 
+function DayMeals({
+  day,
+  dayIndex,
+  mounted,
+  weekLoading,
+}: {
+  day: TDay;
+  dayIndex: number;
+  mounted: boolean;
+  weekLoading: boolean;
+}) {
+  const breakfast = useRecipeSlot(day.b);
+  const lunch = useRecipeSlot(day.l);
+  const dinner = useRecipeSlot(day.d);
+  const slots = { b: breakfast, l: lunch, d: dinner };
+  const pending = weekLoading || MEAL_KEYS.some((k) => slots[k].pending);
+  const any = MEAL_KEYS.some((k) => slots[k].recipe);
+  if (!any) {
+    if (pending) return null;
+    const dayName = DAYNAMES[dayIndex] ?? 'this day';
+    const missing = MEAL_KEYS.some((k) => day[k]);
+    return (
+      <Press
+        onPress={() => {
+          usePlan.getState().goDate(0, dayIndex);
+          useNav.getState().goTab('plan');
+        }}
+        scale={0.98}
+        ms={220}
+        bg="transparent"
+        pressedBg={C.surface3}
+        style={{
+          marginTop: 12,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
+          paddingVertical: 11,
+          paddingLeft: 10,
+          paddingRight: 14,
+          borderRadius: 16,
+          backgroundColor: 'transparent',
+          borderWidth: 1.5,
+          borderStyle: 'dashed',
+          borderColor: C.lineStrong,
+        }}
+      >
+        <View
+          style={{
+            width: 32,
+            height: 32,
+            borderRadius: 16,
+            backgroundColor: C.green,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Glyph name="add" size={18} color={C.white} />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <T numberOfLines={1} style={sans(14, 600, C.green)}>
+            {`Plan meals for ${dayName}`}
+          </T>
+          <T style={[sans(12, 400, C.ink3), { marginTop: 1 }]}>
+            {missing ? 'No recipes available' : 'Nothing planned yet'}
+          </T>
+        </View>
+        <Glyph name="chevron_right" size={18} color={C.ink3} />
+      </Press>
+    );
+  }
+  return (
+    <>
+      {MEAL_KEYS.map((k) => (
+        <MealRow
+          key={k}
+          label={MEAL_LABEL[k]}
+          id={day[k]}
+          recipe={slots[k].recipe}
+          mounted={mounted}
+        />
+      ))}
+    </>
+  );
+}
+
 function MealRow({
   label,
   id,
+  recipe: r,
   mounted,
 }: {
   label: string;
   id: string | null;
+  recipe: TRecipe | null;
   mounted: boolean;
 }) {
-  const r = useRecipeLite(id);
   const openRecipe = useNav((s) => s.openRecipe);
   const on = !!r && mounted;
   const a = useAnimatedStyle(() => ({
@@ -881,7 +958,7 @@ function MealRow({
           radius={10}
           style={{ width: 40, height: 40 }}
         />
-        <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
           <T
             style={[
               sans(10, 700, C.ink3),

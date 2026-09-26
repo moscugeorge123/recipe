@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 
+import { BASE_D } from '@/tortie/theme';
 import { motionMultiplier } from '@/tortie/motion';
+import { toggleSelection } from '@/tortie/data/selection';
 
 export type TabKey = 'today' | 'cookbook' | 'plan' | 'groceries';
 export const TAB_ORDER: TabKey[] = ['today', 'cookbook', 'plan', 'groceries'];
@@ -32,10 +34,17 @@ type Nav = {
 
   menu: boolean;
   menuV: 'main' | 'coll';
+  /** Add-to-collection sheet opened from cookbook multi-select. */
+  menuBulk: boolean;
+  /**
+   * Selected cookbook recipe ids. `null` is the mode off.
+   * Never an empty array — dropping the last id sets `null`.
+   */
+  sel: string[] | null;
 
-  /** New collection sheet; `ncForRecipe` adds that recipe on create. */
+  /** New collection sheet; `ncRecipeIds` are added on create. */
   nc: boolean;
-  ncForRecipe: string | null;
+  ncRecipeIds: string[];
 
   /** Cookbook filter / sort sheet. */
   fs: boolean;
@@ -82,7 +91,12 @@ type Actions = {
   closeCam: (reopenSheet: boolean) => void;
   openMenu: () => void;
   closeMenu: () => void;
-  openNewCollection: (forRecipe?: string | null) => void;
+  clearSel: () => void;
+  toggleSel: (id: string) => void;
+  /** Replace the selection with the visible ids. No-op when `ids` is empty. */
+  selectIds: (ids: string[]) => void;
+  openBulkCollections: () => void;
+  openNewCollection: (forRecipe?: string | string[] | null) => void;
   openEditor: (id: string) => void;
   openNewRecipe: () => void;
   closeEditor: () => void;
@@ -94,6 +108,12 @@ type Actions = {
 };
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let bulkExit: ReturnType<typeof setTimeout> | null = null;
+
+function cancelBulkExit() {
+  if (bulkExit) clearTimeout(bulkExit);
+  bulkExit = null;
+}
 
 export const useNav = create<Nav & Actions>()((set, get) => ({
   mounted: false,
@@ -109,8 +129,10 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   scanUri: null,
   menu: false,
   menuV: 'main',
+  menuBulk: false,
+  sel: null,
   nc: false,
-  ncForRecipe: null,
+  ncRecipeIds: [],
   fs: false,
   cal: false,
   pedOn: false,
@@ -135,7 +157,13 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   set: (p) => set(p),
   goTab: (t) => {
     if (get().tab === t) return;
-    set({ tab: t });
+    cancelBulkExit();
+    const bulk = get().menuBulk;
+    set({
+      tab: t,
+      sel: null,
+      ...(bulk ? { menu: false, menuBulk: false } : {}),
+    });
   },
   openRecipe: (id) =>
     set((s) => ({
@@ -143,17 +171,51 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
       detailOpen: true,
       detailNonce: s.detailNonce + 1,
     })),
-  closeRecipe: () => set({ detailOpen: false, menu: false }),
+  closeRecipe: () => set({ detailOpen: false, menu: false, menuBulk: false }),
   openProfile: () => set((s) => ({ prof: true, profNonce: s.profNonce + 1 })),
   closeProfile: () => set({ prof: false }),
   openAdd: () => set({ addSheet: true }),
   closeAdd: () => set({ addSheet: false }),
   openCam: () => set({ addSheet: false, cam: true }),
   closeCam: (reopen) => set({ cam: false, addSheet: reopen }),
-  openMenu: () => set({ menu: true, menuV: 'main' }),
-  closeMenu: () => set({ menu: false }),
+  openMenu: () => set({ menu: true, menuV: 'main', menuBulk: false }),
+  closeMenu: () => {
+    const bulk = get().menuBulk;
+    set({ menu: false });
+    if (!bulk) return;
+    cancelBulkExit();
+    // ~60% of base duration, so checks don't empty while the sheet is still on screen.
+    const wait = Math.round(BASE_D * motionMultiplier() * 0.6);
+    bulkExit = setTimeout(() => {
+      bulkExit = null;
+      set({ sel: null, menuBulk: false });
+    }, wait);
+  },
+  clearSel: () => {
+    cancelBulkExit();
+    const bulk = get().menuBulk;
+    set(bulk ? { sel: null, menu: false, menuBulk: false } : { sel: null });
+  },
+  toggleSel: (id) =>
+    set((s) => ({ sel: s.sel ? toggleSelection(s.sel, id) : s.sel })),
+  selectIds: (ids) => {
+    if (!ids.length) return;
+    set({ sel: [...ids] });
+  },
+  openBulkCollections: () => {
+    cancelBulkExit();
+    set({ menu: true, menuV: 'coll', menuBulk: true });
+  },
   openNewCollection: (forRecipe = null) =>
-    set({ nc: true, ncForRecipe: forRecipe }),
+    set({
+      nc: true,
+      ncRecipeIds:
+        forRecipe == null
+          ? []
+          : Array.isArray(forRecipe)
+            ? [...forRecipe]
+            : [forRecipe],
+    }),
   openEditor: (id) =>
     set((s) => ({
       edit: true,

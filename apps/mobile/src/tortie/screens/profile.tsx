@@ -2,6 +2,7 @@ import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
+  StyleSheet,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
@@ -96,59 +97,72 @@ export function ProfileScreen() {
   }));
 
   return (
-    <ScrollView
-      ref={scrollRef}
-      stickyHeaderIndices={[0]}
-      showsVerticalScrollIndicator={false}
-      scrollEventThrottle={16}
-      onScroll={onScroll}
-      contentContainerStyle={{ paddingBottom: 44 + f.bottom }}
-    >
+    <View style={{ flex: 1 }}>
+      <ScrollView
+        ref={scrollRef}
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={onScroll}
+        contentContainerStyle={{
+          paddingTop: f.pushTop + 44 + 8,
+          paddingBottom: 44 + f.bottom,
+        }}
+      >
+        <View style={{ paddingHorizontal: 20 }}>
+          {authed ? (
+            <SignedIn on={on} heroHidden={pAv} user={user} name={name} />
+          ) : (
+            <Guest on={on} />
+          )}
+        </View>
+      </ScrollView>
       <View
         style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
           zIndex: 5,
           paddingTop: f.pushTop,
           paddingHorizontal: 20,
           paddingBottom: 8,
         }}
       >
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            {
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-              boxShadow: SH.header,
-              overflow: 'hidden',
-            },
-            hdrBg,
-          ]}
-        >
-          <BlurView
-            intensity={40}
-            tint="light"
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-            }}
-          />
-          <View
-            style={{
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-              backgroundColor: 'rgba(248,250,245,.92)',
-            }}
-          />
-        </Animated.View>
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Animated.View
+            style={[
+              {
+                flex: 1,
+                boxShadow: SH.header,
+                overflow: 'hidden',
+              },
+              hdrBg,
+            ]}
+          >
+            <BlurView
+              intensity={40}
+              tint="light"
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+              }}
+            />
+            <View
+              style={{
+                position: 'absolute',
+                left: 0,
+                right: 0,
+                top: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(248,250,245)',
+              }}
+            />
+          </Animated.View>
+        </View>
         <View
           style={{
             flexDirection: 'row',
@@ -156,6 +170,7 @@ export function ProfileScreen() {
             justifyContent: 'space-between',
             gap: 12,
             height: 44,
+            zIndex: 1,
           }}
         >
           <Press
@@ -211,44 +226,59 @@ export function ProfileScreen() {
               </T>
             </Animated.View>
           </View>
-          <Animated.View
-            style={[
-              {
+          <View
+            pointerEvents={pAv ? 'auto' : 'none'}
+            style={{
+              width: 42,
+              height: 42,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Press
+              onPress={() => toast('Choose a new profile photo')}
+              scale={0.88}
+              accessibilityLabel="Change photo"
+              style={{
                 width: 42,
                 height: 42,
                 alignItems: 'center',
                 justifyContent: 'center',
-              },
-              mini,
-            ]}
-          >
-            {authed ? (
-              <View
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 19,
-                  backgroundColor: C.green,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: '0 0 0 2px #f8faf5, 0 0 0 3.5px #c7ecce',
-                }}
+              }}
+            >
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  {
+                    width: 42,
+                    height: 42,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  },
+                  mini,
+                ]}
               >
-                <T style={sans(14, 700, C.bg)}>{initialsOf(name)}</T>
-              </View>
-            ) : null}
-          </Animated.View>
+                {authed ? (
+                  <View
+                    style={{
+                      width: 38,
+                      height: 38,
+                      borderRadius: 19,
+                      backgroundColor: C.green,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 0 0 2px #f8faf5, 0 0 0 3.5px #c7ecce',
+                    }}
+                  >
+                    <T style={sans(14, 700, C.bg)}>{initialsOf(name)}</T>
+                  </View>
+                ) : null}
+              </Animated.View>
+            </Press>
+          </View>
         </View>
       </View>
-
-      <View style={{ paddingHorizontal: 20 }}>
-        {authed ? (
-          <SignedIn on={on} heroHidden={pAv} user={user} name={name} />
-        ) : (
-          <Guest on={on} />
-        )}
-      </View>
-    </ScrollView>
+    </View>
   );
 }
 

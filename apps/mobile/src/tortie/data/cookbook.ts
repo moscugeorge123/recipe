@@ -102,6 +102,7 @@ export const useCookbook = create<CookbookState>()((set, get) => ({
   },
   setCbSeg: (k) => {
     if (k === get().cbSeg) return;
+    if (useNav.getState().sel) useNav.getState().clearSel();
     if (cbTimer) clearTimeout(cbTimer);
     set({ cbFade: true });
     cbTimer = setTimeout(() => set({ cbSeg: k, cbFade: false }), 160);

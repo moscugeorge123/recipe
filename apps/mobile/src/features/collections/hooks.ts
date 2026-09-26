@@ -270,6 +270,71 @@ export function useRemoveCollectionRecipe() {
   });
 }
 
+function applyMembership(
+  item: CollectionSummary,
+  add: readonly string[],
+  remove: readonly string[],
+): CollectionSummary {
+  const removed = remove.reduce((cur, id) => withoutRecipe(cur, id), item);
+  return add.reduce((cur, id) => withRecipe(cur, id), removed);
+}
+
+/** Add and remove several recipes on one collection in a single optimistic update. */
+export function useSetCollectionMembership() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      collectionId,
+      add,
+      remove,
+    }: {
+      collectionId: string;
+      add: string[];
+      remove: string[];
+    }) => {
+      for (const recipeId of remove) {
+        await removeCollectionRecipe(collectionId, recipeId);
+      }
+      for (const recipeId of add) {
+        await addCollectionRecipe(collectionId, recipeId);
+      }
+    },
+    onMutate: async ({ collectionId, add, remove }) => {
+      const snapshot = await snapshotCollections(client, collectionId);
+      client.setQueryData<CollectionsListPage>(collectionKeys.list, (current) =>
+        patchListItem(current, collectionId, (item) =>
+          applyMembership(item, add, remove),
+        ),
+      );
+      client.setQueryData<CollectionDetail>(
+        collectionKeys.detail(collectionId),
+        (current) => {
+          if (!current) return current;
+          const next = applyMembership(current, add, remove);
+          return {
+            ...current,
+            recipeIds: next.recipeIds,
+            recipeCount: next.recipeCount,
+            coverPreviews: next.coverPreviews,
+            recipes: current.recipes.filter(
+              (item) => !remove.includes(item.id),
+            ),
+          };
+        },
+      );
+      return snapshot;
+    },
+    onError: (_error, variables, snapshot) => {
+      restoreCollections(client, variables.collectionId, snapshot ?? {});
+    },
+    onSettled: () => {
+      client
+        .invalidateQueries({ queryKey: collectionKeys.all })
+        .catch(() => undefined);
+    },
+  });
+}
+
 export function useReorderCollectionRecipes(collectionId: string) {
   const client = useQueryClient();
   return useMutation({

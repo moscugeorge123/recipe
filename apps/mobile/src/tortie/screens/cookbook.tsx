@@ -1,7 +1,8 @@
-import { memo, useCallback, type ReactNode } from 'react';
-import { ScrollView, TextInput, View, useWindowDimensions } from 'react-native';
+import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
+import { ScrollView, View, useWindowDimensions } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
+import { useCreateMealPlanEntry } from '@/features/meal-plan/hooks';
 import {
   collName,
   FILTERS,
@@ -11,13 +12,22 @@ import {
   type CollItem,
   type CollTile,
 } from '@/tortie/data/cookbook';
-import type { TRecipe } from '@/tortie/data/recipes';
-import { useToggleSave } from '@/tortie/data/saved';
-import { useNav } from '@/tortie/nav-store';
+import { mealSlot, usePlan, type MealPick } from '@/tortie/data/plan';
+import { DAYNAMES } from '@/tortie/lib/fmt';
+import { toast, useNav } from '@/tortie/nav-store';
+import {
+  cardWebStyle,
+  onRecipeCardPress,
+  onRecipeSelectAction,
+  SelMark,
+  SelectTile,
+  useRecipeLongPress,
+} from '@/tortie/screens/cookbook-select';
 import { C, CSS_EASE, EASE, F } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
-import { BookmarkButton, Pill, Segmented } from '@/tortie/ui/controls';
+import { Pill, Segmented } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
+import { Input, RevealBox } from '@/tortie/ui/input';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { Stagger } from '@/tortie/ui/stagger';
@@ -27,13 +37,21 @@ import { ctl, sans, serif, T } from '@/tortie/ui/text';
 
 export function CookbookScreen() {
   const on = useNav((s) => s.tab === 'cookbook' && s.mounted);
+  const tab = useNav((s) => s.tab);
+  const pick = usePlan((s) => s.pick);
   const v = useCookbookView();
   const cbSeg = useCookbook((s) => s.cbSeg);
   const cbFade = useCookbook((s) => s.cbFade);
   const isC = cbSeg === 'collections';
-  const sub = isC
-    ? `${v.nColls} collections · 0 shared`
-    : `${v.nAll} recipes · ${v.nSaved} saved`;
+  const sub = pick
+    ? `Tap a recipe for ${DAYNAMES[pick.day]} ${pick.label.toLowerCase()}`
+    : isC
+      ? `${v.nColls} collections · 0 shared`
+      : `${v.nAll} recipes · ${v.nSaved} saved`;
+
+  useEffect(() => {
+    if (tab !== 'cookbook') usePlan.getState().clearPick();
+  }, [tab]);
 
   const fx = useAnimatedStyle(() => ({
     opacity: tw(cbFade ? 0 : 1, 160, CSS_EASE),
@@ -67,6 +85,7 @@ export function CookbookScreen() {
       <Stagger i={2} on={on}>
         <SearchBar isC={isC} count={v.aCnt} />
       </Stagger>
+      {pick ? <PickBar pick={pick} /> : null}
       <Animated.View style={fx}>
         {isC ? (
           <CollectionsView colls={v.colls} on={on} loading={v.collsLoading} />
@@ -74,7 +93,6 @@ export function CookbookScreen() {
           <RecipesView
             book={v.book}
             on={on}
-            nSaved={v.nSaved}
             collName={v.collO ? collName(v.collO).n : null}
             loading={v.recipesLoading}
           />
@@ -113,7 +131,10 @@ function CookbookHeader({
       <Animated.View style={pad}>
         <Animated.Text
           allowFontScaling={false}
-          style={[{ fontFamily: F.serif500, color: C.ink }, title]}
+          style={[
+            { fontFamily: F.serif500, color: C.ink, includeFontPadding: false },
+            title,
+          ]}
         >
           Cookbook
         </Animated.Text>
@@ -136,7 +157,7 @@ function SearchBar({ isC, count }: { isC: boolean; count: number }) {
     color: tw(has ? C.bg : C.green, 240, CSS_EASE),
   }));
   return (
-    <View
+    <RevealBox
       style={{
         flexDirection: 'row',
         alignItems: 'center',
@@ -151,7 +172,7 @@ function SearchBar({ isC, count }: { isC: boolean; count: number }) {
       }}
     >
       <Glyph name="search" size={22} color={C.green} />
-      <TextInput
+      <Input
         value={q}
         onChangeText={setQ}
         placeholder={
@@ -210,37 +231,59 @@ function SearchBar({ isC, count }: { isC: boolean; count: number }) {
           </View>
         ) : null}
       </Press>
-    </View>
+    </RevealBox>
   );
 }
 
 function RecipesView({
   book,
   on,
-  nSaved,
   collName,
   loading,
 }: {
   book: BookItem[];
   on: boolean;
-  nSaved: number;
   collName: string | null;
   loading: boolean;
 }) {
   const filter = useCookbook((s) => s.filter);
   const gridOut = useCookbook((s) => s.gridOut);
   const view = useCookbook((s) => s.rf.view);
-  const saved = useCookbook((s) => s.rf.saved);
   const open = useNav((s) => s.openRecipe);
-  const toggleSave = useToggleSave();
+  const createEntry = useCreateMealPlanEntry();
+  const busy = useRef(false);
+  const onOpen = (id: string) => {
+    const target = usePlan.getState().pick;
+    if (!target) {
+      open(id);
+      return;
+    }
+    if (busy.current) return;
+    busy.current = true;
+    usePlan.getState().clearPick();
+    useNav.getState().goTab('plan');
+    toast(
+      'Planned for ' + DAYNAMES[target.day] + ' ' + target.label.toLowerCase(),
+    );
+    createEntry.mutate(
+      {
+        date: target.date,
+        slot: mealSlot(target.meal),
+        kind: 'RECIPE',
+        recipeId: id,
+      },
+      {
+        onError: () => toast('Couldn’t add it to your plan. Try again.'),
+        onSettled: () => {
+          busy.current = false;
+        },
+      },
+    );
+  };
   const grid = useAnimatedStyle(() => ({
     opacity: tw(gridOut ? 0 : 1, 160, CSS_EASE),
     transform: [{ translateY: tw(gridOut ? 8 : 0, 220, EASE) }],
   }));
-  const onSave = useCallback(
-    (r: TRecipe) => toggleSave(r.id, !r.saved),
-    [toggleSave],
-  );
 
   return (
     <>
@@ -251,16 +294,19 @@ function RecipesView({
           style={{ marginTop: 14, marginBottom: 18, marginHorizontal: -20 }}
           contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
         >
-          {collName ? <CollChip name={collName} /> : null}
-          <SavedChip on={saved} n={nSaved} />
-          <View
-            style={{
-              width: 1,
-              height: 22,
-              alignSelf: 'center',
-              backgroundColor: C.line,
-            }}
-          />
+          {collName ? (
+            <>
+              <CollChip name={collName} />
+              <View
+                style={{
+                  width: 1,
+                  height: 22,
+                  alignSelf: 'center',
+                  backgroundColor: C.line,
+                }}
+              />
+            </>
+          ) : null}
           {FILTERS.map(([k, l]) => (
             <Pill
               key={k}
@@ -284,7 +330,7 @@ function RecipesView({
           <Grid>
             {book.map((b, i) => (
               <Stagger key={b.r.id} i={3 + Math.min(i, 6)} on={on}>
-                <RecipeCard item={b} onOpen={open} onSave={onSave} />
+                <RecipeCard item={b} onOpen={onOpen} />
               </Stagger>
             ))}
           </Grid>
@@ -292,7 +338,7 @@ function RecipesView({
           <View style={{ gap: 10 }}>
             {book.map((b, i) => (
               <Stagger key={b.r.id} i={3 + Math.min(i, 6)} on={on}>
-                <RecipeRow item={b} onOpen={open} onSave={onSave} />
+                <RecipeRow item={b} onOpen={onOpen} />
               </Stagger>
             ))}
           </View>
@@ -306,6 +352,50 @@ function RecipesView({
         />
       ) : null}
     </>
+  );
+}
+
+function PickBar({ pick }: { pick: MealPick }) {
+  const cancel = () => {
+    usePlan.getState().clearPick();
+    useNav.getState().goTab('plan');
+  };
+  return (
+    <View
+      style={{
+        marginTop: 14,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        height: 48,
+        paddingLeft: 14,
+        paddingRight: 6,
+        borderRadius: 16,
+        backgroundColor: C.greenWash,
+        borderWidth: 1,
+        borderColor: C.greenSoft,
+      }}
+    >
+      <Glyph name="calendar_add_on" size={20} color={C.green} />
+      <T numberOfLines={1} style={[sans(13, 600, C.green), { flex: 1 }]}>
+        {DAYNAMES[pick.day] + ' ' + pick.label.toLowerCase()}
+      </T>
+      <Press
+        onPress={cancel}
+        scale={0.96}
+        easing={CSS_EASE}
+        accessibilityLabel="Cancel"
+        style={{
+          height: 34,
+          paddingHorizontal: 12,
+          borderRadius: 99,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <T style={sans(13, 700, C.green)}>Cancel</T>
+      </Press>
+    </View>
   );
 }
 
@@ -334,55 +424,6 @@ function CollChip({ name }: { name: string }) {
   );
 }
 
-function SavedChip({ on, n }: { on: boolean; n: number }) {
-  const box = useAnimatedStyle(() => ({
-    backgroundColor: tw(on ? C.green : C.white, 260, CSS_EASE),
-    borderColor: tw(on ? C.green : C.line, 260, CSS_EASE),
-  }));
-  const col = useAnimatedStyle(() => ({
-    color: tw(on ? C.bg : C.ink, 260, CSS_EASE),
-  }));
-  return (
-    <Press
-      onPress={() =>
-        useCookbook.getState().setRF((rf) => ({ saved: !rf.saved }))
-      }
-      accessibilityLabel="Show saved recipes"
-      scale={0.95}
-      easing={CSS_EASE}
-      style={{
-        height: 38,
-        paddingLeft: 11,
-        paddingRight: 14,
-        borderRadius: 99,
-        borderWidth: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 6,
-      }}
-      animatedStyle={box}
-    >
-      <Glyph name="bookmark" size={18} fill color={on ? C.bg : C.terra} />
-      <Animated.Text allowFontScaling={false} style={[ctl(13, 700), col]}>
-        Saved
-      </Animated.Text>
-      <Animated.Text
-        allowFontScaling={false}
-        style={[
-          sans(13, 700, C.ink, {
-            opacity: 0.75,
-            fontVariant: ['tabular-nums'],
-          }),
-          col,
-        ]}
-      >
-        {String(n)}
-      </Animated.Text>
-    </Press>
-  );
-}
-
 function useColW() {
   const { width } = useWindowDimensions();
   return (width - 40 - 12) / 2;
@@ -406,18 +447,48 @@ function Grid({ children }: { children: ReactNode }) {
 type CardProps = {
   item: BookItem;
   onOpen: (id: string) => void;
-  onSave: (r: TRecipe) => void;
 };
 
 const RecipeCard = memo(function RecipeCard({
   item: { r, meta },
   onOpen,
-  onSave,
 }: CardProps) {
   const w = useColW();
+  const lp = useRecipeLongPress(r.id);
+  const [pressed, setPressed] = useState(false);
+  const selOn = useNav((s) => s.sel != null && s.tab === 'cookbook');
+  const isSel = useNav((s) => !!s.sel?.includes(r.id));
   return (
-    <Press onPress={() => onOpen(r.id)} style={{ width: w }}>
-      <Press onPress={() => onOpen(r.id)} scale={0.97} ms={240}>
+    <Press
+      onLayout={lp.onLayout}
+      onPressIn={(e) => {
+        setPressed(true);
+        lp.onPressIn(e);
+      }}
+      onPressOut={() => {
+        setPressed(false);
+        lp.onPressOut();
+      }}
+      onTouchMove={lp.onTouchMove}
+      onTouchCancel={() => {
+        setPressed(false);
+        lp.onPressOut();
+      }}
+      onContextMenu={lp.onContextMenu}
+      onPress={() => onRecipeCardPress(r.id, onOpen)}
+      accessibilityRole="button"
+      accessibilityState={selOn ? { selected: isSel } : undefined}
+      accessibilityActions={[{ name: 'select', label: 'Select' }]}
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === 'select') onRecipeSelectAction(r.id);
+      }}
+      style={[{ width: w }, cardWebStyle]}
+    >
+      <SelectTile
+        selected={selOn && isSel}
+        pressed={pressed}
+        style={{ width: w, height: w }}
+      >
         <Photo
           hue={r.hue}
           uri={r.uri}
@@ -426,16 +497,17 @@ const RecipeCard = memo(function RecipeCard({
           radius={16}
           style={{ width: w, height: w }}
         />
-        <BookmarkButton
-          saved={r.saved}
-          onPress={() => onSave(r)}
-          size={34}
-          iconSize={19}
-          bg="rgba(248,250,245,.92)"
-          pressScale={0.8}
-          style={{ position: 'absolute', top: 8, right: 8 }}
-        />
-      </Press>
+        {selOn ? (
+          <View
+            pointerEvents="none"
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+            style={{ position: 'absolute', top: 10, right: 10 }}
+          >
+            <SelMark on={isSel} grid />
+          </View>
+        ) : null}
+      </SelectTile>
       <T style={serif(17, 600, C.ink, { lineHeight: 20.4, marginTop: 9 })}>
         {r.title}
       </T>
@@ -447,23 +519,40 @@ const RecipeCard = memo(function RecipeCard({
 const RecipeRow = memo(function RecipeRow({
   item: { r, meta },
   onOpen,
-  onSave,
 }: CardProps) {
+  const lp = useRecipeLongPress(r.id);
+  const selOn = useNav((s) => s.sel != null && s.tab === 'cookbook');
+  const isSel = useNav((s) => !!s.sel?.includes(r.id));
   return (
     <Press
-      onPress={() => onOpen(r.id)}
+      onLayout={lp.onLayout}
+      onPressIn={lp.onPressIn}
+      onPressOut={lp.onPressOut}
+      onTouchMove={lp.onTouchMove}
+      onTouchCancel={lp.onPressOut}
+      onContextMenu={lp.onContextMenu}
+      onPress={() => onRecipeCardPress(r.id, onOpen)}
       scale={0.98}
       easing={CSS_EASE}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        backgroundColor: C.white,
-        borderWidth: 1,
-        borderColor: C.line,
-        borderRadius: 18,
-        padding: 8,
+      accessibilityRole="button"
+      accessibilityState={selOn ? { selected: isSel } : undefined}
+      accessibilityActions={[{ name: 'select', label: 'Select' }]}
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === 'select') onRecipeSelectAction(r.id);
       }}
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 14,
+          backgroundColor: selOn && isSel ? '#eef2ec' : C.white,
+          borderWidth: 1,
+          borderColor: selOn && isSel ? C.green : C.line,
+          borderRadius: 18,
+          padding: 8,
+        },
+        cardWebStyle,
+      ]}
     >
       <Photo
         hue={r.hue}
@@ -475,14 +564,20 @@ const RecipeRow = memo(function RecipeRow({
         <T style={serif(17, 600, C.ink, { lineHeight: 20.4 })}>{r.title}</T>
         <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>{meta}</T>
       </View>
-      <BookmarkButton
-        saved={r.saved}
-        onPress={() => onSave(r)}
-        size={44}
-        iconSize={21}
-        bg="transparent"
-        pressScale={0.8}
-      />
+      {selOn ? (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{
+            width: 44,
+            height: 44,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <SelMark on={isSel} grid={false} />
+        </View>
+      ) : null}
     </Press>
   );
 });

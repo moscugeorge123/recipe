@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Recipe",
+    "name": "Tortie",
     "slug": "recipe",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,17 +8,21 @@
     "scheme": "recipe",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.recipe.app",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
-      "softwareKeyboardLayoutMode": "pan",
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.recipe.app",
       "adaptiveIcon": {
-        "backgroundColor": "#FFF8F2",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
@@ -33,9 +37,9 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFF8F2",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 240
         }
       ],
       "expo-secure-store",
@@ -61,7 +65,8 @@
           "photosPermission": "Allow Tortie to pick a photo of a recipe page.",
           "microphonePermission": false
         }
-      ]
+      ],
+      "./plugins/with-internet-access"
     ],
     "experiments": {
       "typedRoutes": true,

@@ -5,12 +5,14 @@ import {
   type TextStyle,
   type ViewStyle,
 } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { C, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Glyph, Icon } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
+import { useSheetDrag } from '@/tortie/ui/sheet';
 import { ctl, sans, T } from '@/tortie/ui/text';
 
 /** 50×30 switch. Knob 22 at 4px inset, travels 20px (320ms SPRING); track colour 240ms. */
@@ -359,10 +361,12 @@ export function BookmarkButton({
   );
 }
 
-/** Grab handle at the top of bottom sheets. */
+/** Grab handle at the top of bottom sheets. Drags the parent `Sheet` closed. */
 export function Grabber({ mb = 16 }: { mb?: number }) {
-  return (
+  const drag = useSheetDrag();
+  const bar = (
     <View
+      accessibilityLabel="Drag down to close"
       style={{
         width: 40,
         height: 5,
@@ -372,6 +376,18 @@ export function Grabber({ mb = 16 }: { mb?: number }) {
         marginBottom: mb,
       }}
     />
+  );
+  if (!drag) return bar;
+  return (
+    <GestureDetector gesture={drag}>
+      <View
+        collapsable={false}
+        hitSlop={{ top: 12, bottom: 4 }}
+        style={{ alignSelf: 'stretch', width: '100%' }}
+      >
+        {bar}
+      </View>
+    </GestureDetector>
   );
 }
 

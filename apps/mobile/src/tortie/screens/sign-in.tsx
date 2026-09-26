@@ -1,12 +1,6 @@
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  ScrollView,
-  StyleSheet,
-  TextInput,
-  View,
-  type TextInputProps,
-} from 'react-native';
+import { StyleSheet, View, type TextInputProps } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { useCollections } from '@/features/collections/hooks';
@@ -26,6 +20,7 @@ import { DoneArt, OAuthArt, TORTIE_LOGO } from '@/tortie/ui/art';
 import { BrandLogo } from '@/tortie/ui/brand';
 import { Segmented } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
+import { Input, KeyboardScroll } from '@/tortie/ui/input';
 import { ButtonSpinner, Dots } from '@/tortie/ui/keyframes';
 import { Press } from '@/tortie/ui/press';
 import { em, sans, serif, T } from '@/tortie/ui/text';
@@ -727,13 +722,12 @@ function Panel({
       style={[StyleSheet.absoluteFill, a]}
     >
       {scroll ? (
-        <ScrollView
+        <KeyboardScroll
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
           contentContainerStyle={[pad, { flexGrow: 1 }]}
         >
           {children}
-        </ScrollView>
+        </KeyboardScroll>
       ) : (
         <View
           style={[
@@ -756,11 +750,13 @@ function Field({
   ...props
 }: TextInputProps & { error?: boolean; padRight?: boolean }) {
   const [focus, setFocus] = useState(false);
+  const box = useRef<View>(null);
   const a = useAnimatedStyle(() => ({
     borderColor: tw(focus ? C.green : error ? C.terra : C.line, 200, CSS_EASE),
   }));
   return (
     <Animated.View
+      ref={box}
       style={[
         {
           height: 54,
@@ -773,8 +769,9 @@ function Field({
         a,
       ]}
     >
-      <TextInput
+      <Input
         {...props}
+        revealRef={box}
         allowFontScaling={false}
         placeholderTextColor={C.ink3}
         onFocus={(e) => (setFocus(true), props.onFocus?.(e))}

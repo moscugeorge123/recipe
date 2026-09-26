@@ -34,6 +34,14 @@ describe('keyboardOverlayInset', () => {
   test('docks the full keyboard when frame math claims resize but window is still full', () => {
     expect(keyboardOverlayInset(844, 844, 344, 844)).toBe(344);
   });
+
+  test('docks the measured overlap when Android height omits the nav bar', () => {
+    expect(keyboardOverlayInset(844, 450, 344, 844)).toBe(394);
+  });
+
+  test('docks only the strip that still covers a resized frame', () => {
+    expect(keyboardOverlayInset(520, 400, 344, 844)).toBe(120);
+  });
 });
 
 describe('revealFocusedField', () => {

@@ -57,28 +57,32 @@ export function keyboardVisibleBottom(
 }
 
 /**
- * How much to dock the app above an overlaying keyboard.
- * Uses screen vs window height so Expo Go / edge-to-edge overlays still dock,
- * while a true adjustResize window is not double-shrunk.
+ * How much to dock a frame above an overlaying keyboard.
+ * `frameBottom` is the frame's bottom in the same coordinates as
+ * `keyboardScreenY` (the measured app view, not a stale window height).
+ * Android reports a keyboard height with the nav bar already removed, and
+ * edge-to-edge views often stay full-screen while window metrics shrink —
+ * the overlap of this frame is what actually covers the sheet.
  */
 export function keyboardOverlayInset(
-  windowHeight: number,
+  frameBottom: number,
   keyboardScreenY: number,
   keyboardHeight: number,
-  screenHeight = windowHeight,
+  screenHeight = frameBottom,
 ): number {
   if (keyboardHeight <= 0) {
     return 0;
   }
-  // Window already lost roughly a keyboard's worth of height.
-  if (windowHeight <= screenHeight - keyboardHeight + RESIZE_SLACK) {
+  const overlap = frameBottom - keyboardScreenY;
+  if (overlap <= RESIZE_SLACK) {
+    // Frame already ends at the keyboard. If it is still full-screen, the
+    // event parked screenY on the bottom and the reported height is all we have.
+    if (screenHeight - frameBottom <= RESIZE_SLACK) {
+      return keyboardHeight;
+    }
     return 0;
   }
-  if (Math.abs(windowHeight - keyboardScreenY) < RESIZE_SLACK) {
-    // Frame claims resize, but the window is still full-screen — dock fully.
-    return keyboardHeight;
-  }
-  return Math.max(0, Math.min(keyboardHeight, windowHeight - keyboardScreenY));
+  return overlap;
 }
 
 /**

@@ -33,6 +33,8 @@ type PressProps = Omit<PressableProps, 'style' | 'children'> & {
   ms?: number;
   easing?: EasingFunction;
   onPress?: (e: GestureResponderEvent) => void;
+  /** Web: suppress the browser context menu (cookbook cards). */
+  onContextMenu?: (event: { preventDefault: () => void }) => void;
 };
 
 /**
@@ -51,6 +53,7 @@ export function Press({
   easing = EASE,
   onPressIn,
   onPressOut,
+  onContextMenu,
   disabled,
   ...rest
 }: PressProps) {
@@ -75,6 +78,9 @@ export function Press({
   return (
     <APressable
       {...rest}
+      {...(onContextMenu
+        ? ({ onContextMenu } as Partial<PressableProps>)
+        : null)}
       disabled={disabled}
       onPressIn={(e) => {
         p.value = withTiming(1, { duration: ms, easing });

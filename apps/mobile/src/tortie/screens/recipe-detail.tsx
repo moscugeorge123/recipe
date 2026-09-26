@@ -16,6 +16,7 @@ import {
   useAddCollectionRecipe,
   useCollections,
   useRemoveCollectionRecipe,
+  useSetCollectionMembership,
 } from '@/features/collections/hooks';
 import {
   useCreateMealPlanEntry,
@@ -36,16 +37,17 @@ import {
 } from '@/features/shopping-list/hooks';
 import { useCook } from '@/tortie/cook-store';
 import { collName } from '@/tortie/data/cookbook';
+import { collectionMembership } from '@/tortie/data/selection';
+import { useMotion } from '@/tortie/motion';
 import { useServings } from '@/tortie/data/recipe-ui';
 import { fmtQ, useTRecipe } from '@/tortie/data/recipes';
-import { useToggleSave } from '@/tortie/data/saved';
 import { useFrame } from '@/tortie/frame';
 import { DAYNAMES, fmtT, plz } from '@/tortie/lib/fmt';
 import { afterMotion, toast, useNav } from '@/tortie/nav-store';
 import { C, CSS_EASE, EASE, F, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Grabber, Segmented } from '@/tortie/ui/controls';
-import { Glyph, Icon } from '@/tortie/ui/icon';
+import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { Sheet } from '@/tortie/ui/sheet';
@@ -81,7 +83,6 @@ export function RecipeDetail() {
   const { r } = useTRecipe(id);
   const nutr = useNutritionLine(id);
   const [serv, setServ] = useServings(id, r?.base ?? 2);
-  const toggleSave = useToggleSave();
   const resuming = useCook(
     (s) => s.activeOn && !!s.active && s.active.id === id,
   );
@@ -463,21 +464,11 @@ export function RecipeDetail() {
       </FrostButton>
       <FrostButton
         top={f.pushTop}
-        right={116}
+        right={66}
         onPress={() => useNav.getState().openEditor(id)}
         label="Edit recipe"
       >
         <Glyph name="edit" size={21} color={C.ink} />
-      </FrostButton>
-      <FrostButton
-        top={f.pushTop}
-        right={66}
-        onPress={() => toggleSave(id, !r?.saved)}
-        label={r?.saved ? 'Remove from saved' : 'Save recipe'}
-        scale={0.85}
-        spring
-      >
-        <Icon name="bookmark" size={22} color={C.terra} fill={!!r?.saved} />
       </FrostButton>
       <FrostButton
         top={f.pushTop}
@@ -599,7 +590,7 @@ function MetaTile({
   );
 }
 
-/** 42px frosted round button over the hero (press .9 / 200ms; bookmark .85 / 300ms SPRING). */
+/** 42px frosted round button over the hero (press .9 / 200ms). */
 function FrostButton({
   top,
   left,
@@ -607,7 +598,6 @@ function FrostButton({
   onPress,
   label,
   scale = 0.9,
-  spring,
   children,
 }: {
   top: number;
@@ -616,7 +606,6 @@ function FrostButton({
   onPress: () => void;
   label: string;
   scale?: number;
-  spring?: boolean;
   children: ReactNode;
 }) {
   return (
@@ -624,8 +613,8 @@ function FrostButton({
       onPress={onPress}
       accessibilityLabel={label}
       scale={scale}
-      ms={spring ? 300 : 200}
-      easing={spring ? SPRING : CSS_EASE}
+      ms={200}
+      easing={CSS_EASE}
       style={{
         position: 'absolute',
         top,
@@ -711,9 +700,21 @@ type MenuItem = {
 
 export function RecipeMenuSheet() {
   const f = useFrame();
+  const { m } = useMotion();
+  const sheetMs = Math.round(520 * m);
   const open = useNav((s) => s.menu);
   const menuV = useNav((s) => s.menuV);
+  const menuBulk = useNav((s) => s.menuBulk);
+  const sel = useNav((s) => s.sel);
   const id = useNav((s) => s.detailId);
+  const [showBulk, setShowBulk] = useState(false);
+  if (menuBulk && open && !showBulk) setShowBulk(true);
+  useEffect(() => {
+    if (open || !showBulk) return;
+    const t = setTimeout(() => setShowBulk(false), sheetMs);
+    return () => clearTimeout(t);
+  }, [open, showBulk, sheetMs]);
+  const bulkView = menuBulk || (showBulk && !open);
   const { r } = useTRecipe(id);
   const [serv] = useServings(id, r?.base ?? 2);
   const client = useQueryClient();
@@ -721,6 +722,7 @@ export function RecipeMenuSheet() {
   const collections = useCollections();
   const addToColl = useAddCollectionRecipe();
   const removeFromColl = useRemoveCollectionRecipe();
+  const setMembership = useSetCollectionMembership();
   const monday = mondayOfWeek(localTodayIso());
   const plan = useMealPlan(monday);
   const createEntry = useCreateMealPlanEntry();
@@ -768,7 +770,8 @@ export function RecipeMenuSheet() {
   }, [shop.data, r?.ings]);
 
   const close = () => useNav.getState().closeMenu();
-  if (!id) return null;
+  if (!id && !menuBulk && !showBulk) return null;
+  const selIds = sel ?? [];
 
   const items: MenuItem[] = [
     {
@@ -778,6 +781,7 @@ export function RecipeMenuSheet() {
       trail: 'chevron_right',
       ic: C.green,
       on: () => {
+        if (!id) return;
         close();
         afterMotion(220, () => useNav.getState().openEditor(id));
       },
@@ -806,6 +810,7 @@ export function RecipeMenuSheet() {
           toast('No free dinners this week');
           return;
         }
+        if (!id) return;
         const date = daysOfWeek(monday)[freeDay]!;
         createEntry.mutate(
           { date, slot: 'DINNER', kind: 'RECIPE', recipeId: id },
@@ -824,6 +829,7 @@ export function RecipeMenuSheet() {
       trail: '',
       ic: C.terra,
       on: () => {
+        if (!id) return;
         close();
         if (!missing.length) {
           toast('Already on your list');
@@ -860,7 +866,7 @@ export function RecipeMenuSheet() {
   return (
     <Sheet open={open} onClose={close} style={{ paddingBottom: f.sheetBottom }}>
       <Grabber />
-      {menuV !== 'coll' ? (
+      {!bulkView && menuV !== 'coll' && id ? (
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <Photo
@@ -929,7 +935,12 @@ export function RecipeMenuSheet() {
           </View>
           <Press
             onPress={() => {
-              useNav.getState().set({ menu: false, detailOpen: false });
+              if (!id) return;
+              useNav.getState().set({
+                menu: false,
+                menuBulk: false,
+                detailOpen: false,
+              });
               del.mutate(id);
             }}
             style={{
@@ -964,7 +975,11 @@ export function RecipeMenuSheet() {
         <>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <Press
-              onPress={() => useNav.getState().set({ menuV: 'main' })}
+              onPress={() =>
+                bulkView
+                  ? useNav.getState().closeMenu()
+                  : useNav.getState().set({ menuV: 'main' })
+              }
               accessibilityLabel="Back"
               scale={0.9}
               easing={CSS_EASE}
@@ -988,9 +1003,14 @@ export function RecipeMenuSheet() {
                 Add to collection
               </T>
               <T style={sans(12, 400, C.ink2, { marginTop: 1 })}>
-                {inC
-                  ? 'Saved in ' + inC + ' of ' + colls.length
-                  : 'Pick one or more'}
+                {bulkView
+                  ? selIds.length +
+                    ' recipe' +
+                    (selIds.length === 1 ? '' : 's') +
+                    ' selected'
+                  : inC
+                    ? 'Saved in ' + inC + ' of ' + colls.length
+                    : 'Pick one or more'}
               </T>
             </View>
           </View>
@@ -1007,7 +1027,9 @@ export function RecipeMenuSheet() {
             showsVerticalScrollIndicator={false}
           >
             <Press
-              onPress={() => useNav.getState().openNewCollection(id)}
+              onPress={() =>
+                useNav.getState().openNewCollection(bulkView ? selIds : id)
+              }
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
@@ -1034,18 +1056,44 @@ export function RecipeMenuSheet() {
               <T style={sans(15, 700, C.green, { flex: 1 })}>New collection</T>
             </Press>
             {colls.map((c, i) => {
-              const on = c.recipeIds.includes(id);
+              const member = bulkView
+                ? collectionMembership(c.recipeIds, selIds)
+                : id && c.recipeIds.includes(id)
+                  ? 'on'
+                  : 'off';
+              const on = member === 'on';
+              const partial = member === 'partial';
               const { n, emo } = collName(c);
+              const toggleColl = () => {
+                if (bulkView) {
+                  if (!selIds.length) return;
+                  const remove = on
+                    ? selIds.filter((rid) => c.recipeIds.includes(rid))
+                    : [];
+                  const add = on
+                    ? []
+                    : selIds.filter((rid) => !c.recipeIds.includes(rid));
+                  if (!add.length && !remove.length) return;
+                  setMembership.mutate(
+                    { collectionId: c.id, add, remove },
+                    {
+                      onError: () =>
+                        toast('Couldn’t update that collection. Try again.'),
+                    },
+                  );
+                  return;
+                }
+                if (!id) return;
+                (on ? removeFromColl : addToColl).mutate({
+                  collectionId: c.id,
+                  recipeId: id,
+                });
+              };
               return (
                 <Press
                   key={c.id}
-                  onPress={() =>
-                    (on ? removeFromColl : addToColl).mutate({
-                      collectionId: c.id,
-                      recipeId: id,
-                    })
-                  }
-                  accessibilityState={{ checked: on }}
+                  onPress={toggleColl}
+                  accessibilityState={{ checked: partial ? 'mixed' : on }}
                   style={{
                     flexDirection: 'row',
                     alignItems: 'center',
@@ -1076,7 +1124,10 @@ export function RecipeMenuSheet() {
                       {plz(c.recipeIds.length, 'recipe')}
                     </T>
                   </View>
-                  <CheckCircle on={on} />
+                  <CheckCircle
+                    on={on || partial}
+                    glyph={partial ? 'remove' : 'check'}
+                  />
                 </Press>
               );
             })}
@@ -1103,7 +1154,13 @@ export function RecipeMenuSheet() {
 }
 
 /** 26px round check: fill/border 240ms, check scale 0 → 1 over 360ms SPRING. */
-function CheckCircle({ on }: { on: boolean }) {
+function CheckCircle({
+  on,
+  glyph = 'check',
+}: {
+  on: boolean;
+  glyph?: 'check' | 'remove';
+}) {
   const box = useAnimatedStyle(() => ({
     backgroundColor: tw(on ? C.green : 'rgba(50,83,60,0)', 240, CSS_EASE),
     borderColor: tw(on ? C.green : C.lineStrong, 240, CSS_EASE),
@@ -1126,7 +1183,7 @@ function CheckCircle({ on }: { on: boolean }) {
       ]}
     >
       <Animated.View style={mark}>
-        <Glyph name="check" size={18} color={C.bg} />
+        <Glyph name={glyph} size={18} color={C.bg} />
       </Animated.View>
     </Animated.View>
   );

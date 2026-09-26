@@ -17,6 +17,16 @@ const SERIF: Record<Weight, string> = {
   700: F.serif600,
 };
 
+/** Plus Jakarta typo ascender + descender, in em. Shorter than this clips the baseline. */
+const SANS_LINE = 1.26;
+/** Newsreader's typographic line is 1em; its old Android win box was taller. */
+const SERIF_LINE = 1;
+const SERIF_BOX = (2326 + 531) / 2000;
+
+function atLeast(size: number, em: number, lineHeight: number) {
+  return Math.max(lineHeight, Math.ceil(size * em));
+}
+
 /** Plus Jakarta Sans style fragment. */
 export function sans(
   size: number,
@@ -24,25 +34,28 @@ export function sans(
   color: string = C.ink,
   extra?: TextStyle,
 ): TextStyle {
+  const requested = extra?.lineHeight;
   return {
     fontFamily: SANS[weight],
     fontSize: size,
     color,
     includeFontPadding: false,
     textAlignVertical: 'center',
-    lineHeight: size + 2,
     ...extra,
+    ...(typeof requested === 'number'
+      ? { lineHeight: atLeast(size, SANS_LINE, requested) }
+      : null),
   };
 }
 
-/** Single-line label inside a button or pill. Tight leading keeps glyphs optically centered. */
+/** Single-line label inside a button or pill. */
 export function ctl(
   size: number,
   weight: Weight = 600,
   color: string = C.ink,
   extra?: TextStyle,
 ): TextStyle {
-  return sans(size, weight, color, { lineHeight: size + 2, ...extra });
+  return sans(size, weight, color, extra);
 }
 
 /** Newsreader style fragment. `em` tracking → px. */
@@ -52,7 +65,18 @@ export function serif(
   color: string = C.ink,
   extra?: TextStyle,
 ): TextStyle {
-  return { fontFamily: SERIF[weight], fontSize: size, color, ...extra };
+  const requested = extra?.lineHeight;
+  return {
+    fontFamily: SERIF[weight],
+    fontSize: size,
+    color,
+    includeFontPadding: false,
+    ...extra,
+    lineHeight:
+      typeof requested === 'number'
+        ? atLeast(size, SERIF_LINE, requested)
+        : Math.ceil(size * SERIF_BOX),
+  };
 }
 
 export function mono(size: number, color: string): TextStyle {

@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
 import * as SystemUI from 'expo-system-ui';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import {
   BackHandler,
   Platform,
@@ -16,6 +16,7 @@ import { TAB_ORDER, useNav, type TabKey } from '@/tortie/nav-store';
 import { AddRecipeSheet } from '@/tortie/screens/add-recipe';
 import { CookMode } from '@/tortie/screens/cook';
 import { CookbookScreen } from '@/tortie/screens/cookbook';
+import { CookbookSelectionBars } from '@/tortie/screens/cookbook-select';
 import {
   CookbookFilterSheet,
   NewCollectionSheet,
@@ -30,9 +31,11 @@ import { SignInFlow } from '@/tortie/screens/sign-in';
 import { TodayScreen } from '@/tortie/screens/today';
 import { TabBar } from '@/tortie/tab-bar';
 import { requestEditorClose } from '@/tortie/data/editor-draft';
+import { usePlan } from '@/tortie/data/plan';
 import { useGroceriesLeft } from '@/tortie/data/groceries';
 import { C, EASE, SH } from '@/tortie/theme';
 import { tw, useOpenProgress } from '@/tortie/ui/anim';
+import { reportAppFrame } from '@/tortie/ui/keyboard';
 import { ToastView } from '@/tortie/ui/toast';
 
 SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
@@ -43,6 +46,7 @@ SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
  * editor 45 · cook 50 · sign in 56 · camera 60 · toast 70.
  */
 export function TortieShell() {
+  const rootRef = useRef<View>(null);
   const { D } = useMotion();
   const { width } = useWindowDimensions();
   const set = useNav((s) => s.set);
@@ -92,7 +96,15 @@ export function TortieShell() {
   }));
 
   return (
-    <View style={{ flex: 1, backgroundColor: C.bg, overflow: 'hidden' }}>
+    <View
+      ref={rootRef}
+      onLayout={() => {
+        rootRef.current?.measureInWindow((_x, y, _w, h) => {
+          reportAppFrame(y + h);
+        });
+      }}
+      style={{ flex: 1, backgroundColor: C.bg, overflow: 'hidden' }}
+    >
       <Animated.View style={[StyleSheet.absoluteFill, layer]}>
         <TabLayer tab="today">
           <TodayScreen />
@@ -107,6 +119,7 @@ export function TortieShell() {
           <GroceriesScreen />
         </TabLayer>
         <TabBar onPlus={openAdd} groceriesLeft={left} />
+        <CookbookSelectionBars />
         <Animated.View
           pointerEvents="none"
           style={[
@@ -189,9 +202,15 @@ function popTopLayer(): boolean {
   if (s.nc) return (s.set({ nc: false }), true);
   if (s.pedOn) return (s.set({ pedOn: false }), true);
   if (s.menu) return (s.closeMenu(), true);
+  if (s.sel != null && s.tab === 'cookbook') return (s.clearSel(), true);
   if (s.addSheet) return (s.closeAdd(), true);
   if (s.prof) return (s.closeProfile(), true);
   if (s.detailOpen) return (s.closeRecipe(), true);
+  if (usePlan.getState().pick) {
+    usePlan.getState().clearPick();
+    s.goTab('plan');
+    return true;
+  }
   if (s.tab !== 'today') return (s.goTab('today'), true);
   return false;
 }

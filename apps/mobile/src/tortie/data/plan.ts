@@ -31,6 +31,16 @@ const SLOT_OF: Record<MealKey, MealSlot> = {
   d: 'DINNER',
 };
 
+/** A meal slot waiting for a cookbook pick. */
+export type MealPick = {
+  date: string;
+  day: number;
+  meal: MealKey;
+  label: string;
+};
+
+export const mealSlot = (meal: MealKey): MealSlot => SLOT_OF[meal];
+
 /** Monday-first index of today (0 = Monday). */
 export const todayIndex = (now = new Date()) => (now.getDay() + 6) % 7;
 export const currentMonday = () => mondayOfWeek(localTodayIso());
@@ -147,11 +157,19 @@ export function usePlannedDates(from: string, to: string, enabled: boolean) {
 }
 
 /** Recipe summary from the cookbook list, or the detail query when it isn't listed. */
-export function useRecipeLite(id: string | null | undefined): TRecipe | null {
-  const { list } = useTRecipes();
+export function useRecipeSlot(id: string | null | undefined) {
+  const { list, isLoading } = useTRecipes();
   const hit = id ? list.find((r) => r.id === id) : undefined;
-  const d = useTRecipe(hit ? null : id);
-  return hit ?? d.r ?? null;
+  const detail = useTRecipe(hit ? null : id);
+  const recipe = hit ?? detail.r ?? null;
+  return {
+    recipe,
+    pending: !!id && !recipe && (isLoading || detail.isLoading),
+  };
+}
+
+export function useRecipeLite(id: string | null | undefined): TRecipe | null {
+  return useRecipeSlot(id).recipe;
 }
 
 type PlanState = {
@@ -167,6 +185,8 @@ type PlanState = {
   calFade: boolean;
   /** Monday of the week last added to groceries (prototype `weekAdded`). */
   addedWeek: string | null;
+  /** Set while the cookbook is choosing a recipe for an empty slot. */
+  pick: MealPick | null;
 };
 
 type PlanActions = {
@@ -176,6 +196,8 @@ type PlanActions = {
   setCalM: (m: number) => void;
   openCal: () => void;
   markAdded: (monday: string) => void;
+  startPick: (day: number, meal: MealKey, label: string) => void;
+  clearPick: () => void;
 };
 
 let wkT: ReturnType<typeof setTimeout> | null = null;
@@ -191,6 +213,7 @@ export const usePlan = create<PlanState & PlanActions>()((set, get) => ({
   calM: 0,
   calFade: false,
   addedWeek: null,
+  pick: null,
 
   setDay: (i) => {
     const s = get();
@@ -237,4 +260,11 @@ export const usePlan = create<PlanState & PlanActions>()((set, get) => ({
     useNav.getState().set({ cal: true });
   },
   markAdded: (monday) => set({ addedWeek: monday }),
+  startPick: (day, meal, label) => {
+    const date = addUtcDays(mondayAt(get().wk), day);
+    set({ pick: { date, day, meal, label } });
+  },
+  clearPick: () => {
+    if (get().pick) set({ pick: null });
+  },
 }));

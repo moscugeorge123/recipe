@@ -12,10 +12,10 @@ import {
   Keyboard,
   Platform,
   ScrollView,
-  TextInput,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type TextInput,
   type TextStyle,
 } from 'react-native';
 import {
@@ -24,7 +24,6 @@ import {
   type NativeGesture,
 } from 'react-native-gesture-handler';
 import Animated, {
-  useAnimatedKeyboard,
   useAnimatedReaction,
   useAnimatedStyle,
   useSharedValue,
@@ -72,6 +71,8 @@ import { toast, useNav } from '@/tortie/nav-store';
 import { C, CSS_EASE, EASE, F, SH } from '@/tortie/theme';
 import { tw, useOpenProgress, useSlideUp } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
+import { Input, KeyboardScroll } from '@/tortie/ui/input';
+import { useKeyboard, useKeyboardLift } from '@/tortie/ui/keyboard';
 import { Orb, ShimmerText } from '@/tortie/ui/keyframes';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
@@ -80,8 +81,7 @@ import { em, sans, serif, T } from '@/tortie/ui/text';
 const PH = '#a9a9a9';
 const HANDLE = '#a9afa8';
 const NO_OUTLINE: TextStyle = Platform.OS === 'web' ? { outlineWidth: 0 } : {};
-const AInput = Animated.createAnimatedComponent(TextInput);
-const IS_IOS = Platform.OS === 'ios';
+const AInput = Animated.createAnimatedComponent(Input);
 
 type St = {
   ed: Draft;
@@ -693,10 +693,9 @@ export function RecipeEditor() {
     opacity: tw(s.confirm ? 1 : 0, 200, CSS_EASE),
     transform: [{ translateY: tw(s.confirm ? 0 : -8, 320, EASE) }],
   }));
-  const kb = useAnimatedKeyboard();
-  const lift = useAnimatedStyle(() => ({
-    transform: [{ translateY: IS_IOS ? -kb.height.value : 0 }],
-  }));
+  const kb = useKeyboard();
+  const lift = useKeyboardLift();
+  const [askH, setAskH] = useState(0);
 
   return (
     <Animated.View
@@ -819,8 +818,9 @@ export function RecipeEditor() {
       </Animated.View>
 
       <GestureDetector gesture={native}>
-        <ScrollView
+        <KeyboardScroll
           ref={scrollRef}
+          bottomObscured={kb.h > 0 ? askH : 0}
           style={{ flex: 1, minHeight: 0 }}
           contentContainerStyle={{
             paddingTop: 16,
@@ -828,10 +828,7 @@ export function RecipeEditor() {
             paddingBottom: 170,
           }}
           showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets
           scrollEnabled={!drag}
-          scrollEventThrottle={16}
           onScroll={(e: NativeSyntheticEvent<NativeScrollEvent>) => {
             scrollY.current = e.nativeEvent.contentOffset.y;
             if (dref.current) {
@@ -1131,10 +1128,11 @@ export function RecipeEditor() {
             );
           })}
           <DashedAdd label="Add step" onPress={addStep} mt={10} />
-        </ScrollView>
+        </KeyboardScroll>
       </GestureDetector>
 
       <Animated.View
+        onLayout={(e) => setAskH(e.nativeEvent.layout.height)}
         style={[
           { position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 3 },
           lift,
@@ -1262,12 +1260,12 @@ function UnderlineInput({
   style,
   onFocus,
   ...rest
-}: Omit<ComponentProps<typeof TextInput>, 'style'> & {
-  style: ComponentProps<typeof TextInput>['style'];
+}: Omit<ComponentProps<typeof Input>, 'style'> & {
+  style: ComponentProps<typeof Input>['style'];
 }) {
   const [focused, setFocused] = useState(false);
   return (
-    <TextInput
+    <Input
       {...rest}
       multiline
       scrollEnabled={false}
@@ -1518,8 +1516,10 @@ function IngRow({
     ),
   }));
   const pan = useHandle('ings', j, api, native);
+  const row = useRef<View>(null);
   return (
     <Animated.View
+      ref={row}
       onLayout={(e) =>
         onLayoutRow(e.nativeEvent.layout.y, e.nativeEvent.layout.height)
       }
@@ -1568,10 +1568,11 @@ function IngRow({
         </T>
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <TextInput
+        <Input
           ref={(el) => {
             inputs.current.set('i:' + k, el);
           }}
+          revealRef={row}
           value={txt}
           onChangeText={onChange}
           onSubmitEditing={onEnter}
@@ -1655,6 +1656,7 @@ function StepRow({
     borderColor: tw(isFresh ? C.greenSoft2 : C.line, 600, CSS_EASE),
   }));
   const pan = useHandle('steps', j, api, native);
+  const card = useRef<View>(null);
   const chip = {
     height: 32,
     flexDirection: 'row',
@@ -1662,6 +1664,7 @@ function StepRow({
   } as const;
   return (
     <Animated.View
+      ref={card}
       onLayout={(e) =>
         onLayoutRow(e.nativeEvent.layout.y, e.nativeEvent.layout.height)
       }
@@ -1712,10 +1715,11 @@ function StepRow({
         <View
           style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 2 }}
         >
-          <TextInput
+          <Input
             ref={(el) => {
               inputs.current.set('s:' + st.k, el);
             }}
+            revealRef={card}
             value={st.t}
             onChangeText={onT}
             onFocus={onFocus}
@@ -1750,8 +1754,9 @@ function StepRow({
             <Glyph name="delete" size={19} color={C.terra} />
           </Press>
         </View>
-        <TextInput
+        <Input
           value={st.d}
+          revealRef={card}
           onChangeText={onD}
           onFocus={onFocus}
           multiline

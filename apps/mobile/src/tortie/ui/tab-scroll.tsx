@@ -1,9 +1,10 @@
 import { useState, type ReactNode, type Ref } from 'react';
 import {
-  ScrollView,
+  StyleSheet,
   View,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  type ScrollView,
   type ScrollViewProps,
 } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -11,9 +12,10 @@ import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useFrame } from '@/tortie/frame';
 import { C, CSS_EASE, SH } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
+import { KeyboardScroll } from '@/tortie/ui/input';
 
 type TabScrollProps = Omit<ScrollViewProps, 'children'> & {
-  /** Sticky header; receives `compact` (scrollTop > 24). */
+  /** Fixed header; receives `compact` (scrollTop > 24). */
   header: (compact: boolean) => ReactNode;
   children: ReactNode;
   scrollRef?: Ref<ScrollView>;
@@ -21,9 +23,12 @@ type TabScrollProps = Omit<ScrollViewProps, 'children'> & {
 };
 
 /**
- * Tab screen scroll view: padding `58px 20px 124px`, sticky header
- * (`top:-58px`, bg #f8faf5) that compacts after 24px with the shadow
+ * Tab screen scroll view: padding `58px 20px 124px`, fixed header
+ * (bg #f8faf5) that compacts after 24px with the shadow
  * `0 10px 18px -12px rgba(46,49,46,.22)`.
+ *
+ * The header is a sibling of the scroller, not a sticky row. Sticky rows are
+ * translated with the scroll offset, which leaves their tap targets behind.
  */
 export function TabScroll({
   header,
@@ -31,6 +36,7 @@ export function TabScroll({
   scrollRef,
   onCompactChange,
   onScroll,
+  style,
   ...rest
 }: TabScrollProps) {
   const f = useFrame();
@@ -47,32 +53,20 @@ export function TabScroll({
     onScroll?.(e);
   };
   return (
-    <ScrollView
-      ref={scrollRef}
-      stickyHeaderIndices={[0]}
-      showsVerticalScrollIndicator={false}
-      scrollEventThrottle={16}
-      onScroll={handle}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ paddingBottom: f.tabContentBottom }}
-      {...rest}
-    >
-      <View style={{ zIndex: 5 }}>
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            {
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-              backgroundColor: C.bg,
-              boxShadow: SH.header,
-            },
-            shadow,
-          ]}
-        />
+    <View style={{ flex: 1 }}>
+      <View style={{ zIndex: 5, backgroundColor: C.bg }}>
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Animated.View
+            style={[
+              {
+                flex: 1,
+                backgroundColor: C.bg,
+                boxShadow: SH.header,
+              },
+              shadow,
+            ]}
+          />
+        </View>
         <View
           style={{
             backgroundColor: C.bg,
@@ -83,7 +77,16 @@ export function TabScroll({
           {header(compact)}
         </View>
       </View>
-      <View style={{ paddingHorizontal: 20 }}>{children}</View>
-    </ScrollView>
+      <KeyboardScroll
+        {...rest}
+        ref={scrollRef}
+        style={[{ flex: 1 }, style]}
+        showsVerticalScrollIndicator={false}
+        onScroll={handle}
+        contentContainerStyle={{ paddingBottom: f.tabContentBottom }}
+      >
+        <View style={{ paddingHorizontal: 20 }}>{children}</View>
+      </KeyboardScroll>
+    </View>
   );
 }

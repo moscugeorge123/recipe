@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState, type ReactNode } from 'react';
-import { TextInput, View, useWindowDimensions } from 'react-native';
+import { View, useWindowDimensions } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withDelay,
@@ -40,8 +40,8 @@ import { GroceryArt, PantryArt } from '@/tortie/ui/art';
 import { Grabber, Segmented } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { iconText } from '@/tortie/ui/icon-text';
+import { Input, RevealBox } from '@/tortie/ui/input';
 import { Dots, Orb, Pop, ShimmerText } from '@/tortie/ui/keyframes';
-import { useKeyboardLift } from '@/tortie/ui/keyboard';
 import { Press } from '@/tortie/ui/press';
 import { Sheet } from '@/tortie/ui/sheet';
 import { Stagger } from '@/tortie/ui/stagger';
@@ -176,58 +176,60 @@ export function GroceriesScreen() {
         />
       )}
     >
-      <Stagger
-        i={1}
-        on={on}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 10,
-          marginTop: 12,
-          height: 50,
-          paddingLeft: 14,
-          paddingRight: 6,
-          backgroundColor: C.surface2,
-          borderWidth: 1,
-          borderColor: C.line,
-          borderRadius: 99,
-        }}
-      >
-        <Glyph name="auto_awesome" size={20} color={C.terra} fill />
-        <TextInput
-          value={addText}
-          onChangeText={setAddText}
-          onSubmitEditing={addItem}
-          submitBehavior="submit"
-          returnKeyType="done"
-          placeholder={
-            isP ? 'What’s in your kitchen?' : 'Add anything — “2 lemons”'
-          }
-          placeholderTextColor={C.ink3}
-          allowFontScaling={false}
-          style={[
-            sans(15, 400),
-            { flex: 1, minWidth: 0, padding: 0 },
-            INPUT_WEB,
-          ]}
-        />
-        <Press
-          onPress={addItem}
-          scale={0.9}
-          easing={CSS_EASE}
-          accessibilityLabel="Add"
+      <RevealBox>
+        <Stagger
+          i={1}
+          on={on}
           style={{
-            width: 38,
-            height: 38,
-            borderRadius: 19,
-            backgroundColor: C.green,
+            flexDirection: 'row',
             alignItems: 'center',
-            justifyContent: 'center',
+            gap: 10,
+            marginTop: 12,
+            height: 50,
+            paddingLeft: 14,
+            paddingRight: 6,
+            backgroundColor: C.surface2,
+            borderWidth: 1,
+            borderColor: C.line,
+            borderRadius: 99,
           }}
         >
-          <Glyph name="add" size={22} color={C.bg} />
-        </Press>
-      </Stagger>
+          <Glyph name="auto_awesome" size={20} color={C.terra} fill />
+          <Input
+            value={addText}
+            onChangeText={setAddText}
+            onSubmitEditing={addItem}
+            submitBehavior="submit"
+            returnKeyType="done"
+            placeholder={
+              isP ? 'What’s in your kitchen?' : 'Add anything — “2 lemons”'
+            }
+            placeholderTextColor={C.ink3}
+            allowFontScaling={false}
+            style={[
+              sans(15, 400),
+              { flex: 1, minWidth: 0, padding: 0 },
+              INPUT_WEB,
+            ]}
+          />
+          <Press
+            onPress={addItem}
+            scale={0.9}
+            easing={CSS_EASE}
+            accessibilityLabel="Add"
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 19,
+              backgroundColor: C.green,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Glyph name="add" size={22} color={C.bg} />
+          </Press>
+        </Stagger>
+      </RevealBox>
 
       <View style={{ gap: 8, marginTop: pend.length ? 12 : 0 }}>
         {pend.map((p) => (
@@ -1027,7 +1029,6 @@ export function EditPantrySheet() {
   const client = useQueryClient();
   const patch = usePatchPantryItem();
   const del = useDeletePantryItem();
-  const lift = useKeyboardLift();
   const [d, setD] = useState<Draft | null>(null);
 
   const [wasOpen, setWasOpen] = useState(false);
@@ -1117,10 +1118,13 @@ export function EditPantrySheet() {
       open={open}
       onClose={close}
       z={40}
-      style={[{ paddingBottom: f.sheetBottom }, lift]}
+      avoidKeyboard
+      style={{ paddingBottom: f.sheetBottom }}
     >
       <Grabber />
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+      <RevealBox
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+      >
         <View
           style={{
             width: 54,
@@ -1136,7 +1140,7 @@ export function EditPantrySheet() {
           <T style={{ fontSize: 28, lineHeight: 32 }}>{x.e}</T>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <TextInput
+          <Input
             value={x.n}
             onChangeText={(n) => up({ n })}
             maxLength={40}
@@ -1166,21 +1170,7 @@ export function EditPantrySheet() {
             {SHELVES[x.sh] ?? ''}
           </T>
         </View>
-        <Press
-          onPress={close}
-          accessibilityLabel="Close"
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: C.surface3,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Glyph name="close" size={20} color={C.ink2} />
-        </Press>
-      </View>
+      </RevealBox>
       <View
         style={{
           marginTop: 18,
@@ -1210,7 +1200,7 @@ export function EditPantrySheet() {
           onUp={() => up({ packs: x.packs + 1 })}
         />
         <View style={{ height: 1, backgroundColor: C.surface3 }} />
-        <View
+        <RevealBox
           style={{
             flexDirection: 'row',
             alignItems: 'center',
@@ -1224,7 +1214,7 @@ export function EditPantrySheet() {
               Total amount on the shelf
             </T>
           </View>
-          <TextInput
+          <Input
             value={x.amt}
             onChangeText={(t) => up({ amt: t.replace(/[^\d.,]/g, '') })}
             keyboardType="decimal-pad"
@@ -1247,7 +1237,7 @@ export function EditPantrySheet() {
               INPUT_WEB,
             ]}
           />
-        </View>
+        </RevealBox>
       </View>
       <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
         {(['g', 'kg', 'ml', 'l'] as PantryUnit[]).map((u) => (

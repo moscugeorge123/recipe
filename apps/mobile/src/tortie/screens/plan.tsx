@@ -11,6 +11,7 @@ import {
 } from '@/features/shopping-list/hooks';
 import type { ShoppingListItemView } from '@/features/shopping-list/types';
 import { useCook } from '@/tortie/cook-store';
+import { useCookbook } from '@/tortie/data/cookbook';
 import {
   currentMonday,
   daysBetween,
@@ -51,8 +52,10 @@ const usePlanOn = () => useNav((s) => s.tab === 'plan' && s.mounted);
 export function PlanScreen() {
   const on = usePlanOn();
   const wk = usePlan((s) => s.wk);
+  const day = usePlan((s) => s.day);
   const monday = mondayAt(wk);
-  const { planned } = usePlanWeek(monday);
+  const { planned, week } = usePlanWeek(monday);
+  const dayHasRecipe = MEAL_KEYS.some((k) => week[day]?.[k]);
   return (
     <TabScroll
       header={(compact) => (
@@ -66,7 +69,7 @@ export function PlanScreen() {
       <WeekControls on={on} />
       <DayStrip on={on} />
       <DayContent on={on} />
-      <ShopCard on={on} />
+      {dayHasRecipe ? <ShopCard on={on} /> : null}
     </TabScroll>
   );
 }
@@ -423,7 +426,7 @@ function DayContent({ on }: { on: boolean }) {
             {pd[k] ? (
               <FilledSlot id={pd[k]} />
             ) : (
-              <EmptySlot label={label} day={day} />
+              <EmptySlot meal={k} label={label} day={day} />
             )}
           </Stagger>
         ))}
@@ -488,12 +491,21 @@ function FilledSlot({ id }: { id: string }) {
   );
 }
 
-function EmptySlot({ label, day }: { label: string; day: number }) {
+function EmptySlot({
+  meal,
+  label,
+  day,
+}: {
+  meal: MealKey;
+  label: string;
+  day: number;
+}) {
   return (
     <Press
       onPress={() => {
+        useCookbook.getState().setCbSeg('recipes');
+        usePlan.getState().startPick(day, meal, label);
         useNav.getState().goTab('cookbook');
-        toast('Pick a recipe for ' + DAYNAMES[day] + ' ' + label.toLowerCase());
       }}
       scale={0.98}
       easing={CSS_EASE}
@@ -709,32 +721,9 @@ export function MonthPickerSheet() {
       style={{ paddingBottom: f.sheetBottom }}
     >
       <Grabber />
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <T style={[serif(26, 500), { letterSpacing: em(26, -0.01) }]}>
-          Pick a day
-        </T>
-        <Press
-          onPress={close}
-          accessibilityLabel="Close"
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: 20,
-            backgroundColor: C.surface3,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Glyph name="close" size={20} color={C.ink} />
-        </Press>
-      </View>
+      <T style={[serif(26, 500), { letterSpacing: em(26, -0.01) }]}>
+        Pick a day
+      </T>
       <View
         style={{
           flexDirection: 'row',

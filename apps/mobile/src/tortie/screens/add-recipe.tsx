@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useRef, useState } from 'react';
-import { TextInput, View } from 'react-native';
+import { View } from 'react-native';
 import Animated, { Easing, useAnimatedStyle } from 'react-native-reanimated';
 
 import { useCreateExtraction } from '@/features/extraction/hooks/use-create-extraction';
@@ -15,7 +15,7 @@ import { tw } from '@/tortie/ui/anim';
 import { BRAND_COLOR, BrandLogo, type Brand } from '@/tortie/ui/brand';
 import { Grabber } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
-import { useKeyboardLift } from '@/tortie/ui/keyboard';
+import { Input, RevealBox } from '@/tortie/ui/input';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { Sheet } from '@/tortie/ui/sheet';
@@ -68,7 +68,6 @@ export function AddRecipeSheet() {
   const f = useFrame();
   const open = useNav((s) => s.addSheet);
   const cam = useNav((s) => s.cam);
-  const lift = useKeyboardLift();
   const create = useCreateExtraction();
 
   const [url, setUrl] = useState('');
@@ -260,137 +259,117 @@ export function AddRecipeSheet() {
       open={open}
       onClose={close}
       z={40}
-      style={[{ paddingBottom: Math.max(36, f.sheetBottom) }, lift]}
+      avoidKeyboard
+      style={{ paddingBottom: Math.max(36, f.sheetBottom) }}
     >
       <Grabber />
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <View style={{ flexShrink: 1 }}>
-          <T style={[serif(26, 500), { letterSpacing: em(26, -0.01) }]}>
-            Add a recipe
-          </T>
-          <T style={[sans(14, 400, C.ink2), { marginTop: 2 }]}>
-            From a link, a photo, or from scratch.
-          </T>
-        </View>
-        <Press
-          onPress={close}
-          accessibilityLabel="Close"
-          style={{
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: C.surface3,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Glyph name="close" size={20} color={C.ink2} />
-        </Press>
+      <View>
+        <T style={[serif(26, 500), { letterSpacing: em(26, -0.01) }]}>
+          Add a recipe
+        </T>
+        <T style={[sans(14, 400, C.ink2), { marginTop: 2 }]}>
+          From a link, a photo, or from scratch.
+        </T>
       </View>
 
       {imp === 0 ? (
         <>
-          <Animated.View
-            style={[
-              {
-                marginTop: 20,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 10,
-                height: 56,
-                paddingLeft: 16,
-                paddingRight: 6,
-                backgroundColor: C.white,
-                borderWidth: 1.5,
-                borderRadius: 99,
-              },
-              field,
-            ]}
-          >
-            {brand ? (
-              <BrandLogo brand={brand} size={20} />
-            ) : pl ? (
-              <Glyph name="language" size={21} color={C.green} />
-            ) : (
-              <Glyph name="link" size={21} color="#727971" />
-            )}
-            <TextInput
-              value={url}
-              onChangeText={setUrl}
-              onSubmitEditing={() => startImport()}
-              placeholder="Paste a recipe link"
-              placeholderTextColor={C.ink3}
-              inputMode="url"
-              keyboardType="url"
-              autoCapitalize="none"
-              autoCorrect={false}
-              returnKeyType="go"
-              allowFontScaling={false}
+          <RevealBox>
+            <Animated.View
               style={[
-                sans(15, 400),
-                { flex: 1, minWidth: 0, height: '100%', padding: 0 },
-                { outlineStyle: 'none' } as object,
+                {
+                  marginTop: 20,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 10,
+                  height: 56,
+                  paddingLeft: 16,
+                  paddingRight: 6,
+                  backgroundColor: C.white,
+                  borderWidth: 1.5,
+                  borderRadius: 99,
+                },
+                field,
               ]}
-            />
-            {url ? (
+            >
+              {brand ? (
+                <BrandLogo brand={brand} size={20} />
+              ) : pl ? (
+                <Glyph name="language" size={21} color={C.green} />
+              ) : (
+                <Glyph name="link" size={21} color="#727971" />
+              )}
+              <Input
+                value={url}
+                onChangeText={setUrl}
+                onSubmitEditing={() => startImport()}
+                placeholder="Paste a recipe link"
+                placeholderTextColor={C.ink3}
+                inputMode="url"
+                keyboardType="url"
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="go"
+                allowFontScaling={false}
+                style={[
+                  sans(15, 400),
+                  { flex: 1, minWidth: 0, height: '100%', padding: 0 },
+                  { outlineStyle: 'none' } as object,
+                ]}
+              />
+              {url ? (
+                <Press
+                  onPress={() => setUrl('')}
+                  accessibilityLabel="Clear link"
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: 16,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <Glyph name="close" size={18} color="#727971" />
+                </Press>
+              ) : null}
               <Press
-                onPress={() => setUrl('')}
-                accessibilityLabel="Clear link"
+                onPress={() => startImport()}
+                disabled={!pl}
+                scale={0.92}
+                easing={CSS_EASE}
+                accessibilityLabel={cta}
+                animatedStyle={go}
                 style={{
-                  width: 32,
-                  height: 32,
-                  borderRadius: 16,
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: C.green,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Glyph name="close" size={18} color="#727971" />
+                <Glyph name="arrow_forward" size={22} color={C.bg} />
               </Press>
-            ) : null}
-            <Press
-              onPress={() => startImport()}
-              disabled={!pl}
-              scale={0.92}
-              easing={CSS_EASE}
-              accessibilityLabel={cta}
-              animatedStyle={go}
+            </Animated.View>
+            <View
               style={{
-                width: 44,
-                height: 44,
-                borderRadius: 22,
-                backgroundColor: C.green,
+                flexDirection: 'row',
                 alignItems: 'center',
-                justifyContent: 'center',
+                gap: 10,
+                marginTop: 10,
+                paddingHorizontal: 16,
               }}
             >
-              <Glyph name="arrow_forward" size={22} color={C.bg} />
-            </Press>
-          </Animated.View>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 10,
-              marginTop: 10,
-              paddingHorizontal: 16,
-            }}
-          >
-            <T style={sans(12, 600, C.ink2)}>{hint}</T>
-            <View
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
-            >
-              {PLATS.map((p) => (
-                <PlatLogo key={p.k} brand={p.k} on={!pl || pl.k === p.k} />
-              ))}
+              <T style={sans(12, 600, C.ink2)}>{hint}</T>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+              >
+                {PLATS.map((p) => (
+                  <PlatLogo key={p.k} brand={p.k} on={!pl || pl.k === p.k} />
+                ))}
+              </View>
             </View>
-          </View>
+          </RevealBox>
           <View
             style={{
               flexDirection: 'row',
