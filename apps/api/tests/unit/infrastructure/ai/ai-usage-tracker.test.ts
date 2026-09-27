@@ -51,7 +51,7 @@ describe('AIUsageTracker', () => {
       recipeRevisionId: '00000000-0000-4000-8000-000000000201',
       provider: 'openai',
       model: 'gpt-4o-mini',
-      operation: 'nutrition_matching',
+      operation: 'pantry_classification',
       inputTokens: 100,
       outputTokens: 50,
       durationMs: 200,
@@ -59,7 +59,7 @@ describe('AIUsageTracker', () => {
 
     expect(records[0]).toMatchObject({
       userId: '00000000-0000-4000-8000-000000000001',
-      operation: 'nutrition_matching',
+      operation: 'pantry_classification',
     });
     expect(records[0]).not.toHaveProperty('jobId');
   });

@@ -4,6 +4,8 @@ export interface MediaMetadata {
   height?: number;
   codec?: string;
   mimeType?: string;
+  /** False when the container has no audio stream (silent reels, slideshow videos). */
+  hasAudio?: boolean;
 }
 
 export interface FrameExtractionOptions {
@@ -17,6 +19,45 @@ export interface MediaProcessor {
   extractFrames(inputPath: string, opts: FrameExtractionOptions): Promise<string[]>;
   generateThumbnail(inputPath: string, outputPath: string): Promise<string>;
   getMetadata(inputPath: string): Promise<MediaMetadata>;
+  /**
+   * Decoded, downscaled grayscale pixels of an image (fixed size for every frame), used to
+   * detect near-duplicate frames. Optional: without it frames are not deduplicated.
+   */
+  computeFrameSignature?(imagePath: string): Promise<Buffer>;
+}
+
+/**
+ * Sampling interval that spreads `maxFrames` over the whole video instead of stopping after
+ * `maxFrames * minInterval` seconds.
+ */
+export function effectiveFrameInterval(
+  durationSeconds: number,
+  minIntervalSeconds: number,
+  maxFrames: number,
+): number {
+  if (durationSeconds <= 0 || maxFrames <= 0) {
+    return minIntervalSeconds;
+  }
+  return Math.max(minIntervalSeconds, durationSeconds / maxFrames);
+}
+
+/** Picks `count` items spread evenly across the list, always keeping the first and last. */
+export function sampleEvenly<T>(items: readonly T[], count: number): T[] {
+  if (count <= 0) {
+    return [];
+  }
+  if (items.length <= count) {
+    return [...items];
+  }
+  if (count === 1) {
+    return [items[0] as T];
+  }
+  const step = (items.length - 1) / (count - 1);
+  const picked: T[] = [];
+  for (let i = 0; i < count; i++) {
+    picked.push(items[Math.round(i * step)] as T);
+  }
+  return picked;
 }
 
 export interface FrameStrategyOptions {

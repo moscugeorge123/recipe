@@ -11,6 +11,8 @@ export interface LLMInput {
   temperature?: number;
   maxTokens?: number;
   reasoningEffort?: ReasoningEffort;
+  /** Label for logs and usage, e.g. `recipe-extraction`. */
+  operation?: string;
 }
 
 export interface LLMUsage {

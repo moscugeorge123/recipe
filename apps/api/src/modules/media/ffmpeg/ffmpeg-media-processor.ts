@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, readdir } from 'node:fs/promises';
+import { mkdir, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
@@ -25,7 +25,8 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     try {
       await execFileAsync(
         this.ffmpegPath,
-        ['-i', inputPath, '-vn', '-acodec', 'libmp3lame', '-y', outputPath],
+        // Mono 64 kbps keeps a 10-minute video well under Whisper's 25 MB upload limit.
+        ['-i', inputPath, '-vn', '-ac', '1', '-b:a', '64k', '-acodec', 'libmp3lame', '-y', outputPath],
         { timeout: this.timeoutMs },
       );
     } catch (error: unknown) {
@@ -43,7 +44,8 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     const pattern = path.join(opts.outputDir, 'frame-%04d.jpg');
 
     try {
-      const args = ['-i', inputPath, '-vf', `fps=1/${String(opts.intervalSeconds)}`];
+      const fps = (1 / opts.intervalSeconds).toFixed(6);
+      const args = ['-i', inputPath, '-vf', `fps=${fps}`];
       if (opts.maxFrames !== undefined) {
         args.push('-frames:v', String(opts.maxFrames));
       }
@@ -73,6 +75,15 @@ export class FfmpegMediaProcessor implements MediaProcessor {
         ['-i', inputPath, '-ss', '00:00:01', '-vframes', '1', '-y', outputPath],
         { timeout: this.timeoutMs },
       );
+      // Clips shorter than the seek point produce no file; fall back to the first frame.
+      const written = await stat(outputPath).then((s) => s.size > 0).catch(() => false);
+      if (!written) {
+        await execFileAsync(
+          this.ffmpegPath,
+          ['-i', inputPath, '-vframes', '1', '-y', outputPath],
+          { timeout: this.timeoutMs },
+        );
+      }
     } catch (error: unknown) {
       throw new MediaProcessingFailedError({
         message: 'Failed to generate thumbnail',
@@ -97,10 +108,12 @@ export class FfmpegMediaProcessor implements MediaProcessor {
       };
 
       const videoStream = parsed.streams?.find((s) => s.codec_type === 'video');
+      const hasAudio = parsed.streams?.some((s) => s.codec_type === 'audio') ?? false;
 
       return {
         durationSeconds: Number.parseFloat(parsed.format?.duration ?? '0') || 0,
         mimeType: 'video/mp4',
+        hasAudio,
         ...(videoStream?.width !== undefined ? { width: videoStream.width } : {}),
         ...(videoStream?.height !== undefined ? { height: videoStream.height } : {}),
         ...(videoStream?.codec_name ? { codec: videoStream.codec_name } : {}),
@@ -112,7 +125,27 @@ export class FfmpegMediaProcessor implements MediaProcessor {
       });
     }
   }
+
+  async computeFrameSignature(imagePath: string): Promise<Buffer> {
+    const size = FRAME_SIGNATURE_SIZE;
+    const { stdout } = await execFileAsync(
+      this.ffmpegPath,
+      [
+        '-v', 'error',
+        '-i', imagePath,
+        '-vf', `scale=${String(size)}:${String(size)},format=gray`,
+        '-frames:v', '1',
+        '-f', 'rawvideo',
+        '-',
+      ],
+      { timeout: 30_000, encoding: 'buffer', maxBuffer: size * size * 4 },
+    );
+    return stdout;
+  }
 }
+
+/** Width/height of the grayscale thumbnail compared between frames (128² = 16 KB). */
+const FRAME_SIGNATURE_SIZE = 128;
 
 /** Returns true when ffmpeg and ffprobe binaries are available on PATH. */
 export async function isFfmpegAvailable(): Promise<boolean> {

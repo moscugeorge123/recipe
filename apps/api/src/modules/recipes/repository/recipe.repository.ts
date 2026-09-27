@@ -1,6 +1,5 @@
 import type {
   Prisma,
-  NutritionStatus,
   Recipe,
   RecipeIngredient,
   RecipeReviewState,
@@ -15,6 +14,10 @@ export interface CreateRecipeIngredientInput {
   canonicalName?: string | null;
   quantity?: Prisma.Decimal | null;
   unit?: string | null;
+  metricQuantity?: Prisma.Decimal | null;
+  metricUnit?: string | null;
+  imperialQuantity?: Prisma.Decimal | null;
+  imperialUnit?: string | null;
   preparation?: string | null;
   optional?: boolean;
   emoji?: string;
@@ -31,6 +34,9 @@ export interface CreateRecipeStepInput {
   instruction: string;
   durationMinutes?: number | null;
   temperature?: string | null;
+  temperatureCelsius?: number | null;
+  temperatureFahrenheit?: number | null;
+  ingredientRefs?: number[];
   stage?: string;
   confidence?: number;
   provenance?: Prisma.InputJsonValue;
@@ -45,7 +51,9 @@ export interface CreateRecipeInput {
   prepTimeMinutes?: number | null;
   cookTimeMinutes?: number | null;
   totalTimeMinutes?: number | null;
+  difficulty?: string | null;
   calories?: number | null;
+  nutritionSource?: string | null;
   cuisine?: string | null;
   nutrition?: Prisma.InputJsonValue | null;
   sourceLanguage?: string | null;
@@ -79,6 +87,7 @@ export type RecipeListRecord = {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
+  difficulty: string | null;
   calories: number | null;
   cuisine: string | null;
   isFavorite: boolean;
@@ -131,14 +140,15 @@ export interface EffectiveRecipeRecord {
   rating: number | null;
   isFavorite: boolean;
   cookCount: number;
-  nutritionStatus: NutritionStatus;
   title: string;
   description: string | null;
   servings: number | null;
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
+  difficulty: string | null;
   calories: number | null;
+  nutritionSource: string | null;
   cuisine: string | null;
   nutrition: Prisma.JsonValue | null;
   sourceLanguage: string | null;
@@ -151,6 +161,10 @@ export interface EffectiveRecipeRecord {
     canonicalName: string | null;
     quantity: Prisma.Decimal | null;
     unit: string | null;
+    metricQuantity: Prisma.Decimal | null;
+    metricUnit: string | null;
+    imperialQuantity: Prisma.Decimal | null;
+    imperialUnit: string | null;
     preparation: string | null;
     optional: boolean;
     emoji: string;
@@ -167,6 +181,9 @@ export interface EffectiveRecipeRecord {
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;
+    temperatureCelsius: number | null;
+    temperatureFahrenheit: number | null;
+    ingredientRefs: number[];
     stage: string;
     confidence: number;
     provenance: Prisma.JsonValue;
@@ -196,6 +213,8 @@ export interface RevisionSnapshotInput {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
+  /** Omitted → carried over from the current head revision. */
+  difficulty?: string | null;
   calories: number | null;
   cuisine: string | null;
   categoryIds: string[];
@@ -204,6 +223,10 @@ export interface RevisionSnapshotInput {
     canonicalName: string | null;
     quantity: Prisma.Decimal | null;
     unit: string | null;
+    metricQuantity?: Prisma.Decimal | null;
+    metricUnit?: string | null;
+    imperialQuantity?: Prisma.Decimal | null;
+    imperialUnit?: string | null;
     preparation: string | null;
     optional: boolean;
     emoji: string;
@@ -216,6 +239,9 @@ export interface RevisionSnapshotInput {
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;
+    temperatureCelsius?: number | null;
+    temperatureFahrenheit?: number | null;
+    ingredientRefs?: number[];
     stage: string;
   }>;
 }

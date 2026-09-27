@@ -11,6 +11,7 @@ export type DietKey = 'veg' | 'pesc' | 'gf' | 'df' | 'nut';
  */
 type TortiePrefs = {
   defaultServings: number;
+  /** Ingredient amounts, step heat, in-step measurements and grocery amounts. */
   units: Units;
   diet: Partial<Record<DietKey, boolean>>;
   voice: boolean;

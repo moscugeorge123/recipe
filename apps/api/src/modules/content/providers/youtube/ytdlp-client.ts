@@ -12,6 +12,18 @@ export interface YtDlpThumbnail {
   id?: string;
 }
 
+export interface YtDlpSubtitleFormat {
+  ext?: string;
+  url?: string;
+  name?: string;
+}
+
+export interface YtDlpChapter {
+  start_time?: number;
+  end_time?: number;
+  title?: string;
+}
+
 export interface YtDlpMetadata {
   title?: string;
   description?: string;
@@ -21,6 +33,11 @@ export interface YtDlpMetadata {
   thumbnail?: string;
   thumbnails?: YtDlpThumbnail[];
   webpage_url?: string;
+  chapters?: YtDlpChapter[] | null;
+  /** Uploader-provided subtitles keyed by language code. */
+  subtitles?: Record<string, YtDlpSubtitleFormat[]> | null;
+  /** YouTube ASR captions (plus machine translations) keyed by language code; `<lang>-orig` is the source track. */
+  automatic_captions?: Record<string, YtDlpSubtitleFormat[]> | null;
 }
 
 export interface YtDlpDownloadResult {
@@ -55,6 +72,9 @@ const YTDLP_COMMON_ARGS = [
   '--js-runtimes',
   'node',
 ] as const;
+
+/** 720p is plenty for on-screen text OCR; falls back to any quality when no ≤720p stream exists. */
+export const YTDLP_FORMAT = 'bv*[height<=720]+ba/b[height<=720]/bv*+ba/b';
 
 const STDERR_LIMIT = 500;
 
@@ -133,7 +153,7 @@ export class YtDlpClient implements VideoDownloadClient {
           '--no-simulate',
           '--dump-single-json',
           '-f',
-          'bv*+ba/b',
+          YTDLP_FORMAT,
           '-o',
           outputTemplate,
           url,

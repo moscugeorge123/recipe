@@ -7,14 +7,15 @@ export const createExtractionJobBodySchema = z
     url: z.url('url must be a valid URL'),
     outputLanguage: z.string().min(2).max(10).default('en'),
     forceRefresh: z.boolean().default(false),
+    // Unknown option keys (e.g. the retired `extractNutrition`) are stripped, not rejected,
+    // so older clients keep working. Calories and macros are always extracted now.
     options: z
       .object({
-        extractNutrition: z.boolean().default(false),
         extractImages: z.boolean().default(true),
         highAccuracy: z.boolean().default(false),
         selectedThumbnailUrl: z.url().optional(),
       })
-      .default({ extractNutrition: false, extractImages: true, highAccuracy: false }),
+      .default({ extractImages: true, highAccuracy: false }),
   })
   .strict();
 

@@ -6,14 +6,12 @@ export type AIUsageLink =
       userId?: string;
       recipeRevisionId?: string;
       pantryItemId?: string;
-      nutritionSnapshotId?: string;
     }
   | {
       jobId?: string;
       userId: string;
       recipeRevisionId?: string;
       pantryItemId?: string;
-      nutritionSnapshotId?: string;
     };
 
 export type CreateAIUsageInput = AIUsageLink & {
@@ -43,9 +41,6 @@ export class PrismaAIUsageRepository implements IAIUsageRepository {
           ? { recipeRevisionId: input.recipeRevisionId }
           : {}),
         ...(input.pantryItemId !== undefined ? { pantryItemId: input.pantryItemId } : {}),
-        ...(input.nutritionSnapshotId !== undefined
-          ? { nutritionSnapshotId: input.nutritionSnapshotId }
-          : {}),
         provider: input.provider,
         model: input.model,
         operation: input.operation,

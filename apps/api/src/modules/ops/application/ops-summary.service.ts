@@ -2,11 +2,9 @@ import type { Prisma, PrismaClient } from '@prisma/client';
 
 import type { OpsSummary } from '../api/ops.schema.js';
 
-const USDA_429_LOG_FILTER = 'NutritionRateLimitError OR step=nutrition.process status=429';
 const REVISION_CONFLICT_LOG_FILTER = 'error.code=RECIPE_REVISION_CONFLICT';
 
 const EXTRACTION_TERMINAL = new Set(['COMPLETED', 'FAILED', 'CANCELLED']);
-const NUTRITION_IN_FLIGHT = new Set(['PENDING', 'PROCESSING']);
 
 interface MigrationRow {
   migration_name: string;
@@ -50,48 +48,32 @@ export class OpsSummaryService {
   constructor(private readonly db: PrismaClient) {}
 
   async getSummary(userId: string): Promise<OpsSummary> {
-    const [
-      aiTotals,
-      aiByOperation,
-      queryCacheEntries,
-      foodCacheEntries,
-      nutritionByStatus,
-      pantryItems,
-      revisionCount,
-      extractionByStatus,
-      migrations,
-    ] = await Promise.all([
-      this.db.aIUsage.aggregate({
-        _count: { _all: true },
-        _sum: { inputTokens: true, outputTokens: true, estimatedCostUsd: true },
-      }),
-      this.db.aIUsage.groupBy({
-        by: ['operation', 'model'],
-        _count: { _all: true },
-        _sum: { inputTokens: true, outputTokens: true, estimatedCostUsd: true },
-        orderBy: [{ operation: 'asc' }, { model: 'asc' }],
-      }),
-      this.db.nutritionQueryCache.count(),
-      this.db.nutritionFoodCache.count(),
-      this.db.nutritionSnapshot.groupBy({
-        by: ['status'],
-        _count: { _all: true },
-      }),
-      this.db.pantryItem.findMany({
-        where: { userId },
-        select: { classification: true },
-      }),
-      this.db.recipeRevision.count({
-        where: { userRecipe: { userId } },
-      }),
-      this.db.extractionJob.groupBy({
-        by: ['status'],
-        _count: { _all: true },
-      }),
-      this.readMigrations(),
-    ]);
+    const [aiTotals, aiByOperation, pantryItems, revisionCount, extractionByStatus, migrations] =
+      await Promise.all([
+        this.db.aIUsage.aggregate({
+          _count: { _all: true },
+          _sum: { inputTokens: true, outputTokens: true, estimatedCostUsd: true },
+        }),
+        this.db.aIUsage.groupBy({
+          by: ['operation', 'model'],
+          _count: { _all: true },
+          _sum: { inputTokens: true, outputTokens: true, estimatedCostUsd: true },
+          orderBy: [{ operation: 'asc' }, { model: 'asc' }],
+        }),
+        this.db.pantryItem.findMany({
+          where: { userId },
+          select: { classification: true },
+        }),
+        this.db.recipeRevision.count({
+          where: { userRecipe: { userId } },
+        }),
+        this.db.extractionJob.groupBy({
+          by: ['status'],
+          _count: { _all: true },
+        }),
+        this.readMigrations(),
+      ]);
 
-    const nutritionCounts = countsByStatus(nutritionByStatus);
     const extractionCounts = countsByStatus(extractionByStatus);
     const fallbackItems = pantryItems.filter(
       (item) => classificationSource(item.classification) === 'fallback',
@@ -104,10 +86,6 @@ export class OpsSummaryService {
       .filter((row) => row.operation.includes('escalation'))
       .reduce((sum, row) => sum + row._count._all, 0);
 
-    let nutritionInFlight = 0;
-    for (const status of NUTRITION_IN_FLIGHT) {
-      nutritionInFlight += nutritionCounts[status] ?? 0;
-    }
     const extractionInFlight = Object.entries(extractionCounts)
       .filter(([status]) => !EXTRACTION_TERMINAL.has(status))
       .reduce((sum, [, count]) => sum + count, 0);
@@ -131,17 +109,6 @@ export class OpsSummaryService {
           estimatedCostUsd: roundCost(decimalToNumber(row._sum.estimatedCostUsd)),
         })),
       },
-      usda: {
-        queryCacheEntries,
-        foodCacheEntries,
-        rateLimitedPersisted: false,
-        rateLimitedLogFilter: USDA_429_LOG_FILTER,
-      },
-      nutrition: {
-        byStatus: nutritionCounts,
-        failed: nutritionCounts['FAILED'] ?? 0,
-        inFlight: nutritionInFlight,
-      },
       pantry: {
         items: pantryCount,
         fallbackItems,
@@ -155,7 +122,6 @@ export class OpsSummaryService {
       queues: {
         extractionByStatus: extractionCounts,
         extractionInFlight,
-        nutritionInFlight,
       },
       migrations,
     };

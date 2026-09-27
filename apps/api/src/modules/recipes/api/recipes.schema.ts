@@ -1,3 +1,4 @@
+import { NutritionSource, RECIPE_DIFFICULTIES } from '@recipe/contracts';
 import { z } from 'zod';
 
 import { paginationQuerySchema } from '../../../shared/pagination/pagination.js';
@@ -45,12 +46,23 @@ export const listRecipesQuerySchema = paginationQuerySchema.extend({
 
 export type ListRecipesQuery = z.infer<typeof listRecipesQuerySchema>;
 
+const difficultySchema = z.enum(RECIPE_DIFFICULTIES);
+const nutritionSourceSchema = z.enum([NutritionSource.STATED, NutritionSource.ESTIMATED]);
+
+/** The ingredient amount in one system; count units ("2 cloves") repeat the original. */
+export const ingredientMeasurementSchema = z.object({
+  quantity: z.string().nullable(),
+  unit: z.string().nullable(),
+});
+
 export const recipeIngredientSchema = z.object({
   id: dbUuid(),
   name: z.string(),
   canonicalName: z.string().nullable(),
   quantity: z.union([z.string(), z.number()]).nullable(),
   unit: z.string().nullable(),
+  metric: ingredientMeasurementSchema,
+  imperial: ingredientMeasurementSchema,
   preparation: z.string().nullable(),
   optional: z.boolean(),
   emoji: z.string(),
@@ -68,6 +80,9 @@ export const recipeStepSchema = z.object({
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),
+  temperatureCelsius: z.number().int().nullable(),
+  temperatureFahrenheit: z.number().int().nullable(),
+  ingredientRefs: z.array(z.number().int().nonnegative()),
   stage: z.string(),
   ingredientHint: z.string().nullable(),
   confidence: z.number(),
@@ -96,8 +111,9 @@ export const recipeDetailSchema = z.object({
   cookTimeMinutes: z.number().int().nullable(),
   totalTimeMinutes: z.number().int().nullable(),
   calories: z.number().int().nullable(),
+  nutritionSource: nutritionSourceSchema.nullable(),
   cuisine: z.string().nullable(),
-  difficulty: z.enum(['Easy', 'Medium', 'Hard']).nullable(),
+  difficulty: difficultySchema.nullable(),
   minutes: z.number().int().nullable(),
   nutrition: z.unknown().nullable(),
   sourceLanguage: z.string().nullable(),
@@ -115,14 +131,6 @@ export const recipeDetailSchema = z.object({
   ratingAverage: z.number().min(1).max(5).nullable(),
   ratingCount: z.number().int().nonnegative(),
   cookCount: z.number().int().nonnegative(),
-  nutritionStatus: z.enum([
-    'NOT_REQUESTED',
-    'PENDING',
-    'PROCESSING',
-    'COMPLETED',
-    'PARTIAL',
-    'FAILED',
-  ]),
   ingredients: z.array(recipeIngredientSchema),
   steps: z.array(recipeStepSchema),
   source: recipeSourceSchema.nullable(),
@@ -145,7 +153,7 @@ export const recipeListItemSchema = z.object({
   totalTimeMinutes: z.number().int().nullable(),
   calories: z.number().int().nullable(),
   cuisine: z.string().nullable(),
-  difficulty: z.enum(['Easy', 'Medium', 'Hard']).nullable(),
+  difficulty: difficultySchema.nullable(),
   minutes: z.number().int().nullable(),
   sourceType: z.string(),
   sourceLabel: z.string(),
@@ -278,6 +286,7 @@ export const patchRecipeBodySchema = z
     prepTimeMinutes: z.number().int().nullable(),
     cookTimeMinutes: z.number().int().nullable(),
     totalTimeMinutes: z.number().int().nullable(),
+    difficulty: difficultySchema.nullable(),
     calories: z.number().int().nullable(),
     cuisine: z.string().nullable(),
     expectedRevisionNumber: z.number().int().nonnegative(),

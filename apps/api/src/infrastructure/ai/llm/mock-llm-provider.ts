@@ -111,16 +111,30 @@ export class MockLLMProvider implements LLMProvider {
       steps.push({ stepOrder: 1, instruction: description, confidence: 0.5 });
     }
 
+    const kcal = calories ?? Math.min(900, 150 * Math.max(1, ingredients.length));
+
     return {
       title,
       description,
-      calories,
+      calories: kcal,
+      nutritionSource: calories === null ? 'estimated' : 'stated',
+      nutrition: macroSplit(kcal),
+      difficulty: steps.length <= 3 ? 'Easy' : steps.length <= 6 ? 'Medium' : 'Hard',
       sourceLanguage: 'en',
       categorySlugs: categorySlugsFor(`${title} ${description}`),
       ingredients,
-      steps,
+      steps: steps.map((step) => ({ ...step, ingredientIndexes: [] })),
     };
   }
+}
+
+/** Rough 20/50/30 protein/carb/fat energy split so mock macros agree with mock kcal. */
+function macroSplit(kcal: number): { proteinGrams: number; carbsGrams: number; fatGrams: number } {
+  return {
+    proteinGrams: Math.round((kcal * 0.2) / 4),
+    carbsGrams: Math.round((kcal * 0.5) / 4),
+    fatGrams: Math.round((kcal * 0.3) / 9),
+  };
 }
 
 function presentationFor(name: string): {

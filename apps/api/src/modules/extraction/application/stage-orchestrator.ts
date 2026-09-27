@@ -8,6 +8,7 @@ import { DEFAULT_PRICING } from '../../../infrastructure/ai/usage/pricing.js';
 import { silentLogger, type AppLogger } from '../../../infrastructure/logging/logger.js';
 import { logStep } from '../../../infrastructure/logging/log-step.js';
 import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
+import { isAppError } from '../../../shared/errors/app-error.js';
 import { ExtractionFailedError } from '../../../shared/errors/extraction-errors.js';
 import type { ContentAcquisitionService } from '../../content/application/content-acquisition.service.js';
 import type { AcquiredContent } from '../../content/domain/types.js';
@@ -15,9 +16,15 @@ import { EvidenceBuilder } from '../../evidence/application/evidence-builder.js'
 import type { EvidenceItem } from '../../evidence/domain/types.js';
 import { ConfidenceCalculator } from '../../confidence/application/confidence-calculator.js';
 import { RecipeNormalizer } from '../../normalization/application/recipe-normalizer.js';
+import {
+  assertExtractedRecipeHasContent,
+  assertFoodRecipe,
+  createRecipeClassifier,
+} from '../../recipes/application/recipe-classifier.js';
 import { RecipeExtractor } from '../../recipes/application/recipe-extractor.js';
 import { primaryLanguage } from '../../recipes/prompts/recipe-extraction-v1.js';
 import type { MediaProcessingService } from '../../media/application/media-processing.service.js';
+import { createMediaStageHandlers } from './media-stage-handlers.js';
 import type { IRecipeRepository } from '../../recipes/repository/recipe.repository.js';
 import { RecipeValidator } from '../../validation/application/recipe-validator.js';
 import { ProgressCalculator } from '../../jobs/application/progress-calculator.js';
@@ -157,6 +164,10 @@ export class StageOrchestrator {
             currentStage: 'completed',
             completedAt,
           });
+          log.info(
+            { step: 'pipeline.job', status: 'COMPLETED', recipeId: ctx.recipeId ?? null },
+            'pipeline.job completed',
+          );
           return;
         }
 
@@ -188,7 +199,15 @@ export class StageOrchestrator {
         });
 
         log.error(
-          { step: 'pipeline.stage', stage, durationMs: Date.now() - stageStartedMs, err: error },
+          {
+            step: 'pipeline.stage',
+            stage,
+            durationMs: Date.now() - stageStartedMs,
+            errorCode: serialized.code ?? null,
+            errorMessage: serialized.message,
+            errorCause: serialized.cause ?? null,
+            err: error,
+          },
           'pipeline.stage failed',
         );
 
@@ -235,7 +254,10 @@ export interface StageHandlerDeps {
 export function createDefaultStageHandlers(
   deps: StageHandlerDeps,
 ): Partial<Record<PipelineStage, StageHandler>> {
-  const evidenceBuilder = new EvidenceBuilder();
+  const evidenceBuilder = new EvidenceBuilder({
+    mediaMaxChars: deps.config.extraction.evidenceMediaMaxChars,
+    transcriptMaxChars: deps.config.extraction.evidenceTranscriptMaxChars,
+  });
   const recipeNormalizer = new RecipeNormalizer();
   const confidenceCalculator = new ConfidenceCalculator();
   const recipeValidator = new RecipeValidator();
@@ -258,6 +280,10 @@ export function createDefaultStageHandlers(
         source.originalUrl,
         ctx.jobId,
         ctx.outputLanguage,
+      );
+      log.child({ jobId: ctx.jobId }).info(
+        { step: 'content.acquire', ...summarizeAcquiredContent(ctx.acquiredContent) },
+        'content.acquire summary',
       );
 
       const options = parseJobOptions(job.options);
@@ -293,171 +319,15 @@ export function createDefaultStageHandlers(
       await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
     },
 
-    PROCESSING_MEDIA: async (ctx): Promise<void> => {
-      if (!deps.mediaProcessing || !ctx.acquiredContent?.videoLocalPath) {
-        log.info(
-          { step: 'media.process', jobId: ctx.jobId, skipped: true },
-          'media.process skipped',
-        );
-        await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
-        return;
-      }
-
-      const path = await import('node:path');
-      const os = await import('node:os');
-
-      await deps.mediaProcessing.processVideo({
-        jobId: ctx.jobId,
-        videoLocalPath: ctx.acquiredContent.videoLocalPath,
-        tempDir: path.join(os.tmpdir(), 'recipe-extraction', ctx.jobId, 'media'),
-      });
-    },
-
-    TRANSCRIBING: async (ctx): Promise<void> => {
-      const audioAssets = await deps.mediaAssetRepo.findByJobAndType(ctx.jobId, 'AUDIO');
-      if (audioAssets.length === 0) {
-        log.info(
-          { step: 'ai.transcribe', jobId: ctx.jobId, skipped: true },
-          'ai.transcribe skipped',
-        );
-        await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
-        return;
-      }
-
-      const audioAsset = audioAssets[0];
-      if (!audioAsset) {
-        return;
-      }
-      const existing = await deps.transcriptRepo.findByMediaAssetId(audioAsset.id);
-      if (existing) {
-        log.info(
-          { step: 'ai.transcribe', jobId: ctx.jobId, skipped: true, reason: 'already transcribed' },
-          'ai.transcribe skipped',
-        );
-        return;
-      }
-
-      const usageTracker = new AIUsageTracker(deps.aiUsageRepo, DEFAULT_PRICING);
-      const ai = createAIProviders(deps.config, usageTracker, ctx.jobId);
-
-      const audioBuffer = await deps.storage.download(audioAsset.storageKey);
-      ctx.transcript = await logStep(
-        log.child({ jobId: ctx.jobId }),
-        'ai.transcribe',
-        { mimeType: audioAsset.mimeType, sizeBytes: audioBuffer.byteLength },
-        () =>
-          ai.transcription.transcribe({
-            data: audioBuffer,
-            mimeType: audioAsset.mimeType,
-          }),
-      );
-
-      await deps.transcriptRepo.create({
-        mediaAssetId: audioAsset.id,
-        language: ctx.transcript.language,
-        fullText: ctx.transcript.fullText,
-        provider: ctx.transcript.provider,
-        segments: ctx.transcript.segments,
-      });
-    },
-
-    ANALYZING_FRAMES: async (ctx): Promise<void> => {
-      const frameAssets = await deps.mediaAssetRepo.findByJobAndType(ctx.jobId, 'FRAME');
-      if (frameAssets.length === 0) {
-        log.info({ step: 'ai.vision', jobId: ctx.jobId, skipped: true }, 'ai.vision skipped');
-        await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
-        return;
-      }
-
-      const usageTracker = new AIUsageTracker(deps.aiUsageRepo, DEFAULT_PRICING);
-      const ai = createAIProviders(deps.config, usageTracker, ctx.jobId);
-
-      const options =
-        ctx.options ?? parseJobOptions((await deps.jobRepo.findById(ctx.jobId))?.options);
-      ctx.options = options;
-      const maxFrames = options.highAccuracy
-        ? Math.max(5, Math.min(12, deps.config.extraction.maxFrames))
-        : 5;
-      const framesToAnalyze = frameAssets.slice(0, maxFrames);
-      const images = await Promise.all(
-        framesToAnalyze.map(async (asset, index) => ({
-          data: await deps.storage.download(asset.storageKey),
-          mimeType: asset.mimeType,
-          timestampSeconds: index * deps.config.extraction.frameIntervalSeconds,
-        })),
-      );
-
-      ctx.visionAnalyses = await logStep(
-        log.child({ jobId: ctx.jobId }),
-        'ai.vision',
-        { frameCount: images.length },
-        () => ai.vision.analyzeImages(images),
-      );
-
-      for (const [index, analysis] of ctx.visionAnalyses.entries()) {
-        const asset = framesToAnalyze[index];
-        if (asset) {
-          await deps.visionRepo.create({
-            mediaAssetId: asset.id,
-            observations: analysis.observations as unknown as Prisma.InputJsonValue,
-            timestampSeconds: analysis.timestampSeconds ?? null,
-            provider: analysis.provider as Prisma.InputJsonValue,
-          });
-        }
-      }
-    },
-
-    RUNNING_OCR: async (ctx): Promise<void> => {
-      const frameAssets = await deps.mediaAssetRepo.findByJobAndType(ctx.jobId, 'FRAME');
-      if (frameAssets.length === 0) {
-        log.info({ step: 'ai.ocr', jobId: ctx.jobId, skipped: true }, 'ai.ocr skipped');
-        await maybeDelay(deps.config.extraction.fakePipelineDelayMs);
-        return;
-      }
-
-      const usageTracker = new AIUsageTracker(deps.aiUsageRepo, DEFAULT_PRICING);
-      const ai = createAIProviders(deps.config, usageTracker, ctx.jobId);
-      const jobLog = log.child({ jobId: ctx.jobId });
-
-      ctx.ocrResults = [];
-      const maxOcrFrames = 3;
-      for (const [index, asset] of frameAssets.slice(0, maxOcrFrames).entries()) {
-        const existing = await deps.ocrRepo.findByMediaAssetId(asset.id);
-        if (existing.length > 0) {
-          continue;
-        }
-
-        const imageBuffer = await deps.storage.download(asset.storageKey);
-        try {
-          const ocrResult = await logStep(jobLog, 'ai.ocr', { frameIndex: index }, () =>
-            ai.ocr.analyzeImage({
-              data: imageBuffer,
-              mimeType: asset.mimeType,
-              timestampSeconds: index * deps.config.extraction.frameIntervalSeconds,
-            }),
-          );
-
-          ctx.ocrResults.push(ocrResult);
-          await deps.ocrRepo.create({
-            mediaAssetId: asset.id,
-            text: ocrResult.text,
-            timestampSeconds: ocrResult.timestampSeconds ?? null,
-            confidence: ocrResult.confidence,
-            boundingBoxes: ocrResult.boundingBoxes,
-            provider: ocrResult.provider,
-          });
-        } catch (error: unknown) {
-          jobLog.warn({ step: 'ai.ocr', frameIndex: index, err: error }, 'ai.ocr skipped frame');
-          continue;
-        }
-      }
-    },
+    ...createMediaStageHandlers(deps),
 
     EXTRACTING_RECIPE: async (ctx): Promise<void> => {
       const job = await deps.jobRepo.findById(ctx.jobId);
       if (!job) {
         throw new ExtractionFailedError({ message: 'Job not found during extraction' });
       }
+
+      const jobLog = log.child({ jobId: ctx.jobId });
 
       ctx.evidence = evidenceBuilder.build({
         ...(ctx.acquiredContent ? { acquiredContent: ctx.acquiredContent } : {}),
@@ -467,29 +337,77 @@ export function createDefaultStageHandlers(
       });
 
       const evidence = ctx.evidence;
+      jobLog.info(
+        { step: 'evidence.build', ...summarizeEvidence(evidence) },
+        'evidence.build completed',
+      );
       if (evidence.length === 0) {
+        jobLog.error(
+          {
+            step: 'evidence.build',
+            hasContent: Boolean(ctx.acquiredContent),
+            hasTranscript: Boolean(ctx.transcript),
+            ocrResults: ctx.ocrResults?.length ?? 0,
+            visionAnalyses: ctx.visionAnalyses?.length ?? 0,
+          },
+          'evidence.build produced nothing to extract from',
+        );
         throw new ExtractionFailedError({
           message: 'No evidence available to extract a recipe',
         });
       }
 
-      await deps.evidenceRepo.createMany(
-        evidence.map((item) => ({
-          jobId: ctx.jobId,
-          evidenceType: item.evidenceType,
-          value: item.value,
-          source: item.source,
-          timestampSeconds: item.timestampSeconds ?? null,
-          confidence: item.confidence,
-          metadata: (item.metadata ?? {}) as Prisma.InputJsonValue,
-        })),
+      await logStep(jobLog, 'evidence.persist', { items: evidence.length }, () =>
+        deps.evidenceRepo.createMany(
+          evidence.map((item) => ({
+            jobId: ctx.jobId,
+            evidenceType: item.evidenceType,
+            value: item.value,
+            source: item.source,
+            timestampSeconds: item.timestampSeconds ?? null,
+            confidence: item.confidence,
+            metadata: (item.metadata ?? {}) as Prisma.InputJsonValue,
+          })),
+        ),
       );
 
       const options = parseJobOptions(job.options);
       ctx.options = options;
 
       const usageTracker = new AIUsageTracker(deps.aiUsageRepo, DEFAULT_PRICING);
-      const ai = createAIProviders(deps.config, usageTracker, ctx.jobId);
+      const ai = createAIProviders(deps.config, usageTracker, ctx.jobId, jobLog);
+
+      const classifier = createRecipeClassifier(ai.llm, {
+        useLlm: Boolean(deps.config.ai.openaiApiKey),
+        log: jobLog,
+      });
+      const classification = await logStep(
+        jobLog,
+        'ai.classify-recipe',
+        { evidenceCount: evidence.length },
+        () =>
+          classifier.classify({
+            evidence,
+            ...(ctx.acquiredContent?.structuredRecipe
+              ? { structuredRecipe: ctx.acquiredContent.structuredRecipe }
+              : {}),
+            ...(ctx.acquiredContent ? { sourceType: ctx.acquiredContent.sourceType } : {}),
+            url: ctx.sourceUrl,
+          }),
+      );
+      jobLog.info(
+        {
+          step: 'ai.classify-recipe',
+          isFoodRecipe: classification.isFoodRecipe,
+          confidence: classification.confidence,
+          category: classification.category,
+          method: classification.method,
+          reason: classification.reason,
+        },
+        'ai.classify-recipe result',
+      );
+      assertFoodRecipe(classification);
+
       const extractor = new RecipeExtractor(ai.llm);
 
       const {
@@ -497,21 +415,64 @@ export function createDefaultStageHandlers(
         promptVersion,
         rawExtraction,
       } = await logStep(
-        log.child({ jobId: ctx.jobId }),
+        jobLog,
         'ai.extract-recipe',
-        { evidenceCount: evidence.length, extractNutrition: options.extractNutrition },
+        { evidenceCount: evidence.length },
         () =>
           extractor.extract({
             evidence,
             outputLanguage: ctx.outputLanguage,
-            extractNutrition: options.extractNutrition,
           }),
+      );
+      jobLog.info(
+        {
+          step: 'ai.extract-recipe',
+          promptVersion,
+          title: extracted.title,
+          ingredients: extracted.ingredients.length,
+          steps: extracted.steps.length,
+          servings: extracted.servings ?? null,
+          totalTimeMinutes: extracted.totalTimeMinutes ?? null,
+          calories: extracted.calories ?? null,
+          nutritionSource: extracted.nutritionSource ?? null,
+          sourceLanguage: extracted.sourceLanguage,
+        },
+        'ai.extract-recipe result',
       );
 
       const normalized = recipeNormalizer.normalize(extracted, ctx.outputLanguage);
+      jobLog.info(
+        {
+          step: 'recipe.normalize',
+          ingredients: normalized.ingredients.length,
+          steps: normalized.steps.length,
+          ingredientsWithoutQuantity: normalized.ingredients.filter((i) => i.quantity === null).length,
+          ingredientsWithoutMetric: normalized.ingredients.filter((i) => !i.metricUnit).length,
+          ingredientsWithoutImperial: normalized.ingredients.filter((i) => !i.imperialUnit).length,
+        },
+        'recipe.normalize completed',
+      );
+      try {
+        assertExtractedRecipeHasContent(normalized);
+      } catch (error: unknown) {
+        jobLog.warn(
+          { step: 'recipe.content-check', ingredients: normalized.ingredients.length, steps: normalized.steps.length },
+          'recipe.content-check rejected an empty extraction',
+        );
+        throw error;
+      }
       const validation = recipeValidator.validate(normalized);
       normalized.warnings = validation.warnings as unknown as Prisma.InputJsonValue;
       normalized.confidence = confidenceCalculator.calculate(normalized);
+      jobLog.info(
+        {
+          step: 'recipe.validate',
+          valid: validation.valid,
+          warningCodes: validation.warnings.map((w) => w.code),
+          confidence: normalized.confidence,
+        },
+        'recipe.validate completed',
+      );
 
       const originalPostText =
         ctx.acquiredContent?.description?.trim() || ctx.acquiredContent?.caption?.trim() || null;
@@ -531,9 +492,11 @@ export function createDefaultStageHandlers(
         prepTimeMinutes: normalized.prepTimeMinutes,
         cookTimeMinutes: normalized.cookTimeMinutes,
         totalTimeMinutes: normalized.totalTimeMinutes,
+        difficulty: normalized.difficulty ?? null,
         calories: normalized.calories,
+        nutritionSource: normalized.nutritionSource ?? null,
         cuisine: normalized.cuisine,
-        nutrition: options.extractNutrition ? normalized.nutrition : null,
+        nutrition: normalized.nutrition,
         sourceLanguage: normalized.sourceLanguage,
         confidence: normalized.confidence,
         warnings: normalized.warnings,
@@ -549,6 +512,10 @@ export function createDefaultStageHandlers(
           canonicalName: ing.canonicalName,
           quantity: ing.quantity,
           unit: ing.unit,
+          metricQuantity: ing.metricQuantity ?? null,
+          metricUnit: ing.metricUnit ?? null,
+          imperialQuantity: ing.imperialQuantity ?? null,
+          imperialUnit: ing.imperialUnit ?? null,
           preparation: ing.preparation,
           optional: ing.optional,
           emoji: ing.emoji ?? '🥣',
@@ -564,6 +531,9 @@ export function createDefaultStageHandlers(
           instruction: step.instruction,
           durationMinutes: step.durationMinutes,
           temperature: step.temperature,
+          temperatureCelsius: step.temperatureCelsius ?? null,
+          temperatureFahrenheit: step.temperatureFahrenheit ?? null,
+          ingredientRefs: step.ingredientRefs ?? [],
           stage: step.stage,
           confidence: step.confidence,
           provenance: step.provenance,
@@ -571,20 +541,30 @@ export function createDefaultStageHandlers(
         })),
       };
 
-      const existing = await deps.recipeRepo.findBySourceId(job.recipeSourceId);
-      const recipe = existing
-        ? existing
-        : await deps.recipeRepo.create({
+      const recipe = await logStep(
+        jobLog,
+        'recipe.persist',
+        { recipeSourceId: job.recipeSourceId, reviewState: recipeFields.reviewState },
+        async () => {
+          const existing = await deps.recipeRepo.findBySourceId(job.recipeSourceId);
+          if (existing) {
+            jobLog.info(
+              { step: 'recipe.persist', recipeId: existing.id, reused: true },
+              'recipe.persist reusing the recipe already imported from this source',
+            );
+            await deps.jobRepo.clearRecipeIdExcept(existing.id, ctx.jobId);
+            return existing;
+          }
+          return deps.recipeRepo.create({
             recipeSourceId: job.recipeSourceId,
             ...recipeFields,
           });
-
-      if (existing) {
-        await deps.jobRepo.clearRecipeIdExcept(recipe.id, ctx.jobId);
-      }
+        },
+      );
 
       ctx.recipeId = recipe.id;
       await deps.jobRepo.update(ctx.jobId, { recipeId: recipe.id });
+      jobLog.info({ step: 'recipe.persist', recipeId: recipe.id }, 'recipe linked to job');
     },
 
     NORMALIZING_RECIPE: async (ctx): Promise<void> => {
@@ -637,9 +617,58 @@ export function createDefaultStageHandlers(
         ctx.outputLanguage,
       );
 
-      recipeValidator.validate(normalized);
+      const validation = recipeValidator.validate(normalized);
+      log.child({ jobId: ctx.jobId }).info(
+        {
+          step: 'recipe.final-validate',
+          recipeId,
+          valid: validation.valid,
+          warningCodes: validation.warnings.map((w) => w.code),
+          ingredients: recipe.ingredients.length,
+          steps: recipe.steps.length,
+        },
+        'recipe.final-validate completed',
+      );
     },
   };
+}
+
+function summarizeAcquiredContent(content: AcquiredContent): Record<string, unknown> {
+  return {
+    sourceType: content.sourceType,
+    title: content.title ?? null,
+    author: content.author ?? null,
+    language: content.language ?? null,
+    captionChars: content.caption?.length ?? 0,
+    descriptionChars: content.description?.length ?? 0,
+    pageTextChars: content.pageText?.length ?? 0,
+    images: content.images.length,
+    slides: content.images.filter((i) => i.slideIndex !== undefined).length,
+    videos: content.videos?.length ?? (content.videoLocalPath ? 1 : 0),
+    captions: content.captions ? content.captions.kind : null,
+    structuredRecipe: content.structuredRecipe
+      ? {
+          source: content.structuredRecipe.source,
+          name: content.structuredRecipe.name ?? null,
+          ingredients: content.structuredRecipe.ingredients.length,
+          instructionSteps: content.structuredRecipe.instructions.reduce(
+            (sum, section) => sum + section.steps.length,
+            0,
+          ),
+        }
+      : null,
+    hasThumbnail: Boolean(content.thumbnailUrl),
+  };
+}
+
+function summarizeEvidence(evidence: EvidenceItem[]): Record<string, unknown> {
+  const byType: Record<string, number> = {};
+  let totalChars = 0;
+  for (const item of evidence) {
+    byType[item.evidenceType] = (byType[item.evidenceType] ?? 0) + 1;
+    totalChars += item.value.length;
+  }
+  return { items: evidence.length, byType, totalChars };
 }
 
 function maybeDelay(ms: number): Promise<void> {
@@ -652,8 +681,13 @@ function maybeDelay(ms: number): Promise<void> {
 const STDERR_LIMIT = 500;
 
 /** Flatten an error + nested causes/stderr into the JSON stored on job/stage rows. */
-export function serializeStageError(error: unknown): { message: string; cause?: string } {
+export function serializeStageError(error: unknown): {
+  message: string;
+  code?: string;
+  cause?: string;
+} {
   const message = error instanceof Error ? error.message : 'Stage failed';
+  const code = isAppError(error) ? error.code : undefined;
   const parts: string[] = [];
   let current: unknown = error instanceof Error ? error.cause : undefined;
   let depth = 0;
@@ -668,7 +702,11 @@ export function serializeStageError(error: unknown): { message: string; cause?: 
     depth += 1;
   }
 
-  return parts.length > 0 ? { message, cause: parts.join(' | ') } : { message };
+  return {
+    message,
+    ...(code ? { code } : {}),
+    ...(parts.length > 0 ? { cause: parts.join(' | ') } : {}),
+  };
 }
 
 function readStderr(error: Error): string | undefined {

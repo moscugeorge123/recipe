@@ -97,15 +97,6 @@ enum RecipeReviewState {
   READY
 }
 
-enum NutritionStatus {
-  NOT_REQUESTED
-  PENDING
-  PROCESSING
-  COMPLETED
-  PARTIAL
-  FAILED
-}
-
 enum PantryClassificationStatus {
   UNCLASSIFIED
   PENDING
@@ -159,15 +150,15 @@ model User {
 }
 
 model UserRecipe {
-  id          String            @id @default(uuid()) @db.Uuid
-  userId      String            @db.Uuid
-  recipeId    String            @db.Uuid
-  reviewState RecipeReviewState @default(NEEDS_REVIEW)
-  rating              Int?
-  isFavorite          Boolean           @default(false)
-  completedCookCount  Int               @default(0)
-  createdAt           DateTime          @default(now())
-  updatedAt           DateTime          @updatedAt
+  id                 String            @id @default(uuid()) @db.Uuid
+  userId             String            @db.Uuid
+  recipeId           String            @db.Uuid
+  reviewState        RecipeReviewState @default(NEEDS_REVIEW)
+  rating             Int?
+  isFavorite         Boolean           @default(false)
+  completedCookCount Int               @default(0)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
 
   user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   recipe            Recipe             @relation(fields: [recipeId], references: [id], onDelete: Cascade)
@@ -294,10 +285,15 @@ model Recipe {
   prepTimeMinutes  Int?
   cookTimeMinutes  Int?
   totalTimeMinutes Int?
+  /// kcal per serving, always produced by the extractor (stated or estimated)
   calories         Int?
   cuisine          String?
-  /// Macro breakdown, e.g. { proteinGrams, carbsGrams, fatGrams }
+  /// Macro breakdown per serving, e.g. { proteinGrams, carbsGrams, fatGrams }
   nutrition        Json?
+  /// stated | estimated — whether calories/macros came from the source or an AI estimate
+  nutritionSource  String?
+  /// Easy | Medium | Hard, from the source or the extractor
+  difficulty       String?
   sourceLanguage   String?
   confidence       Float    @default(0)
   warnings         Json     @default("[]")
@@ -360,22 +356,28 @@ model CookSessionStepStat {
 }
 
 model RecipeIngredient {
-  id            String   @id @default(uuid()) @db.Uuid
-  recipeId      String   @db.Uuid
-  name          String
-  canonicalName String?
-  quantity      Decimal? @db.Decimal(10, 3)
-  unit          String?
-  preparation   String?
-  optional      Boolean  @default(false)
-  emoji         String   @default("🥣")
-  colorToken    String   @default("peach")
+  id               String   @id @default(uuid()) @db.Uuid
+  recipeId         String   @db.Uuid
+  name             String
+  canonicalName    String?
+  quantity         Decimal? @db.Decimal(10, 3)
+  unit             String?
+  /// Same amount in metric (g/kg/ml/l/cm, or the original count unit)
+  metricQuantity   Decimal? @db.Decimal(10, 3)
+  metricUnit       String?
+  /// Same amount in US imperial (oz/lb/tsp/tbsp/cup/in, or the original count unit)
+  imperialQuantity Decimal? @db.Decimal(10, 3)
+  imperialUnit     String?
+  preparation      String?
+  optional         Boolean  @default(false)
+  emoji            String   @default("🥣")
+  colorToken       String   @default("peach")
   /// Grocery grouping: Produce | Meat | Dairy | Pantry | Spices | Frozen
-  category      String   @default("Pantry")
-  confidence    Float    @default(0)
-  provenance    Json     @default("{}")
-  warnings      Json     @default("[]")
-  sortOrder     Int      @default(0)
+  category         String   @default("Pantry")
+  confidence       Float    @default(0)
+  provenance       Json     @default("{}")
+  warnings         Json     @default("[]")
+  sortOrder        Int      @default(0)
 
   recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
@@ -384,17 +386,21 @@ model RecipeIngredient {
 }
 
 model RecipeStep {
-  id              String  @id @default(uuid()) @db.Uuid
-  recipeId        String  @db.Uuid
-  stepOrder       Int
-  instruction     String
-  durationMinutes Int?
-  temperature     String?
+  id                    String  @id @default(uuid()) @db.Uuid
+  recipeId              String  @db.Uuid
+  stepOrder             Int
+  instruction           String
+  durationMinutes       Int?
+  temperature           String?
+  temperatureCelsius    Int?
+  temperatureFahrenheit Int?
+  /// 0-based indexes into the recipe's ingredients used by this step
+  ingredientRefs        Int[]   @default([])
   /// Cooking stage: PREP | COOK | FINISH | SERVE
-  stage           String  @default("COOK")
-  confidence      Float   @default(0)
-  provenance      Json    @default("{}")
-  warnings        Json    @default("[]")
+  stage                 String  @default("COOK")
+  confidence            Float   @default(0)
+  provenance            Json    @default("{}")
+  warnings              Json    @default("[]")
 
   recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
@@ -416,6 +422,8 @@ model RecipeRevision {
   calories         Int?
   cuisine          String?
   nutrition        Json?
+  nutritionSource  String?
+  difficulty       String?
   sourceLanguage   String?
   confidence       Float          @default(0)
   warnings         Json           @default("[]")
@@ -423,13 +431,12 @@ model RecipeRevision {
   rawExtraction    Json?
   createdAt        DateTime       @default(now())
 
-  userRecipe         UserRecipe                 @relation(fields: [userRecipeId], references: [id], onDelete: Cascade)
-  author             User?                      @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
-  ingredients        RecipeRevisionIngredient[]
-  steps              RecipeRevisionStep[]
-  categories         RecipeRevisionCategory[]
-  nutritionSnapshots NutritionSnapshot[]
-  aiUsage            AIUsage[]
+  userRecipe  UserRecipe                 @relation(fields: [userRecipeId], references: [id], onDelete: Cascade)
+  author      User?                      @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  ingredients RecipeRevisionIngredient[]
+  steps       RecipeRevisionStep[]
+  categories  RecipeRevisionCategory[]
+  aiUsage     AIUsage[]
 
   @@unique([userRecipeId, revisionNumber])
   @@index([userRecipeId, createdAt])
@@ -438,25 +445,28 @@ model RecipeRevision {
 }
 
 model RecipeRevisionIngredient {
-  id            String   @id @default(uuid()) @db.Uuid
-  revisionId    String   @db.Uuid
-  sourceId      String?  @db.Uuid
-  name          String
-  canonicalName String?
-  quantity      Decimal? @db.Decimal(10, 3)
-  unit          String?
-  preparation   String?
-  optional      Boolean  @default(false)
-  emoji         String   @default("🥣")
-  colorToken    String   @default("peach")
-  category      String   @default("Pantry")
-  confidence    Float    @default(0)
-  provenance    Json     @default("{}")
-  warnings      Json     @default("[]")
-  sortOrder     Int      @default(0)
+  id               String   @id @default(uuid()) @db.Uuid
+  revisionId       String   @db.Uuid
+  sourceId         String?  @db.Uuid
+  name             String
+  canonicalName    String?
+  quantity         Decimal? @db.Decimal(10, 3)
+  unit             String?
+  metricQuantity   Decimal? @db.Decimal(10, 3)
+  metricUnit       String?
+  imperialQuantity Decimal? @db.Decimal(10, 3)
+  imperialUnit     String?
+  preparation      String?
+  optional         Boolean  @default(false)
+  emoji            String   @default("🥣")
+  colorToken       String   @default("peach")
+  category         String   @default("Pantry")
+  confidence       Float    @default(0)
+  provenance       Json     @default("{}")
+  warnings         Json     @default("[]")
+  sortOrder        Int      @default(0)
 
-  revision    RecipeRevision       @relation(fields: [revisionId], references: [id], onDelete: Cascade)
-  foodMatches NutritionFoodMatch[]
+  revision RecipeRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
 
   @@unique([revisionId, sourceId])
   @@index([revisionId, sortOrder])
@@ -481,17 +491,20 @@ model RecipeRevisionCategory {
 }
 
 model RecipeRevisionStep {
-  id              String  @id @default(uuid()) @db.Uuid
-  revisionId      String  @db.Uuid
-  sourceId        String? @db.Uuid
-  stepOrder       Int
-  instruction     String
-  durationMinutes Int?
-  temperature     String?
-  stage           String  @default("COOK")
-  confidence      Float   @default(0)
-  provenance      Json    @default("{}")
-  warnings        Json    @default("[]")
+  id                    String  @id @default(uuid()) @db.Uuid
+  revisionId            String  @db.Uuid
+  sourceId              String? @db.Uuid
+  stepOrder             Int
+  instruction           String
+  durationMinutes       Int?
+  temperature           String?
+  temperatureCelsius    Int?
+  temperatureFahrenheit Int?
+  ingredientRefs        Int[]   @default([])
+  stage                 String  @default("COOK")
+  confidence            Float   @default(0)
+  provenance            Json    @default("{}")
+  warnings              Json    @default("[]")
 
   revision RecipeRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
 
@@ -618,79 +631,6 @@ model MealPlanEntry {
   @@map("meal_plan_entries")
 }
 
-model NutritionSnapshot {
-  id                    String          @id @default(uuid()) @db.Uuid
-  recipeRevisionId      String          @db.Uuid
-  status                NutritionStatus @default(NOT_REQUESTED)
-  servings              Decimal?        @db.Decimal(10, 3)
-  wholeRecipe           Json?
-  perServing            Json?
-  per100g               Json?
-  coveragePercent       Decimal?        @db.Decimal(5, 2)
-  unmatchedIngredients  Json?
-  provider              String?
-  calculatedAt          DateTime?
-  totalGrams            Decimal?        @db.Decimal(12, 3)
-  failureReason         String?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-
-  recipeRevision RecipeRevision       @relation(fields: [recipeRevisionId], references: [id], onDelete: Cascade)
-  foodMatches    NutritionFoodMatch[]
-  aiUsage        AIUsage[]
-
-  @@index([recipeRevisionId, createdAt])
-  @@index([status, updatedAt])
-  @@map("nutrition_snapshots")
-}
-
-model NutritionFoodMatch {
-  id                   String   @id @default(uuid()) @db.Uuid
-  nutritionSnapshotId  String   @db.Uuid
-  revisionIngredientId String?  @db.Uuid
-  query                String
-  matchedFoodId        String?
-  matchedFoodName      String?
-  confidence           Float?
-  grams                Decimal? @db.Decimal(12, 3)
-  nutrients            Json?
-  createdAt            DateTime @default(now())
-
-  nutritionSnapshot  NutritionSnapshot         @relation(fields: [nutritionSnapshotId], references: [id], onDelete: Cascade)
-  revisionIngredient RecipeRevisionIngredient? @relation(fields: [revisionIngredientId], references: [id], onDelete: SetNull)
-
-  @@index([nutritionSnapshotId])
-  @@index([revisionIngredientId])
-  @@map("nutrition_food_matches")
-}
-
-/// Normalised search query → FDC id. Survives process restarts so repeat recipes skip USDA search.
-model NutritionQueryCache {
-  id          String   @id @default(uuid()) @db.Uuid
-  query       String
-  fdcId       String?
-  matchedName String?
-  dataType    String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@unique([query])
-  @@map("nutrition_query_cache")
-}
-
-/// Nutrients and portions keyed by FDC id (per 100 g).
-model NutritionFoodCache {
-  fdcId     String   @id
-  foodName  String
-  dataType  String
-  nutrients Json
-  portions  Json
-  fetchedAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("nutrition_food_cache")
-}
-
 // --- Media & AI artifacts ----------------------------------------------------
 
 model MediaAsset {
@@ -786,31 +726,28 @@ model ExtractionEvidence {
 }
 
 model AIUsage {
-  id                  String   @id @default(uuid()) @db.Uuid
-  jobId               String?  @db.Uuid
-  userId              String?  @db.Uuid
-  recipeRevisionId    String?  @db.Uuid
-  pantryItemId        String?  @db.Uuid
-  nutritionSnapshotId String?  @db.Uuid
-  provider            String
-  model               String
-  operation           String
-  inputTokens         Int      @default(0)
-  outputTokens        Int      @default(0)
-  estimatedCostUsd    Decimal  @default(0) @db.Decimal(10, 6)
-  durationMs          Int      @default(0)
-  createdAt           DateTime @default(now())
+  id               String   @id @default(uuid()) @db.Uuid
+  jobId            String?  @db.Uuid
+  userId           String?  @db.Uuid
+  recipeRevisionId String?  @db.Uuid
+  pantryItemId     String?  @db.Uuid
+  provider         String
+  model            String
+  operation        String
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  estimatedCostUsd Decimal  @default(0) @db.Decimal(10, 6)
+  durationMs       Int      @default(0)
+  createdAt        DateTime @default(now())
 
-  job               ExtractionJob?     @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  user              User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  recipeRevision    RecipeRevision?    @relation(fields: [recipeRevisionId], references: [id], onDelete: SetNull)
-  pantryItem        PantryItem?        @relation(fields: [pantryItemId], references: [id], onDelete: SetNull)
-  nutritionSnapshot NutritionSnapshot? @relation(fields: [nutritionSnapshotId], references: [id], onDelete: SetNull)
+  job            ExtractionJob?  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipeRevision RecipeRevision? @relation(fields: [recipeRevisionId], references: [id], onDelete: SetNull)
+  pantryItem     PantryItem?     @relation(fields: [pantryItemId], references: [id], onDelete: SetNull)
 
   @@index([jobId])
   @@index([userId, createdAt])
   @@index([recipeRevisionId])
   @@index([pantryItemId])
-  @@index([nutritionSnapshotId])
   @@map("ai_usage")
 }

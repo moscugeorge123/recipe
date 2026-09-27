@@ -8,7 +8,6 @@ import { cookSessionsRoutes } from '../modules/cook-sessions/api/cook-sessions.r
 import { categoriesRoutes } from '../modules/categories/api/categories.routes.js';
 import { jobsRoutes } from '../modules/jobs/api/jobs.routes.js';
 import { recipesRoutes } from '../modules/recipes/api/recipes.routes.js';
-import { nutritionRoutes } from '../modules/nutrition/api/nutrition.routes.js';
 import { collectionsRoutes } from '../modules/collections/api/collections.routes.js';
 import { pantryRoutes } from '../modules/pantry/api/pantry.routes.js';
 import { mealPlanRoutes } from '../modules/meal-plan/api/meal-plan.routes.js';
@@ -50,7 +49,7 @@ export interface BuildAppOptions {
  */
 export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyInstance> {
   const config = options.config ?? defaultConfig;
-  const logger = options.logger ?? (await createLogger(config));
+  const logger = options.logger ?? (await createLogger(config, { processName: 'api' }));
   const container = options.container ?? createContainer({ logger });
 
   if (options.bootstrapProfile === true) {
@@ -129,9 +128,6 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         });
         await resources.register(recipesRoutes, {
           recipeService: container.recipeService,
-        });
-        await resources.register(nutritionRoutes, {
-          nutritionService: container.nutritionService,
         });
         await resources.register(categoriesRoutes, {
           categoryService: container.categoryService,

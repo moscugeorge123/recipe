@@ -30,6 +30,7 @@ export const ErrorCode = {
   CONTENT_ACQUISITION_FAILED: "CONTENT_ACQUISITION_FAILED",
   MEDIA_PROCESSING_FAILED: "MEDIA_PROCESSING_FAILED",
   PROVIDER_RATE_LIMITED: "PROVIDER_RATE_LIMITED",
+  NOT_A_RECIPE: "NOT_A_RECIPE",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

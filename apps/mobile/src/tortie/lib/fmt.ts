@@ -62,6 +62,7 @@ export function fmtQ(q: number): string {
   const f = q - w;
   const fr: [number, string][] = [
     [0, ''],
+    [0.125, '⅛'],
     [0.25, '¼'],
     [0.33, '⅓'],
     [0.5, '½'],
@@ -79,7 +80,22 @@ export function fmtQ(q: number): string {
     }
   }
   const W = w + (b[0] === 1 ? 1 : 0);
-  return (W || '') + b[1] || '¼';
+  return (W || '') + b[1] || '⅛';
+}
+
+const DECIMAL_UNITS = new Set(['g', 'kg', 'ml', 'l', 'cm', 'mm']);
+
+/** Metric amounts read as decimals ("1.35 kg", "7.5 g"); everything else as kitchen fractions. */
+export function fmtAmount(q: number, unit: string): string {
+  if (DECIMAL_UNITS.has(unit.toLowerCase()) && q < 10) {
+    return String(Math.round(q * 100) / 100);
+  }
+  return fmtQ(q);
+}
+
+/** "115 g", "⅓ cup", "2 cloves"; unit alone when there is no amount. */
+export function fmtIngQty(q: number | null, u: string, scale = 1): string {
+  return q ? fmtAmount(q * scale, u) + (u ? ' ' + u : '') : u || '';
 }
 
 /** Seconds → "5:12" / "1:05:12". */
@@ -100,14 +116,17 @@ const FRC: Record<string, number> = {
   '¾': 0.75,
   '⅓': 1 / 3,
   '⅔': 2 / 3,
+  '⅛': 0.125,
 };
 const UNITS =
-  'kg|g|mg|ml|l|tsp|tbsp|cups?|heads?|cloves?|bunch(?:es)?|sprigs?|slices?|sticks?|pinch(?:es)?|handfuls?|cans?|tins?|jars?';
+  'fl\\.? ?oz|oz|lbs?|kg|g|mg|ml|l|cm|mm|tsp|tbsp|cups?|heads?|cloves?|bunch(?:es)?|sprigs?|slices?|sticks?|pinch(?:es)?|handfuls?|cans?|tins?|jars?';
 
 /** "2 tbsp olive oil" → { q: 2, u: 'tbsp', n: 'olive oil' }. */
 export function parseIng(txt: string): { q: number; u: string; n: string } {
   const t = String(txt).trim();
-  const m = t.match(/^(\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔]?|[½¼¾⅓⅔])\s*/);
+  const m = t.match(
+    /^(\d+\s*\/\s*\d+|\d+(?:[.,]\d+)?\s*[½¼¾⅓⅔⅛]?|[½¼¾⅓⅔⅛])\s*/,
+  );
   if (!m) return { q: 0, u: '', n: t };
   const qs = m[1]!.replace(/\s/g, '');
   let q: number;
@@ -137,6 +156,7 @@ export function qTxt(q: number): string {
   const w = Math.floor(q);
   const f = +(q - w).toFixed(2);
   const F: Record<string, string> = {
+    '0.13': '⅛',
     '0.5': '½',
     '0.25': '¼',
     '0.75': '¾',

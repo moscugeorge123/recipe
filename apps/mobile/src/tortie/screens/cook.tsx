@@ -22,7 +22,7 @@ import { timerKey, useCook, type StepTimer } from '@/tortie/cook-store';
 import { useCookSessionSync } from '@/tortie/data/cook-session';
 import { useServings } from '@/tortie/data/recipe-ui';
 import {
-  fmtQ,
+  ingQty,
   useTRecipe,
   type TDetail,
   type TIng,
@@ -46,8 +46,7 @@ const MINI_RING = 69.12;
 const KEEP_AWAKE_TAG = 'tortie-cook';
 const ACircle = Animated.createAnimatedComponent(Circle);
 
-const ingQ = (x: TIng, scale: number) =>
-  x.q ? fmtQ(x.q * scale) + (x.u ? ' ' + x.u : '') : x.u || '';
+const ingQ = (x: TIng, scale: number) => ingQty(x, scale);
 const splitKey = (k: string): [string, number] => {
   const i = k.lastIndexOf(':');
   return [k.slice(0, i), +k.slice(i + 1)];

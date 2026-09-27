@@ -16,6 +16,7 @@ import type {
 import { QUERY_FRESHNESS, recipeKeys } from '@/features/query-keys';
 import { getRecipe } from '@/features/recipes/api';
 import { isOneEmoji } from '@/features/recipes/emoji';
+import { convertAmount, ingredientAmount } from '@/features/recipes/units';
 import {
   formatGroceryQty,
   isGroceryCategory,
@@ -38,6 +39,7 @@ import {
   type PantryUnit,
 } from '@/tortie/data/pantry-extras';
 import { useTRecipes } from '@/tortie/data/recipes';
+import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
 import { lexOf, parseLocal } from '@/tortie/lib/fmt';
 import { motionMultiplier } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
@@ -91,7 +93,9 @@ export function toTGroc(
   v: ShoppingListItemView,
   recipeTitle?: (id: string) => string | undefined,
   note?: string,
+  units: Units = 'metric',
 ): TGroc {
+  const amount = convertAmount(v.quantity ?? null, v.unit ?? null, units);
   const src =
     note ??
     (v.source === 'RECIPE' && v.sourceRecipeId
@@ -103,7 +107,7 @@ export function toTGroc(
   return {
     id: v.id,
     n: cap(v.name),
-    q: formatGroceryQty(v.quantity, v.unit),
+    q: formatGroceryQty(amount.quantity, amount.unit),
     src,
     a: aisleIndexOf(v.name, v.category),
     e: emojiFor(v.name, v.emoji),
@@ -117,10 +121,13 @@ export function useTGroceries(
 ) {
   const q = useShoppingList();
   const notes = usePantryExtras((s) => s.notes);
+  const units = useTortiePrefs((s) => s.units);
   const list = useMemo(
     () =>
-      (q.data?.items ?? []).map((v) => toTGroc(v, recipeTitle, notes[v.id])),
-    [q.data, recipeTitle, notes],
+      (q.data?.items ?? []).map((v) =>
+        toTGroc(v, recipeTitle, notes[v.id], units),
+      ),
+    [q.data, recipeTitle, notes, units],
   );
   return { list, isLoading: q.isLoading };
 }
@@ -585,19 +592,21 @@ export function useGroceryActions() {
       const listed = shopNow(client);
       const seen = new Set<string>();
       const queue: { raw: string; write: ShoppingListWriteItem }[] = [];
+      const units = useTortiePrefs.getState().units;
       for (const r of recipes) {
         for (const ing of partitionByPantry(r.ingredients ?? [], have).need) {
           const key = (ing.canonicalName ?? ing.name).toLowerCase();
           if (seen.has(key) || listed.some((g) => sameName(g.name, ing.name)))
             continue;
           seen.add(key);
-          const q = formatGroceryQty(ing.quantity, ing.unit);
+          const amount = ingredientAmount(ing, units);
+          const q = formatGroceryQty(amount.quantity, amount.unit);
           queue.push({
             raw: (q ? q + ' ' : '') + ing.name,
             write: {
               name: ing.name,
-              quantity: ing.quantity,
-              unit: ing.unit,
+              quantity: amount.quantity,
+              unit: amount.unit,
               ...(isGroceryCategory(ing.category)
                 ? { category: ing.category }
                 : {}),

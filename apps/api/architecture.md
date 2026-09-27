@@ -29,7 +29,7 @@ This document describes the target architecture for evolving the existing Fastif
 
 ## 1. Context and goals
 
-The workspace contains a production Fastify API (`src/app/`, `src/config/env.ts`, Docker, Vitest, OpenAPI, rate limiting, structured errors) **plus** recipe domain logic: PostgreSQL persistence, BullMQ extraction and nutrition workers, singleton profile ownership, immutable revisions, pantry organization, collections, engagement, and cook sessions.
+The workspace contains a production Fastify API (`src/app/`, `src/config/env.ts`, Docker, Vitest, OpenAPI, rate limiting, structured errors) **plus** recipe domain logic: PostgreSQL persistence, BullMQ extraction worker, singleton profile ownership, immutable revisions, pantry organization, collections, engagement, and cook sessions.
 
 This evolution **preserves existing conventions**:
 
@@ -561,7 +561,6 @@ Base prefix: `/api/v1` (existing). Interactive docs at `/docs`.
 | `PUT` | `/recipes/:id/favorite` | Favorite |
 | `PUT` | `/recipes/:id/rating` | Profile rating 1–5 |
 | `POST` | `/recipes/:id/notes` | Annotation (not a revision) |
-| `GET` | `/recipes/:id/nutrition` | Per-portion / per-100g |
 | `GET` | `/categories` | Profile categories |
 | `GET` | `/collections` | Collections |
 | `GET` | `/pantry` | Pantry items |
@@ -580,12 +579,13 @@ Base prefix: `/api/v1` (existing). Interactive docs at `/docs`.
   "outputLanguage": "en",
   "forceRefresh": false,
   "options": {
-    "extractNutrition": false,
     "extractImages": true,
     "highAccuracy": false
   }
 }
 ```
+
+Calories and macros are always extracted. The retired `options.extractNutrition` flag is accepted and ignored.
 
 **Responses:**
 
@@ -980,9 +980,9 @@ Each phase ends with: tests pass, typecheck, lint, docs update.
 - Full AWS Terraform/CDK
 - Authentication (extension point only; singleton implicit profile today)
 - Multi-user isolation beyond the profile resolver
-- Persisted USDA 429 / revision-conflict counters (log queries today)
+- Persisted revision-conflict counters (log queries today)
 
-Nutrition, pantry organization, user revisions, collections, favorites/ratings/notes, and cook sessions **shipped** after the original MVP list.
+AI calorie/macro estimates, pantry organization, user revisions, collections, favorites/ratings/notes, and cook sessions **shipped** after the original MVP list.
 
 **Success criteria:** `POST /recipes/extract` with an Instagram reel or YouTube URL returns a job immediately; the worker produces a structured recipe with ingredients, steps, confidence, warnings, and provenance within reasonable time. Home ranking and kitchen data survive restarts via Postgres.
 
@@ -992,7 +992,7 @@ Nutrition, pantry organization, user revisions, collections, favorites/ratings/n
 
 | Existing module | Extension |
 |-----------------|-----------|
-| `src/app/app.ts` | Register recipe/extraction/nutrition/pantry/collections/ops routes; wire DB/Redis health checks via `buildApp({ healthChecks })` |
+| `src/app/app.ts` | Register recipe/extraction/pantry/collections/ops routes; wire DB/Redis health checks via `buildApp({ healthChecks })` |
 | `src/config/env.ts` | Grouped config for `database`, `redis`, `storage`, `ai`, `extraction` |
 | `src/shared/errors/error-codes.ts` | Extraction-specific codes |
 | `src/shared/http/response.ts` | Keep `{ data }` envelope |
@@ -1014,9 +1014,22 @@ Every versioned resource route runs `registerProfileContext`, which calls `Impli
 
 Import writes revision 0 (`IMPORT`) as a complete categorized snapshot (emoji + grocery category on each ingredient). `PATCH /recipes/:id` requires `expectedRevisionNumber` and appends a new complete snapshot. The `recipes` / `recipe_ingredients` / `recipe_steps` base rows stay byte-for-byte as imported. Restore copies an old snapshot to a new head (`RESTORE`) and never deletes history. Notes, favorites, ratings, and review-state writes are not revisions.
 
-### Nutrition and USDA
+### Nutrition
 
-`USDA_FDC_API_KEY` selects the live FoodData Central provider. Tests (`NODE_ENV=test`) always use `FakeNutritionProvider`. Missing key → `UnconfiguredNutritionProvider` (unavailable, non-destructive). Calculation is queued on `nutrition-jobs`. Values are per-portion and per-100g with `READY` / `PARTIAL` / `FAILED` / `PENDING`. Query/food caches persist in Postgres. HTTP 429s retry then throw `NutritionRateLimitError` (snapshot stays `PENDING`); they are **not** counted in the database — filter logs with `NutritionRateLimitError`.
+Nutrition comes only from the AI recipe extractor, on every import. `calories` (kcal per serving) and `nutrition` (`{ proteinGrams, carbsGrams, fatGrams }` per serving) are stored on the recipe and each revision, and returned on `GET /recipes/:id`. `nutritionSource` is `stated` when the source printed the values and `estimated` when the model worked them out from ingredients, quantities and servings; the app labels estimates "est.". There is no separate nutrition provider, queue, or endpoint.
+
+User edits keep the imported per-serving values (and their source) unchanged. They are per portion, so the detail screen's servings stepper and the editor's "halve/double" actions, which scale ingredients and servings together, leave them correct. Editing ingredients or servings independently does not recompute them; re-import to refresh.
+
+### Measurements
+
+Every ingredient carries the amount as written (`quantity`, `unit`) plus `metric` and `imperial` amounts (`{ quantity, unit }` in the DTO; `metricQuantity/metricUnit/imperialQuantity/imperialUnit` columns). The model supplies both, including ingredient-specific volume↔weight (1 cup flour → 120 g). `normalization/domain/measurement-conversion.ts` then reconciles them:
+
+- The side matching the original unit keeps the original amount. Kitchen spoons (tsp/tbsp) count as both systems.
+- The other side uses the model's value if it is within 15% of the deterministic conversion (same kind) or implies a plausible density of 0.1–2.5 g/ml (volume↔weight); otherwise the deterministic conversion.
+- Count units (pieces, cloves, pinch, to taste, no unit) are copied unchanged into both.
+- Rounding: g/ml under 10 to 0.5, under 100 to 1, else to 5; kg/l to 0.05; cm to 0.5. Imperial snaps to kitchen fractions: cups to ¼/⅓/½, tsp to ⅛, tbsp to ½, oz to ¼ (½ above 4 oz), lb to ¼, inches to ⅛.
+
+Steps store `temperatureCelsius` / `temperatureFahrenheit` (oven temperatures snap to the dial: 180 °C ↔ 350 °F) and write temperatures and lengths in both systems inside the instruction ("bake at 180°C (350°F)"); the normalizer adds any missing pair. The app puts the preferred system first. `ingredientRefs` lists the ingredient indexes each step uses. On `PATCH`, unchanged ingredient rows keep their imported measurements, edited rows are converted deterministically, and step refs are remapped by ingredient name.
 
 ### Ingredient AI policy
 
@@ -1024,14 +1037,13 @@ Dictionary + cache first. Unknown lines go in one compact batch to `AI_INGREDIEN
 
 ### Workers
 
-One worker process registers both processors:
+One worker process registers the extraction processor:
 
 - `extraction-jobs` → `RecipeExtractionPipeline`
-- `nutrition-jobs` → `NutritionService.processSnapshot`
 
-API process never blocks on media or USDA. Tests use `InMemoryQueueProvider` so `inject()` completes both pipelines synchronously.
+API process never blocks on media or AI. Tests use `InMemoryQueueProvider` so `inject()` completes the pipeline synchronously.
 
 ### Operational checks
 
-`GET /api/v1/ops/summary` (profile context, no auth today) returns aggregated AI tokens/cost/cache/escalation, USDA cache sizes, nutrition statuses, pantry fallback rate, extraction/nutrition in-flight counts, and applied Prisma migrations. It never includes titles, notes, URLs, or pantry names. Revision conflicts are log-only (`RECIPE_REVISION_CONFLICT`).
+`GET /api/v1/ops/summary` (profile context, no auth today) returns aggregated AI tokens/cost/cache/escalation, pantry fallback rate, extraction in-flight counts, and applied Prisma migrations. It never includes titles, notes, URLs, or pantry names. Revision conflicts are log-only (`RECIPE_REVISION_CONFLICT`).
 

@@ -1,6 +1,6 @@
 import { editorDefaults, toPatchBody } from '@/features/recipes/editor-form';
 import type { PatchRecipeBody } from '@/features/recipes/schemas';
-import type { RecipeView } from '@/features/recipes/types';
+import type { Difficulty, RecipeView } from '@/features/recipes/types';
 import type { TDetail } from '@/tortie/data/recipes';
 import { detectMin, emoOf, parseIng, qTxt } from '@/tortie/lib/fmt';
 import { useNav } from '@/tortie/nav-store';
@@ -29,7 +29,10 @@ export type Draft = {
 };
 
 /** API difficulties (the prototype cycles Easy · Medium · Weekend · Project). */
-export const LEVELS = ['Easy', 'Medium', 'Hard'];
+export const LEVELS: string[] = ['Easy', 'Medium', 'Hard'];
+
+const isDifficulty = (value: string): value is Difficulty =>
+  LEVELS.includes(value);
 
 export const SUGG: [string, RegExp][] = [
   ['salt', /\bsalt(ed)?\b/],
@@ -248,6 +251,9 @@ export function toRecipePatch(
       description: ed.desc.trim() || null,
       servings: ed.base !== e0.base ? ed.base : base.servings,
       totalTimeMinutes: ed.time !== e0.time ? ed.time : base.totalTimeMinutes,
+      ...(ed.level !== e0.level && isDifficulty(ed.level)
+        ? { difficulty: ed.level }
+        : {}),
       categoryIds,
       ingredients,
       steps,
@@ -255,7 +261,7 @@ export function toRecipePatch(
   };
 }
 
-/** The API derives difficulty from total minutes (< 30 Easy · ≤ 50 Medium · Hard). */
+/** Time-based fallback the API uses when a recipe has no extracted or edited difficulty. */
 export const levelForMinutes = (m: number) =>
   m < 30 ? 'Easy' : m <= 50 ? 'Medium' : 'Hard';
 

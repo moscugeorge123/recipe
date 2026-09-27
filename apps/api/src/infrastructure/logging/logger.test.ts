@@ -6,7 +6,13 @@ import type { FastifyRequest } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { loadConfig } from '../../config/env.js';
-import { buildFileRollOptions, buildLoggerOptions, createLogger } from './logger.js';
+import {
+  buildFileRollOptions,
+  buildLoggerOptions,
+  createLogger,
+  IMPORT_LOG_FILE,
+  isJobLogLine,
+} from './logger.js';
 
 describe('buildLoggerOptions', () => {
   it('uses the configured level and tags every line with the service identity', () => {
@@ -140,5 +146,40 @@ describe('createLogger', () => {
     const contents = await Promise.all(files.map((name) => readFile(path.join(dir, name), 'utf8')));
     expect(contents.some((text) => text.includes('daily file write'))).toBe(true);
     expect(contents.some((text) => text.includes('"step":"logger.test"'))).toBe(true);
+  });
+
+  it('copies only job-scoped lines into the daily import file', async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'recipe-logs-'));
+    dirs.push(dir);
+
+    const log = await createLogger(
+      loadConfig({ NODE_ENV: 'production', LOG_DIR: dir, LOG_LEVEL: 'info', SERVICE_NAME: 'api' }),
+      { processName: 'worker' },
+    );
+    log.info({ step: 'http' }, 'poll request');
+    log.child({ jobId: 'job-123' }).info({ step: 'pipeline.stage' }, 'stage started');
+    log.flush();
+
+    const files = await readdir(dir);
+    const importFile = files.find((name) => name.startsWith(`${IMPORT_LOG_FILE}.`));
+    const apiFile = files.find((name) => name.startsWith('api.'));
+    expect(importFile).toBeDefined();
+    expect(apiFile).toBeDefined();
+
+    const importText = await readFile(path.join(dir, importFile ?? ''), 'utf8');
+    expect(importText).toContain('"jobId":"job-123"');
+    expect(importText).toContain('"process":"worker"');
+    expect(importText).not.toContain('poll request');
+
+    const apiText = await readFile(path.join(dir, apiFile ?? ''), 'utf8');
+    expect(apiText).toContain('poll request');
+    expect(apiText).toContain('stage started');
+  });
+});
+
+describe('isJobLogLine', () => {
+  it('matches lines carrying a job id', () => {
+    expect(isJobLogLine('{"level":"info","jobId":"abc","msg":"x"}')).toBe(true);
+    expect(isJobLogLine('{"level":"info","msg":"incoming request"}')).toBe(false);
   });
 });

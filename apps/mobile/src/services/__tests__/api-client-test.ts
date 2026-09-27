@@ -64,7 +64,7 @@ describe('api client envelopes', () => {
       ),
     );
 
-    await expect(apiClient.get('/nutrition')).rejects.toMatchObject({
+    await expect(apiClient.get('/pantry')).rejects.toMatchObject({
       name: 'ApiError',
       code: 'TOO_MANY_REQUESTS',
       requestId: 'req-abc',

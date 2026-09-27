@@ -34,6 +34,7 @@ import { CategoryService } from '../../modules/categories/application/category-s
 import { ContentAcquisitionService } from '../../modules/content/application/content-acquisition.service.js';
 import { FakeContentProvider } from '../../modules/content/providers/fake/fake-content-provider.js';
 import { FacebookContentProvider } from '../../modules/content/providers/facebook/facebook-content-provider.js';
+import { ApifyPageFetcher } from '../../modules/content/providers/generic/apify-page-fetcher.js';
 import { GenericWebContentProvider } from '../../modules/content/providers/generic/generic-web-content-provider.js';
 import { HttpApifyClient } from '../../modules/content/providers/instagram/apify-client.js';
 import { InstagramContentProvider } from '../../modules/content/providers/instagram/instagram-content-provider.js';
@@ -61,7 +62,6 @@ import { CookSessionService } from '../../modules/cook-sessions/application/cook
 import type { ICookSessionRepository } from '../../modules/cook-sessions/repository/cook-session.repository.js';
 import { ProfileBootstrapService } from '../../modules/profiles/application/profile-bootstrap-service.js';
 import {
-  DEFAULT_PROFILE_ID,
   ImplicitProfileResolver,
   type ProfileResolver,
 } from '../../modules/profiles/domain/profile.js';
@@ -71,21 +71,12 @@ import { FfmpegMediaProcessor } from '../../modules/media/ffmpeg/ffmpeg-media-pr
 import type { IMediaAssetRepository } from '../../modules/media/repository/media-asset.repository.js';
 import type { IRecipeRepository } from '../../modules/recipes/repository/recipe.repository.js';
 import type { IRecipeSourceRepository } from '../../modules/recipes/repository/recipe-source.repository.js';
-import { PrismaNutritionRepository } from '../../infrastructure/database/repositories/nutrition.repository.js';
-import type { INutritionRepository } from '../../infrastructure/database/repositories/nutrition.repository.js';
 import { PrismaCollectionRepository } from '../../infrastructure/database/repositories/collection.repository.js';
 import { PrismaPantryRepository } from '../../infrastructure/database/repositories/pantry.repository.js';
 import { PrismaMealPlanRepository } from '../../infrastructure/database/repositories/meal-plan.repository.js';
 import { PrismaShoppingListRepository } from '../../infrastructure/database/repositories/shopping-list.repository.js';
 import { CollectionService } from '../../modules/collections/application/collection-service.js';
 import type { ICollectionRepository } from '../../modules/collections/repository/collection.repository.js';
-import { NutritionCalculator } from '../../modules/nutrition/application/nutrition-calculator.js';
-import {
-  NUTRITION_JOB_NAME,
-  NutritionService,
-} from '../../modules/nutrition/application/nutrition-service.js';
-import { createNutritionProvider } from '../../modules/nutrition/providers/create-nutrition-provider.js';
-import type { NutritionProvider } from '../../modules/nutrition/domain/types.js';
 import { OpenAIProvider } from '../../infrastructure/ai/llm/openai-provider.js';
 import type { LLMProvider } from '../../infrastructure/ai/llm/llm-provider.js';
 import { AIUsageTracker } from '../../infrastructure/ai/usage/ai-usage-tracker.js';
@@ -125,7 +116,6 @@ export interface AppContainer {
     vision: PrismaVisionRepository;
     aiUsage: PrismaAIUsageRepository;
     profileBootstrap: PrismaProfileBootstrapRepository;
-    nutrition: INutritionRepository;
     pantry: IPantryRepository;
     shoppingList: IShoppingListRepository;
     mealPlan: IMealPlanRepository;
@@ -142,20 +132,16 @@ export interface AppContainer {
   profileBootstrap: ProfileBootstrapService;
   profileResolver: ProfileResolver;
   pipeline: RecipeExtractionPipeline;
-  nutritionService: NutritionService;
   pantryService: PantryService;
   shoppingListService: ShoppingListService;
   mealPlanService: MealPlanService;
   collectionService: CollectionService;
   createQueue(): QueueProvider;
-  createNutritionQueue(): QueueProvider;
 }
 
 export interface CreateContainerOptions {
   storage?: StorageProvider;
   queue?: QueueProvider;
-  nutritionQueue?: QueueProvider;
-  nutritionProvider?: NutritionProvider;
   enableMediaProcessing?: boolean;
   logger?: AppLogger;
   profileResolver?: ProfileResolver;
@@ -167,13 +153,23 @@ export function createContentRegistry(appConfig: AppConfig): ContentProviderRegi
   const registry = new DefaultContentProviderRegistry();
 
   registry.register(
-    new InstagramContentProvider(new HttpApifyClient(appConfig.providers.apifyApiToken ?? '')),
+    new InstagramContentProvider(new HttpApifyClient(appConfig.providers.apifyApiToken ?? ''), {
+      maxVideos: appConfig.extraction.maxPostVideos,
+      maxDownloadBytes: appConfig.extraction.maxMediaDownloadBytes,
+    }),
   );
   registry.register(new YouTubeContentProvider(new YtDlpClient(appConfig.providers.ytdlpPath)));
   registry.register(new FacebookContentProvider());
   registry.register(new TikTokContentProvider());
   registry.register(new FakeContentProvider());
-  registry.register(new GenericWebContentProvider());
+  const { apifyApiToken, webBlockedFallback } = appConfig.providers;
+  registry.register(
+    new GenericWebContentProvider(
+      apifyApiToken && webBlockedFallback && !appConfig.isTest
+        ? { blockedPageFetcher: new ApifyPageFetcher(apifyApiToken) }
+        : {},
+    ),
+  );
 
   return registry;
 }
@@ -197,7 +193,6 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     vision: new PrismaVisionRepository(prisma),
     aiUsage: new PrismaAIUsageRepository(prisma),
     profileBootstrap: new PrismaProfileBootstrapRepository(prisma),
-    nutrition: new PrismaNutritionRepository(prisma),
     pantry: new PrismaPantryRepository(prisma),
     shoppingList: new PrismaShoppingListRepository(prisma),
     mealPlan: new PrismaMealPlanRepository(prisma),
@@ -245,13 +240,9 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     repositories.recipeSource,
     orchestrator,
     log,
-    async (recipeId) => {
-      await nutritionService.requestForRecipe(recipeId, DEFAULT_PROFILE_ID);
-    },
   );
 
   let queueInstance: QueueProvider | undefined = options.queue;
-  let nutritionQueueInstance: QueueProvider | undefined = options.nutritionQueue;
 
   const createQueue = (): QueueProvider => {
     if (queueInstance) {
@@ -270,43 +261,9 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     return queueInstance;
   };
 
-  const createNutritionQueue = (): QueueProvider => {
-    if (nutritionQueueInstance) {
-      return nutritionQueueInstance;
-    }
-
-    nutritionQueueInstance = new BullMQQueueProvider(
-      QueueName.NUTRITION_JOBS,
-      getRedisClient(),
-      appConfig.nutrition.queueConcurrency,
-      appConfig.nutrition.backoffMs,
-      appConfig.nutrition.maxRetries,
-      log,
-    );
-
-    return nutritionQueueInstance;
-  };
-
   const queue =
     queueInstance ??
     (options.queue === undefined ? new LazyQueueProvider(createQueue) : createQueue());
-  const nutritionQueue =
-    nutritionQueueInstance ??
-    (options.nutritionQueue === undefined
-      ? new LazyQueueProvider(createNutritionQueue)
-      : createNutritionQueue());
-
-  const nutritionProvider = options.nutritionProvider
-    ? createNutritionProvider(appConfig, options.nutritionProvider)
-    : createNutritionProvider(appConfig);
-  const nutritionCalculator = new NutritionCalculator(nutritionProvider, repositories.nutrition);
-  const nutritionService = new NutritionService(
-    repositories.recipe,
-    repositories.nutrition,
-    nutritionCalculator,
-    nutritionQueue,
-    log,
-  );
 
   const extractionJobService = new ExtractionJobService(
     repositories.extractionJob,
@@ -316,7 +273,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     log,
   );
 
-  const recipeService = new RecipeService(repositories.recipe, nutritionService);
+  const recipeService = new RecipeService(repositories.recipe);
   const categoryService = new CategoryService(prisma);
   const cookSessionService = new CookSessionService(repositories.cookSession, repositories.recipe);
   const profileBootstrap = new ProfileBootstrapService(repositories.profileBootstrap);
@@ -368,30 +325,22 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     profileBootstrap,
     profileResolver,
     pipeline,
-    nutritionService,
     pantryService,
     shoppingListService,
     mealPlanService,
     collectionService,
     createQueue,
-    createNutritionQueue,
   };
 }
 
 /** Test container with in-memory queues for synchronous pipeline execution. */
 export function createTestContainer(options: CreateContainerOptions = {}): AppContainer {
   const queue = options.queue ?? new InMemoryQueueProvider();
-  const nutritionQueue = options.nutritionQueue ?? new InMemoryQueueProvider();
-  const container = createContainer({ ...options, queue, nutritionQueue });
+  const container = createContainer({ ...options, queue });
 
   if (queue instanceof InMemoryQueueProvider) {
     queue.registerProcessor(EXTRACTION_JOB_NAME, async (payload) => {
       await container.pipeline.execute(payload.jobId);
-    });
-  }
-  if (nutritionQueue instanceof InMemoryQueueProvider) {
-    nutritionQueue.registerProcessor(NUTRITION_JOB_NAME, async (payload) => {
-      await container.nutritionService.processSnapshot(payload.jobId);
     });
   }
 

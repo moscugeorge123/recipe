@@ -92,22 +92,40 @@ export function normalizeIngredientName(raw: string): string {
   return INGREDIENT_ALIASES[lower] ?? lower;
 }
 
+const UNICODE_FRACTION_VALUES: Record<string, number> = {
+  '½': 1 / 2,
+  '¼': 1 / 4,
+  '¾': 3 / 4,
+  '⅓': 1 / 3,
+  '⅔': 2 / 3,
+  '⅛': 1 / 8,
+  '⅜': 3 / 8,
+  '⅝': 5 / 8,
+  '⅞': 7 / 8,
+};
+
+const QUANTITY_PATTERN =
+  /(?:(\d+(?:\.\d+)?)\s+)?(\d+)\s*\/\s*(\d+)|(\d+(?:\.\d+)?)?\s*([½¼¾⅓⅔⅛⅜⅝⅞])|(\d+(?:\.\d+)?)/;
+
+/** First amount in a quantity phrase: "1 1/2" → 1.5, "1½" → 1.5, "2-3" → 2, "0,5" → 0.5. */
 export function parseQuantity(raw: string | null | undefined): number | null {
   if (!raw) {
     return null;
   }
-  const cleaned = raw.replace(/[^\d./]/g, '').trim();
-  if (!cleaned) {
+  const text = raw.replace(/(\d),(\d)/g, '$1.$2');
+  const match = QUANTITY_PATTERN.exec(text);
+  if (!match) {
     return null;
   }
-  if (cleaned.includes('/')) {
-    const [num, den] = cleaned.split('/');
-    const n = Number(num);
-    const d = Number(den);
-    if (Number.isFinite(n) && Number.isFinite(d) && d !== 0) {
-      return n / d;
-    }
+  if (match[2] !== undefined && match[3] !== undefined) {
+    const whole = match[1] !== undefined ? Number(match[1]) : 0;
+    const den = Number(match[3]);
+    return den === 0 ? null : whole + Number(match[2]) / den;
   }
-  const parsed = Number(cleaned);
+  if (match[5] !== undefined) {
+    const whole = match[4] !== undefined ? Number(match[4]) : 0;
+    return whole + (UNICODE_FRACTION_VALUES[match[5]] ?? 0);
+  }
+  const parsed = Number(match[6]);
   return Number.isFinite(parsed) ? parsed : null;
 }

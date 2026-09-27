@@ -3,15 +3,34 @@ export interface ApifyInstagramInput {
   resultsLimit?: number;
 }
 
+/** Carousel child as returned in `childPosts` by `apify~instagram-scraper`. */
+export interface ApifyInstagramChildPost {
+  /** `Image` or `Video`. */
+  type?: string;
+  displayUrl?: string;
+  videoUrl?: string;
+  images?: string[];
+  alt?: string | null;
+}
+
 export interface ApifyInstagramPost {
+  /** `Image`, `Video` or `Sidecar` (carousel). */
+  type?: string;
+  productType?: string;
   caption?: string;
   text?: string;
-  alt?: string;
+  alt?: string | null;
   ownerUsername?: string;
   displayUrl?: string;
   videoUrl?: string;
+  videoDuration?: number;
   thumbnailUrl?: string;
   title?: string;
+  /** Carousel image URLs (for single videos this is just the cover). */
+  images?: string[];
+  /** Newer actor versions list carousel slides here. */
+  carouselImages?: string[];
+  childPosts?: ApifyInstagramChildPost[];
   error?: string | { message?: string; type?: string };
   errorDescription?: string;
   '#error'?: boolean;

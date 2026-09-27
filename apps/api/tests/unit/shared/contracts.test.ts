@@ -2,8 +2,6 @@ import {
   DEFAULT_CATEGORIES,
   ErrorCode,
   HttpStatus,
-  NutritionStatus,
-  toNutritionUxStatus,
   isRetryableFailure,
   PantryClassificationStatus,
   parsePantryText,
@@ -17,6 +15,11 @@ import {
   sundayOfWeek,
   RecipeListSort,
   RevisionSource,
+  MeasurementSystem,
+  NutritionSource,
+  RECIPE_DIFFICULTIES,
+  METRIC_UNITS,
+  IMPERIAL_UNITS,
   type AsyncUxState,
 } from '@recipe/contracts';
 import { describe, expect, it } from 'vitest';
@@ -33,10 +36,6 @@ describe('shared platform contracts', () => {
     expect(ErrorCode.SERVICE_UNAVAILABLE).toBe('SERVICE_UNAVAILABLE');
     expect(HttpStatus.CONFLICT).toBe(409);
     expect(HttpStatus.SERVICE_UNAVAILABLE).toBe(503);
-    expect(NutritionStatus.PARTIAL).toBe('PARTIAL');
-    expect(toNutritionUxStatus(NutritionStatus.COMPLETED)).toBe('READY');
-    expect(toNutritionUxStatus(NutritionStatus.NOT_REQUESTED)).toBe('UNAVAILABLE');
-    expect(toNutritionUxStatus(NutritionStatus.NOT_REQUESTED, true)).toBe('PENDING');
     expect(PantryClassificationStatus.NEEDS_REVIEW).toBe('NEEDS_REVIEW');
     expect(parsePantryText('salt, pepper\n1,000 g flour')).toEqual([
       'salt',
@@ -70,6 +69,16 @@ describe('shared platform contracts', () => {
     expect(isRetryableFailure(429, ErrorCode.TOO_MANY_REQUESTS)).toBe(true);
     expect(isRetryableFailure(404, ErrorCode.NOT_FOUND)).toBe(false);
     expect(isRetryableFailure(500, ErrorCode.INTERNAL_SERVER_ERROR)).toBe(true);
+  });
+
+  it('keeps recipe detail enums in step with the API', () => {
+    expect(MeasurementSystem.METRIC).toBe('metric');
+    expect(MeasurementSystem.IMPERIAL).toBe('imperial');
+    expect(NutritionSource.STATED).toBe('stated');
+    expect(NutritionSource.ESTIMATED).toBe('estimated');
+    expect(RECIPE_DIFFICULTIES).toEqual(['Easy', 'Medium', 'Hard']);
+    expect(METRIC_UNITS).toContain('g');
+    expect(IMPERIAL_UNITS).toContain('cup');
   });
 
   it('defines explicit loading, empty, error/retry, and ready UX states', () => {

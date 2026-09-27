@@ -20,7 +20,7 @@ export const opsRoutes: FastifyPluginAsyncZod<OpsRoutesOptions> = async (app, op
         tags: ['ops'],
         summary: 'Operational counters for the singleton profile',
         description:
-          'Aggregated AI, nutrition, pantry, queue, and migration counters. No recipe titles, notes, URLs, or pantry names. Unauthenticated while the API uses the implicit profile; gate this behind auth when authentication ships. USDA 429s and revision conflicts are not stored — use the log filters in the payload.',
+          'Aggregated AI, pantry, queue, and migration counters. No recipe titles, notes, URLs, or pantry names. Unauthenticated while the API uses the implicit profile; gate this behind auth when authentication ships. Revision conflicts are not stored — use the log filter in the payload.',
         response: {
           200: dataResponseSchema(opsSummarySchema),
           ...standardErrorResponses,

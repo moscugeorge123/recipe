@@ -59,6 +59,7 @@ function toMemberRecord(row: MemberRow): CollectionMemberRecord | null {
     prepTimeMinutes: revision.prepTimeMinutes,
     cookTimeMinutes: revision.cookTimeMinutes,
     totalTimeMinutes: revision.totalTimeMinutes,
+    difficulty: revision.difficulty,
     calories: revision.calories,
     cuisine: revision.cuisine,
     isFavorite: owned.isFavorite,

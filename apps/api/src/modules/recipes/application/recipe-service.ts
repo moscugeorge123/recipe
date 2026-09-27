@@ -1,9 +1,4 @@
-import {
-  Prisma,
-  type NutritionStatus,
-  type RecipeReviewState,
-  type RevisionSource,
-} from '@prisma/client';
+import { Prisma, type RecipeReviewState, type RevisionSource } from '@prisma/client';
 
 import { ValidationError } from '../../../shared/errors/app-error.js';
 import {
@@ -22,7 +17,7 @@ import type {
   RecipeNoteRecord,
   RecipeRevisionSummary,
 } from '../repository/recipe.repository.js';
-import type { NutritionScheduler } from '../../nutrition/application/nutrition-service.js';
+import { measurementsForEdit, stepExtrasForEdit } from './revision-measurements.js';
 
 export interface RecipeDetailView {
   id: string;
@@ -32,7 +27,9 @@ export interface RecipeDetailView {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
+  difficulty: string | null;
   calories: number | null;
+  nutritionSource: string | null;
   cuisine: string | null;
   nutrition: unknown;
   sourceLanguage: string | null;
@@ -53,7 +50,6 @@ export interface RecipeDetailView {
   ratingCount: number;
   isFavorite: boolean;
   cookCount: number;
-  nutritionStatus: NutritionStatus;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -90,35 +86,8 @@ function resolveTotalTimeMinutes(
   return prep === 0 && cook === 0 ? null : prep + cook;
 }
 
-export function nutritionInputsChanged(
-  previous: Pick<EffectiveRecipeRecord, 'servings' | 'ingredients'>,
-  next: Pick<EffectiveRecipeRecord, 'servings' | 'ingredients'>,
-): boolean {
-  if (previous.servings !== next.servings) {
-    return true;
-  }
-  if (previous.ingredients.length !== next.ingredients.length) {
-    return true;
-  }
-  return previous.ingredients.some((ingredient, index) => {
-    const other = next.ingredients[index];
-    if (!other) {
-      return true;
-    }
-    return (
-      ingredient.name !== other.name ||
-      ingredient.canonicalName !== other.canonicalName ||
-      ingredient.quantity?.toString() !== other.quantity?.toString() ||
-      ingredient.unit !== other.unit
-    );
-  });
-}
-
 export class RecipeService {
-  constructor(
-    private readonly recipeRepo: IRecipeRepository,
-    private readonly nutritionScheduler?: NutritionScheduler,
-  ) {}
+  constructor(private readonly recipeRepo: IRecipeRepository) {}
 
   async getById(id: string): Promise<RecipeDetailView> {
     return this.getByIdForProfile(id, '00000000-0000-4000-8000-000000000001');
@@ -165,25 +134,40 @@ export class RecipeService {
     if (!existing) {
       throw new RecipeNotFoundError();
     }
-    const ingredients = (patch.ingredients ?? existing.ingredients).map((ingredient) => ({
-      name: ingredient.name,
-      canonicalName: ingredient.canonicalName ?? null,
-      quantity: toQuantityDecimal(ingredient.quantity ?? null),
-      unit: ingredient.unit ?? null,
-      preparation: ingredient.preparation ?? null,
-      optional: ingredient.optional,
-      emoji: ingredient.emoji ?? '🥣',
-      colorToken: ingredient.colorToken ?? 'peach',
-      category: ingredient.category ?? 'Pantry',
-      sortOrder: ingredient.sortOrder,
-    }));
-    const steps = (patch.steps ?? existing.steps).map((step) => ({
-      stepOrder: step.stepOrder,
-      instruction: step.instruction,
-      durationMinutes: step.durationMinutes ?? null,
-      temperature: step.temperature ?? null,
-      stage: step.stage ?? 'COOK',
-    }));
+    const ingredients = (patch.ingredients ?? existing.ingredients).map((ingredient) => {
+      const quantity = toQuantityDecimal(ingredient.quantity ?? null);
+      const unit = ingredient.unit ?? null;
+      return {
+        name: ingredient.name,
+        canonicalName: ingredient.canonicalName ?? null,
+        quantity,
+        unit,
+        ...measurementsForEdit({ name: ingredient.name, quantity, unit }, existing.ingredients),
+        preparation: ingredient.preparation ?? null,
+        optional: ingredient.optional,
+        emoji: ingredient.emoji ?? '🥣',
+        colorToken: ingredient.colorToken ?? 'peach',
+        category: ingredient.category ?? 'Pantry',
+        sortOrder: ingredient.sortOrder,
+      };
+    });
+    const orderedIngredients = [...ingredients].sort((a, b) => a.sortOrder - b.sortOrder);
+    const steps = (patch.steps ?? existing.steps).map((step) => {
+      const temperature = step.temperature ?? null;
+      return {
+        stepOrder: step.stepOrder,
+        instruction: step.instruction,
+        durationMinutes: step.durationMinutes ?? null,
+        temperature,
+        ...stepExtrasForEdit(
+          { instruction: step.instruction, temperature },
+          existing.steps,
+          existing.ingredients,
+          orderedIngredients,
+        ),
+        stage: step.stage ?? 'COOK',
+      };
+    });
     const totalTimeMinutes = resolveTotalTimeMinutes(existing, patch);
     const result = await this.recipeRepo.appendRevision(
       id,
@@ -199,6 +183,7 @@ export class RecipeService {
           patch.cookTimeMinutes !== undefined ? patch.cookTimeMinutes : existing.cookTimeMinutes,
         totalTimeMinutes:
           totalTimeMinutes !== undefined ? totalTimeMinutes : existing.totalTimeMinutes,
+        ...(patch.difficulty !== undefined ? { difficulty: patch.difficulty } : {}),
         calories: patch.calories !== undefined ? patch.calories : existing.calories,
         cuisine: patch.cuisine !== undefined ? patch.cuisine : existing.cuisine,
         categoryIds: patch.categoryIds ?? existing.categories.map((category) => category.id),
@@ -214,17 +199,6 @@ export class RecipeService {
       });
     }
     if (!result) throw new RecipeNotFoundError();
-    if (this.nutritionScheduler && nutritionInputsChanged(existing, result)) {
-      try {
-        await this.nutritionScheduler.requestForRevision({
-          recipeId: result.id,
-          revisionId: result.revisionId,
-          userId,
-        });
-      } catch {
-        // Recipe saves stay available if nutrition enqueue fails.
-      }
-    }
     return this.toDetailView(result);
   }
 
@@ -264,17 +238,6 @@ export class RecipeService {
     );
     if (result === 'conflict') throw new RecipeRevisionConflictError();
     if (!result) throw new RecipeNotFoundError({ message: 'Recipe revision not found' });
-    if (this.nutritionScheduler) {
-      try {
-        await this.nutritionScheduler.requestForRevision({
-          recipeId: result.id,
-          revisionId: result.revisionId,
-          userId,
-        });
-      } catch {
-        // Restore stays available if nutrition enqueue fails.
-      }
-    }
     return this.toDetailView(result);
   }
 
@@ -387,7 +350,9 @@ export class RecipeService {
       prepTimeMinutes: recipe.prepTimeMinutes,
       cookTimeMinutes: recipe.cookTimeMinutes,
       totalTimeMinutes: recipe.totalTimeMinutes,
+      difficulty: recipe.difficulty,
       calories: recipe.calories,
+      nutritionSource: recipe.nutritionSource,
       cuisine: recipe.cuisine,
       nutrition: recipe.nutrition,
       sourceLanguage: recipe.sourceLanguage,
@@ -408,7 +373,6 @@ export class RecipeService {
       ratingCount: recipe.rating == null ? 0 : 1,
       isFavorite: recipe.isFavorite,
       cookCount: recipe.cookCount,
-      nutritionStatus: recipe.nutritionStatus,
       createdAt: recipe.createdAt,
       updatedAt: recipe.updatedAt,
     };

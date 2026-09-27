@@ -9,13 +9,8 @@ import {
   closeExtractionProcessor,
   registerExtractionProcessor,
 } from './processors/extraction.processor.js';
-import {
-  closeNutritionProcessor,
-  registerNutritionProcessor,
-} from './processors/nutrition.processor.js';
-
 export async function createWorkerLogger(appConfig: AppConfig = config): Promise<AppLogger> {
-  return createLogger(appConfig);
+  return createLogger(appConfig, { processName: 'worker' });
 }
 
 export async function startWorker(appConfig: AppConfig = config): Promise<AppLogger> {
@@ -27,8 +22,6 @@ export async function startWorker(appConfig: AppConfig = config): Promise<AppLog
 
   const container = createContainer({ logger: log });
   await registerExtractionProcessor(container);
-  await registerNutritionProcessor(container);
-
   log.info(
     {
       pantryCache: 'redis-when-ready',
@@ -81,7 +74,6 @@ export function registerWorkerShutdown(log: AppLogger, appConfig: AppConfig = co
 
     try {
       await closeExtractionProcessor();
-      await closeNutritionProcessor();
       await disconnectRedis();
       await disconnectPrisma();
       clearTimeout(watchdog);

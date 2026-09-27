@@ -44,10 +44,6 @@ export async function resetDatabase(
 ): Promise<void> {
   const tables = [
     'ai_usage',
-    'nutrition_food_matches',
-    'nutrition_snapshots',
-    'nutrition_query_cache',
-    'nutrition_food_cache',
     'collection_recipes',
     'collections',
     'recipe_notes',

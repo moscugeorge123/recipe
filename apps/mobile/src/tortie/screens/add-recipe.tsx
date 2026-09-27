@@ -5,6 +5,7 @@ import Animated, { Easing, useAnimatedStyle } from 'react-native-reanimated';
 
 import { useCreateExtraction } from '@/features/extraction/hooks/use-create-extraction';
 import { useExtractionJob } from '@/features/extraction/hooks/use-extraction-job';
+import { errorCodeOf, importFailureToast } from '@/lib/user-error';
 import { hueOf } from '@/tortie/color';
 import { useTRecipe } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
@@ -84,7 +85,9 @@ export function AddRecipeSheet() {
     status: '',
     recipeId: null as string | null,
     error: false,
+    errorCode: undefined as string | undefined,
   });
+  const srcName = useRef<string | undefined>(undefined);
   const wasCam = useRef(false);
 
   const job = useExtractionJob(jobId);
@@ -132,6 +135,7 @@ export function AddRecipeSheet() {
       status: job.job?.status ?? '',
       recipeId: job.job?.recipeId ?? null,
       error: job.isError,
+      errorCode: errorCodeOf(job.job?.error),
     };
   }, [job.job, job.isError]);
 
@@ -156,7 +160,7 @@ export function AddRecipeSheet() {
               ? 'Lost track of that import — try again'
               : L.status === 'CANCELLED'
                 ? 'Import cancelled'
-                : 'Couldn’t read a recipe from that link',
+                : importFailureToast(L.errorCode, srcName.current),
           );
           return;
         }
@@ -187,7 +191,9 @@ export function AddRecipeSheet() {
 
   const startImport = (raw?: string) => {
     const u = (raw ?? url).trim();
-    if (!platOf(u)) return;
+    const found = platOf(u);
+    if (!found) return;
+    srcName.current = found.k === 'web' ? undefined : found.n;
     if (raw != null) setUrl(raw);
     t0.current = Date.now();
     jobRef.current = null;
@@ -211,8 +217,14 @@ export function AddRecipeSheet() {
           jobRef.current = res.jobId;
           setJobId(res.jobId);
         },
-        onError: () =>
-          fail('Couldn’t start that import — check the link and try again'),
+        onError: (e) =>
+          fail(
+            importFailureToast(
+              errorCodeOf(e),
+              srcName.current,
+              'Couldn’t start that import — check the link and try again',
+            ),
+          ),
       },
     );
   };

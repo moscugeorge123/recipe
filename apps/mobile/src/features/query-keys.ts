@@ -12,7 +12,6 @@
  * | Revisions       | `recipeKeys.revisions(id)`          | `['recipes', 'detail', id, 'revisions']`        | 60s            |
  * | Revision detail | `recipeKeys.revision(id, rev)`      | `['recipes', 'detail', id, 'revisions', rev]`   | 60s            |
  * | Notes           | `recipeKeys.notes(id)`              | `['recipes', 'detail', id, 'notes']`            | 15s            |
- * | Nutrition       | `nutritionKey(id)`                  | `['recipes', 'detail', id, 'nutrition']`        | 15s            |
  * | Pantry          | `pantryKeys.list(category?)`        | `['pantry', 'list', 'all']`                     | 15s            |
  * | Shopping list   | `shoppingListKeys.list(done?)`      | `['shopping-list', 'list', 'all']`              | 15s            |
  * | Meal plan       | `mealPlanKeys.range(from, to)`      | `['meal-plan', 'range', from, to]`              | 15s            |
@@ -27,8 +26,7 @@
  * Do not add a second `kitchen.*` tree.
  *
  * Recipe detail GET budget (Agent 8): `/recipes/:id`, `/pantry` (one list),
- * `/recipes/:id/nutrition`, deferred `/notes`, and `/categories` only when
- * editing chips. Never fan out per ingredient, note, or category.
+ * deferred `/notes`, and `/categories` only when editing chips. Never fan out per ingredient, note, or category.
  */
 import type { ListCookSessionsQuery } from '@/features/cook-sessions/types';
 
@@ -53,10 +51,6 @@ export const recipeKeys = {
 
 export const HOME_LATEST_PAGE_SIZE = 8;
 export const HOME_ENGAGEMENT_PAGE_SIZE = 12;
-
-export function nutritionKey(recipeId: string) {
-  return [...recipeKeys.detail(recipeId), 'nutrition'] as const;
-}
 
 export const pantryKeys = {
   all: ['pantry'] as const,
@@ -109,7 +103,6 @@ export const QUERY_FRESHNESS = {
   categories: 5 * 60_000,
   notes: 15_000,
   revisions: 60_000,
-  nutrition: 15_000,
   pantry: 15_000,
   shoppingList: 15_000,
   mealPlan: 15_000,

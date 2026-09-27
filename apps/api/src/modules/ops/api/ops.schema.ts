@@ -24,17 +24,6 @@ export const opsSummarySchema = z
       escalationCalls: z.number().int().nonnegative(),
       byOperation: z.array(aiOperationSchema),
     }),
-    usda: z.object({
-      queryCacheEntries: z.number().int().nonnegative(),
-      foodCacheEntries: z.number().int().nonnegative(),
-      rateLimitedPersisted: z.literal(false),
-      rateLimitedLogFilter: z.string(),
-    }),
-    nutrition: z.object({
-      byStatus: countByKeySchema,
-      failed: z.number().int().nonnegative(),
-      inFlight: z.number().int().nonnegative(),
-    }),
     pantry: z.object({
       items: z.number().int().nonnegative(),
       fallbackItems: z.number().int().nonnegative(),
@@ -48,7 +37,6 @@ export const opsSummarySchema = z
     queues: z.object({
       extractionByStatus: countByKeySchema,
       extractionInFlight: z.number().int().nonnegative(),
-      nutritionInFlight: z.number().int().nonnegative(),
     }),
     migrations: z.object({
       applied: z.number().int().nonnegative(),

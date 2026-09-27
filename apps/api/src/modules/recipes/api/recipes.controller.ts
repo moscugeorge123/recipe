@@ -1,16 +1,20 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
 import { collectionResponse, dataResponse } from '../../../shared/http/response.js';
+import type { Measurement } from '../../normalization/domain/measurement-conversion.js';
 import {
   authorFromMetadata,
   creatorFromSource,
-  difficultyFromMinutes,
   ingredientHintForStep,
   minutesFromTimes,
+  nutritionSourceOf,
+  resolveDifficulty,
   sourceLabelFromType,
+  stepTemperature,
   thumbnailFromMetadata,
 } from '../application/recipe-presentation.js';
 import type { RecipeService } from '../application/recipe-service.js';
+import { storedMeasurements } from '../application/revision-measurements.js';
 import type {
   CreateRecipeNoteBody,
   EngagementConcurrencyBody,
@@ -21,6 +25,16 @@ import type {
   PutReviewStateBody,
   RestoreRevisionBody,
 } from './recipes.schema.js';
+
+function serializeMeasurement(measurement: Measurement): {
+  quantity: string | null;
+  unit: string | null;
+} {
+  return {
+    quantity: measurement.quantity === null ? null : String(measurement.quantity),
+    unit: measurement.unit,
+  };
+}
 
 export function serializeRecipeDetail(
   recipe: Awaited<ReturnType<RecipeService['getById']>>,
@@ -40,8 +54,9 @@ export function serializeRecipeDetail(
     cookTimeMinutes: recipe.cookTimeMinutes,
     totalTimeMinutes: recipe.totalTimeMinutes,
     calories: recipe.calories,
+    nutritionSource: nutritionSourceOf(recipe.nutritionSource, recipe.calories),
     cuisine: recipe.cuisine,
-    difficulty: difficultyFromMinutes(minutes),
+    difficulty: resolveDifficulty(recipe.difficulty, minutes),
     minutes,
     nutrition: recipe.nutrition,
     sourceLanguage: recipe.sourceLanguage,
@@ -59,13 +74,26 @@ export function serializeRecipeDetail(
     ratingAverage: recipe.ratingAverage,
     ratingCount: recipe.ratingCount,
     cookCount: recipe.cookCount,
-    nutritionStatus: recipe.nutritionStatus,
-    ingredients: recipe.ingredients.map((ing) => ({
-      ...ing,
-      quantity: ing.quantity?.toString() ?? null,
-    })),
+    ingredients: recipe.ingredients.map((ing) => {
+      const { metricQuantity, metricUnit, imperialQuantity, imperialUnit, ...rest } = ing;
+      const measurements = storedMeasurements({
+        quantity: ing.quantity,
+        unit: ing.unit,
+        metricQuantity,
+        metricUnit,
+        imperialQuantity,
+        imperialUnit,
+      });
+      return {
+        ...rest,
+        quantity: ing.quantity?.toString() ?? null,
+        metric: serializeMeasurement(measurements.metric),
+        imperial: serializeMeasurement(measurements.imperial),
+      };
+    }),
     steps: recipe.steps.map((step) => ({
       ...step,
+      ...stepTemperature(step),
       ingredientHint: ingredientHintForStep(
         step.instruction,
         recipe.ingredients.map((ing) => ({
@@ -117,7 +145,7 @@ function serializeRecipeListItem(
     totalTimeMinutes: item.totalTimeMinutes,
     calories: item.calories,
     cuisine: item.cuisine,
-    difficulty: difficultyFromMinutes(minutes),
+    difficulty: resolveDifficulty(item.difficulty, minutes),
     minutes,
     sourceType: item.recipeSource.sourceType,
     sourceLabel,

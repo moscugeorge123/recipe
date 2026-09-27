@@ -80,7 +80,6 @@ describe('recipe revision and category API contracts', () => {
           isFavorite: false,
           rating: null,
           cookCount: 0,
-          nutritionStatus: 'NOT_REQUESTED',
           ingredients: [
             {
               id: 'ingredient-1',

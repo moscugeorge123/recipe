@@ -48,7 +48,63 @@ export function hammingDistance(hashA: string, hashB: string): number {
   return distance;
 }
 
-/** Deduplicates frames by perceptual hash similarity (Hamming distance threshold). */
+/** Per-pixel luma delta (0-255) that counts as a real change rather than JPEG noise. */
+const PIXEL_CHANGE_THRESHOLD = 24;
+
+/** Fraction of pixels that changed meaningfully between two equal-size grayscale signatures. */
+export function changedPixelRatio(a: Buffer, b: Buffer): number {
+  if (a.length === 0 || a.length !== b.length) {
+    return 1;
+  }
+  let changed = 0;
+  for (let i = 0; i < a.length; i++) {
+    if (Math.abs((a[i] ?? 0) - (b[i] ?? 0)) > PIXEL_CHANGE_THRESHOLD) {
+      changed += 1;
+    }
+  }
+  return changed / a.length;
+}
+
+export interface SignatureDedupeOptions {
+  /** Keep a frame when at least this fraction of pixels differs from the last kept frame. */
+  minChangedRatio: number;
+  signature: (framePath: string) => Promise<Buffer>;
+}
+
+/**
+ * Drops frames that look the same as the previously kept frame. Works on decoded pixels, so
+ * two frames that differ only by a text overlay are both kept. Returns kept indices in order.
+ */
+export async function deduplicateFramesBySignature(
+  framePaths: readonly string[],
+  opts: SignatureDedupeOptions,
+): Promise<number[]> {
+  const kept: number[] = [];
+  let last: Buffer | undefined;
+
+  for (const [index, framePath] of framePaths.entries()) {
+    let current: Buffer;
+    try {
+      current = await opts.signature(framePath);
+    } catch {
+      kept.push(index);
+      last = undefined;
+      continue;
+    }
+
+    if (!last || changedPixelRatio(last, current) >= opts.minChangedRatio) {
+      kept.push(index);
+      last = current;
+    }
+  }
+
+  return kept;
+}
+
+/**
+ * @deprecated Hashes encoded JPEG bytes (mostly identical headers), so distinct frames collapse
+ * into one. Use {@link deduplicateFramesBySignature}.
+ */
 export async function deduplicateFrames(
   framePaths: string[],
   threshold = 5,

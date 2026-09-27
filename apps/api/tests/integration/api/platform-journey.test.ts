@@ -127,7 +127,7 @@ describe.skipIf(!dbAvailable)('platform journey: import through home ordering', 
   afterEach(() => app.close());
   afterAll(() => disconnectTestDatabase());
 
-  it('covers import, categories, immutable edit, nutrition, engagement, collection, pantry, cooks, and home rank', async () => {
+  it('covers import, categories, immutable edit, engagement, collection, pantry, cooks, and home rank', async () => {
     const favoriteId = await importRecipe(app, 'https://example.com/fake-recipe');
     const cookedId = await importRecipe(app, 'https://example.com/fake-recipe-b');
 
@@ -183,24 +183,6 @@ describe.skipIf(!dbAvailable)('platform journey: import through home ordering', 
       revisionNumber: 2,
       revisionSource: 'RESTORE',
     });
-
-    const nutrition = await app.inject({
-      method: 'GET',
-      url: `/api/v1/recipes/${favoriteId}/nutrition`,
-    });
-    expect(nutrition.statusCode).toBe(200);
-    expect(nutrition.json().data.status).toMatch(/^(READY|PARTIAL|PENDING|FAILED|UNAVAILABLE)$/);
-    expect(nutrition.json().data.provider).toBe('fake');
-    if (
-      nutrition.json().data.status === 'PENDING' ||
-      nutrition.json().data.status === 'UNAVAILABLE'
-    ) {
-      const recalculated = await app.inject({
-        method: 'POST',
-        url: `/api/v1/recipes/${favoriteId}/nutrition/recalculate`,
-      });
-      expect(recalculated.statusCode).toBe(200);
-    }
 
     const favorited = await app.inject({
       method: 'PUT',
@@ -304,7 +286,6 @@ describe.skipIf(!dbAvailable)('platform journey: import through home ordering', 
     expect(ops.statusCode).toBe(200);
     expect(ops.json().data).toMatchObject({
       profileScoped: true,
-      usda: { rateLimitedPersisted: false },
       revisions: { conflictsPersisted: false },
     });
     expect(ops.json().data.revisions.count).toBeGreaterThanOrEqual(3);

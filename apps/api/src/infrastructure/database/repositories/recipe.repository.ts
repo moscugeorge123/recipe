@@ -22,7 +22,6 @@ const revisionInclude = {
   ingredients: { orderBy: { sortOrder: 'asc' as const } },
   steps: { orderBy: { stepOrder: 'asc' as const } },
   categories: { orderBy: { sortOrder: 'asc' as const } },
-  nutritionSnapshots: { orderBy: { createdAt: 'desc' as const }, take: 1 },
 } satisfies Prisma.RecipeRevisionInclude;
 
 type RevisionWithSnapshot = Prisma.RecipeRevisionGetPayload<{ include: typeof revisionInclude }>;
@@ -188,7 +187,11 @@ export class PrismaRecipeRepository implements IRecipeRepository {
           ...(input.totalTimeMinutes !== undefined
             ? { totalTimeMinutes: input.totalTimeMinutes }
             : {}),
+          ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
           ...(input.calories !== undefined ? { calories: input.calories } : {}),
+          ...(input.nutritionSource !== undefined
+            ? { nutritionSource: input.nutritionSource }
+            : {}),
           ...(input.cuisine !== undefined ? { cuisine: input.cuisine } : {}),
           ...(input.nutrition !== undefined ? { nutrition: toNullableJson(input.nutrition) } : {}),
           ...(input.sourceLanguage !== undefined ? { sourceLanguage: input.sourceLanguage } : {}),
@@ -232,7 +235,11 @@ export class PrismaRecipeRepository implements IRecipeRepository {
                   ...(input.totalTimeMinutes !== undefined
                     ? { totalTimeMinutes: input.totalTimeMinutes }
                     : {}),
+                  ...(input.difficulty !== undefined ? { difficulty: input.difficulty } : {}),
                   ...(input.calories !== undefined ? { calories: input.calories } : {}),
+                  ...(input.nutritionSource !== undefined
+                    ? { nutritionSource: input.nutritionSource }
+                    : {}),
                   ...(input.cuisine !== undefined ? { cuisine: input.cuisine } : {}),
                   ...(input.nutrition !== undefined
                     ? { nutrition: toNullableJson(input.nutrition) }
@@ -520,10 +527,12 @@ export class PrismaRecipeRepository implements IRecipeRepository {
               prepTimeMinutes: input.prepTimeMinutes,
               cookTimeMinutes: input.cookTimeMinutes,
               totalTimeMinutes: input.totalTimeMinutes,
+              difficulty: input.difficulty !== undefined ? input.difficulty : head.difficulty,
               calories: input.calories,
               cuisine: input.cuisine,
               nutrition:
                 head.nutrition === null ? Prisma.DbNull : (head.nutrition as Prisma.InputJsonValue),
+              nutritionSource: head.nutritionSource,
               sourceLanguage: head.sourceLanguage,
               confidence: head.confidence,
               warnings: head.warnings as Prisma.InputJsonValue,
@@ -681,12 +690,14 @@ export class PrismaRecipeRepository implements IRecipeRepository {
               prepTimeMinutes: target.prepTimeMinutes,
               cookTimeMinutes: target.cookTimeMinutes,
               totalTimeMinutes: target.totalTimeMinutes,
+              difficulty: target.difficulty,
               calories: target.calories,
               cuisine: target.cuisine,
               nutrition:
                 target.nutrition === null
                   ? Prisma.DbNull
                   : (target.nutrition as Prisma.InputJsonValue),
+              nutritionSource: target.nutritionSource,
               sourceLanguage: target.sourceLanguage,
               confidence: target.confidence,
               warnings: target.warnings as Prisma.InputJsonValue,
@@ -698,6 +709,10 @@ export class PrismaRecipeRepository implements IRecipeRepository {
                   canonicalName: item.canonicalName,
                   quantity: item.quantity,
                   unit: item.unit,
+                  metricQuantity: item.metricQuantity,
+                  metricUnit: item.metricUnit,
+                  imperialQuantity: item.imperialQuantity,
+                  imperialUnit: item.imperialUnit,
                   preparation: item.preparation,
                   optional: item.optional,
                   emoji: item.emoji,
@@ -716,6 +731,9 @@ export class PrismaRecipeRepository implements IRecipeRepository {
                   instruction: item.instruction,
                   durationMinutes: item.durationMinutes,
                   temperature: item.temperature,
+                  temperatureCelsius: item.temperatureCelsius,
+                  temperatureFahrenheit: item.temperatureFahrenheit,
+                  ingredientRefs: item.ingredientRefs,
                   stage: item.stage,
                   confidence: item.confidence,
                   provenance: item.provenance as Prisma.InputJsonValue,
@@ -825,6 +843,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         prepTimeMinutes: revision.prepTimeMinutes,
         cookTimeMinutes: revision.cookTimeMinutes,
         totalTimeMinutes: revision.totalTimeMinutes,
+        difficulty: revision.difficulty,
         calories: revision.calories,
         cuisine: revision.cuisine,
         isFavorite: owned.isFavorite,
@@ -888,7 +907,6 @@ export class PrismaRecipeRepository implements IRecipeRepository {
   }
 
   private toEffective(owned: OwnedRecipe, revision: RevisionWithSnapshot): EffectiveRecipeRecord {
-    const latestNutrition = revision.nutritionSnapshots[0];
     return {
       id: owned.recipeId,
       userRecipeId: owned.id,
@@ -899,14 +917,15 @@ export class PrismaRecipeRepository implements IRecipeRepository {
       rating: owned.rating,
       isFavorite: owned.isFavorite,
       cookCount: owned.completedCookCount,
-      nutritionStatus: latestNutrition?.status ?? 'NOT_REQUESTED',
       title: revision.title,
       description: revision.description,
       servings: revision.servings,
       prepTimeMinutes: revision.prepTimeMinutes,
       cookTimeMinutes: revision.cookTimeMinutes,
       totalTimeMinutes: revision.totalTimeMinutes,
+      difficulty: revision.difficulty,
       calories: revision.calories,
+      nutritionSource: revision.nutritionSource,
       cuisine: revision.cuisine,
       nutrition: revision.nutrition,
       sourceLanguage: revision.sourceLanguage,
@@ -919,6 +938,10 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         canonicalName: ingredient.canonicalName,
         quantity: ingredient.quantity,
         unit: ingredient.unit,
+        metricQuantity: ingredient.metricQuantity,
+        metricUnit: ingredient.metricUnit,
+        imperialQuantity: ingredient.imperialQuantity,
+        imperialUnit: ingredient.imperialUnit,
         preparation: ingredient.preparation,
         optional: ingredient.optional,
         emoji: ingredient.emoji,
@@ -935,6 +958,9 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         instruction: step.instruction,
         durationMinutes: step.durationMinutes,
         temperature: step.temperature,
+        temperatureCelsius: step.temperatureCelsius,
+        temperatureFahrenheit: step.temperatureFahrenheit,
+        ingredientRefs: step.ingredientRefs,
         stage: step.stage,
         confidence: step.confidence,
         provenance: step.provenance,

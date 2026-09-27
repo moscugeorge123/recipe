@@ -40,15 +40,12 @@ describe.skipIf(!dbAvailable)('GET /api/v1/ops/summary', () => {
         escalationCalls: 0,
         byOperation: [],
       },
-      usda: {
-        queryCacheEntries: 0,
-        foodCacheEntries: 0,
-        rateLimitedPersisted: false,
-      },
       pantry: { items: 0, fallbackItems: 0, fallbackRate: 0 },
       revisions: { count: 0, conflictsPersisted: false },
-      queues: { extractionInFlight: 0, nutritionInFlight: 0 },
+      queues: { extractionInFlight: 0 },
     });
+    expect(response.json().data).not.toHaveProperty('usda');
+    expect(response.json().data).not.toHaveProperty('nutrition');
     expect(response.json().data.generatedAt).toEqual(expect.any(String));
     expect(response.json().data.migrations.applied).toBeGreaterThan(0);
     expect(response.json().error).toBeUndefined();

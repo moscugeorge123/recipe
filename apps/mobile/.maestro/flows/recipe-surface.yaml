@@ -30,10 +30,7 @@ appId: com.recipe.app
     id: recipe-card-.*
     optional: true
 - assertVisible:
-    text: NUTRITION
-    optional: true
-- tapOn:
-    text: Per 100g
+    text: Per portion
     optional: true
 - assertVisible:
     text: NOTES

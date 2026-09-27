@@ -271,20 +271,15 @@ export function RecipeEditor() {
       toast(res.error);
       return;
     }
-    const levelWanted = ed.level !== ed0.level ? ed.level : null;
     saveM.mutate(res.body, {
-      onSuccess: (rv) => {
+      onSuccess: () => {
         useRecipeUi.setState((u) => {
           const serv = { ...u.serv };
           delete serv[editId];
           return { serv };
         });
         close();
-        toast(
-          levelWanted && rv.difficulty !== levelWanted
-            ? 'Saved · level follows total time'
-            : 'Saved · ' + n + ' change' + (n > 1 ? 's' : ''),
-        );
+        toast('Saved · ' + n + ' change' + (n > 1 ? 's' : ''));
       },
       onError: (e) => {
         if (e instanceof ApiError && e.status === 409)

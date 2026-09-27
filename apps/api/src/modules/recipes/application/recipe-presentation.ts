@@ -1,3 +1,5 @@
+import { reconcileTemperature } from '../../normalization/domain/measurement-conversion.js';
+
 const SOURCE_LABELS: Record<string, string> = {
   INSTAGRAM: 'Instagram',
   YOUTUBE: 'YouTube',
@@ -24,6 +26,52 @@ export function difficultyFromMinutes(minutes: number | null): 'Easy' | 'Medium'
     return 'Medium';
   }
   return 'Hard';
+}
+
+/** Extracted/user-set difficulty wins; recipes imported before it existed fall back to time. */
+export function resolveDifficulty(
+  stored: string | null,
+  minutes: number | null,
+): 'Easy' | 'Medium' | 'Hard' | null {
+  if (stored === 'Easy' || stored === 'Medium' || stored === 'Hard') {
+    return stored;
+  }
+  return difficultyFromMinutes(minutes);
+}
+
+/** Older recipes only had calories when the source stated them. */
+export function nutritionSourceOf(
+  stored: string | null,
+  calories: number | null,
+): 'stated' | 'estimated' | null {
+  if (stored === 'stated' || stored === 'estimated') {
+    return stored;
+  }
+  return calories === null ? null : 'stated';
+}
+
+/** Stored °C/°F, or parsed from the step text for steps saved before those columns existed. */
+export function stepTemperature(step: {
+  temperature: string | null;
+  instruction: string;
+  temperatureCelsius: number | null;
+  temperatureFahrenheit: number | null;
+}): { temperatureCelsius: number | null; temperatureFahrenheit: number | null } {
+  if (step.temperatureCelsius !== null || step.temperatureFahrenheit !== null) {
+    const resolved = reconcileTemperature({
+      celsius: step.temperatureCelsius,
+      fahrenheit: step.temperatureFahrenheit,
+    });
+    return {
+      temperatureCelsius: resolved?.celsius ?? null,
+      temperatureFahrenheit: resolved?.fahrenheit ?? null,
+    };
+  }
+  const parsed = reconcileTemperature({ text: step.temperature, instruction: step.instruction });
+  return {
+    temperatureCelsius: parsed?.celsius ?? null,
+    temperatureFahrenheit: parsed?.fahrenheit ?? null,
+  };
 }
 
 export function minutesFromTimes(

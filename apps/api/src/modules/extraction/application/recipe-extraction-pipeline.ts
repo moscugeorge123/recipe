@@ -11,7 +11,6 @@ export class RecipeExtractionPipeline {
     private readonly sourceRepo: IRecipeSourceRepository,
     private readonly orchestrator: StageOrchestrator,
     private readonly log: AppLogger = silentLogger(),
-    private readonly onImportComplete?: (recipeId: string) => Promise<void>,
   ) {}
 
   async execute(jobId: string): Promise<void> {
@@ -45,17 +44,5 @@ export class RecipeExtractionPipeline {
       { sourceUrl: source.originalUrl, outputLanguage: job.outputLanguage, status: job.status },
       () => this.orchestrator.runStages(ctx),
     );
-
-    const completed = await this.jobRepo.findById(jobId);
-    if (completed?.status === 'COMPLETED' && completed.recipeId && this.onImportComplete) {
-      try {
-        await this.onImportComplete(completed.recipeId);
-      } catch (error: unknown) {
-        this.log.warn(
-          { step: 'nutrition.enqueue', jobId, recipeId: completed.recipeId, err: error },
-          'nutrition.enqueue failed',
-        );
-      }
-    }
   }
 }

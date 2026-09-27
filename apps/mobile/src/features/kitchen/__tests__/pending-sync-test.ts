@@ -10,7 +10,6 @@ import {
 import {
   collectionKeys,
   cookSessionKeys,
-  nutritionKey,
   pantryKeys,
   profileKeys,
   recipeKeys,
@@ -78,12 +77,6 @@ describe('query key map', () => {
       'detail',
       'recipe-1',
       'notes',
-    ]);
-    expect(nutritionKey('recipe-1')).toEqual([
-      'recipes',
-      'detail',
-      'recipe-1',
-      'nutrition',
     ]);
     expect(pantryKeys.list()).toEqual(['pantry', 'list', 'all']);
     expect(cookSessionKeys.current).toEqual(['cook-sessions', 'current']);

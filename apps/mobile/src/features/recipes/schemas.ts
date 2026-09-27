@@ -7,12 +7,20 @@ const oneEmojiSchema = z
   .string()
   .refine((value) => isOneEmoji(value), 'Use one emoji');
 
+// Optional so cached pre-upgrade detail payloads still parse.
+export const ingredientMeasurementSchema = z.object({
+  quantity: z.union([z.string(), z.number()]).nullable(),
+  unit: z.string().nullable(),
+});
+
 export const recipeIngredientSchema = z.object({
   id: z.string(),
   name: z.string(),
   canonicalName: z.string().nullable(),
   quantity: z.union([z.string(), z.number()]).nullable(),
   unit: z.string().nullable(),
+  metric: ingredientMeasurementSchema.nullable().optional(),
+  imperial: ingredientMeasurementSchema.nullable().optional(),
   preparation: z.string().nullable(),
   optional: z.boolean(),
   emoji: z.string().optional(),
@@ -30,6 +38,9 @@ export const recipeStepSchema = z.object({
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),
+  temperatureCelsius: z.number().int().nullable().optional(),
+  temperatureFahrenheit: z.number().int().nullable().optional(),
+  ingredientRefs: z.array(z.number().int().nonnegative()).optional(),
   stage: z.string(),
   ingredientHint: z.string().nullable(),
   confidence: z.number(),
@@ -58,6 +69,7 @@ export const recipeDetailSchema = z.object({
   cookTimeMinutes: z.number().int().nullable(),
   totalTimeMinutes: z.number().int().nullable(),
   calories: z.number().int().nullable(),
+  nutritionSource: z.enum(['stated', 'estimated']).nullable().optional(),
   cuisine: z.string().nullable(),
   difficulty: recipeDifficultySchema.nullable(),
   minutes: z.number().int().nullable(),
@@ -88,16 +100,6 @@ export const recipeDetailSchema = z.object({
   ratingAverage: z.number().min(1).max(5).nullable().optional(),
   ratingCount: z.number().int().nonnegative().optional(),
   cookCount: z.number().int().nonnegative().optional(),
-  nutritionStatus: z
-    .enum([
-      'NOT_REQUESTED',
-      'PENDING',
-      'PROCESSING',
-      'COMPLETED',
-      'PARTIAL',
-      'FAILED',
-    ])
-    .optional(),
   ingredients: z.array(recipeIngredientSchema),
   steps: z.array(recipeStepSchema),
   source: recipeSourceSchema.nullable(),
@@ -190,6 +192,7 @@ export const patchRecipeBodySchema = z.object({
   prepTimeMinutes: z.number().int().nullable().optional(),
   cookTimeMinutes: z.number().int().nullable().optional(),
   totalTimeMinutes: z.number().int().nullable().optional(),
+  difficulty: recipeDifficultySchema.nullable().optional(),
   calories: z.number().int().nullable().optional(),
   cuisine: z.string().nullable().optional(),
   categoryIds: z.array(z.string()).min(1),

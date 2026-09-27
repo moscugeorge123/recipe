@@ -8,6 +8,7 @@ import {
   formatYtDlpError,
   isYtDlpAvailable,
   YtDlpClient,
+  YTDLP_FORMAT,
   type ExecFileFn,
 } from '../../../../src/modules/content/providers/youtube/ytdlp-client.js';
 
@@ -90,7 +91,7 @@ describe('YtDlpClient', () => {
     expect(result.filePath).toBe(written);
     expect(execFile).toHaveBeenCalledWith(
       '/usr/bin/yt-dlp',
-      expect.arrayContaining(['-f', 'bv*+ba/b', '--no-playlist', '--no-simulate']),
+      expect.arrayContaining(['-f', YTDLP_FORMAT, '--no-playlist', '--no-simulate']),
       expect.objectContaining({ timeout: 300_000 }),
     );
   });

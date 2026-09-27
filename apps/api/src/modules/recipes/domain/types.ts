@@ -1,9 +1,20 @@
 import type { Prisma } from '@prisma/client';
+import type { NutritionSource, RecipeDifficulty } from '@recipe/contracts';
+
+export type { NutritionSource, RecipeDifficulty };
+
+/** An amount in one measurement system as returned by the model. */
+export interface ExtractedMeasurement {
+  quantity?: string | number | null;
+  unit?: string | null;
+}
 
 export interface ExtractedIngredient {
   name: string;
   quantity?: string | null;
   unit?: string | null;
+  metric?: ExtractedMeasurement | null;
+  imperial?: ExtractedMeasurement | null;
   preparation?: string | null;
   optional?: boolean;
   emoji?: string | null;
@@ -18,6 +29,9 @@ export interface ExtractedStep {
   instruction: string;
   durationMinutes?: number | null;
   temperature?: string | null;
+  temperatureCelsius?: number | null;
+  temperatureFahrenheit?: number | null;
+  ingredientIndexes?: number[] | null;
   stage?: string | null;
   confidence: number;
   provenance?: string;
@@ -30,8 +44,10 @@ export interface ExtractedRecipe {
   prepTimeMinutes?: number | null;
   cookTimeMinutes?: number | null;
   totalTimeMinutes?: number | null;
+  difficulty?: string | null;
   sourceLanguage: string;
   calories?: number | null;
+  nutritionSource?: string | null;
   cuisine?: string | null;
   nutrition?: {
     proteinGrams?: number | null;
@@ -48,6 +64,10 @@ export interface NormalizedIngredient {
   canonicalName: string;
   quantity: Prisma.Decimal | null;
   unit: string | null;
+  metricQuantity?: Prisma.Decimal | null;
+  metricUnit?: string | null;
+  imperialQuantity?: Prisma.Decimal | null;
+  imperialUnit?: string | null;
   preparation: string | null;
   optional: boolean;
   emoji?: string;
@@ -64,6 +84,9 @@ export interface NormalizedStep {
   instruction: string;
   durationMinutes: number | null;
   temperature: string | null;
+  temperatureCelsius?: number | null;
+  temperatureFahrenheit?: number | null;
+  ingredientRefs?: number[];
   stage: string;
   confidence: number;
   provenance: Prisma.InputJsonValue;
@@ -77,8 +100,10 @@ export interface NormalizedRecipe {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
+  difficulty?: RecipeDifficulty | null;
   sourceLanguage: string;
   calories: number | null;
+  nutritionSource?: NutritionSource | null;
   cuisine: string | null;
   nutrition: Prisma.InputJsonValue | null;
   confidence: number;

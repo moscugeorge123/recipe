@@ -30,10 +30,14 @@ describe('InstagramContentProvider', () => {
       ],
     };
 
-    const provider = new InstagramContentProvider(apify);
+    const provider = new InstagramContentProvider(apify, {
+      fetchImpl: async () => new Response('forbidden', { status: 403 }),
+    });
     const content = await provider.acquire('https://www.instagram.com/reel/abc123/', ctx);
 
     expect(content.sourceType).toBe('INSTAGRAM');
+    expect(content.videoLocalPath).toBeUndefined();
+    expect(content.metadata.downloadError).toContain('HTTP 403');
     expect(content.caption).toContain('flour');
     expect(content.description).toContain('flour');
     expect(content.author).toBe('baker');

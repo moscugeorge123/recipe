@@ -1,5 +1,10 @@
 import { ApiError } from '@/services/api-client';
-import { importErrorCopy, mapUserError } from '@/lib/user-error';
+import {
+  errorCodeOf,
+  importErrorCopy,
+  importFailureToast,
+  mapUserError,
+} from '@/lib/user-error';
 
 describe('mapUserError', () => {
   test('maps rate limits to a retry next action without leaking request ids', () => {
@@ -16,7 +21,7 @@ describe('mapUserError', () => {
       },
       'TOO_MANY_REQUESTS',
     );
-    const copy = mapUserError(error, 'nutrition');
+    const copy = mapUserError(error, 'recipe');
     expect(copy.message).toMatch(/busy/i);
     expect(copy.actionLabel).toBe('Retry');
     expect(copy.retryable).toBe(true);
@@ -41,6 +46,26 @@ describe('mapUserError', () => {
     const copy = importErrorCopy('EXTRACTION_FAILED');
     expect(copy.title).toBe("We couldn't read that one. Try again?");
     expect(copy.actionLabel).toBe('Try again');
+  });
+
+  test('maps NOT_A_RECIPE to non-retryable copy', () => {
+    const copy = importErrorCopy('NOT_A_RECIPE');
+    expect(copy.title).toMatch(/doesn’t look like a food recipe/);
+    expect(copy.retryable).toBe(false);
+  });
+
+  test('picks an import toast from the failed job error code', () => {
+    expect(importFailureToast(errorCodeOf({ message: 'x', code: 'NOT_A_RECIPE' }))).toBe(
+      'That link doesn’t look like a food recipe',
+    );
+    expect(importFailureToast('UNSUPPORTED_SOURCE', 'TikTok')).toMatch(
+      /^TikTok links aren’t supported yet/,
+    );
+    expect(importFailureToast('UNSUPPORTED_SOURCE')).toMatch(/^That link isn’t supported yet/);
+    expect(importFailureToast('EXTRACTION_FAILED')).toBe(
+      'Couldn’t read a recipe from that link',
+    );
+    expect(importFailureToast(undefined, undefined, 'fallback')).toBe('fallback');
   });
 
   test('uses preview copy for unknown offline failures', () => {

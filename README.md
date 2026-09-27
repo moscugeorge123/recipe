@@ -9,9 +9,9 @@ Nx monorepo for the Recipe (Mise) mobile app and extraction API.
 
 ## What users get
 
-A clean install and a populated upgrade complete the same journeys: import a URL, review the extracted recipe, edit without destroying the original, calculate nutrition, favorite/rate/note, file into a collection, match pantry items, finish cooks, and see Home rank **Last uploaded** (`sort=latest`) separately from **My recipes** (`sort=engagement`: favorites first, then completed cook count).
+A clean install and a populated upgrade complete the same journeys: import a URL, review the extracted recipe, edit without destroying the original, see AI-estimated calories and macros per serving, favorite/rate/note, file into a collection, match pantry items, finish cooks, and see Home rank **Last uploaded** (`sort=latest`) separately from **My recipes** (`sort=engagement`: favorites first, then completed cook count).
 
-There is **one implicit profile** until authentication ships. All kitchen data lives on the API (not only in AsyncStorage). Missing USDA/OpenAI keys fail visibly and non-destructively: recipes still save and cook; nutrition/pantry AI fall back instead of wiping input.
+There is **one implicit profile** until authentication ships. All kitchen data lives on the API (not only in AsyncStorage). A missing OpenAI key fails visibly and non-destructively: recipes still save and cook; pantry AI falls back instead of wiping input.
 
 ## Requirements
 
@@ -32,8 +32,7 @@ cp apps/api/.env.example apps/api/.env
 
 Optional production-like keys (never required for tests):
 
-- `OPENAI_API_KEY` — live extraction and pantry organization of unknown text
-- `USDA_FDC_API_KEY` — live nutrition (FoodData Central)
+- `OPENAI_API_KEY` — live extraction (including calorie/macro estimates) and pantry organization of unknown text
 
 ## Development
 
@@ -49,7 +48,7 @@ npx nx dev api           # Fastify API with reload
 npx nx run api:dev:worker
 ```
 
-The worker process consumes **extraction** and **nutrition** queues. Preview/import HTTP stays on the API; media/AI/nutrition jobs run on the worker.
+The worker process consumes the **extraction** queue. Preview/import HTTP stays on the API; media/AI jobs run on the worker.
 
 Postgres and Redis:
 
@@ -94,8 +93,8 @@ npx nx test:ci mobile
 **Environment-only exclusions**
 
 - API database integration tests `skipIf` when Postgres is unreachable.
-- Tests never call live OpenAI or USDA (`NODE_ENV=test` uses fakes).
-- Maestro is not part of `nx test`. It needs the Maestro CLI and a **development or preview build** of `com.recipe.app`. Expo Go is not a reliable target for API-backed screens (import review, recipe detail, nutrition, history). YAML still lives under `apps/mobile/.maestro/flows` as best-effort flows.
+- Tests never call live OpenAI (`NODE_ENV=test` uses fakes).
+- Maestro is not part of `nx test`. It needs the Maestro CLI and a **development or preview build** of `com.recipe.app`. Expo Go is not a reliable target for API-backed screens (import review, recipe detail, history). YAML still lives under `apps/mobile/.maestro/flows` as best-effort flows.
 - Mobile Jest sets `forceExit` because React Native `TextInput` typing leaves open handles after assertions. Tests still run and fail on real errors.
 
 ```bash
@@ -109,8 +108,8 @@ npm run e2e -w mobile
 - No login yet; all devices talking to one API share the singleton profile.
 - Recipe detail **Original source** is still a “coming soon” toast; revision history and edit work.
 - You → Cooking history is a prototype stub.
-- USDA 429s and revision conflicts are visible in logs, not as stored counters.
-- Missing `USDA_FDC_API_KEY` / `OPENAI_API_KEY` leaves nutrition unavailable or pantry on dictionary/fallback; recipes, notes, and drafts are not discarded.
+- Revision conflicts are visible in logs, not as stored counters.
+- Missing `OPENAI_API_KEY` leaves pantry on dictionary/fallback; recipes, notes, and drafts are not discarded.
 
 ## Identity, data, and revisions
 
@@ -123,7 +122,7 @@ npm run e2e -w mobile
 
 `GET /health` and `GET /api/v1/health` — liveness; production also probes Postgres and Redis.
 
-`GET /api/v1/ops/summary` — aggregated AI tokens/cost/cache/escalation, USDA cache sizes, nutrition statuses, pantry fallback rate, queue in-flight counts, applied Prisma migrations. No titles, notes, or pantry names. USDA 429s and revision conflicts are **not** stored; the payload includes log filters.
+`GET /api/v1/ops/summary` — aggregated AI tokens/cost/cache/escalation, pantry fallback rate, queue in-flight counts, applied Prisma migrations. No titles, notes, or pantry names. Revision conflicts are **not** stored; the payload includes a log filter.
 
 ## Layout
 

@@ -8,8 +8,14 @@ import type {
   RecipeStepView,
   RecipeView,
 } from '@/features/recipes/types';
+import {
+  ingredientAmount,
+  preferUnits,
+  stepHeat,
+} from '@/features/recipes/units';
 import { hueOf } from '@/tortie/color';
-import { emoOf, hasKey, ingKeys, lexOf } from '@/tortie/lib/fmt';
+import { emoOf, fmtIngQty, hasKey, ingKeys, lexOf } from '@/tortie/lib/fmt';
+import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
 
 /** Design-shaped recipe summary (maps the prototype's RECIPES entries). */
 export type TRecipe = {
@@ -129,7 +135,8 @@ function splitStep(text: string): [string, string] {
   return [s.replace(/[.!?]$/, ''), ''];
 }
 
-export function toTDetail(v: RecipeView): TDetail {
+/** Amounts, heat and in-text measurements follow `units` (Profile → Units). */
+export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
   const base = toTRecipe(v);
   const ings: TIng[] = v.ingredients.map((x) => {
     const n = [x.name, x.preparation].filter(Boolean).join(', ');
@@ -139,16 +146,20 @@ export function toTDetail(v: RecipeView): TDetail {
       : x.emoji && x.emoji !== '🥣'
         ? x.emoji
         : e.emo;
-    return { q: x.quantity, u: x.unit ?? '', n, emo, tint: e.tint };
+    const amount = ingredientAmount(x, units);
+    return { q: amount.quantity, u: amount.unit ?? '', n, emo, tint: e.tint };
   });
   const steps: TStep[] = [...v.steps]
     .sort((a, b) => a.stepOrder - b.stepOrder)
     .map((s: RecipeStepView) => {
-      const [t, d] = splitStep(s.instruction);
+      const [t, d] = splitStep(preferUnits(s.instruction, units));
       const tx = s.instruction.toLowerCase();
-      const need = ings
-        .map((g, i) => (ingKeys(g.n).some((k) => hasKey(tx, k)) ? i : -1))
-        .filter((i) => i >= 0);
+      const refs = (s.ingredientRefs ?? []).filter((i) => i < ings.length);
+      const need = refs.length
+        ? refs
+        : ings
+            .map((g, i) => (ingKeys(g.n).some((k) => hasKey(tx, k)) ? i : -1))
+            .filter((i) => i >= 0);
       return {
         t,
         d,
@@ -156,12 +167,17 @@ export function toTDetail(v: RecipeView): TDetail {
           ? Math.max(1, Math.round(s.durationSeconds / 60))
           : 0,
         ph: STAGE[s.stage] ?? '',
-        heat: s.temperature ?? '',
+        heat: stepHeat(s, units),
         tip: '',
         need,
       };
     });
   return { ...base, ings, steps, view: v };
+}
+
+/** "115 g" / "¼ cup" for an ingredient row, scaled for servings. */
+export function ingQty(x: TIng, scale = 1): string {
+  return fmtIngQty(x.q, x.u, scale);
 }
 
 export type RecipeSort = 'latest' | 'engagement';
@@ -182,9 +198,10 @@ export function useTRecipes(sort: RecipeSort = 'latest') {
 /** One recipe with ingredients and steps (falls back to the list preview while loading). */
 export function useTRecipe(id: string | null | undefined) {
   const q = useRecipe(id ?? undefined);
+  const units = useTortiePrefs((s) => s.units);
   const r = useMemo(
-    () => (q.data ? toTDetail(q.data as RecipeView) : null),
-    [q.data],
+    () => (q.data ? toTDetail(q.data as RecipeView, units) : null),
+    [q.data, units],
   );
   return {
     r,

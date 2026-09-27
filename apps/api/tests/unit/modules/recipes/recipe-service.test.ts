@@ -33,20 +33,21 @@ function effective(overrides: Partial<EffectiveRecipeRecord> = {}): EffectiveRec
     rating: null,
     isFavorite: false,
     cookCount: 0,
-    nutritionStatus: 'NOT_REQUESTED',
     title: 'Imported pasta',
     description: 'A weeknight pasta',
     servings: 2,
     prepTimeMinutes: 5,
     cookTimeMinutes: 15,
     totalTimeMinutes: 20,
+    difficulty: 'Easy',
     calories: 400,
+    nutritionSource: 'estimated',
     cuisine: 'Italian',
-    nutrition: null,
+    nutrition: { proteinGrams: 14, carbsGrams: 70, fatGrams: 8 },
     sourceLanguage: 'en',
     confidence: 0.8,
     warnings: [],
-    promptVersion: 'recipe-extraction-v8',
+    promptVersion: 'recipe-extraction-v9',
     ingredients: [
       {
         id: '55555555-5555-4555-8555-555555555555',
@@ -54,6 +55,10 @@ function effective(overrides: Partial<EffectiveRecipeRecord> = {}): EffectiveRec
         canonicalName: 'pasta',
         quantity: new Prisma.Decimal(200),
         unit: 'g',
+        metricQuantity: new Prisma.Decimal(200),
+        metricUnit: 'g',
+        imperialQuantity: new Prisma.Decimal(2),
+        imperialUnit: 'cup',
         preparation: null,
         optional: false,
         emoji: '🍝',
@@ -72,6 +77,9 @@ function effective(overrides: Partial<EffectiveRecipeRecord> = {}): EffectiveRec
         instruction: 'Boil pasta',
         durationMinutes: 10,
         temperature: null,
+        temperatureCelsius: null,
+        temperatureFahrenheit: null,
+        ingredientRefs: [0],
         stage: 'COOK',
         confidence: 0.8,
         provenance: {},
@@ -130,7 +138,6 @@ describe('RecipeService revisions', () => {
       revisionNumber: 0,
       reviewState: 'NEEDS_REVIEW',
       cookCount: 0,
-      nutritionStatus: 'NOT_REQUESTED',
       categories: [expect.objectContaining({ slug: 'dinner' })],
       source: expect.objectContaining({ originalUrl: 'https://example.com/pasta' }),
     });
@@ -173,6 +180,96 @@ describe('RecipeService revisions', () => {
           expect.objectContaining({ name: 'Pasta', emoji: '🍝', colorToken: 'peach' }),
         ],
       }),
+    );
+  });
+
+  it('keeps imported metric/imperial values for unchanged rows and converts edited rows', async () => {
+    const current = effective();
+    const appendRevision = vi.fn().mockResolvedValue(effective({ revisionNumber: 1 }));
+    const service = new RecipeService(
+      repo({ findEffectiveById: vi.fn().mockResolvedValue(current), appendRevision }),
+    );
+
+    await service.updateForProfile(current.id, USER_ID, {
+      expectedRevisionNumber: 0,
+      ingredients: [
+        {
+          name: 'Butter',
+          canonicalName: 'butter',
+          quantity: '4',
+          unit: 'oz',
+          preparation: null,
+          optional: false,
+          sortOrder: 0,
+        },
+        {
+          name: 'Pasta',
+          canonicalName: 'pasta',
+          quantity: '200',
+          unit: 'g',
+          preparation: null,
+          optional: false,
+          sortOrder: 1,
+        },
+      ],
+      steps: [
+        {
+          stepOrder: 1,
+          instruction: 'Boil pasta',
+          durationMinutes: 10,
+          temperature: null,
+        },
+        {
+          stepOrder: 2,
+          instruction: 'Bake at 180°C',
+          durationMinutes: 20,
+          temperature: '180°C',
+        },
+      ],
+    });
+
+    const snapshot = appendRevision.mock.calls[0]?.[3] as {
+      ingredients: Array<Record<string, unknown>>;
+      steps: Array<Record<string, unknown>>;
+      nutrition?: unknown;
+    };
+    expect(snapshot.ingredients[0]).toMatchObject({
+      metricQuantity: new Prisma.Decimal(115),
+      metricUnit: 'g',
+      imperialQuantity: new Prisma.Decimal(4),
+      imperialUnit: 'oz',
+    });
+    expect(snapshot.ingredients[1]).toMatchObject({
+      metricQuantity: new Prisma.Decimal(200),
+      imperialQuantity: new Prisma.Decimal(2),
+      imperialUnit: 'cup',
+    });
+    expect(snapshot.steps[0]).toMatchObject({ ingredientRefs: [1] });
+    expect(snapshot.steps[1]).toMatchObject({
+      temperatureCelsius: 180,
+      temperatureFahrenheit: 350,
+      ingredientRefs: [],
+    });
+    expect(snapshot).not.toHaveProperty('difficulty');
+  });
+
+  it('passes an edited difficulty through to the new revision', async () => {
+    const current = effective();
+    const appendRevision = vi.fn().mockResolvedValue(effective({ revisionNumber: 1 }));
+    const service = new RecipeService(
+      repo({ findEffectiveById: vi.fn().mockResolvedValue(current), appendRevision }),
+    );
+
+    await service.updateForProfile(current.id, USER_ID, {
+      expectedRevisionNumber: 0,
+      difficulty: 'Hard',
+    });
+
+    expect(appendRevision).toHaveBeenCalledWith(
+      current.id,
+      USER_ID,
+      0,
+      expect.objectContaining({ difficulty: 'Hard' }),
     );
   });
 
@@ -225,49 +322,6 @@ describe('RecipeService revisions', () => {
       ),
     ).rejects.toBeInstanceOf(RecipeNotFoundError);
     expect(remove).not.toHaveBeenCalled();
-  });
-
-  it('requests nutrition after ingredient or serving changes, not title-only edits', async () => {
-    const current = effective();
-    const titleOnly = effective({ revisionNumber: 1, title: 'Corrected pasta' });
-    const withServings = effective({
-      revisionNumber: 2,
-      revisionId: '88888888-8888-4888-8888-888888888888',
-      servings: 4,
-    });
-    const requestForRevision = vi.fn().mockResolvedValue(undefined);
-    const requestForRecipe = vi.fn().mockResolvedValue(undefined);
-    const scheduler = { requestForRevision, requestForRecipe };
-
-    const titleService = new RecipeService(
-      repo({
-        findEffectiveById: vi.fn().mockResolvedValue(current),
-        appendRevision: vi.fn().mockResolvedValue(titleOnly),
-      }),
-      scheduler,
-    );
-    await titleService.updateForProfile(current.id, USER_ID, {
-      expectedRevisionNumber: 0,
-      title: 'Corrected pasta',
-    });
-    expect(requestForRevision).not.toHaveBeenCalled();
-
-    const servingService = new RecipeService(
-      repo({
-        findEffectiveById: vi.fn().mockResolvedValue(current),
-        appendRevision: vi.fn().mockResolvedValue(withServings),
-      }),
-      scheduler,
-    );
-    await servingService.updateForProfile(current.id, USER_ID, {
-      expectedRevisionNumber: 0,
-      servings: 4,
-    });
-    expect(requestForRevision).toHaveBeenCalledWith({
-      recipeId: withServings.id,
-      revisionId: withServings.revisionId,
-      userId: USER_ID,
-    });
   });
 });
 

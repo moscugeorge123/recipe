@@ -19,7 +19,8 @@ to be consumed by a React Native application and deployed to **AWS ECS/Fargate**
 
 The HTTP API accepts extraction requests and returns immediately with a job id. A separate **worker**
 process executes the multi-stage pipeline (content acquisition → media processing → AI extraction →
-normalization → validation) **and** nutrition calculation. See [`architecture.md`](architecture.md)
+normalization → validation). Calories and macros are estimated by the AI extractor and stored on
+the recipe. See [`architecture.md`](architecture.md)
 for the full design.
 
 `POST /api/v1/recipes/preview` unfurls title, author and thumbnails for the import screen without
@@ -97,13 +98,11 @@ come from the ECS task definition and secrets from Secrets Manager or SSM Parame
 | `STORAGE_LOCAL_PATH`    | `./storage`   | Local artifact directory (dev).                                            |
 | `OPENAI_API_KEY`        | _(unset)_     | Live extraction/pantry AI. Tests never call OpenAI.                   |
 | `AI_INGREDIENT_MODEL`   | `gpt-5-nano`  | Pantry batch model after dictionary/cache. Never GPT-5.6.             |
-| `USDA_FDC_API_KEY`      | _(unset)_     | Live nutrition. Tests use a fake catalog. Missing key → unavailable.  |
 | `META_APP_ID`           | _(unset)_     | Optional Instagram Graph oEmbed for `POST /recipes/preview`.          |
 | `META_APP_SECRET`       | _(unset)_     | Pair with `META_APP_ID`. Preview falls back to Open Graph when unset. |
 | `YTDLP_PATH`            | `yt-dlp`      | Binary used for YouTube preview and extraction. Must be on PATH.      |
 | `EXTRACTION_MAX_RETRIES`| `5`           | Queue retry limit for transient failures.                             |
 | `EXTRACTION_QUEUE_CONCURRENCY` | `2`  | Extraction worker concurrency.                                        |
-| `NUTRITION_QUEUE_CONCURRENCY` | `2` | Nutrition worker concurrency.                                        |
 | `MAX_VIDEO_DURATION_SECONDS` | `600` | Rejects videos longer than this.                                   |
 
 See `.env.example` for the full list including AI models and external provider tokens.
@@ -172,9 +171,8 @@ Every imported recipe is owned by the singleton profile. `PATCH /recipes/:id` ap
 | Queue | Processor | Process |
 | --- | --- | --- |
 | `extraction-jobs` | `src/worker/processors/extraction.processor.ts` | `npx nx run api:dev:worker` |
-| `nutrition-jobs` | `src/worker/processors/nutrition.processor.ts` | same worker |
 
-Tests use in-memory queues so `app.inject()` completes extraction and nutrition without Redis.
+Tests use in-memory queues so `app.inject()` completes extraction without Redis.
 
 ## Production
 
@@ -249,8 +247,8 @@ npm test
 ```
 
 The focused journey is `tests/integration/api/platform-journey.test.ts` (import → categories/emoji →
-immutable edit → nutrition → favorite/rating/note → collection → pantry match → completed cooks →
-home ordering). It uses the fake content provider and fake USDA catalog — no live OpenAI/USDA.
+immutable edit → favorite/rating/note → collection → pantry match → completed cooks →
+home ordering). It uses the fake content provider — no live OpenAI.
 
 `GET /api/v1/ops/summary` is covered by `tests/integration/api/ops-summary.test.ts`.
 
@@ -647,17 +645,14 @@ will need to:
 5. **Choose an infrastructure-as-code tool** and add it under `infra/`.
 6. **Decide on authentication** (Cognito, Auth0, …) and replace `ImplicitProfileResolver` plus the
    documented extension point in `app.ts`. Gate `/api/v1/ops/summary` at the same time.
-7. **Set `USDA_FDC_API_KEY` and `OPENAI_API_KEY`** in production. Missing keys are visible (nutrition
-   unavailable, pantry dictionary/fallback) and do not destroy user data.
+7. **Set `OPENAI_API_KEY`** in production. A missing key is visible (pantry dictionary/fallback) and
+   does not destroy user data.
 
 ### Operational log queries
 
 Not every failure is a table row. Use these when `GET /api/v1/ops/summary` says a metric is not persisted:
 
 ```text
-# USDA 429s (snapshots stay PENDING and are retried)
-NutritionRateLimitError   OR   step=nutrition.process
-
 # Revision conflicts (HTTP 409, nothing stored)
 error.code=RECIPE_REVISION_CONFLICT
 

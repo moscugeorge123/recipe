@@ -70,7 +70,6 @@ describe.skipIf(!dbAvailable)('recipe revisions and categories', () => {
       revisionSource: 'IMPORT',
       reviewState: expect.stringMatching(/NEEDS_REVIEW|READY/),
       categories: [expect.objectContaining({ slug: expect.any(String) })],
-      nutritionStatus: expect.stringMatching(/^(PENDING|PROCESSING|COMPLETED|PARTIAL|FAILED)$/),
       cookCount: 0,
     });
     expect(response.json().data.ingredients[0]).toMatchObject({

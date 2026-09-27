@@ -6,7 +6,6 @@ export type UserErrorContext =
   | 'preview'
   | 'home'
   | 'recipe'
-  | 'nutrition'
   | 'pantry'
   | 'shopping'
   | 'mealPlan'
@@ -59,6 +58,12 @@ const CODE_COPY: Record<string, Copy> = {
     title: 'This video is private',
     message:
       'That source isn’t available yet — or the link is locked. Try a website, Instagram or YouTube URL.',
+    actionLabel: 'Paste a different link',
+    retryable: false,
+  },
+  NOT_A_RECIPE: {
+    title: 'That link doesn’t look like a food recipe',
+    message: 'Try a link to a recipe page or a cooking video.',
     actionLabel: 'Paste a different link',
     retryable: false,
   },
@@ -201,12 +206,6 @@ const CONTEXT_FALLBACK: Record<UserErrorContext, Copy> = {
     actionLabel: 'Retry',
     retryable: true,
   },
-  nutrition: {
-    title: 'Nutrition',
-    message: 'We couldn’t load nutrition. The recipe is still here.',
-    actionLabel: 'Retry',
-    retryable: true,
-  },
   pantry: {
     title: 'Pantry',
     message: 'Could not organize right now. Your text is still here.',
@@ -302,6 +301,31 @@ export function mapUserError(
     code,
     retryable: error instanceof ApiError ? error.retryable : fallback.retryable,
   };
+}
+
+/**
+ * One-line toast for a failed link import. `code` is the API error code, from a thrown
+ * `ApiError` or the failed job's `error.code`.
+ */
+export function importFailureToast(
+  code: string | undefined,
+  source?: string,
+  fallback = 'Couldn’t read a recipe from that link',
+): string {
+  switch (code) {
+    case 'NOT_A_RECIPE':
+      return 'That link doesn’t look like a food recipe';
+    case 'UNSUPPORTED_SOURCE':
+    case 'INVALID_URL':
+      return `${source ? `${source} links aren’t` : 'That link isn’t'} supported yet — try a website, Instagram or YouTube`;
+    case 'CONTENT_ACQUISITION_FAILED':
+      return 'Couldn’t open that link — check it and try again';
+    case 'TOO_MANY_REQUESTS':
+    case 'PROVIDER_RATE_LIMITED':
+      return 'That source is busy — wait a moment and try again';
+    default:
+      return fallback;
+  }
 }
 
 export function importErrorCopy(

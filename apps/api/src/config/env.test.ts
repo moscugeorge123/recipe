@@ -118,13 +118,6 @@ describe('loadConfig', () => {
     );
   });
 
-  it('reads optional USDA FoodData Central credentials', () => {
-    expect(loadConfig({}).nutrition.usdaFdcApiKey).toBeUndefined();
-    expect(loadConfig({ USDA_FDC_API_KEY: 'fdc-key' }).nutrition.usdaFdcApiKey).toBe('fdc-key');
-    expect(loadConfig({}).nutrition.queueConcurrency).toBe(2);
-    expect(loadConfig({ NUTRITION_MAX_RETRIES: '4' }).nutrition.maxRetries).toBe(4);
-  });
-
   it('writes daily files to ./logs except in tests, and LOG_DIR="" disables them', () => {
     expect(loadConfig({}).logging.directory).toBe('./logs');
     expect(loadConfig({ NODE_ENV: 'production' }).logging.directory).toBe('./logs');

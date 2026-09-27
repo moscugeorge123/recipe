@@ -24,13 +24,13 @@ import {
 } from '@/features/meal-plan/hooks';
 import { mondayOfWeek } from '@/features/meal-plan/types';
 import { daysOfWeek, localTodayIso } from '@/features/meal-plan/week';
-import { useRecipeNutrition } from '@/features/nutrition/hooks';
 import {
   collectionKeys,
   mealPlanKeys,
   recipeKeys,
 } from '@/features/query-keys';
 import { deleteRecipe } from '@/features/recipes/api';
+import type { RecipeView } from '@/features/recipes/types';
 import {
   useAddFromRecipe,
   useShoppingList,
@@ -40,7 +40,7 @@ import { collName } from '@/tortie/data/cookbook';
 import { collectionMembership } from '@/tortie/data/selection';
 import { useMotion } from '@/tortie/motion';
 import { useServings } from '@/tortie/data/recipe-ui';
-import { fmtQ, useTRecipe } from '@/tortie/data/recipes';
+import { ingQty, useTRecipe } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { DAYNAMES, fmtT, plz } from '@/tortie/lib/fmt';
 import { afterMotion, toast, useNav } from '@/tortie/nav-store';
@@ -55,25 +55,29 @@ import { em, sans, serif, T } from '@/tortie/ui/text';
 
 const FROST = 'rgba(248,250,245,.92)';
 
-/** Nutrition row values (prototype NUTR fallback: "—" / "not calculated"). */
-function useNutritionLine(id: string | null) {
-  const q = useRecipeNutrition(id ?? undefined);
-  const d = q.data;
-  const ok = d && (d.status === 'READY' || d.status === 'PARTIAL');
-  const p = ok ? d.perPortion?.calories : undefined;
-  const h = ok ? d.per100g?.calories : undefined;
+/**
+ * Nutrition row from the extractor (per serving). Per-portion values don't change with the
+ * servings stepper, which scales ingredients and portions together.
+ */
+function nutritionLine(v: RecipeView | undefined) {
+  const kcal = v?.calories;
+  const m = v?.macros;
+  const g = (x: number | null | undefined) =>
+    x != null ? String(Math.round(x)) : '—';
   return {
-    kcalP: p != null ? Math.round(p) + ' kcal' : '—',
-    kcal100: h != null ? Math.round(h) + ' kcal' : '—',
-    portionG:
-      p != null && h
-        ? '≈' + Math.round((p / h) * 100) + ' g'
-        : 'not calculated',
+    label:
+      v?.nutritionSource === 'estimated' ? 'Per portion · est.' : 'Per portion',
+    kcal: kcal != null ? Math.round(kcal) + ' kcal' : '—',
+    macros: m
+      ? g(m.proteinGrams) +
+        ' · ' +
+        g(m.carbsGrams) +
+        ' · ' +
+        g(m.fatGrams) +
+        ' g'
+      : null,
   };
 }
-
-const qtyOf = (q: number | null, u: string, scale: number) =>
-  q ? fmtQ(q * scale) + (u ? ' ' + u : '') : u || '';
 
 export function RecipeDetail() {
   const id = useNav((s) => s.detailId);
@@ -81,7 +85,7 @@ export function RecipeDetail() {
   const f = useFrame();
   const { width } = useWindowDimensions();
   const { r } = useTRecipe(id);
-  const nutr = useNutritionLine(id);
+  const nutr = nutritionLine(r?.view);
   const [serv, setServ] = useServings(id, r?.base ?? 2);
   const resuming = useCook(
     (s) => s.activeOn && !!s.active && s.active.id === id,
@@ -233,23 +237,29 @@ export function RecipeDetail() {
               style={{ flex: 1, minWidth: 0, flexDirection: 'row', gap: 12 }}
             >
               <View style={{ flex: 1, gap: 2 }}>
-                <T style={sans(11, 400, C.ink2)}>
-                  Per portion · {nutr.portionG}
+                <T style={sans(11, 400, C.ink2)} numberOfLines={1}>
+                  {nutr.label}
                 </T>
-                <T style={sans(16, 700)}>{nutr.kcalP}</T>
+                <T style={sans(16, 700)}>{nutr.kcal}</T>
               </View>
-              <View
-                style={{
-                  flex: 1,
-                  gap: 2,
-                  borderLeftWidth: 1,
-                  borderLeftColor: C.line,
-                  paddingLeft: 12,
-                }}
-              >
-                <T style={sans(11, 400, C.ink2)}>Per 100 g</T>
-                <T style={sans(16, 700)}>{nutr.kcal100}</T>
-              </View>
+              {nutr.macros ? (
+                <View
+                  style={{
+                    flex: 1,
+                    gap: 2,
+                    borderLeftWidth: 1,
+                    borderLeftColor: C.line,
+                    paddingLeft: 12,
+                  }}
+                >
+                  <T style={sans(11, 400, C.ink2)} numberOfLines={1}>
+                    Protein · Carbs · Fat
+                  </T>
+                  <T style={sans(16, 700)} numberOfLines={1}>
+                    {nutr.macros}
+                  </T>
+                </View>
+              ) : null}
             </View>
           </View>
           <Segmented
@@ -317,7 +327,7 @@ export function RecipeDetail() {
                           minWidth: 64,
                         })}
                       >
-                        {qtyOf(x.q, x.u, scale)}
+                        {ingQty(x, scale)}
                       </T>
                       <T
                         style={sans(15, 400, C.ink, {

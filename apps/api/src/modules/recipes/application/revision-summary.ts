@@ -6,6 +6,7 @@ export type RevisionSummarySnapshot = {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
+  difficulty?: string | null;
   calories: number | null;
   cuisine: string | null;
   categories: Array<{ slug: string; name: string }>;
@@ -156,6 +157,12 @@ export function summarizeRevision(
     'min',
   );
   if (total) changes.push(total);
+  const difficulty = describeScalar(
+    'level',
+    revision.difficulty ?? null,
+    previous.difficulty ?? null,
+  );
+  if (difficulty) changes.push(difficulty);
   const calories = describeScalar('calories', revision.calories, previous.calories);
   if (calories) changes.push(calories);
   const cuisine = describeScalar('cuisine', revision.cuisine, previous.cuisine);
@@ -205,6 +212,7 @@ export function toRevisionSummarySnapshot(revision: {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
+  difficulty?: string | null;
   calories: number | null;
   cuisine: string | null;
   categories: Array<{ slug: string; name: string }>;
@@ -236,6 +244,7 @@ export function toRevisionSummarySnapshot(revision: {
     prepTimeMinutes: revision.prepTimeMinutes,
     cookTimeMinutes: revision.cookTimeMinutes,
     totalTimeMinutes: revision.totalTimeMinutes,
+    difficulty: revision.difficulty ?? null,
     calories: revision.calories,
     cuisine: revision.cuisine,
     categories: revision.categories.map((item) => ({ slug: item.slug, name: item.name })),
