@@ -1,15 +1,13 @@
+import { AuthPhase, validateEmail, validatePassword, validateUsername } from '@recipe/contracts';
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type TextInputProps } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
+import { authService } from '@/auth/instance';
+import { AuthFlowError } from '@/auth/services/auth-error';
 import { useCollections } from '@/features/collections/hooks';
-import {
-  firstName,
-  useTortieAuth,
-  type AuthProv,
-  type TortieUser,
-} from '@/tortie/auth-store';
+import { firstName, useTortieAuth } from '@/tortie/auth-store';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { motionMultiplier, useMotion } from '@/tortie/motion';
@@ -30,10 +28,10 @@ const RANK: Record<AuthStep, number> = {
   pw: 1,
   signup: 1,
   oauth: 1,
+  forgot: 1,
   done: 2,
 };
 const PROV = { google: 'Google', facebook: 'Facebook' } as const;
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const STR: [string, string][] = [
   ['', C.lineStrong],
   ['Weak', C.terra],
@@ -42,14 +40,12 @@ const STR: [string, string][] = [
   ['Strong', C.green],
 ];
 
-/** "elena.moretti@…" → "Elena Moretti" (the API has no account lookup yet). */
-function nameFromEmail(email: string): string {
-  return email
-    .split('@')[0]!
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+function messageOf(err: unknown): string {
+  if (err instanceof AuthFlowError) return err.message;
+  if (err instanceof Error && err.message && !err.message.includes('auth/')) {
+    return err.message;
+  }
+  return 'Something went wrong. Try again.';
 }
 
 export function SignInFlow() {
@@ -66,38 +62,78 @@ export function SignInFlow() {
 
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
+  const [confirm, setConfirm] = useState('');
   const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
   const [show, setShow] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const [stage, setStage] = useState(0);
   const [returning, setReturning] = useState(false);
+  const [onboard, setOnboard] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const oauthGen = useRef(0);
 
   const clear = () => {
     timers.current.forEach(clearTimeout);
     timers.current = [];
   };
-  const later = (ms: number, fn: () => void) =>
-    timers.current.push(setTimeout(fn, ms));
 
-  const finish = (u: TortieUser, back: boolean) => {
+  const goDone = (back: boolean) => {
     setBusy(false);
     setReturning(back);
-    useTortieAuth.getState().signIn(u);
     set({ auStep: 'done', pfOut: true });
   };
 
+  const afterAuth = (created: boolean) => {
+    setBusy(false);
+    setReturning(!created);
+    if (
+      useTortieAuth.getState().phase ===
+      AuthPhase.AUTHENTICATED_ONBOARDING_REQUIRED
+    ) {
+      setOnboard(true);
+      setName(useTortieAuth.getState().user?.name ?? '');
+      set({ auStep: 'signup' });
+      return;
+    }
+    goDone(!created);
+  };
+
   const runOauth = (p: 'google' | 'facebook') => {
+    if (busy) return;
     clear();
+    const gen = oauthGen.current + 1;
+    oauthGen.current = gen;
     setStage(0);
     setErr('');
+    setBusy(true);
+    setOnboard(false);
     set({ auStep: 'oauth', auProv: p });
-    const mm = motionMultiplier();
-    later(Math.max(500, 1100 * mm), () => setStage(1));
-    later(Math.max(900, 2300 * mm), () =>
-      finish({ name: '', email: '', prov: p as AuthProv, img: false }, true),
-    );
+    const run =
+      p === 'google'
+        ? authService.signInWithGoogle({
+            onPromptReturned: () => {
+              if (oauthGen.current === gen) setStage(1);
+            },
+          })
+        : authService.signInWithFacebook({
+            onPromptReturned: () => {
+              if (oauthGen.current === gen) setStage(1);
+            },
+          });
+    void run
+      .then((result) => {
+        if (oauthGen.current !== gen || !useNav.getState().au) return;
+        afterAuth(result.created);
+      })
+      .catch((error: unknown) => {
+        if (oauthGen.current !== gen || !useNav.getState().au) return;
+        setBusy(false);
+        setErr(messageOf(error));
+        set({ auStep: 'start' });
+      });
   };
 
   // Opening resets the form; opening straight onto a provider starts Connecting.
@@ -112,8 +148,15 @@ export function SignInFlow() {
         clear();
         setErr('');
         setPw('');
+        setConfirm('');
+        setUsername('');
+        setName('');
         setBusy(false);
         setShow(false);
+        setOnboard(false);
+        setResetSent(false);
+        setStage(0);
+        authService.noteAuthScreenViewed();
         if (s.auStep === 'oauth') runOauthRef.current(s.auProv);
       }),
     [],
@@ -135,13 +178,20 @@ export function SignInFlow() {
     }
   };
   const back = () => {
+    oauthGen.current += 1;
     clear();
     setErr('');
     setBusy(false);
+    setResetSent(false);
+    if (useNav.getState().auStep === 'forgot') {
+      set({ auStep: 'pw' });
+      return;
+    }
+    setOnboard(false);
     set({ auStep: 'start' });
   };
 
-  const emOk = EMAIL_RE.test(email.trim());
+  const emOk = validateEmail(email).ok;
   const isLogin = mode === 'login';
   const cont = () => {
     if (!emOk) {
@@ -150,28 +200,46 @@ export function SignInFlow() {
     }
     setErr('');
     setPw('');
+    setConfirm('');
     setShow(false);
+    setOnboard(false);
     set({ auStep: isLogin ? 'pw' : 'signup' });
   };
   const login = () => {
     if (busy) return;
-    if (pw.length < 6) {
+    if (!pw) {
       setErr('That password doesn’t match this email. Try again or reset it.');
       return;
     }
     setBusy(true);
     setErr('');
-    later(1100, () =>
-      finish(
-        {
-          name: nameFromEmail(email.trim()),
-          email: email.trim(),
-          prov: 'email',
-          img: false,
-        },
-        true,
-      ),
-    );
+    void authService
+      .signInWithEmail({ email: email.trim(), password: pw })
+      .then(() => {
+        if (!useNav.getState().au) return;
+        goDone(true);
+      })
+      .catch((error: unknown) => {
+        if (!useNav.getState().au) return;
+        setBusy(false);
+        setErr(messageOf(error));
+      });
+  };
+  const sendReset = () => {
+    if (busy) return;
+    setBusy(true);
+    setErr('');
+    setResetSent(false);
+    void authService
+      .sendPasswordReset(email.trim())
+      .then(() => {
+        setBusy(false);
+        setResetSent(true);
+      })
+      .catch((error: unknown) => {
+        setBusy(false);
+        setErr(messageOf(error));
+      });
   };
   const create = () => {
     if (busy) return;
@@ -179,23 +247,66 @@ export function SignInFlow() {
       setErr('Add your name so the people you cook with know it’s you.');
       return;
     }
-    if (pw.length < 8) {
-      setErr('Passwords need at least 8 characters.');
+    const usernameCheck = validateUsername(username);
+    if (!usernameCheck.ok) {
+      setErr(usernameCheck.message);
+      return;
+    }
+    if (onboard) {
+      setBusy(true);
+      setErr('');
+      void authService
+        .completeOnboarding({
+          username: usernameCheck.username ?? username.trim(),
+          displayName: name.trim(),
+        })
+        .then(() => {
+          if (!useNav.getState().au) return;
+          setOnboard(false);
+          goDone(returning);
+        })
+        .catch((error: unknown) => {
+          if (!useNav.getState().au) return;
+          setBusy(false);
+          setErr(messageOf(error));
+        });
+      return;
+    }
+    const passwordCheck = validatePassword(pw);
+    if (!passwordCheck.ok) {
+      setErr(passwordCheck.message);
+      return;
+    }
+    if (pw !== confirm) {
+      setErr('Those passwords don’t match.');
       return;
     }
     setBusy(true);
     setErr('');
-    later(1200, () =>
-      finish(
-        {
-          name: name.trim().replace(/\b\w/g, (c) => c.toUpperCase()),
-          email: email.trim(),
-          prov: 'email',
-          img: false,
-        },
-        false,
-      ),
-    );
+    void authService
+      .registerWithEmail({
+        email: email.trim(),
+        password: pw,
+        username: usernameCheck.username ?? username.trim(),
+        displayName: name.trim(),
+      })
+      .then(() => {
+        if (!useNav.getState().au) return;
+        if (
+          useTortieAuth.getState().phase ===
+          AuthPhase.AUTHENTICATED_ONBOARDING_REQUIRED
+        ) {
+          setBusy(false);
+          setOnboard(true);
+          return;
+        }
+        goDone(false);
+      })
+      .catch((error: unknown) => {
+        if (!useNav.getState().au) return;
+        setBusy(false);
+        setErr(messageOf(error));
+      });
   };
 
   const scN = pw
@@ -215,7 +326,8 @@ export function SignInFlow() {
         ? 'Add a number, capital or symbol'
         : 'Great password';
 
-  const backable = step === 'pw' || step === 'signup' || step === 'oauth';
+  const backable =
+    step === 'pw' || step === 'signup' || step === 'oauth' || step === 'forgot';
   const open = useOpenProgress(au, Math.round(560 * m));
   const slide = useSlideUp(open);
   const backSt = useAnimatedStyle(() => ({
@@ -226,7 +338,10 @@ export function SignInFlow() {
     opacity: tw(step === 'done' ? 0 : 1, 240, CSS_EASE),
   }));
 
-  const createFade = useFade(name.trim() && pw.length >= 8 ? 1 : 0.45);
+  const createReady = onboard
+    ? Boolean(name.trim() && username.trim())
+    : Boolean(name.trim() && username.trim() && pw.length >= 8 && pw === confirm);
+  const createFade = useFade(createReady ? 1 : 0.45);
   const first = firstName(user);
   const P = prov === 'facebook' ? 'facebook' : 'google';
 
@@ -450,9 +565,11 @@ export function SignInFlow() {
         </View>
         <ErrorLine err={step === 'pw' ? err : ''} />
         <Press
-          onPress={() =>
-            toast('Reset link sent to ' + (email.trim() || 'your inbox'))
-          }
+          onPress={() => {
+            setErr('');
+            setResetSent(false);
+            set({ auStep: 'forgot' });
+          }}
           style={{
             alignSelf: 'flex-start',
             paddingVertical: 12,
@@ -480,8 +597,14 @@ export function SignInFlow() {
           Nearly there
         </T>
         <T style={[sans(14, 400, C.ink2), { lineHeight: 21, marginTop: 8 }]}>
-          Creating an account for{' '}
-          <T style={sans(14, 700, C.ink)}>{email.trim()}</T>
+          {onboard ? (
+            'Choose a username so the people you cook with can find you.'
+          ) : (
+            <>
+              Creating an account for{' '}
+              <T style={sans(14, 700, C.ink)}>{email.trim()}</T>
+            </>
+          )}
         </T>
         <T style={[sans(13, 700, C.ink2), { marginTop: 24, marginBottom: 8 }]}>
           Your name
@@ -494,37 +617,75 @@ export function SignInFlow() {
           accessibilityLabel="Your name"
         />
         <T style={[sans(13, 700, C.ink2), { marginTop: 18, marginBottom: 8 }]}>
-          Password
+          Username
         </T>
-        <View>
-          <Field
-            value={pw}
-            onChangeText={(v) => (setPw(v), setErr(''))}
-            onSubmitEditing={create}
-            placeholder="8 characters or more"
-            autoComplete="new-password"
-            secureTextEntry={!show}
-            accessibilityLabel="New password"
-            padRight
-          />
-          <Eye show={show} onPress={() => setShow((v) => !v)} />
-        </View>
-        <View style={{ flexDirection: 'row', gap: 4, marginTop: 12 }}>
-          {[1, 2, 3, 4].map((i) => (
-            <StrengthBar key={i} on={i <= scB} color={strCol} />
-          ))}
-        </View>
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            gap: 10,
-            marginTop: 8,
-          }}
-        >
-          <T style={sans(12, 400, C.ink2)}>{strHint}</T>
-          <StrengthLabel label={strLabel} color={strCol} />
-        </View>
+        <Field
+          value={username}
+          onChangeText={(v) => (setUsername(v), setErr(''))}
+          placeholder="username"
+          autoComplete="username"
+          autoCapitalize="none"
+          accessibilityLabel="Username"
+        />
+        {onboard ? null : (
+          <>
+            <T
+              style={[sans(13, 700, C.ink2), { marginTop: 18, marginBottom: 8 }]}
+            >
+              Password
+            </T>
+            <View>
+              <Field
+                value={pw}
+                onChangeText={(v) => (setPw(v), setErr(''))}
+                placeholder="8 characters or more"
+                autoComplete="new-password"
+                secureTextEntry={!show}
+                accessibilityLabel="New password"
+                padRight
+              />
+              <Eye show={show} onPress={() => setShow((v) => !v)} />
+            </View>
+            <T
+              style={[sans(13, 700, C.ink2), { marginTop: 18, marginBottom: 8 }]}
+            >
+              Confirm password
+            </T>
+            <View>
+              <Field
+                value={confirm}
+                onChangeText={(v) => (setConfirm(v), setErr(''))}
+                onSubmitEditing={create}
+                placeholder="Type it once more"
+                autoComplete="new-password"
+                secureTextEntry={!show}
+                accessibilityLabel="Confirm password"
+                padRight
+              />
+              <Eye show={show} onPress={() => setShow((v) => !v)} />
+            </View>
+          </>
+        )}
+        {onboard ? null : (
+          <View style={{ flexDirection: 'row', gap: 4, marginTop: 12 }}>
+            {[1, 2, 3, 4].map((i) => (
+              <StrengthBar key={i} on={i <= scB} color={strCol} />
+            ))}
+          </View>
+        )}
+        {onboard ? null : (
+          <View
+            style={{
+              flexDirection: 'row',
+              justifyContent: 'space-between',
+              gap: 10,
+              marginTop: 8,
+            }}
+          >
+            <T style={sans(12, 400, C.ink2)}>{strHint}</T>
+            <StrengthLabel label={strLabel} color={strCol} />
+          </View>
+        )}
         <ErrorLine err={step === 'signup' ? err : ''} pt={10} />
         <Press
           onPress={create}
@@ -548,6 +709,58 @@ export function SignInFlow() {
             <T style={sans(15, 700, C.white)}>Create account</T>
           )}
         </Press>
+      </Panel>
+
+      <Panel k="forgot" cur={step} scroll top={f.pushTop + 64}>
+        <T
+          style={[
+            serif(34, 500),
+            { letterSpacing: em(34, -0.02), lineHeight: 36.7 },
+          ]}
+        >
+          Reset your password
+        </T>
+        <T style={[sans(14, 400, C.ink2), { lineHeight: 21, marginTop: 8 }]}>
+          We’ll email you a link to choose a new one.
+        </T>
+        {resetSent ? (
+          <T
+            style={[
+              sans(15, 600, C.green),
+              { lineHeight: 22, marginTop: 22 },
+            ]}
+          >
+            {`Reset link sent to ${email.trim()}`}
+          </T>
+        ) : (
+          <>
+            <View style={{ marginTop: 24 }}>
+              <Field
+                value={email}
+                onChangeText={(v) => (setEmail(v), setErr(''), setResetSent(false))}
+                onSubmitEditing={sendReset}
+                placeholder="you@example.com"
+                autoComplete="email"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                accessibilityLabel="Email"
+                error={!!err}
+              />
+            </View>
+            <ErrorLine err={step === 'forgot' ? err : ''} />
+            <PrimaryBtn
+              onPress={sendReset}
+              opacity={email.trim() ? 1 : 0.45}
+              style={{ marginTop: 12 }}
+            >
+              {busy ? (
+                <ButtonSpinner />
+              ) : (
+                <T style={sans(15, 700, C.bg)}>Send reset link</T>
+              )}
+            </PrimaryBtn>
+          </>
+        )}
       </Panel>
 
       <Panel k="oauth" cur={step} center top={f.pushTop + 52} bottom={40}>

@@ -151,6 +151,25 @@ describe('loadConfig', () => {
     expect(() => loadConfig(env)).toThrow(EnvValidationError);
   });
 
+  it('defaults auth to optional and keeps App Check in monitor mode', () => {
+    const config = loadConfig({});
+
+    expect(config.auth.required).toBe(false);
+    expect(config.auth.phoneResendSeconds).toBe(60);
+    expect(config.auth.phoneMaxAttempts).toBe(5);
+    expect(config.auth.recentLoginSeconds).toBe(300);
+    expect(config.firebase.appCheckEnforce).toBe(false);
+  });
+
+  it('rejects an HMAC secret in production when Firebase credentials are missing', () => {
+    expect(() =>
+      loadConfig({
+        NODE_ENV: 'production',
+        AUTH_HMAC_SECRET: 'not-for-production',
+      }),
+    ).toThrow(EnvValidationError);
+  });
+
   it('reports every invalid variable at once', () => {
     try {
       loadConfig({ PORT: 'abc', NODE_ENV: 'staging' });

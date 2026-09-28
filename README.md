@@ -105,7 +105,7 @@ npm run e2e -w mobile
 ## Known limitations
 
 - Facebook and TikTok extraction remain stubs (`UNSUPPORTED_SOURCE`).
-- No login yet; all devices talking to one API share the singleton profile.
+- Login is Firebase Auth (Google, Facebook, email, phone). Without a bearer token the API still uses the singleton profile until `AUTH_REQUIRED=true`. See `docs/authentication.md`.
 - Recipe detail **Original source** is still a “coming soon” toast; revision history and edit work.
 - You → Cooking history is a prototype stub.
 - Revision conflicts are visible in logs, not as stored counters.
@@ -113,8 +113,8 @@ npm run e2e -w mobile
 
 ## Identity, data, and revisions
 
-- **Singleton profile:** `00000000-0000-4000-8000-000000000001`. Controllers read `request.profile`. Replace `ImplicitProfileResolver` and the `AUTHENTICATION EXTENSION POINT` in `apps/api/src/app/app.ts` when login exists. `/health` stays public.
-- **Ownership:** recipes, categories, notes, collections, pantry, cooks, and ratings are scoped to that profile. Other users’ rows 404.
+- **Identity:** Firebase UID is canonical. `AuthenticatedProfileResolver` verifies the ID token and sets `request.profile.userId` to that application user. With no token and `AUTH_REQUIRED=false`, the singleton profile `00000000-0000-4000-8000-000000000001` is still used. `/health` stays public. Details: `docs/authentication.md`.
+- **Ownership:** recipes, categories, notes, collections, pantry, cooks, and ratings are scoped to `request.profile.userId`. Other users’ rows 404. A client-supplied uid is ignored.
 - **Revisions:** import writes immutable revision 0. Each save appends a complete snapshot. `expectedRevisionNumber` conflicts return `409 RECIPE_REVISION_CONFLICT`. Restore creates a new head; it never deletes history.
 - **Ingredient AI policy:** dictionary + cache first, then `gpt-5-nano`, `gpt-4.1-nano` compatibility fallback, limited `gpt-4o-mini` escalations. Budgets and model names are env-only (see `apps/api/.env.example`). Never GPT-5.6.
 

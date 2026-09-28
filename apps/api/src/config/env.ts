@@ -170,6 +170,25 @@ const rawEnvSchema = z.object({
   META_APP_SECRET: z.string().optional(),
   /** Path or name of the yt-dlp binary used for YouTube preview and extraction. */
   YTDLP_PATH: z.string().min(1).default('yt-dlp'),
+
+  // --- Firebase Authentication -------------------------------------------------
+  /** When true, versioned routes reject requests that have no Authorization header. */
+  AUTH_REQUIRED: z.stringbool().default(false),
+  /** When true, a missing or invalid X-Firebase-AppCheck header is a 401. */
+  APP_CHECK_ENFORCE: z.stringbool().default(false),
+  FIREBASE_PROJECT_ID: z.string().min(1).optional(),
+  FIREBASE_CLIENT_EMAIL: z.string().min(1).optional(),
+  FIREBASE_PRIVATE_KEY: z.string().min(1).optional(),
+  FIREBASE_AUTH_EMULATOR_HOST: z.string().min(1).optional(),
+  /**
+   * Dev/test HMAC verifier secret. Refused in production unless Firebase credentials are also set
+   * (and even then the HMAC verifier is not selected).
+   */
+  AUTH_HMAC_SECRET: z.string().min(1).optional(),
+  AUTH_RESERVED_USERNAMES: commaSeparatedList.default([]),
+  AUTH_RECENT_LOGIN_SECONDS: z.coerce.number().int().positive().max(86_400).default(300),
+  AUTH_PHONE_RESEND_SECONDS: z.coerce.number().int().positive().max(3_600).default(60),
+  AUTH_PHONE_MAX_ATTEMPTS: z.coerce.number().int().positive().max(50).default(5),
 });
 
 export const DEFAULT_TEST_DATABASE_URL =
@@ -322,6 +341,21 @@ const configSchema = rawEnvSchema.transform((raw) => ({
     metaAppSecret: raw.META_APP_SECRET,
     ytdlpPath: raw.YTDLP_PATH,
   },
+  auth: {
+    required: raw.AUTH_REQUIRED,
+    reservedUsernames: raw.AUTH_RESERVED_USERNAMES,
+    recentLoginSeconds: raw.AUTH_RECENT_LOGIN_SECONDS,
+    phoneResendSeconds: raw.AUTH_PHONE_RESEND_SECONDS,
+    phoneMaxAttempts: raw.AUTH_PHONE_MAX_ATTEMPTS,
+    hmacSecret: raw.AUTH_HMAC_SECRET,
+  },
+  firebase: {
+    appCheckEnforce: raw.APP_CHECK_ENFORCE,
+    projectId: raw.FIREBASE_PROJECT_ID,
+    clientEmail: raw.FIREBASE_CLIENT_EMAIL,
+    privateKey: raw.FIREBASE_PRIVATE_KEY,
+    emulatorHost: raw.FIREBASE_AUTH_EMULATOR_HOST,
+  },
 }));
 
 export type AppConfig = z.infer<typeof configSchema>;
@@ -346,7 +380,17 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     );
   }
 
-  return result.data;
+  const parsed = result.data;
+  const firebaseCredentials = Boolean(
+    parsed.firebase.projectId && parsed.firebase.clientEmail && parsed.firebase.privateKey,
+  );
+  if (parsed.nodeEnv === 'production' && parsed.auth.hmacSecret && !firebaseCredentials) {
+    throw new EnvValidationError([
+      'AUTH_HMAC_SECRET cannot be the production token verifier. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY, or unset AUTH_HMAC_SECRET.',
+    ]);
+  }
+
+  return parsed;
 }
 
 /** Validated at import time so misconfiguration fails fast on startup. */

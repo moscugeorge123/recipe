@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Uploads go through the API storage provider (local disk or S3), not the client SDK.
+// Deny every direct client access. Account deletion removes application rows on the API.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

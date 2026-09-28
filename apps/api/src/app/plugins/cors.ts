@@ -19,7 +19,7 @@ export async function registerCors(app: FastifyInstance, config: AppConfig): Pro
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     // `Authorization` is listed ahead of the authentication work so the mobile client will not
     // need a CORS change when tokens are introduced.
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Firebase-AppCheck'],
     exposedHeaders: ['X-Request-Id', 'Retry-After'],
     credentials: false,
     maxAge: 86_400,

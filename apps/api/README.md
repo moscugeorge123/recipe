@@ -468,18 +468,15 @@ A note on CORS and mobile: React Native's `fetch` is not a browser and is not su
 same-origin policy, so the mobile app works with an empty `CORS_ORIGINS`. The allow-list exists for
 web clients (Expo web, an admin dashboard, local tooling).
 
-### Authentication (replacement point)
+### Authentication
 
-There is no authentication and no fake stand-in. The extension points are in place:
+Firebase Authentication is the identity provider. The API verifies ID tokens and maps each Firebase
+UID to an application user in Postgres. See `src/modules/auth` and
+[docs/authentication.md](../../docs/authentication.md).
 
-- `UnauthorizedError` and `ForbiddenError` already map to 401/403 with the standard envelope.
-- `app.ts` contains a commented `AUTHENTICATION EXTENSION POINT`.
-- `ImplicitProfileResolver` (`src/modules/profiles/domain/profile.ts`) is the swap target: a future
-  JWT resolver should still decorate `request.profile` with `{ userId, mode }`.
-- CORS already allows the `Authorization` request header.
-- `/health` must remain unauthenticated for the load balancer.
-- `GET /api/v1/ops/summary` is unauthenticated while the singleton profile is in use. Gate it when
-  auth ships.
+- `AuthenticatedProfileResolver` sets `request.profile` and `request.auth` from the verified token.
+- `/health` stays public.
+- `GET /api/v1/ops/summary` requires an admin when `AUTH_REQUIRED=true`. A non-admin bearer token is forbidden.
 
 ---
 

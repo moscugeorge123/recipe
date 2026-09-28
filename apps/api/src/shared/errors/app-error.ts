@@ -1,3 +1,5 @@
+import { authErrorMessage, type AuthErrorCode } from '@recipe/contracts';
+
 import { ErrorCode } from './error-codes.js';
 
 /** A single, client-safe explanation of what was wrong with a request. */
@@ -115,6 +117,46 @@ export class ForbiddenError extends AppError {
       statusCode: 403,
       message: options.message ?? 'Insufficient permissions',
       ...options,
+    });
+  }
+}
+
+const AUTH_STATUS: Record<AuthErrorCode, number> = {
+  AUTH_INVALID_CREDENTIALS: 401,
+  AUTH_EMAIL_ALREADY_EXISTS: 409,
+  AUTH_USER_NOT_FOUND: 404,
+  AUTH_WRONG_PASSWORD: 401,
+  AUTH_EMAIL_NOT_VERIFIED: 403,
+  AUTH_EMAIL_INVALID: 400,
+  AUTH_PASSWORD_WEAK: 400,
+  AUTH_PHONE_INVALID: 400,
+  AUTH_PHONE_CODE_INVALID: 400,
+  AUTH_PHONE_CODE_EXPIRED: 400,
+  AUTH_TOO_MANY_REQUESTS: 429,
+  AUTH_PROVIDER_ALREADY_LINKED: 409,
+  AUTH_CREDENTIAL_ALREADY_IN_USE: 409,
+  AUTH_REQUIRES_RECENT_LOGIN: 401,
+  AUTH_PROVIDER_CANCELLED: 400,
+  AUTH_NETWORK_ERROR: 503,
+  AUTH_UNKNOWN_ERROR: 400,
+  AUTH_USERNAME_TAKEN: 409,
+  AUTH_USERNAME_INVALID: 400,
+  AUTH_LAST_PROVIDER: 403,
+  AUTH_APP_CHECK_FAILED: 401,
+  AUTH_TOKEN_EXPIRED: 401,
+  AUTH_TOKEN_INVALID: 401,
+  AUTH_NOT_CONFIGURED: 401,
+};
+
+/** Application auth failure. `code` is an AUTH_* contract code; status follows the auth map. */
+export class AuthAppError extends AppError {
+  constructor(code: AuthErrorCode, options: AppErrorOptions = {}) {
+    super({
+      code,
+      statusCode: AUTH_STATUS[code],
+      message: options.message ?? authErrorMessage(code),
+      ...(options.details !== undefined ? { details: options.details } : {}),
+      ...(options.cause !== undefined ? { cause: options.cause } : {}),
     });
   }
 }
