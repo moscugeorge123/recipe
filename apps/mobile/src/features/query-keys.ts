@@ -20,7 +20,7 @@
  * | Collections     | `collectionKeys.list`               | `['collections', 'list']`                       | 30s, Agent 9   |
  * | Profile         | `profileKeys.current`               | `['profile', 'current']`                        | 5m             |
  *
- * Invalidation: favorite/rating/review/cook completion → `recipeKeys.all`.
+ * Invalidation: favorite/rating/review/cook completion, and a saved import → `recipeKeys.all`.
  * Pantry writes → `pantryKeys.all`. Shopping-list writes → `shoppingListKeys.all`.
  * Meal-plan writes → `mealPlanKeys.all` and `shoppingListKeys.all`.
  * Do not add a second `kitchen.*` tree.

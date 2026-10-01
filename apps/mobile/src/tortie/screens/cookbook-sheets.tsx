@@ -1,10 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import {
-  ScrollView,
-  View,
-  useWindowDimensions,
-  type TextInput,
-} from 'react-native';
+import { View, useWindowDimensions, type TextInput } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { useCreateCollection } from '@/features/collections/hooks';
@@ -18,7 +13,7 @@ import { Glyph } from '@/tortie/ui/icon';
 import { iconText } from '@/tortie/ui/icon-text';
 import { Input, RevealBox } from '@/tortie/ui/input';
 import { Press } from '@/tortie/ui/press';
-import { Sheet } from '@/tortie/ui/sheet';
+import { Sheet, SheetScroll } from '@/tortie/ui/sheet';
 import { ctl, em, sans, serif, T } from '@/tortie/ui/text';
 
 const EMOS = [
@@ -180,7 +175,7 @@ export function CookbookFilterSheet() {
           {isC ? 'Sort collections' : 'Filter & sort'}
         </T>
       </View>
-      <ScrollView
+      <SheetScroll
         style={{ flexGrow: 0, flexShrink: 1 }}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 8 }}
         showsVerticalScrollIndicator={false}
@@ -317,7 +312,7 @@ export function CookbookFilterSheet() {
             </Pills>
           </>
         )}
-      </ScrollView>
+      </SheetScroll>
       <View
         style={{
           flexDirection: 'row',

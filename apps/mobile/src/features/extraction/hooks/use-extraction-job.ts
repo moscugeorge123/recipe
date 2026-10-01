@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { getExtractionJob } from '@/features/extraction/api';
 import {
@@ -6,6 +7,7 @@ import {
   isTerminalJobStatus,
   mapJobToUiStage,
 } from '@/features/extraction/stage-map';
+import { recipeKeys } from '@/features/query-keys';
 import { ApiError } from '@/services/api-client';
 
 const POLL_INTERVAL_MS = 5000;
@@ -32,6 +34,8 @@ export function extractionPollInterval(args: {
 }
 
 export function useExtractionJob(jobId: string | undefined) {
+  const queryClient = useQueryClient();
+  const refreshedJobId = useRef<string | null>(null);
   const query = useQuery({
     queryKey: ['extraction-job', jobId],
     queryFn: ({ signal }) => getExtractionJob(jobId as string, signal),
@@ -50,6 +54,16 @@ export function useExtractionJob(jobId: string | undefined) {
   });
 
   const job = query.data;
+
+  useEffect(() => {
+    if (!job || job.status !== 'COMPLETED' || !job.recipeId) return;
+    if (refreshedJobId.current === job.id) return;
+    refreshedJobId.current = job.id;
+    queryClient
+      .invalidateQueries({ queryKey: recipeKeys.all })
+      .catch(() => undefined);
+  }, [job, queryClient]);
+
   const uiStage = job ? mapJobToUiStage(job.status, job.currentStage) : 0;
 
   return {

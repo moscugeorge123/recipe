@@ -2,7 +2,11 @@ import { Prisma } from '@prisma/client';
 
 import { buildPaginationMeta } from '../../../shared/pagination/pagination.js';
 import { PantryItemNotFoundError } from '../../../shared/errors/pantry-errors.js';
-import { normalizeIngredientName } from '../../normalization/domain/units.js';
+import {
+  canonicalNameKeys,
+  normalizeIngredientName,
+  singularizePhrase,
+} from '../../normalization/domain/units.js';
 import { resolveIngredientPresentation } from '../../normalization/domain/presentation.js';
 import { toSentenceCase } from '../../normalization/domain/casing.js';
 import type { IngredientOrganizer, OrganizeResult } from './ingredient-organizer.js';
@@ -213,9 +217,10 @@ export class PantryService {
       colorToken: item.colorToken,
     });
     const canonicalName = normalizeIngredientName(item.canonicalName ?? item.name);
+    const displayName = toSentenceCase(singularizePhrase(item.name));
     const payload: CreatePantryItemInput = {
       userId,
-      name: toSentenceCase(item.name),
+      name: displayName,
       canonicalName,
       rawText: item.rawText ?? item.name,
       locale: item.locale ?? 'en',
@@ -237,10 +242,15 @@ export class PantryService {
       }),
     };
 
-    const existing = await this.repo.findByCanonicalName(userId, canonicalName);
+    let existing: PantryItemRecord | null = null;
+    for (const key of canonicalNameKeys(item.name)) {
+      existing = await this.repo.findByCanonicalName(userId, key);
+      if (existing) break;
+    }
     if (existing) {
       const updated = await this.repo.update(existing.id, userId, {
         name: payload.name,
+        canonicalName,
         rawText: existing.rawText
           ? `${existing.rawText}\n${payload.rawText ?? ''}`.trim()
           : (payload.rawText ?? existing.name),

@@ -1143,7 +1143,7 @@ export function RecipeEditor() {
           style={{
             paddingTop: 28,
             paddingHorizontal: 16,
-            paddingBottom: bottomPad,
+            paddingBottom: bottomPad + (s.aiFocus ? 24 : 0),
           }}
         >
           <AskBar
@@ -1992,13 +1992,12 @@ function AskBar({
             <AInput
               value={q}
               onChangeText={onQ}
-              onSubmitEditing={() => onRun()}
-              submitBehavior="submit"
+              submitBehavior="newline"
               onFocus={() => onFocus(true)}
               onBlur={() => onFocus(false)}
               multiline
               allowFontScaling={false}
-              textAlignVertical={focus ? 'top' : 'center'}
+              textAlignVertical="top"
               placeholder={
                 blank
                   ? 'Describe a dish or paste notes…'
@@ -2006,7 +2005,10 @@ function AskBar({
               }
               placeholderTextColor={PH}
               style={[
-                sans(15, 400, C.ink, { lineHeight: 21.75 }),
+                sans(15, 400, C.ink, {
+                  lineHeight: 21.75,
+                  textAlignVertical: 'top',
+                }),
                 {
                   flex: 1,
                   minWidth: 0,

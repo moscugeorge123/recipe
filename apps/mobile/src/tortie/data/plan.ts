@@ -176,6 +176,13 @@ type PlanState = {
   /** Week offset from the current week. */
   wk: number;
   day: number;
+  /**
+   * Synchronous navigation cursor. Visible `wk`/`day` commit on the animation
+   * timeout; these update immediately so rapid swipes chain from the latest
+   * target. Null when idle (no in-flight commit).
+   */
+  targetWk: number | null;
+  targetDay: number | null;
   wkOut: boolean;
   wkDir: 1 | -1;
   dayOut: boolean;
@@ -200,71 +207,143 @@ type PlanActions = {
   clearPick: () => void;
 };
 
-let wkT: ReturnType<typeof setTimeout> | null = null;
+/** Logical (immediate) cursor — falls back to the visible week/day when idle. */
+export function planLogicalCursor(s: {
+  wk: number;
+  day: number;
+  targetWk: number | null;
+  targetDay: number | null;
+}) {
+  return { wk: s.targetWk ?? s.wk, day: s.targetDay ?? s.day };
+}
+
+let commitT: ReturnType<typeof setTimeout> | null = null;
 let cmT: ReturnType<typeof setTimeout> | null = null;
 
-export const usePlan = create<PlanState & PlanActions>()((set, get) => ({
-  wk: 0,
-  day: todayIndex(),
-  wkOut: false,
-  wkDir: 1,
-  dayOut: false,
-  dayDir: 1,
-  calM: 0,
-  calFade: false,
-  addedWeek: null,
-  pick: null,
+function clearCommit() {
+  if (commitT) {
+    clearTimeout(commitT);
+    commitT = null;
+  }
+}
 
-  setDay: (i) => {
+export const usePlan = create<PlanState & PlanActions>()((set, get) => {
+  const scheduleDayCommit = (i: number) => {
     const s = get();
-    if (i === s.day) return;
-    set({ dayOut: true, dayDir: i > s.day ? 1 : -1 });
-    setTimeout(() => set({ day: i, dayOut: false }), 150);
-  },
-  setWeek: (w) => {
+    const { day: ld } = planLogicalCursor(s);
+    if (i === ld) return;
+
+    clearCommit();
+    set({
+      targetWk: null,
+      targetDay: i,
+      dayOut: true,
+      dayDir: i > ld ? 1 : -1,
+    });
+    commitT = setTimeout(() => {
+      const t = get();
+      const day = t.targetDay ?? t.day;
+      set({
+        day,
+        dayOut: false,
+        targetWk: null,
+        targetDay: null,
+      });
+      commitT = null;
+    }, 150);
+  };
+
+  const scheduleWeekCommit = (w: number, d: number) => {
     const s = get();
-    if (w === s.wk) return;
-    if (wkT) clearTimeout(wkT);
-    set({ wkOut: true, wkDir: w > s.wk ? 1 : -1 });
-    wkT = setTimeout(
-      () =>
-        set((st) => ({
-          wk: w,
-          wkOut: false,
-          day: w === 0 ? todayIndex() : st.day,
-        })),
-      160,
-    );
-  },
-  goDate: (w, d) => {
-    useNav.getState().set({ cal: false });
-    const s = get();
-    if (w === s.wk) {
-      s.setDay(d);
-      return;
-    }
-    if (wkT) clearTimeout(wkT);
-    set({ wkOut: true, wkDir: w > s.wk ? 1 : -1 });
-    wkT = setTimeout(() => set({ wk: w, day: d, wkOut: false }), 160);
-  },
-  setCalM: (m) => {
-    set({ calFade: true });
-    if (cmT) clearTimeout(cmT);
-    cmT = setTimeout(() => set({ calM: m, calFade: false }), 120);
-  },
-  openCal: () => {
-    const s = get();
-    const p = isoParts(addUtcDays(mondayAt(s.wk), s.day));
-    const now = new Date();
-    set({ calM: (p.y - now.getFullYear()) * 12 + p.m - now.getMonth() });
-    useNav.getState().set({ cal: true });
-  },
-  markAdded: (monday) => set({ addedWeek: monday }),
-  startPick: (day, meal, label) => {
-    const date = addUtcDays(mondayAt(get().wk), day);
-    set({ pick: { date, day, meal, label } });
-  },
-  clearPick: () => {
-    if (get().pick) set({ pick: null });
-  },
-}));
+    const { wk: lw, day: ld } = planLogicalCursor(s);
+    if (w === lw && d === ld) return;
+
+    clearCommit();
+    set({
+      targetWk: w,
+      targetDay: d,
+      wkOut: true,
+      wkDir: w !== lw ? (w > lw ? 1 : -1) : s.wkDir,
+      dayOut: false,
+    });
+    commitT = setTimeout(() => {
+      const t = get();
+      const wk = t.targetWk ?? t.wk;
+      const day = t.targetDay ?? t.day;
+      set({
+        wk,
+        day,
+        wkOut: false,
+        dayOut: false,
+        targetWk: null,
+        targetDay: null,
+      });
+      commitT = null;
+    }, 160);
+  };
+
+  return {
+    wk: 0,
+    day: todayIndex(),
+    targetWk: null,
+    targetDay: null,
+    wkOut: false,
+    wkDir: 1,
+    dayOut: false,
+    dayDir: 1,
+    calM: 0,
+    calFade: false,
+    addedWeek: null,
+    pick: null,
+
+    setDay: (i) => {
+      const s = get();
+      // Pending week change: retarget that week — setDay alone would commit on
+      // the still-visible (old) week once the day timeout fires.
+      if (s.targetWk != null && s.targetWk !== s.wk) {
+        scheduleWeekCommit(s.targetWk, i);
+        return;
+      }
+      scheduleDayCommit(i);
+    },
+    setWeek: (w) => {
+      const s = get();
+      const { wk: lw, day: ld } = planLogicalCursor(s);
+      if (w === lw) return;
+      const d = w === 0 ? todayIndex() : ld;
+      scheduleWeekCommit(w, d);
+    },
+    goDate: (w, d) => {
+      useNav.getState().set({ cal: false });
+      const s = get();
+      const { wk: lw, day: ld } = planLogicalCursor(s);
+      if (w === lw && d === ld) return;
+      // Same visible week with no pending week retarget → day-only fade.
+      if (w === s.wk && (s.targetWk === null || s.targetWk === s.wk)) {
+        scheduleDayCommit(d);
+        return;
+      }
+      scheduleWeekCommit(w, d);
+    },
+    setCalM: (m) => {
+      set({ calFade: true });
+      if (cmT) clearTimeout(cmT);
+      cmT = setTimeout(() => set({ calM: m, calFade: false }), 120);
+    },
+    openCal: () => {
+      const s = get();
+      const p = isoParts(addUtcDays(mondayAt(s.wk), s.day));
+      const now = new Date();
+      set({ calM: (p.y - now.getFullYear()) * 12 + p.m - now.getMonth() });
+      useNav.getState().set({ cal: true });
+    },
+    markAdded: (monday) => set({ addedWeek: monday }),
+    startPick: (day, meal, label) => {
+      const date = addUtcDays(mondayAt(get().wk), day);
+      set({ pick: { date, day, meal, label } });
+    },
+    clearPick: () => {
+      if (get().pick) set({ pick: null });
+    },
+  };
+});

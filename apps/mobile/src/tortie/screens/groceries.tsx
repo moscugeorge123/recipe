@@ -1,6 +1,6 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState, type ReactNode } from 'react';
-import { View, useWindowDimensions } from 'react-native';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ScrollView, View, useWindowDimensions, type TextInput } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withDelay,
@@ -11,16 +11,26 @@ import {
   useDeletePantryItem,
   usePatchPantryItem,
 } from '@/features/pantry/hooks';
+import { displayUnit } from '@/features/recipes/plan';
+import { convertAmount } from '@/features/recipes/units';
+import {
+  useDeleteShoppingItem,
+  usePatchShoppingItem,
+} from '@/features/shopping-list/hooks';
 import { tint } from '@/tortie/color';
 import {
+  aisleIndexOf,
   editPantry,
+  editShop,
   smartMin,
   useGrocUi,
+  useGroceryAisles,
   useGroceryActions,
   useRecipeTitle,
   useTGroceries,
   useTPantry,
   type Pending,
+  type Proposal,
   type TGroc,
   type TPantry,
 } from '@/tortie/data/groceries';
@@ -34,6 +44,7 @@ import { useFrame } from '@/tortie/frame';
 import { AHUE, AISLES, plz, SHELVES, SHUE } from '@/tortie/lib/fmt';
 import { useMotion } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
+import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
 import { C, CSS_EASE, EASE, F, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { GroceryArt, PantryArt } from '@/tortie/ui/art';
@@ -105,10 +116,12 @@ export function GroceriesScreen() {
   const act = useGroceryActions();
   const { recipeIds } = usePlanWeek(currentMonday());
   const [addText, setAddText] = useState('');
+  const addField = useRef<TextInput>(null);
+  const grocEdit = useNav((s) => s.grocEdit);
+  const editing = grocEdit && !isP;
 
-  const held = new Set(pending.map((p) => p.hold).filter(Boolean));
-  const groc = grocAll.filter((g) => !held.has(g.id));
-  const pantry = pantryAll.filter((p) => !held.has(p.id));
+  const groc = grocAll;
+  const pantry = pantryAll;
   const dest = isP ? 'pantry' : 'groc';
   const pend = pending.filter((p) => p.dest === dest);
   const nLow = pantry.filter((p) => p.lv === 1).length;
@@ -135,12 +148,27 @@ export function GroceriesScreen() {
     const t = addText.trim();
     if (!t) return;
     setAddText('');
+    addField.current?.blur();
     void act.addRaw(t, dest);
   };
+  const reviewReady = pend.some((p) => (p.proposals?.length ?? 0) > 0);
+  useEffect(() => {
+    if (reviewReady) addField.current?.blur();
+  }, [reviewReady]);
   const addBasics = () =>
     BASICS.filter((t) => !inPan(t)).forEach((t, i) =>
       setTimeout(() => void act.addRaw(t, 'pantry'), i * 320),
     );
+
+  const toggleEdit = () => {
+    const on = useNav.getState().grocEdit;
+    addField.current?.blur();
+    useNav.getState().set({ grocEdit: !on, gedOn: false });
+  };
+  const editBg = useAnimatedStyle(() => ({
+    backgroundColor: tw(editing ? C.green : C.white, 200, CSS_EASE),
+    borderColor: tw(editing ? C.green : C.line, 200, CSS_EASE),
+  }));
 
   const fx = useAnimatedStyle(() => ({
     opacity: tw(secFade ? 0 : 1, 180, CSS_EASE),
@@ -185,61 +213,121 @@ export function GroceriesScreen() {
             alignItems: 'center',
             gap: 10,
             marginTop: 12,
-            height: 50,
-            paddingLeft: 14,
-            paddingRight: 6,
-            backgroundColor: C.surface2,
-            borderWidth: 1,
-            borderColor: C.line,
-            borderRadius: 99,
           }}
         >
-          <Glyph name="auto_awesome" size={20} color={C.terra} fill />
-          <Input
-            value={addText}
-            onChangeText={setAddText}
-            onSubmitEditing={addItem}
-            submitBehavior="submit"
-            returnKeyType="done"
-            placeholder={
-              isP ? 'What’s in your kitchen?' : 'Add anything — “2 lemons”'
-            }
-            placeholderTextColor={C.ink3}
-            allowFontScaling={false}
-            style={[
-              sans(15, 400),
-              { flex: 1, minWidth: 0, padding: 0 },
-              INPUT_WEB,
-            ]}
-          />
-          <Press
-            onPress={addItem}
-            scale={0.9}
-            easing={CSS_EASE}
-            accessibilityLabel="Add"
+          <View
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 19,
-              backgroundColor: C.green,
+              flex: 1,
+              minWidth: 0,
+              flexDirection: 'row',
               alignItems: 'center',
-              justifyContent: 'center',
+              gap: 10,
+              height: 50,
+              paddingLeft: 14,
+              paddingRight: 6,
+              backgroundColor: C.surface2,
+              borderWidth: 1,
+              borderColor: C.line,
+              borderRadius: 99,
             }}
           >
-            <Glyph name="add" size={22} color={C.bg} />
-          </Press>
+            <Glyph name="auto_awesome" size={20} color={C.terra} fill />
+            <Input
+              ref={addField}
+              value={addText}
+              onChangeText={setAddText}
+              onSubmitEditing={addItem}
+              submitBehavior="submit"
+              returnKeyType="done"
+              placeholder={
+                isP ? 'What’s in your kitchen?' : 'Add anything — “2 lemons”'
+              }
+              placeholderTextColor={C.ink3}
+              allowFontScaling={false}
+              style={[
+                sans(15, 400),
+                { flex: 1, minWidth: 0, padding: 0 },
+                INPUT_WEB,
+              ]}
+            />
+            <Press
+              onPress={addItem}
+              scale={0.9}
+              easing={CSS_EASE}
+              accessibilityLabel="Add"
+              style={{
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                backgroundColor: C.green,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Glyph name="add" size={22} color={C.bg} />
+            </Press>
+          </View>
+          {isP ? null : (
+            <Press
+              onPress={toggleEdit}
+              scale={0.9}
+              easing={CSS_EASE}
+              accessibilityLabel={editing ? 'Done editing' : 'Edit list'}
+              accessibilityState={{ selected: editing }}
+              animatedStyle={editBg}
+              style={{
+                width: 50,
+                height: 50,
+                borderRadius: 25,
+                borderWidth: 1,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Glyph
+                name={editing ? 'check' : 'edit'}
+                size={22}
+                color={editing ? C.bg : C.ink}
+              />
+            </Press>
+          )}
         </Stagger>
+        <View style={{ gap: 8, marginTop: pend.length ? 12 : 0 }}>
+          {pend.map((p) =>
+            p.proposals?.length ? (
+              <ReviewGroup
+                key={p.id}
+                proposals={p.proposals}
+                isP={isP}
+                onAccept={(key) => void act.acceptProposal(p.id, key)}
+                onDismiss={(key) => act.dismissProposal(p.id, key)}
+                onAll={() => void act.acceptAll(p.id)}
+                onNone={() => act.dismissAll(p.id)}
+              />
+            ) : (
+              <PendingRow key={p.id} p={p} isP={isP} />
+            ),
+          )}
+        </View>
       </RevealBox>
-
-      <View style={{ gap: 8, marginTop: pend.length ? 12 : 0 }}>
-        {pend.map((p) => (
-          <PendingRow key={p.id} p={p} isP={isP} />
-        ))}
-      </View>
 
       <Animated.View style={fx}>
         {!isP ? (
           <>
+            {editing && groc.length > 0 ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  marginTop: 16,
+                  marginHorizontal: 4,
+                }}
+              >
+                <Glyph name="touch_app" size={16} color={C.ink2} />
+                <T style={sans(12, 400, C.ink2)}>Tap an item to edit it</T>
+              </View>
+            ) : null}
             {gEmpty ? (
               <FadeIn i={1} on={on}>
                 <EmptyCard
@@ -300,7 +388,12 @@ export function GroceriesScreen() {
                       g={g}
                       first={j === 0}
                       fresh={!!fresh[g.id]}
-                      onToggle={act.toggle}
+                      editing={editing}
+                      onPress={() =>
+                        editing
+                          ? useNav.getState().set({ gedOn: true, gedId: g.id })
+                          : act.toggle(g)
+                      }
                     />
                   ))}
                 </View>
@@ -673,6 +766,167 @@ function EmptyCard({
   );
 }
 
+function ReviewGroup({
+  proposals,
+  isP,
+  onAccept,
+  onDismiss,
+  onAll,
+  onNone,
+}: {
+  proposals: Proposal[];
+  isP: boolean;
+  onAccept: (key: string) => void;
+  onDismiss: (key: string) => void;
+  onAll: () => void;
+  onNone: () => void;
+}) {
+  return (
+    <View style={{ gap: 8 }}>
+      {proposals.length > 1 ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            paddingHorizontal: 4,
+          }}
+        >
+          <T style={sans(13, 600, C.ink2)}>
+            {proposals.length} ready to add
+          </T>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Press
+              onPress={onNone}
+              scale={0.96}
+              accessibilityLabel="Skip all"
+              style={{
+                height: 32,
+                paddingHorizontal: 12,
+                borderRadius: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: C.surface2,
+              }}
+            >
+              <T style={sans(13, 600, C.ink2)}>Not now</T>
+            </Press>
+            <Press
+              onPress={onAll}
+              scale={0.96}
+              accessibilityLabel="Add all"
+              style={{
+                height: 32,
+                paddingHorizontal: 14,
+                borderRadius: 16,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: C.green,
+              }}
+            >
+              <T style={sans(13, 600, C.bg)}>Add all</T>
+            </Press>
+          </View>
+        </View>
+      ) : null}
+      {proposals.map((proposal) => (
+        <ReviewRow
+          key={proposal.key}
+          proposal={proposal}
+          isP={isP}
+          onAccept={() => onAccept(proposal.key)}
+          onDismiss={() => onDismiss(proposal.key)}
+        />
+      ))}
+    </View>
+  );
+}
+
+function ReviewRow({
+  proposal,
+  isP,
+  onAccept,
+  onDismiss,
+}: {
+  proposal: Proposal;
+  isP: boolean;
+  onAccept: () => void;
+  onDismiss: () => void;
+}) {
+  const r = proposal.res;
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 14,
+        paddingVertical: 12,
+        paddingLeft: 12,
+        paddingRight: 10,
+        backgroundColor: C.white,
+        borderWidth: 1,
+        borderColor: C.line,
+        borderRadius: 18,
+      }}
+    >
+      <View
+        style={{
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          backgroundColor: tint(isP ? (SHUE[r.sh] ?? 250) : (AHUE[r.a] ?? 250)),
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <T style={{ fontSize: 22, lineHeight: 28 }}>{r.e}</T>
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <T numberOfLines={1} style={sans(15, 600)}>
+          {r.n}
+        </T>
+        <T numberOfLines={1} style={sans(12, 600, r.sum ? C.terra : C.ink3)}>
+          {r.sum
+            ? r.sum
+            : isP
+              ? 'On the shelf · ' + SHELVES[r.sh]
+              : 'Sorted into ' + AISLES[r.a]}
+          {!isP && r.q ? ' · ' + r.q : ''}
+        </T>
+      </View>
+      <Press
+        onPress={onDismiss}
+        scale={0.92}
+        accessibilityLabel={'Skip ' + r.n}
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Glyph name="close" size={20} color={C.ink3} />
+      </Press>
+      <Press
+        onPress={onAccept}
+        scale={0.92}
+        accessibilityLabel={'Add ' + r.n}
+        style={{
+          width: 36,
+          height: 36,
+          borderRadius: 18,
+          backgroundColor: C.green,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <Glyph name="check" size={20} color={C.bg} />
+      </Press>
+    </View>
+  );
+}
+
 function PendingRow({ p, isP }: { p: Pending; isP: boolean }) {
   const r = p.res;
   const [now, setNow] = useState(p.t0);
@@ -682,9 +936,7 @@ function PendingRow({ p, isP }: { p: Pending; isP: boolean }) {
     return () => clearInterval(t);
   }, [r]);
   const STG = [
-    'Reading',
     'Recognising the ingredient',
-    'Picking an icon',
     isP ? 'Finding its shelf' : 'Finding its aisle',
   ];
   const k = Math.min(
@@ -757,9 +1009,11 @@ function PendingRow({ p, isP }: { p: Pending; isP: boolean }) {
           </Animated.Text>
           <Animated.Text allowFontScaling={false} style={[sans(12, 600), col]}>
             {r
-              ? isP
-                ? 'On the shelf · ' + SHELVES[r.sh]
-                : 'Sorted into ' + AISLES[r.a]
+              ? r.sum
+                ? r.sum
+                : isP
+                  ? 'On the shelf · ' + SHELVES[r.sh]
+                  : 'Sorted into ' + AISLES[r.a]
               : STG[k]}
           </Animated.Text>
           {r ? null : <Dots textStyle={sans(12, 600, C.terra)} />}
@@ -776,12 +1030,14 @@ function GrocRow({
   g,
   first,
   fresh,
-  onToggle,
+  editing,
+  onPress,
 }: {
   g: TGroc;
   first: boolean;
   fresh: boolean;
-  onToggle: (g: TGroc) => void;
+  editing: boolean;
+  onPress: () => void;
 }) {
   const done = g.done;
   const row = useAnimatedStyle(() => ({
@@ -810,9 +1066,10 @@ function GrocRow({
   }));
   return (
     <Press
-      onPress={() => onToggle(g)}
-      accessibilityRole="checkbox"
-      accessibilityState={{ checked: done }}
+      onPress={onPress}
+      accessibilityRole={editing ? 'button' : 'checkbox'}
+      accessibilityLabel={editing ? 'Edit ' + g.n : undefined}
+      accessibilityState={editing ? { selected: true } : { checked: done }}
       animatedStyle={row}
       style={{
         flexDirection: 'row',
@@ -868,23 +1125,27 @@ function GrocRow({
           {[g.q, g.src].filter(Boolean).join(' · ')}
         </T>
       </Animated.View>
-      <Animated.View
-        style={[
-          {
-            width: 26,
-            height: 26,
-            borderRadius: 13,
-            borderWidth: 2,
-            alignItems: 'center',
-            justifyContent: 'center',
-          },
-          box,
-        ]}
-      >
-        <Animated.View style={chk}>
-          <Glyph name="check" size={18} color={C.bg} />
+      {editing ? (
+        <Glyph name="edit" size={20} color={C.ink3} />
+      ) : (
+        <Animated.View
+          style={[
+            {
+              width: 26,
+              height: 26,
+              borderRadius: 13,
+              borderWidth: 2,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+            box,
+          ]}
+        >
+          <Animated.View style={chk}>
+            <Glyph name="check" size={18} color={C.bg} />
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
+      )}
     </Press>
   );
 }
@@ -1004,6 +1265,376 @@ function LevelBar({ bg }: { bg: string }) {
     backgroundColor: tw(bg, 300, CSS_EASE),
   }));
   return <Animated.View style={[{ flex: 1, height: 4, borderRadius: 2 }, a]} />;
+}
+
+/* ───────────── Edit shopping-list item ───────────── */
+
+const METRIC_UNITS = ['g', 'kg', 'ml', 'l', 'tsp', 'tbsp'];
+const IMPERIAL_UNITS = ['oz', 'lb', 'cup', 'fl oz', 'tsp', 'tbsp'];
+
+type GrocDraft = {
+  id: string;
+  n: string;
+  e: string;
+  amt: string;
+  unit: string;
+  a: number;
+};
+
+function ChipRow({ children }: { children: ReactNode }) {
+  return (
+    <ScrollView
+      horizontal
+      nestedScrollEnabled
+      keyboardShouldPersistTaps="handled"
+      showsHorizontalScrollIndicator={false}
+      style={{ marginTop: 10, marginHorizontal: -20, height: 40 }}
+      contentContainerStyle={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 20,
+      }}
+    >
+      {children}
+    </ScrollView>
+  );
+}
+
+/** Amount sits on the left. Focusing puts the caret at the end of the number. */
+function QtyField({
+  value,
+  onChangeText,
+}: {
+  value: string;
+  onChangeText: (amt: string) => void;
+}) {
+  const ref = useRef<TextInput>(null);
+  const [caret, setCaret] = useState<number | null>(null);
+  return (
+    <Input
+      ref={ref}
+      value={value}
+      selection={caret != null ? { start: caret, end: caret } : undefined}
+      onChangeText={(t) => onChangeText(t.replace(/[^\d.,]/g, ''))}
+      onFocus={() => {
+        const len = value.length;
+        setCaret(len);
+        setTimeout(() => {
+          ref.current?.setNativeProps({
+            selection: { start: len, end: len },
+          });
+          setCaret(null);
+        }, 30);
+      }}
+      onBlur={() => setCaret(null)}
+      keyboardType="decimal-pad"
+      placeholder="—"
+      placeholderTextColor={C.ink3}
+      accessibilityLabel="Quantity"
+      allowFontScaling={false}
+      style={[
+        sans(16, 700),
+        {
+          width: 92,
+          height: 44,
+          borderRadius: 99,
+          backgroundColor: C.surface2,
+          paddingVertical: 0,
+          paddingLeft: 16,
+          paddingRight: 16,
+          textAlign: 'left',
+          fontVariant: ['tabular-nums'],
+        },
+        INPUT_WEB,
+      ]}
+    />
+  );
+}
+
+function shownQty(
+  quantity: number | null,
+  unit: string | null,
+  units: Units,
+): { amt: string; unit: string } {
+  const amount = convertAmount(quantity, unit, units);
+  const n = amount.quantity;
+  return {
+    amt:
+      n == null || Number.isNaN(+n) ? '' : String(Math.round(+n * 1000) / 1000),
+    unit: (displayUnit(amount.unit) ?? '').toLowerCase(),
+  };
+}
+
+export function EditGrocerySheet() {
+  const f = useFrame();
+  const open = useNav((s) => s.gedOn);
+  const gedId = useNav((s) => s.gedId);
+  const units = useTortiePrefs((s) => s.units);
+  const { list } = useTGroceries();
+  const client = useQueryClient();
+  const patch = usePatchShoppingItem();
+  const del = useDeleteShoppingItem();
+  const [d, setD] = useState<GrocDraft | null>(null);
+
+  const [wasOpen, setWasOpen] = useState(false);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    const g = open ? list.find((x) => x.id === gedId) : undefined;
+    if (g) {
+      const shown = shownQty(g.view.quantity, g.view.unit, units);
+      setD({
+        id: g.id,
+        n: g.n,
+        e: g.e,
+        amt: shown.amt,
+        unit: shown.unit,
+        a: g.a,
+      });
+    }
+  }
+
+  const x = d ?? { id: '', n: '', e: '🛒', amt: '', unit: '', a: 0 };
+  const up = (o: Partial<GrocDraft>) => setD((s) => (s ? { ...s, ...o } : s));
+  const close = () => useNav.getState().set({ gedOn: false });
+  const base = units === 'imperial' ? IMPERIAL_UNITS : METRIC_UNITS;
+  const choices = x.unit && !base.includes(x.unit) ? [...base, x.unit] : base;
+
+  const save = () => {
+    if (!d) return close();
+    const cur = list.find((g) => g.id === d.id);
+    if (!cur) return close();
+    const id = d.id;
+    const typed = d.n.trim();
+    const name = typed && typed !== cur.n ? typed : cur.view.name;
+    const shown = shownQty(cur.view.quantity, cur.view.unit, units);
+    const parsed = parseFloat(d.amt.replace(',', '.'));
+    const nextQty =
+      d.amt.trim() === '' || Number.isNaN(parsed) ? null : parsed;
+    const shownQtyN =
+      shown.amt === '' || Number.isNaN(+shown.amt) ? null : +shown.amt;
+    const qtySame = nextQty === shownQtyN && d.unit === shown.unit;
+    const quantity = qtySame ? cur.view.quantity : nextQty;
+    const unit = qtySame ? cur.view.unit : d.unit.trim() || null;
+    const same =
+      name === cur.view.name &&
+      quantity === cur.view.quantity &&
+      (unit ?? null) === (cur.view.unit ?? null);
+    const auto = aisleIndexOf(name, cur.view.category);
+    const picks = useGroceryAisles.getState();
+    const nextAisle = d.a === auto ? undefined : d.a;
+    const aisleDirty = picks.by[id] !== nextAisle;
+    close();
+    if (aisleDirty) {
+      if (nextAisle == null) picks.clear(id);
+      else picks.set(id, nextAisle);
+    }
+    if (same) return;
+    const prev = cur.view;
+    editShop(client, (items) =>
+      items.map((v) => (v.id === id ? { ...v, name, quantity, unit } : v)),
+    );
+    patch.mutate(
+      { id, body: { name, quantity, unit } },
+      {
+        onError: () => {
+          editShop(client, (items) =>
+            items.map((v) => (v.id === id ? prev : v)),
+          );
+          toast('Couldn’t update ' + (typed || cur.n) + '. Try again.');
+        },
+      },
+    );
+  };
+
+  const remove = () => {
+    if (!d) return close();
+    const gone = list.find((g) => g.id === d.id);
+    const last = list.length <= 1;
+    close();
+    if (last) useNav.getState().set({ grocEdit: false });
+    useGroceryAisles.getState().clear(d.id);
+    editShop(client, (items) => items.filter((v) => v.id !== d.id));
+    toast(d.e + ' ' + d.n + ' removed from your list');
+    del.mutate(d.id, {
+      onError: () => {
+        if (gone) editShop(client, (items) => [...items, gone.view]);
+        toast('Couldn’t remove ' + d.n + '. Try again.');
+      },
+    });
+  };
+
+  return (
+    <Sheet
+      open={open}
+      onClose={close}
+      z={40}
+      avoidKeyboard
+      style={{ paddingBottom: f.sheetBottom }}
+    >
+      <Grabber />
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <View
+          style={{
+            width: 54,
+            height: 54,
+            borderRadius: 27,
+            backgroundColor: C.white,
+            borderWidth: 1,
+            borderColor: C.line,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <T style={{ fontSize: 28, lineHeight: 32 }}>{x.e}</T>
+        </View>
+        <RevealBox style={{ flex: 1, minWidth: 0 }}>
+          <View
+            style={{
+              minHeight: 52,
+              justifyContent: 'center',
+              backgroundColor: C.white,
+              borderWidth: 1,
+              borderColor: C.line,
+              borderRadius: 16,
+            }}
+          >
+            <Input
+              value={x.n}
+              onChangeText={(n) => up({ n })}
+              maxLength={200}
+              placeholder="Name"
+              placeholderTextColor={C.ink3}
+              accessibilityLabel="Name"
+              allowFontScaling={false}
+              style={[
+                {
+                  paddingVertical: 10,
+                  paddingLeft: 14,
+                  paddingRight: 40,
+                  fontFamily: F.serif500,
+                  fontSize: 22,
+                  letterSpacing: em(22, -0.01),
+                  color: C.ink,
+                },
+                INPUT_WEB,
+              ]}
+            />
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                right: 12,
+                top: 0,
+                bottom: 0,
+                justifyContent: 'center',
+              }}
+            >
+              <Glyph name="edit" size={18} color={C.ink3} />
+            </View>
+          </View>
+        </RevealBox>
+      </View>
+      <T
+        style={[
+          sans(12, 700, C.ink2),
+          {
+            letterSpacing: em(12, 0.08),
+            textTransform: 'uppercase',
+            marginTop: 18,
+          },
+        ]}
+      >
+        Aisle
+      </T>
+      <ChipRow>
+        {AISLES.map((name, i) => (
+          <GridPill
+            key={name}
+            hug
+            label={name}
+            on={x.a === i}
+            onPress={() => up({ a: i })}
+          />
+        ))}
+      </ChipRow>
+      <RevealBox
+        style={{
+          marginTop: 18,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+          backgroundColor: C.white,
+          borderWidth: 1,
+          borderColor: C.line,
+          borderRadius: 22,
+          paddingVertical: 10,
+          paddingLeft: 16,
+          paddingRight: 14,
+        }}
+      >
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <T style={sans(15, 600)}>Quantity</T>
+          <T style={[sans(12, 400, C.ink2), { marginTop: 2 }]}>
+            How much to buy
+          </T>
+        </View>
+        <QtyField value={x.amt} onChangeText={(amt) => up({ amt })} />
+      </RevealBox>
+      <ChipRow>
+        <GridPill
+          hug
+          label="pcs"
+          on={x.unit === ''}
+          onPress={() => up({ unit: '' })}
+        />
+        {choices.map((u) => (
+          <GridPill
+            key={u}
+            hug
+            label={u}
+            on={x.unit === u}
+            onPress={() => up({ unit: u })}
+          />
+        ))}
+      </ChipRow>
+      <View style={{ flexDirection: 'row', gap: 10, marginTop: 22 }}>
+        <Press
+          onPress={remove}
+          scale={0.92}
+          easing={CSS_EASE}
+          accessibilityLabel="Remove from list"
+          style={{
+            width: 54,
+            height: 54,
+            borderRadius: 27,
+            borderWidth: 1,
+            borderColor: C.terraSoft,
+            backgroundColor: C.terraWash,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Glyph name="delete" size={22} color={C.terra} />
+        </Press>
+        <Press
+          onPress={save}
+          scale={0.97}
+          easing={CSS_EASE}
+          style={{
+            flex: 1,
+            height: 54,
+            borderRadius: 99,
+            backgroundColor: C.green,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <T style={sans(15, 700, C.bg)}>Save</T>
+        </Press>
+      </View>
+    </Sheet>
+  );
 }
 
 /* ───────────── Edit pantry item ───────────── */
@@ -1399,10 +2030,13 @@ function GridPill({
   label,
   on,
   onPress,
+  hug = false,
 }: {
   label: string;
   on: boolean;
   onPress: () => void;
+  /** Size to the label, for a horizontal row. */
+  hug?: boolean;
 }) {
   const box = useAnimatedStyle(() => ({
     backgroundColor: tw(on ? C.green : C.white, 200, CSS_EASE),
@@ -1418,10 +2052,10 @@ function GridPill({
       accessibilityState={{ selected: on }}
       animatedStyle={box}
       style={{
-        flex: 1,
-        minWidth: 0,
+        ...(hug
+          ? { paddingHorizontal: 14 }
+          : { flex: 1, minWidth: 0, paddingHorizontal: 8 }),
         height: 40,
-        paddingHorizontal: 8,
         borderRadius: 99,
         borderWidth: 1,
         borderColor: on ? C.green : C.line,

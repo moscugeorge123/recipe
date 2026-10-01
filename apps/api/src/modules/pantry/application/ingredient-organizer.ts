@@ -3,22 +3,26 @@ import { z } from 'zod';
 import type { AppConfig } from '../../../config/env.js';
 import type { LLMProvider } from '../../../infrastructure/ai/llm/llm-provider.js';
 import type { AIUsageTracker } from '../../../infrastructure/ai/usage/ai-usage-tracker.js';
+import { silentLogger, type AppLogger } from '../../../infrastructure/logging/logger.js';
 import { toSentenceCase } from '../../normalization/domain/casing.js';
 import { INGREDIENT_CATEGORIES } from '../../normalization/domain/presentation-heuristics.js';
 import {
   GARDEN_PLATE_COLOR_TOKENS,
   resolveIngredientPresentation,
 } from '../../normalization/domain/presentation.js';
-import { normalizeIngredientName } from '../../normalization/domain/units.js';
+import {
+  normalizeIngredientName,
+  normalizeUnit,
+  singularizePhrase,
+} from '../../normalization/domain/units.js';
 import {
   classificationCacheKey,
   type CachedClassification,
   type ClassificationCache,
 } from './classification-cache.js';
-import { dictionaryDisplayName, lookupIngredientDictionary } from './ingredient-dictionary.js';
 import { estimateTokenCount, parsePantryText, type ParsedPantryLine } from './parse-pantry-text.js';
 
-export const INGREDIENT_ORGANIZE_PROMPT_VERSION = 'ingredient-enrichment-v1';
+export const INGREDIENT_ORGANIZE_PROMPT_VERSION = 'ingredient-enrichment-v2';
 
 export type OrganizeSource = 'dictionary' | 'cache' | 'ai' | 'fallback';
 
@@ -120,8 +124,16 @@ export const INGREDIENT_ORGANIZE_JSON_SCHEMA: Record<string, unknown> = {
   additionalProperties: false,
 };
 
-const SYSTEM_PROMPT =
-  'Classify grocery items. JSON only. No prose. One emoji grapheme. Garden Plate colorToken.';
+const SYSTEM_PROMPT = [
+  'Classify grocery lines. JSON only. No prose.',
+  'Each line may be in any language. Identify the food.',
+  'n: one singular English ingredient name, with no amount and no brand. Lemon, never Lemons.',
+  'e: one emoji grapheme for that food.',
+  'q: numeric amount, or null when the line has no amount.',
+  'u: the unit as written. 3kg is q 3 u kg, never 3000 g. 1l is q 1 u l, never 1000 ml.',
+  'Allowed units: g, kg, ml, l, cup, tbsp, tsp, oz, lb, clove, piece. u is null for a bare count (2 lemons, două lămâi, 3 яйца).',
+  'c: category. t: Garden Plate colorToken. k: confidence from 0 to 1. i: the line index.',
+].join(' ');
 
 function isForbiddenModel(model: string): boolean {
   return /gpt-5\.6/i.test(model);
@@ -164,10 +176,11 @@ function toOrganized(
     emoji: input.emoji,
     colorToken: input.colorToken,
   });
+  const canonicalName = normalizeIngredientName(input.name);
   return {
     rawText: line.rawText,
-    name: toSentenceCase(input.name),
-    canonicalName: input.canonicalName,
+    name: toSentenceCase(singularizePhrase(input.name)),
+    canonicalName,
     category: presentation.category,
     emoji: presentation.emoji,
     colorToken: presentation.colorToken,
@@ -216,36 +229,11 @@ function fromCache(
     category: cached.category,
     emoji: cached.emoji,
     colorToken: cached.colorToken,
-    quantity: line.quantity,
-    unit: line.unit,
+    quantity: line.quantity ?? cached.quantity ?? null,
+    unit: line.unit ?? cached.unit ?? null,
     confidence: cached.confidence,
-    source: cached.source === 'dictionary' ? 'dictionary' : 'cache',
+    source: 'cache',
     status: cached.confidence < 0.55 ? 'NEEDS_REVIEW' : 'CLASSIFIED',
-    locale,
-    promptVersion,
-  });
-}
-
-function fromDictionary(
-  line: ParsedPantryLine,
-  locale: string,
-  promptVersion: string,
-): OrganizedPantryItem | null {
-  const entry = lookupIngredientDictionary(line.remainder);
-  if (!entry) {
-    return null;
-  }
-  return toOrganized(line, {
-    name: dictionaryDisplayName(entry, line.remainder),
-    canonicalName: entry.canonicalName,
-    category: entry.category,
-    emoji: entry.emoji,
-    colorToken: entry.colorToken,
-    quantity: line.quantity,
-    unit: line.unit,
-    confidence: 0.99,
-    source: 'dictionary',
-    status: 'CLASSIFIED',
     locale,
     promptVersion,
   });
@@ -264,14 +252,15 @@ function fromAiItem(
     colorToken: ai.t,
   });
   const confidence = Number.isFinite(ai.k) ? ai.k : 0.5;
+  const modelUnit = ai.u?.trim() ? normalizeUnit(ai.u) : null;
   return toOrganized(line, {
     name: ai.n,
     canonicalName: normalizeIngredientName(ai.n),
     category: presentation.category,
     emoji: presentation.emoji,
     colorToken: presentation.colorToken,
-    quantity: ai.q,
-    unit: ai.u,
+    quantity: line.quantity ?? ai.q,
+    unit: line.unit ?? modelUnit,
     confidence,
     source: 'ai',
     status: confidence < 0.55 ? 'NEEDS_REVIEW' : 'CLASSIFIED',
@@ -306,8 +295,33 @@ function dedupeItems(items: OrganizedPantryItem[]): OrganizedPantryItem[] {
 }
 
 function buildUserPrompt(locale: string, promptVersion: string, lines: ParsedPantryLine[]): string {
-  const body = lines.map((line) => `${String(line.index)}\t${line.remainder}`).join('\n');
-  return `LOCALE ${locale}\nVERSION ${promptVersion}\n${body}`;
+  const body = lines.map((line) => `${String(line.index)}\t${line.rawText}`).join('\n');
+  return `LOCALE ${locale}\nVERSION ${promptVersion}\nLINES index<TAB>text\n${body}`;
+}
+
+function toCache(
+  organized: OrganizedPantryItem,
+  line: ParsedPantryLine,
+  source: CachedClassification['source'],
+): CachedClassification {
+  return {
+    canonicalName: organized.canonicalName,
+    displayName: organized.name,
+    category: organized.category,
+    emoji: organized.emoji,
+    colorToken: organized.colorToken,
+    confidence: organized.confidence,
+    source,
+    promptVersion: organized.promptVersion,
+    ...(line.quantity == null && organized.quantity != null
+      ? { quantity: organized.quantity }
+      : {}),
+    ...(line.unit == null && organized.unit ? { unit: organized.unit } : {}),
+  };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 export class IngredientOrganizer {
@@ -316,6 +330,7 @@ export class IngredientOrganizer {
     private readonly cache: ClassificationCache,
     private readonly llm: LLMProvider | null,
     private readonly usageTracker: AIUsageTracker | null,
+    private readonly log: AppLogger = silentLogger(),
   ) {}
 
   async organize(input: OrganizeInput): Promise<OrganizeResult> {
@@ -337,29 +352,27 @@ export class IngredientOrganizer {
     const unknown: ParsedPantryLine[] = [];
 
     for (const line of inBudget) {
-      const dictionary = fromDictionary(line, locale, promptVersion);
-      if (dictionary) {
-        dictionaryHits += 1;
-        items.push(dictionary);
-        await this.cache.set(classificationCacheKey(line.remainder, locale, promptVersion), {
-          canonicalName: dictionary.canonicalName,
-          displayName: dictionary.name,
-          category: dictionary.category,
-          emoji: dictionary.emoji,
-          colorToken: dictionary.colorToken,
-          confidence: dictionary.confidence,
-          source: 'dictionary',
-          promptVersion,
-        });
-        continue;
-      }
-
       const cached = await this.cache.get(
         classificationCacheKey(line.remainder, locale, promptVersion),
       );
-      if (cached) {
+      if (cached && cached.source !== 'dictionary') {
         cacheHits += 1;
-        items.push(fromCache(line, cached, locale, promptVersion));
+        const hit = fromCache(line, cached, locale, promptVersion);
+        items.push(hit);
+        this.log.info(
+          {
+            step: 'pantry.organize.cache',
+            input: line.rawText,
+            output: {
+              name: hit.name,
+              emoji: hit.emoji,
+              quantity: hit.quantity,
+              unit: hit.unit,
+              category: hit.category,
+            },
+          },
+          'pantry.organize cache hit',
+        );
         continue;
       }
 
@@ -396,7 +409,7 @@ export class IngredientOrganizer {
       });
     }
 
-    return {
+    const result: OrganizeResult = {
       items: dedupeItems(items),
       unresolved,
       meta: {
@@ -411,6 +424,34 @@ export class IngredientOrganizer {
         aiAvailable,
       },
     };
+    this.log.info(
+      {
+        step: 'pantry.organize',
+        input: parsed.map((line) => line.rawText),
+        output: result.items.map((item) => ({
+          rawText: item.rawText,
+          name: item.name,
+          emoji: item.emoji,
+          quantity: item.quantity,
+          unit: item.unit,
+          category: item.category,
+          confidence: item.confidence,
+          source: item.source,
+          status: item.status,
+        })),
+        unresolved: result.unresolved,
+        cacheHits,
+        dictionaryHits,
+        aiItemCount,
+        modelsUsed,
+        escalatedCount,
+        fallbackCount,
+        truncated: result.meta.truncated,
+        aiAvailable,
+      },
+      'pantry.organize completed',
+    );
+    return result;
   }
 
   private async classifyUnknown(
@@ -428,6 +469,10 @@ export class IngredientOrganizer {
     }
 
     if (!this.llm) {
+      this.log.warn(
+        { step: 'pantry.organize', input: unknown.map((line) => line.rawText) },
+        'pantry.organize skipped: no model configured',
+      );
       return {
         items: unknown.map((line) => fallbackItem(line, ctx.locale, ctx.promptVersion)),
         unresolved: unknown.map((line) => ({
@@ -569,16 +614,10 @@ export class IngredientOrganizer {
       const organized = fromAiItem(line, ai, ctx.locale, ctx.promptVersion);
       items.push(organized);
       remaining.delete(ai.i);
-      void this.cache.set(classificationCacheKey(line.remainder, ctx.locale, ctx.promptVersion), {
-        canonicalName: organized.canonicalName,
-        displayName: organized.name,
-        category: organized.category,
-        emoji: organized.emoji,
-        colorToken: organized.colorToken,
-        confidence: organized.confidence,
-        source: 'ai',
-        promptVersion: ctx.promptVersion,
-      });
+      void this.cache.set(
+        classificationCacheKey(line.remainder, ctx.locale, ctx.promptVersion),
+        toCache(organized, line, 'ai'),
+      );
     }
   }
 
@@ -593,6 +632,7 @@ export class IngredientOrganizer {
     }
     ctx.modelsUsed.push(model);
     const startedAt = Date.now();
+    const input = lines.map((line) => line.rawText);
     try {
       const result = await this.llm.generateStructured<unknown>(
         {
@@ -606,17 +646,63 @@ export class IngredientOrganizer {
           model,
           maxTokens: this.config.ai.ingredientMaxOutputTokens,
           reasoningEffort: this.config.ai.ingredientReasoningEffort,
+          operation,
         },
         INGREDIENT_ORGANIZE_JSON_SCHEMA,
       );
       await this.track(ctx.userId, model, operation, result.usage.inputTokens, result.usage.outputTokens, result.durationMs);
       const parsed = compactBatchSchema.safeParse(result.data);
       if (!parsed.success) {
+        this.log.warn(
+          {
+            step: 'pantry.organize.model',
+            operation,
+            model,
+            input,
+            output: result.data,
+            issues: parsed.error.issues.map((issue) => ({
+              path: issue.path.join('.'),
+              message: issue.message,
+            })),
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            durationMs: result.durationMs,
+          },
+          'pantry.organize model output did not match the schema',
+        );
         return 'malformed';
       }
+      this.log.info(
+        {
+          step: 'pantry.organize.model',
+          operation,
+          model,
+          input,
+          output: parsed.data.items,
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          durationMs: result.durationMs,
+        },
+        'pantry.organize model completed',
+      );
       return parsed.data.items;
-    } catch {
-      await this.track(ctx.userId, model, operation, 0, 0, Date.now() - startedAt);
+    } catch (error: unknown) {
+      const durationMs = Date.now() - startedAt;
+      this.log.error(
+        {
+          step: 'pantry.organize.model',
+          operation,
+          model,
+          input,
+          inputTokens: 0,
+          outputTokens: 0,
+          durationMs,
+          errorMessage: errorMessage(error),
+          err: error,
+        },
+        'pantry.organize model failed',
+      );
+      await this.track(ctx.userId, model, operation, 0, 0, durationMs);
       return null;
     }
   }
@@ -631,6 +717,8 @@ export class IngredientOrganizer {
     }
     ctx.modelsUsed.push(model);
     const startedAt = Date.now();
+    const input = [line.rawText];
+    const operation = 'pantry_organize_escalation';
     try {
       const result = await this.llm.generateStructured<unknown>(
         {
@@ -644,13 +732,14 @@ export class IngredientOrganizer {
           model,
           maxTokens: Math.min(256, this.config.ai.ingredientMaxOutputTokens),
           reasoningEffort: this.config.ai.ingredientReasoningEffort,
+          operation,
         },
         INGREDIENT_ORGANIZE_JSON_SCHEMA,
       );
       await this.track(
         ctx.userId,
         model,
-        'pantry_organize_escalation',
+        operation,
         result.usage.inputTokens,
         result.usage.outputTokens,
         result.durationMs,
@@ -658,22 +747,63 @@ export class IngredientOrganizer {
       const parsed = compactBatchSchema.safeParse(result.data);
       const ai = parsed.success ? parsed.data.items[0] : undefined;
       if (!ai) {
+        this.log.warn(
+          {
+            step: 'pantry.organize.model',
+            operation,
+            model,
+            input,
+            output: result.data,
+            issues: parsed.success
+              ? []
+              : parsed.error.issues.map((issue) => ({
+                  path: issue.path.join('.'),
+                  message: issue.message,
+                })),
+            inputTokens: result.usage.inputTokens,
+            outputTokens: result.usage.outputTokens,
+            durationMs: result.durationMs,
+          },
+          'pantry.organize model output did not match the schema',
+        );
         return null;
       }
+      this.log.info(
+        {
+          step: 'pantry.organize.model',
+          operation,
+          model,
+          input,
+          output: ai,
+          inputTokens: result.usage.inputTokens,
+          outputTokens: result.usage.outputTokens,
+          durationMs: result.durationMs,
+        },
+        'pantry.organize model completed',
+      );
       const organized = fromAiItem(line, { ...ai, i: line.index }, ctx.locale, ctx.promptVersion);
-      await this.cache.set(classificationCacheKey(line.remainder, ctx.locale, ctx.promptVersion), {
-        canonicalName: organized.canonicalName,
-        displayName: organized.name,
-        category: organized.category,
-        emoji: organized.emoji,
-        colorToken: organized.colorToken,
-        confidence: organized.confidence,
-        source: 'ai',
-        promptVersion: ctx.promptVersion,
-      });
+      await this.cache.set(
+        classificationCacheKey(line.remainder, ctx.locale, ctx.promptVersion),
+        toCache(organized, line, 'ai'),
+      );
       return organized;
-    } catch {
-      await this.track(ctx.userId, model, 'pantry_organize_escalation', 0, 0, Date.now() - startedAt);
+    } catch (error: unknown) {
+      const durationMs = Date.now() - startedAt;
+      this.log.error(
+        {
+          step: 'pantry.organize.model',
+          operation,
+          model,
+          input,
+          inputTokens: 0,
+          outputTokens: 0,
+          durationMs,
+          errorMessage: errorMessage(error),
+          err: error,
+        },
+        'pantry.organize model failed',
+      );
+      await this.track(ctx.userId, model, operation, 0, 0, durationMs);
       return null;
     }
   }

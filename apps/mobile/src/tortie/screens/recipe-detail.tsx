@@ -2,7 +2,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { BlurView } from 'expo-blur';
 import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import {
+  Children,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   ScrollView,
   View,
@@ -10,7 +17,12 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import {
   useAddCollectionRecipe,
@@ -22,8 +34,7 @@ import {
   useCreateMealPlanEntry,
   useMealPlan,
 } from '@/features/meal-plan/hooks';
-import { mondayOfWeek } from '@/features/meal-plan/types';
-import { daysOfWeek, localTodayIso } from '@/features/meal-plan/week';
+import { daysOfWeek } from '@/features/meal-plan/week';
 import {
   collectionKeys,
   mealPlanKeys,
@@ -31,16 +42,24 @@ import {
 } from '@/features/query-keys';
 import { deleteRecipe } from '@/features/recipes/api';
 import type { RecipeView } from '@/features/recipes/types';
-import {
-  useAddFromRecipe,
-  useShoppingList,
-} from '@/features/shopping-list/hooks';
+import { useShoppingList } from '@/features/shopping-list/hooks';
 import { useCook } from '@/tortie/cook-store';
 import { collName } from '@/tortie/data/cookbook';
+import { presentGroceryPick } from '@/tortie/data/grocery-pick';
+import {
+  isoParts,
+  mealSlot,
+  mondayAt,
+  todayIndex,
+  toWeek,
+  weekName,
+  weekRange,
+  type MealKey,
+} from '@/tortie/data/plan';
 import { collectionMembership } from '@/tortie/data/selection';
 import { useMotion } from '@/tortie/motion';
 import { useServings } from '@/tortie/data/recipe-ui';
-import { ingQty, useTRecipe } from '@/tortie/data/recipes';
+import { ingQty, useTRecipe, useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { DAYNAMES, fmtT, plz } from '@/tortie/lib/fmt';
 import { afterMotion, toast, useNav } from '@/tortie/nav-store';
@@ -50,7 +69,7 @@ import { Grabber, Segmented } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
-import { Sheet } from '@/tortie/ui/sheet';
+import { Sheet, SheetScroll } from '@/tortie/ui/sheet';
 import { em, sans, serif, T } from '@/tortie/ui/text';
 
 const FROST = 'rgba(248,250,245,.92)';
@@ -725,19 +744,14 @@ export function RecipeMenuSheet() {
     return () => clearTimeout(t);
   }, [open, showBulk, sheetMs]);
   const bulkView = menuBulk || (showBulk && !open);
+  const subView = menuV === 'plan' || menuV === 'coll' ? menuV : null;
+  const [panel, setPanel] = useState<'plan' | 'coll'>('plan');
+  if (subView && panel !== subView) setPanel(subView);
   const { r } = useTRecipe(id);
-  const [serv] = useServings(id, r?.base ?? 2);
   const client = useQueryClient();
 
   const collections = useCollections();
-  const addToColl = useAddCollectionRecipe();
-  const removeFromColl = useRemoveCollectionRecipe();
-  const setMembership = useSetCollectionMembership();
-  const monday = mondayOfWeek(localTodayIso());
-  const plan = useMealPlan(monday);
-  const createEntry = useCreateMealPlanEntry();
   const shop = useShoppingList();
-  const addFromRecipe = useAddFromRecipe();
   const del = useMutation({
     mutationFn: (rid: string) => deleteRecipe(rid),
     onSuccess: (_d, rid) => {
@@ -758,18 +772,6 @@ export function RecipeMenuSheet() {
     [collections.data],
   );
   const inC = id ? colls.filter((c) => c.recipeIds.includes(id)).length : 0;
-
-  const freeDay = useMemo(() => {
-    const days = daysOfWeek(monday);
-    const today = (new Date().getDay() + 6) % 7;
-    const items = plan.data?.items ?? [];
-    for (let i = today; i < 7; i++) {
-      const d = days[i]!;
-      if (!items.some((e) => e.slot === 'DINNER' && e.date.slice(0, 10) === d))
-        return i;
-    }
-    return null;
-  }, [monday, plan.data]);
 
   const missing = useMemo(() => {
     const groc = (shop.data?.items ?? []).map((g) => g.name.toLowerCase());
@@ -809,26 +811,10 @@ export function RecipeMenuSheet() {
     {
       icon: 'calendar_add_on',
       l: 'Add to meal plan',
-      sub:
-        freeDay != null
-          ? 'Next free dinner · ' + DAYNAMES[freeDay]
-          : 'This week’s dinners are full',
-      trail: '',
+      sub: 'Choose a day',
+      trail: 'chevron_right',
       ic: C.green,
-      on: () => {
-        if (freeDay == null) {
-          toast('No free dinners this week');
-          return;
-        }
-        if (!id) return;
-        const date = daysOfWeek(monday)[freeDay]!;
-        createEntry.mutate(
-          { date, slot: 'DINNER', kind: 'RECIPE', recipeId: id },
-          { onError: () => toast('Couldn’t add it to your plan. Try again.') },
-        );
-        close();
-        toast('Planned for ' + DAYNAMES[freeDay] + ' dinner');
-      },
+      on: () => useNav.getState().set({ menuV: 'plan' }),
     },
     {
       icon: 'add_shopping_cart',
@@ -836,20 +822,12 @@ export function RecipeMenuSheet() {
       sub: missing.length
         ? missing.length + ' not on your list yet'
         : 'Everything’s already on your list',
-      trail: '',
+      trail: 'chevron_right',
       ic: C.terra,
       on: () => {
         if (!id) return;
         close();
-        if (!missing.length) {
-          toast('Already on your list');
-          return;
-        }
-        addFromRecipe.mutate(
-          { recipeId: id, servings: serv },
-          { onError: () => toast('Couldn’t add to groceries. Try again.') },
-        );
-        toast(missing.length + ' items added to groceries');
+        void presentGroceryPick(client, [id]);
       },
     },
     {
@@ -876,290 +854,335 @@ export function RecipeMenuSheet() {
   return (
     <Sheet open={open} onClose={close} style={{ paddingBottom: f.sheetBottom }}>
       <Grabber />
-      {!bulkView && menuV !== 'coll' && id ? (
-        <>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Photo
-              hue={r?.hue ?? 0}
-              uri={r?.uri}
-              radius={14}
-              style={{ width: 52, height: 52 }}
-            />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <T
-                numberOfLines={1}
-                style={serif(19, 600, C.ink, { lineHeight: 22.8 })}
-              >
-                {r?.title ?? ''}
-              </T>
-              <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>{meta}</T>
-            </View>
-          </View>
-          <View
-            style={{
-              marginTop: 16,
-              backgroundColor: C.white,
-              borderWidth: 1,
-              borderColor: C.line,
-              borderRadius: 18,
-              paddingHorizontal: 16,
-            }}
-          >
-            {items.map((it, i) => (
-              <Press
-                key={it.l}
-                onPress={it.on}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 14,
-                  paddingVertical: 13,
-                  borderBottomWidth: 1,
-                  borderBottomColor:
-                    i < items.length - 1 ? C.surface3 : 'transparent',
-                }}
-              >
-                <View
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor: C.surface2,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+      {!bulkView && id ? (
+        <MenuSlide page={subView ? 1 : 0} live={open}>
+          <View>
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}
+            >
+              <Photo
+                hue={r?.hue ?? 0}
+                uri={r?.uri}
+                radius={14}
+                style={{ width: 52, height: 52 }}
+              />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T
+                  numberOfLines={1}
+                  style={serif(19, 600, C.ink, { lineHeight: 22.8 })}
                 >
-                  <Glyph name={it.icon} size={20} color={it.ic} />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <T style={sans(15, 600)}>{it.l}</T>
-                  <T style={sans(12, 400, C.ink2, { marginTop: 2 })}>
-                    {it.sub}
-                  </T>
-                </View>
-                {it.trail ? (
-                  <Glyph name={it.trail} size={20} color={C.ink3} />
-                ) : null}
-              </Press>
-            ))}
-          </View>
-          <Press
-            onPress={() => {
-              if (!id) return;
-              useNav.getState().set({
-                menu: false,
-                menuBulk: false,
-                detailOpen: false,
-              });
-              del.mutate(id);
-            }}
-            style={{
-              marginTop: 10,
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 14,
-              paddingVertical: 13,
-              paddingHorizontal: 16,
-              borderWidth: 1,
-              borderColor: C.line,
-              borderRadius: 18,
-              backgroundColor: C.white,
-            }}
-          >
+                  {r?.title ?? ''}
+                </T>
+                <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>{meta}</T>
+              </View>
+            </View>
             <View
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 18,
-                backgroundColor: C.terraSoft,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Glyph name="delete" size={20} color={C.terra} />
-            </View>
-            <T style={sans(15, 600, C.terra, { flex: 1 })}>Delete recipe</T>
-          </Press>
-        </>
-      ) : (
-        <>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Press
-              onPress={() =>
-                bulkView
-                  ? useNav.getState().closeMenu()
-                  : useNav.getState().set({ menuV: 'main' })
-              }
-              accessibilityLabel="Back"
-              scale={0.9}
-              easing={CSS_EASE}
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 20,
+                marginTop: 16,
+                backgroundColor: C.white,
                 borderWidth: 1,
                 borderColor: C.line,
-                backgroundColor: C.white,
-                alignItems: 'center',
-                justifyContent: 'center',
+                borderRadius: 18,
+                paddingHorizontal: 16,
               }}
             >
-              <Glyph name="arrow_back" size={22} color={C.ink} />
-            </Press>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <T
-                style={serif(24, 500, C.ink, { letterSpacing: em(24, -0.01) })}
-              >
-                Add to collection
-              </T>
-              <T style={sans(12, 400, C.ink2, { marginTop: 1 })}>
-                {bulkView
-                  ? selIds.length +
-                    ' recipe' +
-                    (selIds.length === 1 ? '' : 's') +
-                    ' selected'
-                  : inC
-                    ? 'Saved in ' + inC + ' of ' + colls.length
-                    : 'Pick one or more'}
-              </T>
+              {items.map((it, i) => (
+                <Press
+                  key={it.l}
+                  onPress={it.on}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 14,
+                    paddingVertical: 13,
+                    borderBottomWidth: 1,
+                    borderBottomColor:
+                      i < items.length - 1 ? C.surface3 : 'transparent',
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: C.surface2,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    <Glyph name={it.icon} size={20} color={it.ic} />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <T style={sans(15, 600)}>{it.l}</T>
+                    <T style={sans(12, 400, C.ink2, { marginTop: 2 })}>
+                      {it.sub}
+                    </T>
+                  </View>
+                  {it.trail ? (
+                    <Glyph name={it.trail} size={20} color={C.ink3} />
+                  ) : null}
+                </Press>
+              ))}
             </View>
-          </View>
-          <ScrollView
-            style={{
-              marginTop: 16,
-              maxHeight: 330,
-              backgroundColor: C.white,
-              borderWidth: 1,
-              borderColor: C.line,
-              borderRadius: 18,
-            }}
-            contentContainerStyle={{ paddingHorizontal: 16 }}
-            showsVerticalScrollIndicator={false}
-          >
             <Press
-              onPress={() =>
-                useNav.getState().openNewCollection(bulkView ? selIds : id)
-              }
+              onPress={() => {
+                if (!id) return;
+                useNav.getState().set({
+                  menu: false,
+                  menuBulk: false,
+                  detailOpen: false,
+                });
+                del.mutate(id);
+              }}
+              style={{
+                marginTop: 10,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 14,
+                paddingVertical: 13,
+                paddingHorizontal: 16,
+                borderWidth: 1,
+                borderColor: C.line,
+                borderRadius: 18,
+                backgroundColor: C.white,
+              }}
+            >
+              <View
+                style={{
+                  width: 36,
+                  height: 36,
+                  borderRadius: 18,
+                  backgroundColor: C.terraSoft,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Glyph name="delete" size={20} color={C.terra} />
+              </View>
+              <T style={sans(15, 600, C.terra, { flex: 1 })}>Delete recipe</T>
+            </Press>
+          </View>
+          {panel === 'coll' ? (
+            <CollectionMenu
+              bulk={false}
+              recipeId={id}
+              selIds={selIds}
+              onClose={close}
+            />
+          ) : (
+            <PlanDayMenu
+              recipeId={id}
+              active={menuV === 'plan'}
+              onClose={close}
+            />
+          )}
+        </MenuSlide>
+      ) : (
+        <CollectionMenu
+          bulk={bulkView}
+          recipeId={id}
+          selIds={selIds}
+          onClose={close}
+        />
+      )}
+    </Sheet>
+  );
+}
+
+function CollectionMenu({
+  bulk,
+  recipeId,
+  selIds,
+  onClose,
+}: {
+  bulk: boolean;
+  recipeId: string | null;
+  selIds: string[];
+  onClose: () => void;
+}) {
+  const collections = useCollections();
+  const addToColl = useAddCollectionRecipe();
+  const removeFromColl = useRemoveCollectionRecipe();
+  const setMembership = useSetCollectionMembership();
+  const colls = collections.data?.items ?? [];
+  const inC = recipeId
+    ? colls.filter((c) => c.recipeIds.includes(recipeId)).length
+    : 0;
+  return (
+    <View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Press
+          onPress={() =>
+            bulk
+              ? useNav.getState().closeMenu()
+              : useNav.getState().set({ menuV: 'main' })
+          }
+          accessibilityLabel="Back"
+          scale={0.9}
+          easing={CSS_EASE}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: C.line,
+            backgroundColor: C.white,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Glyph name="arrow_back" size={22} color={C.ink} />
+        </Press>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <T style={serif(24, 500, C.ink, { letterSpacing: em(24, -0.01) })}>
+            Add to collection
+          </T>
+          <T style={sans(12, 400, C.ink2, { marginTop: 1 })}>
+            {bulk
+              ? selIds.length +
+                ' recipe' +
+                (selIds.length === 1 ? '' : 's') +
+                ' selected'
+              : inC
+                ? 'Saved in ' + inC + ' of ' + colls.length
+                : 'Pick one or more'}
+          </T>
+        </View>
+      </View>
+      <SheetScroll
+        style={{
+          marginTop: 16,
+          maxHeight: 330,
+          backgroundColor: C.white,
+          borderWidth: 1,
+          borderColor: C.line,
+          borderRadius: 18,
+        }}
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+        showsVerticalScrollIndicator={false}
+      >
+        <Press
+          onPress={() =>
+            useNav.getState().openNewCollection(bulk ? selIds : recipeId)
+          }
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 14,
+            paddingVertical: 12,
+            borderBottomWidth: 1,
+            borderBottomColor: C.line,
+          }}
+        >
+          <View
+            style={{
+              width: 43,
+              height: 43,
+              borderRadius: 12,
+              borderWidth: 1.5,
+              borderStyle: 'dashed',
+              borderColor: C.lineStrong,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <Glyph name="add" size={22} color={C.green} />
+          </View>
+          <T style={sans(15, 700, C.green, { flex: 1 })}>New collection</T>
+        </Press>
+        {colls.map((c, i) => {
+          const member = bulk
+            ? collectionMembership(c.recipeIds, selIds)
+            : recipeId && c.recipeIds.includes(recipeId)
+              ? 'on'
+              : 'off';
+          const on = member === 'on';
+          const partial = member === 'partial';
+          const { n, emo } = collName(c);
+          const toggleColl = () => {
+            if (bulk) {
+              if (!selIds.length) return;
+              const remove = on
+                ? selIds.filter((rid) => c.recipeIds.includes(rid))
+                : [];
+              const add = on
+                ? []
+                : selIds.filter((rid) => !c.recipeIds.includes(rid));
+              if (!add.length && !remove.length) return;
+              setMembership.mutate(
+                { collectionId: c.id, add, remove },
+                {
+                  onError: () =>
+                    toast('Couldn’t update that collection. Try again.'),
+                },
+              );
+              return;
+            }
+            if (!recipeId) return;
+            (on ? removeFromColl : addToColl).mutate({
+              collectionId: c.id,
+              recipeId,
+            });
+          };
+          return (
+            <Press
+              key={c.id}
+              onPress={toggleColl}
+              accessibilityState={{ checked: partial ? 'mixed' : on }}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: 14,
                 paddingVertical: 12,
                 borderBottomWidth: 1,
-                borderBottomColor: C.line,
+                borderBottomColor:
+                  i < colls.length - 1 ? C.surface3 : 'transparent',
               }}
             >
               <View
                 style={{
-                  width: 43,
-                  height: 43,
+                  width: 40,
+                  height: 40,
                   borderRadius: 12,
-                  borderWidth: 1.5,
-                  borderStyle: 'dashed',
-                  borderColor: C.lineStrong,
+                  backgroundColor: C.surface2,
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}
               >
-                <Glyph name="add" size={22} color={C.green} />
+                <T style={{ fontSize: 20, textAlign: 'center' }}>
+                  {emo || '📁'}
+                </T>
               </View>
-              <T style={sans(15, 700, C.green, { flex: 1 })}>New collection</T>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T style={sans(15, 600)}>{n}</T>
+                <T style={sans(12, 400, C.ink2, { marginTop: 2 })}>
+                  {plz(c.recipeIds.length, 'recipe')}
+                </T>
+              </View>
+              <CheckCircle
+                on={on || partial}
+                glyph={partial ? 'remove' : 'check'}
+              />
             </Press>
-            {colls.map((c, i) => {
-              const member = bulkView
-                ? collectionMembership(c.recipeIds, selIds)
-                : id && c.recipeIds.includes(id)
-                  ? 'on'
-                  : 'off';
-              const on = member === 'on';
-              const partial = member === 'partial';
-              const { n, emo } = collName(c);
-              const toggleColl = () => {
-                if (bulkView) {
-                  if (!selIds.length) return;
-                  const remove = on
-                    ? selIds.filter((rid) => c.recipeIds.includes(rid))
-                    : [];
-                  const add = on
-                    ? []
-                    : selIds.filter((rid) => !c.recipeIds.includes(rid));
-                  if (!add.length && !remove.length) return;
-                  setMembership.mutate(
-                    { collectionId: c.id, add, remove },
-                    {
-                      onError: () =>
-                        toast('Couldn’t update that collection. Try again.'),
-                    },
-                  );
-                  return;
-                }
-                if (!id) return;
-                (on ? removeFromColl : addToColl).mutate({
-                  collectionId: c.id,
-                  recipeId: id,
-                });
-              };
-              return (
-                <Press
-                  key={c.id}
-                  onPress={toggleColl}
-                  accessibilityState={{ checked: partial ? 'mixed' : on }}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 14,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor:
-                      i < colls.length - 1 ? C.surface3 : 'transparent',
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 12,
-                      backgroundColor: C.surface2,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <T style={{ fontSize: 20, textAlign: 'center' }}>
-                      {emo || '📁'}
-                    </T>
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <T style={sans(15, 600)}>{n}</T>
-                    <T style={sans(12, 400, C.ink2, { marginTop: 2 })}>
-                      {plz(c.recipeIds.length, 'recipe')}
-                    </T>
-                  </View>
-                  <CheckCircle
-                    on={on || partial}
-                    glyph={partial ? 'remove' : 'check'}
-                  />
-                </Press>
-              );
-            })}
-          </ScrollView>
-          <Press
-            onPress={close}
-            scale={0.97}
-            easing={CSS_EASE}
-            style={{
-              height: 54,
-              marginTop: 16,
-              borderRadius: 99,
-              backgroundColor: C.green,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <T style={sans(15, 700, C.bg)}>Done</T>
-          </Press>
-        </>
-      )}
-    </Sheet>
+          );
+        })}
+      </SheetScroll>
+      <Press
+        onPress={onClose}
+        scale={0.97}
+        easing={CSS_EASE}
+        style={{
+          height: 54,
+          marginTop: 16,
+          borderRadius: 99,
+          backgroundColor: C.green,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <T style={sans(15, 700, C.bg)}>Done</T>
+      </Press>
+    </View>
   );
 }
 
@@ -1196,5 +1219,425 @@ function CheckCircle({
         <Glyph name={glyph} size={18} color={C.bg} />
       </Animated.View>
     </Animated.View>
+  );
+}
+
+const weekStep = {
+  width: 36,
+  height: 36,
+  borderRadius: 18,
+  borderWidth: 1,
+  borderColor: C.line,
+  backgroundColor: C.white,
+  alignItems: 'center' as const,
+  justifyContent: 'center' as const,
+};
+
+const PLAN_MEALS: [MealKey, string, string][] = [
+  ['b', 'Breakfast', 'wb_twilight'],
+  ['l', 'Lunch', 'light_mode'],
+  ['d', 'Dinner', 'dark_mode'],
+];
+
+/** Horizontal push between the recipe menu and a following page. */
+function MenuSlide({
+  page,
+  live,
+  children,
+}: {
+  page: number;
+  /** Sheet is open — closed resets snap, so the next open doesn't replay. */
+  live: boolean;
+  children: ReactNode;
+}) {
+  const pages = Children.toArray(children);
+  const count = pages.length;
+  const { m } = useMotion();
+  const ms = Math.round(460 * m);
+  const [w, setW] = useState(0);
+  const [heights, setHeights] = useState<number[]>([]);
+  const heightSV = useSharedValue(0);
+  const xSV = useSharedValue(0);
+  const primed = useRef(false);
+  const wasLive = useRef(live);
+  const targetH = heights[page] ?? 0;
+
+  const measureW = (value: number) => {
+    const next = Math.round(value);
+    setW((cur) => (cur === next ? cur : next));
+  };
+  const measureH = (i: number, value: number) => {
+    const next = Math.round(value);
+    setHeights((cur) => {
+      if (cur[i] === next) return cur;
+      const copy = cur.slice();
+      copy[i] = next;
+      return copy;
+    });
+  };
+
+  useEffect(() => {
+    const instant = !live || !wasLive.current || !primed.current;
+    wasLive.current = live;
+    if (w > 0) {
+      const to = -page * w;
+      xSV.value = instant ? to : withTiming(to, { duration: ms, easing: EASE });
+    }
+    if (targetH <= 0) return;
+    primed.current = true;
+    heightSV.value = instant
+      ? targetH
+      : withTiming(targetH, { duration: ms, easing: EASE });
+  }, [page, w, targetH, live, ms, xSV, heightSV]);
+
+  const track = useAnimatedStyle(() => ({
+    height: heightSV.value > 0 ? heightSV.value : undefined,
+    transform: [{ translateX: xSV.value }],
+  }));
+
+  return (
+    <View
+      style={{ overflow: 'hidden' }}
+      onLayout={(e) => measureW(e.nativeEvent.layout.width)}
+    >
+      <Animated.View
+        style={[
+          {
+            flexDirection: 'row',
+            width: w > 0 ? w * count : '100%',
+            alignItems: 'flex-start',
+          },
+          track,
+        ]}
+      >
+        {pages.map((child, i) => (
+          <View
+            key={i}
+            pointerEvents={page === i ? 'auto' : 'none'}
+            style={{ width: w > 0 ? w : '100%' }}
+            onLayout={(e) => measureH(i, e.nativeEvent.layout.height)}
+          >
+            {child}
+          </View>
+        ))}
+      </Animated.View>
+    </View>
+  );
+}
+
+function TurnChevron({ open }: { open: boolean }) {
+  const { m } = useMotion();
+  const p = useSharedValue(open ? 1 : 0);
+  useEffect(() => {
+    p.value = withTiming(open ? 1 : 0, {
+      duration: Math.round(320 * m),
+      easing: EASE,
+    });
+  }, [open, m, p]);
+  const a = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${p.value * 90}deg` }],
+  }));
+  return (
+    <Animated.View style={a}>
+      <Glyph name="chevron_right" size={20} color={C.ink3} />
+    </Animated.View>
+  );
+}
+
+/** Week days for “Add to meal plan”. A day expands to breakfast, lunch, dinner. */
+function PlanDayMenu({
+  recipeId,
+  active,
+  onClose,
+}: {
+  recipeId: string;
+  active: boolean;
+  onClose: () => void;
+}) {
+  const { m } = useMotion();
+  const [wk, setWk] = useState(0);
+  const [day, setDay] = useState<number | null>(null);
+  const busy = useRef(false);
+  const monday = mondayAt(wk);
+  const plan = useMealPlan(monday);
+  const createEntry = useCreateMealPlanEntry();
+  const { list } = useTRecipes();
+  const ready = plan.data?.from === monday;
+  const week = useMemo(
+    () => toWeek(monday, ready ? plan.data?.items : undefined),
+    [monday, ready, plan.data?.items],
+  );
+  const titles = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const recipe of list) map.set(recipe.id, recipe.title);
+    return map;
+  }, [list]);
+  const dates = daysOfWeek(monday);
+  const today = todayIndex();
+  const listRef = useRef<ScrollView>(null);
+  const rowY = useRef<number[]>([]);
+  /** Day waiting to be scrolled into view once the previous expansion collapses. */
+  const reveal = useRef<number | null>(null);
+  const mealEnter = useMemo(() => FadeIn.duration(Math.round(220 * m)), [m]);
+
+  const scrollToDay = (i: number) => {
+    listRef.current?.scrollTo({
+      y: Math.max(0, rowY.current[i] ?? 0),
+      animated: true,
+    });
+  };
+
+  const toggleDay = (i: number) => {
+    const prev = day;
+    const next = prev === i ? null : i;
+    setDay(next);
+    if (next == null) return;
+    // A day above this one is collapsing, so this row's y isn't final yet.
+    if (prev != null && prev < next) {
+      reveal.current = next;
+      return;
+    }
+    scrollToDay(next);
+  };
+
+  useEffect(() => {
+    if (active) return;
+    const t = setTimeout(() => setDay(null), Math.round(480 * m));
+    return () => clearTimeout(t);
+  }, [active, m]);
+
+  const shiftWeek = (dir: -1 | 1) => {
+    setDay(null);
+    setWk((w) => w + dir);
+  };
+
+  const back = () => useNav.getState().set({ menuV: 'main' });
+
+  const add = (dayIndex: number, meal: MealKey, label: string) => {
+    if (busy.current || !ready) return;
+    const existing = week[dayIndex]?.[meal];
+    const when =
+      DAYNAMES[dayIndex] +
+      ' ' +
+      label.toLowerCase() +
+      (wk === 0 ? '' : ', ' + weekName(wk).toLowerCase());
+    if (existing === recipeId) {
+      toast('Already planned for ' + when);
+      return;
+    }
+    if (existing) {
+      toast(when + ' is already planned');
+      return;
+    }
+    busy.current = true;
+    createEntry.mutate(
+      {
+        date: dates[dayIndex]!,
+        slot: mealSlot(meal),
+        kind: 'RECIPE',
+        recipeId,
+      },
+      {
+        onError: () => toast('Couldn’t add it to your plan. Try again.'),
+        onSettled: () => {
+          busy.current = false;
+        },
+      },
+    );
+    onClose();
+    toast('Planned for ' + when);
+  };
+
+  return (
+    <>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <Press
+          onPress={back}
+          accessibilityLabel="Back"
+          scale={0.9}
+          easing={CSS_EASE}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: C.line,
+            backgroundColor: C.white,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Glyph name="arrow_back" size={22} color={C.ink} />
+        </Press>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <T
+            numberOfLines={1}
+            style={serif(24, 500, C.ink, { letterSpacing: em(24, -0.01) })}
+          >
+            Add to meal plan
+          </T>
+          <T numberOfLines={1} style={sans(12, 400, C.ink2, { marginTop: 1 })}>
+            {weekName(wk) + ' · ' + weekRange(monday)}
+          </T>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Press
+            onPress={() => shiftWeek(-1)}
+            accessibilityLabel="Previous week"
+            scale={0.9}
+            easing={CSS_EASE}
+            style={weekStep}
+          >
+            <Glyph name="chevron_left" size={22} color={C.ink} />
+          </Press>
+          <Press
+            onPress={() => shiftWeek(1)}
+            accessibilityLabel="Next week"
+            scale={0.9}
+            easing={CSS_EASE}
+            style={weekStep}
+          >
+            <Glyph name="chevron_right" size={22} color={C.ink} />
+          </Press>
+        </View>
+      </View>
+      <SheetScroll
+        ref={listRef}
+        style={{
+          marginTop: 16,
+          height: 380,
+          backgroundColor: C.white,
+          borderWidth: 1,
+          borderColor: C.line,
+          borderRadius: 18,
+        }}
+        contentContainerStyle={{ paddingHorizontal: 16 }}
+        showsVerticalScrollIndicator={false}
+      >
+        {dates.map((date, i) => {
+          const pd = week[i] ?? { b: null, l: null, d: null };
+          const free = PLAN_MEALS.filter(([k]) => !pd[k]).map(([, l]) => l);
+          const body = !ready
+            ? '…'
+            : free.length === 3
+              ? 'Nothing planned'
+              : free.length === 0
+                ? 'Day is full'
+                : free.join(' · ') + ' open';
+          const isToday = wk === 0 && i === today;
+          const expanded = day === i;
+          return (
+            <View
+              key={date}
+              onLayout={(e) => {
+                rowY.current[i] = e.nativeEvent.layout.y;
+                if (reveal.current !== i) return;
+                reveal.current = null;
+                scrollToDay(i);
+              }}
+              style={{
+                borderBottomWidth: 1,
+                borderBottomColor:
+                  i < dates.length - 1 ? C.surface3 : 'transparent',
+              }}
+            >
+              <Press
+                onPress={() => toggleDay(i)}
+                accessibilityState={{ expanded }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 14,
+                  paddingVertical: 12,
+                }}
+              >
+                <View
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 12,
+                    backgroundColor: isToday ? C.green : C.surface2,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <T style={sans(15, 700, isToday ? C.bg : C.ink)}>
+                    {String(isoParts(date).d)}
+                  </T>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <T style={sans(15, 600)}>
+                    {DAYNAMES[i] + (isToday ? ' · Today' : '')}
+                  </T>
+                  <T
+                    numberOfLines={1}
+                    style={sans(12, 400, C.ink2, { marginTop: 2 })}
+                  >
+                    {body}
+                  </T>
+                </View>
+                <TurnChevron open={expanded} />
+              </Press>
+              {expanded ? (
+                <Animated.View
+                  entering={mealEnter}
+                  style={{ paddingBottom: 8 }}
+                >
+                  {PLAN_MEALS.map(([meal, label, icon]) => {
+                    const plannedId = ready ? pd[meal] : null;
+                    const mine = plannedId === recipeId;
+                    const slotSub = !ready
+                      ? '…'
+                      : plannedId
+                        ? (titles.get(plannedId) ?? 'Planned')
+                        : 'Open';
+                    return (
+                      <Press
+                        key={meal}
+                        onPress={() => add(i, meal, label)}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 12,
+                          paddingVertical: 8,
+                          paddingLeft: 54,
+                        }}
+                      >
+                        <View
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 10,
+                            backgroundColor: C.surface2,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <Glyph name={icon} size={18} color={C.green} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <T style={sans(14, 600)}>{label}</T>
+                          <T
+                            numberOfLines={1}
+                            style={sans(12, 400, C.ink2, { marginTop: 1 })}
+                          >
+                            {mine ? 'This recipe' : slotSub}
+                          </T>
+                        </View>
+                        {plannedId ? (
+                          <Glyph name="check" size={20} color={C.green} />
+                        ) : (
+                          <Glyph name="add" size={22} color={C.green} />
+                        )}
+                      </Press>
+                    );
+                  })}
+                </Animated.View>
+              ) : null}
+            </View>
+          );
+        })}
+      </SheetScroll>
+    </>
   );
 }

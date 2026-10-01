@@ -2,7 +2,10 @@ import { create } from 'zustand';
 
 import { BASE_D } from '@/tortie/theme';
 import { motionMultiplier } from '@/tortie/motion';
-import { toggleSelection } from '@/tortie/data/selection';
+import {
+  toggleSelection,
+  type GroceryPickRequest,
+} from '@/tortie/data/selection';
 
 export type TabKey = 'today' | 'cookbook' | 'plan' | 'groceries';
 export const TAB_ORDER: TabKey[] = ['today', 'cookbook', 'plan', 'groceries'];
@@ -33,11 +36,12 @@ type Nav = {
   scanUri: string | null;
 
   menu: boolean;
-  menuV: 'main' | 'coll';
+  menuV: 'main' | 'coll' | 'plan';
   /** Add-to-collection sheet opened from cookbook multi-select. */
   menuBulk: boolean;
   /**
-   * Selected cookbook recipe ids. `null` is the mode off.
+   * Multi-select ids. `null` is the mode off.
+   * Cookbook stores recipe ids; the plan stores meal-plan entry ids.
    * Never an empty array — dropping the last id sets `null`.
    */
   sel: string[] | null;
@@ -54,6 +58,17 @@ type Nav = {
   /** Edit pantry item sheet. */
   pedOn: boolean;
   pedId: string | null;
+
+  /** Shopping list edit mode. Tapping a row opens the item sheet. */
+  grocEdit: boolean;
+  /** Edit shopping-list item sheet. */
+  gedOn: boolean;
+  gedId: string | null;
+
+  /** Add-to-groceries ingredient picker. Content stays while the sheet closes. */
+  grocPickOn: boolean;
+  grocPick: GroceryPickRequest | null;
+  grocPickNonce: number;
 
   edit: boolean;
   editMode: 'edit' | 'new';
@@ -102,6 +117,8 @@ type Actions = {
   closeEditor: () => void;
   openCook: (id: string) => void;
   closeCook: () => void;
+  openGroceryPick: (pick: GroceryPickRequest) => void;
+  closeGroceryPick: () => void;
   openAuth: (mode: 'signup' | 'login', prov?: AuthProvider) => void;
   closeAuth: () => void;
   toastShow: (msg: string) => void;
@@ -137,6 +154,12 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   cal: false,
   pedOn: false,
   pedId: null,
+  grocEdit: false,
+  gedOn: false,
+  gedId: null,
+  grocPickOn: false,
+  grocPick: null,
+  grocPickNonce: 0,
   edit: false,
   editMode: 'edit',
   editId: null,
@@ -162,6 +185,8 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
     set({
       tab: t,
       sel: null,
+      grocEdit: false,
+      gedOn: false,
       ...(bulk ? { menu: false, menuBulk: false } : {}),
     });
   },
@@ -235,6 +260,13 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   openCook: (id) =>
     set((s) => ({ cookOpen: true, cookId: id, cookNonce: s.cookNonce + 1 })),
   closeCook: () => set({ cookOpen: false }),
+  openGroceryPick: (pick) =>
+    set((s) => ({
+      grocPickOn: true,
+      grocPick: pick,
+      grocPickNonce: s.grocPickNonce + 1,
+    })),
+  closeGroceryPick: () => set({ grocPickOn: false }),
   openAuth: (mode, prov) =>
     set({
       au: true,

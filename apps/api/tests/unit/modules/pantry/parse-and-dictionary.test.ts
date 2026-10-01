@@ -1,5 +1,6 @@
 import { parsePantryText } from '../../../../src/modules/pantry/application/parse-pantry-text.js';
 import { lookupIngredientDictionary } from '../../../../src/modules/pantry/application/ingredient-dictionary.js';
+import { normalizeIngredientName } from '../../../../src/modules/normalization/domain/units.js';
 import { describe, expect, it } from 'vitest';
 
 describe('parsePantryText', () => {
@@ -18,6 +19,22 @@ describe('parsePantryText', () => {
     expect(tomato?.remainder).toBe('tomatoes');
     expect(tomato?.quantity).toBe(2);
   });
+
+  it('keeps kilograms attached to the number', () => {
+    const [flour] = parsePantryText('3kg flour');
+    expect(flour?.remainder).toBe('flour');
+    expect(flour?.quantity).toBe(3);
+    expect(flour?.unit).toBe('kg');
+  });
+});
+
+describe('ingredient name', () => {
+  it('uses one singular form for lemon and lemons', () => {
+    expect(normalizeIngredientName('Lemon')).toBe('lemon');
+    expect(normalizeIngredientName('Lemons')).toBe('lemon');
+    expect(normalizeIngredientName('tomatoes')).toBe('tomato');
+    expect(normalizeIngredientName('asparagus')).toBe('asparagus');
+  });
 });
 
 describe('ingredient dictionary', () => {
@@ -27,5 +44,12 @@ describe('ingredient dictionary', () => {
     expect(lookupIngredientDictionary('tomatos')?.canonicalName).toBe('tomato');
     expect(lookupIngredientDictionary('chickn')?.canonicalName).toBe('chicken');
     expect(lookupIngredientDictionary('beurre')?.canonicalName).toBe('butter');
+  });
+
+  it('uses one name for singular and plural', () => {
+    expect(normalizeIngredientName('Lemon')).toBe('lemon');
+    expect(normalizeIngredientName('Lemons')).toBe('lemon');
+    expect(normalizeIngredientName('tomatoes')).toBe('tomato');
+    expect(normalizeIngredientName('asparagus')).toBe('asparagus');
   });
 });

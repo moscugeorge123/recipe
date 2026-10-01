@@ -23,7 +23,8 @@ export class PrismaShoppingListRepository implements IShoppingListRepository {
     const [items, total] = await this.db.$transaction([
       this.db.shoppingListItem.findMany({
         where,
-        orderBy: { updatedAt: 'desc' },
+        // Checking an item off bumps updatedAt; list order stays the add order.
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         skip: (params.page - 1) * params.pageSize,
         take: params.pageSize,
       }),

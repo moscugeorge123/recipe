@@ -36,6 +36,19 @@ export function isGroceryCategory(
   return !!value && AISLE_ORDER.includes(value as GroceryCategory);
 }
 
+/**
+ * Shopping-list order is when the item was added. Checking it off updates
+ * `updatedAt` on the server, which must not move the row.
+ */
+export function groceryListOrder<T extends { createdAt: string; id: string }>(
+  items: readonly T[],
+): T[] {
+  return [...items].sort((a, b) => {
+    if (a.createdAt !== b.createdAt) return a.createdAt < b.createdAt ? 1 : -1;
+    return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  });
+}
+
 export function groupByAisle<T extends { category?: string | null }>(
   items: T[],
 ): { category: GroceryCategory; label: string; items: T[] }[] {

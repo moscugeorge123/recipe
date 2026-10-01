@@ -1,6 +1,5 @@
 import type { GroceryCategory } from '@recipe/contracts';
 
-import { toSentenceCase } from '../../normalization/domain/casing.js';
 import type { GardenPlateColorToken } from '../../normalization/domain/presentation.js';
 import { INGREDIENT_ALIASES, normalizeIngredientName } from '../../normalization/domain/units.js';
 
@@ -91,9 +90,7 @@ export function lookupIngredientDictionary(raw: string): DictionaryEntry | null 
   return byKey.get(stripped) ?? byKey.get(normalizeIngredientName(stripped)) ?? null;
 }
 
-export function dictionaryDisplayName(entry: DictionaryEntry, rawRemainder: string): string {
-  if (rawRemainder.trim().toLowerCase() === entry.canonicalName) {
-    return entry.displayName;
-  }
-  return toSentenceCase(rawRemainder);
+/** English name of the detected staple, whichever language was typed. */
+export function dictionaryDisplayName(entry: DictionaryEntry): string {
+  return entry.displayName;
 }

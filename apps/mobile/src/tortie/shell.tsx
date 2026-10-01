@@ -17,12 +17,18 @@ import { AddRecipeSheet } from '@/tortie/screens/add-recipe';
 import { CookMode } from '@/tortie/screens/cook';
 import { CookbookScreen } from '@/tortie/screens/cookbook';
 import { CookbookSelectionBars } from '@/tortie/screens/cookbook-select';
+import { PlanSelectionBars } from '@/tortie/screens/plan-select';
 import {
   CookbookFilterSheet,
   NewCollectionSheet,
 } from '@/tortie/screens/cookbook-sheets';
 import { RecipeEditor } from '@/tortie/screens/editor';
-import { EditPantrySheet, GroceriesScreen } from '@/tortie/screens/groceries';
+import { GroceryPickSheet } from '@/tortie/screens/grocery-pick';
+import {
+  EditGrocerySheet,
+  EditPantrySheet,
+  GroceriesScreen,
+} from '@/tortie/screens/groceries';
 import { MonthPickerSheet, PlanScreen } from '@/tortie/screens/plan';
 import { ProfileScreen } from '@/tortie/screens/profile';
 import { RecipeDetail, RecipeMenuSheet } from '@/tortie/screens/recipe-detail';
@@ -120,6 +126,7 @@ export function TortieShell() {
         </TabLayer>
         <TabBar onPlus={openAdd} groceriesLeft={left} />
         <CookbookSelectionBars />
+        <PlanSelectionBars />
         <Animated.View
           pointerEvents="none"
           style={[
@@ -153,7 +160,9 @@ export function TortieShell() {
 
       <AddRecipeSheet />
       <RecipeMenuSheet />
+      <GroceryPickSheet />
       <NewCollectionSheet />
+      <EditGrocerySheet />
       <EditPantrySheet />
       <CookbookFilterSheet />
       <MonthPickerSheet />
@@ -197,12 +206,16 @@ function popTopLayer(): boolean {
   if (s.au) return (s.closeAuth(), true);
   if (s.cookOpen) return (s.closeCook(), true);
   if (s.edit) return (requestEditorClose(), true);
+  if (s.grocPickOn) return (s.closeGroceryPick(), true);
   if (s.cal) return (s.set({ cal: false }), true);
   if (s.fs) return (s.set({ fs: false }), true);
   if (s.nc) return (s.set({ nc: false }), true);
+  if (s.gedOn) return (s.set({ gedOn: false }), true);
+  if (s.grocEdit) return (s.set({ grocEdit: false }), true);
   if (s.pedOn) return (s.set({ pedOn: false }), true);
   if (s.menu) return (s.closeMenu(), true);
-  if (s.sel != null && s.tab === 'cookbook') return (s.clearSel(), true);
+  if (s.sel != null && (s.tab === 'cookbook' || s.tab === 'plan'))
+    return (s.clearSel(), true);
   if (s.addSheet) return (s.closeAdd(), true);
   if (s.prof) return (s.closeProfile(), true);
   if (s.detailOpen) return (s.closeRecipe(), true);

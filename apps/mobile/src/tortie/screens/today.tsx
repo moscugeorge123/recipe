@@ -32,7 +32,7 @@ import {
   todayLine,
 } from '@/tortie/lib/fmt';
 import { toast, useNav } from '@/tortie/nav-store';
-import { C, CSS_EASE, EASE, SH, SPRING } from '@/tortie/theme';
+import { C, CSS_EASE, EASE, F, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
 import { PulseDot } from '@/tortie/ui/keyframes';
@@ -70,12 +70,22 @@ function startCook(id: string) {
 
 export function TodayScreen() {
   const on = useTodayOn();
+  const { list, isLoading, isError } = useTRecipes();
+  const noRecipes = !isError && list.length === 0;
   return (
     <TabScroll header={(compact) => <TodayHeader compact={compact} on={on} />}>
-      <CookingNow on={on} />
-      <Tonight on={on} />
-      <ThisWeek on={on} />
-      <CookAgain on={on} />
+      {noRecipes ? (
+        isLoading ? null : (
+          <FirstRecipe on={on} />
+        )
+      ) : (
+        <>
+          <CookingNow on={on} />
+          <Tonight on={on} />
+          <ThisWeek on={on} />
+          <CookAgain on={on} />
+        </>
+      )}
     </TabScroll>
   );
 }
@@ -680,6 +690,147 @@ function Meta({ icon, text }: { icon: string; text: string }) {
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
       <Glyph name={icon} size={16} color={C.greenDeep} />
       <T style={sans(12, 600, C.ink2)}>{text}</T>
+    </View>
+  );
+}
+
+function FirstRecipe({ on }: { on: boolean }) {
+  const openAdd = useNav((s) => s.openAdd);
+  return (
+    <Stagger i={1} on={on} style={{ marginTop: 12 }}>
+      <View
+        style={{
+          backgroundColor: C.greenWash,
+          borderWidth: 1,
+          borderColor: C.greenSoft,
+          borderRadius: 28,
+          paddingTop: 28,
+          paddingHorizontal: 22,
+          paddingBottom: 24,
+          alignItems: 'center',
+        }}
+      >
+        <KitchenMark />
+        <T
+          style={{
+            fontFamily: F.serif400i,
+            fontSize: 16,
+            lineHeight: 23,
+            color: C.greenMid,
+            marginTop: 18,
+          }}
+        >
+          Fresh start
+        </T>
+        <T
+          style={[
+            serif(28, 500),
+            {
+              letterSpacing: em(28, -0.02),
+              marginTop: 4,
+              textAlign: 'center',
+            },
+          ]}
+        >
+          Your kitchen starts here
+        </T>
+        <T
+          style={[
+            sans(15, 400, C.ink2),
+            {
+              lineHeight: 22,
+              marginTop: 8,
+              maxWidth: 280,
+              textAlign: 'center',
+            },
+          ]}
+        >
+          Add your first recipe from a link, a photo of a page, or one you
+          write yourself.
+        </T>
+        <Press
+          onPress={openAdd}
+          scale={0.96}
+          easing={CSS_EASE}
+          accessibilityLabel="Add your first recipe"
+          style={{
+            marginTop: 22,
+            height: 48,
+            paddingHorizontal: 22,
+            borderRadius: 99,
+            backgroundColor: C.green,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: SH.greenCta,
+          }}
+        >
+          <Glyph name="add" size={20} color={C.bg} />
+          <T style={sans(14, 700, C.bg)}>Add your first recipe</T>
+        </Press>
+      </View>
+    </Stagger>
+  );
+}
+
+function KitchenMark() {
+  return (
+    <View
+      style={{
+        height: 108,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: 72,
+          height: 84,
+          borderRadius: 20,
+          backgroundColor: C.white,
+          borderWidth: 1,
+          borderColor: C.line,
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: [{ rotate: '-9deg' }, { translateX: 8 }],
+          zIndex: 0,
+          boxShadow: SH.cardSubtle,
+        }}
+      >
+        <Glyph name="photo_camera" size={28} color={C.green} />
+      </View>
+      <View
+        style={{
+          width: 80,
+          height: 94,
+          borderRadius: 22,
+          backgroundColor: C.green,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginHorizontal: -16,
+          zIndex: 1,
+          boxShadow: SH.greenCta,
+        }}
+      >
+        <Glyph name="skillet" size={34} color={C.bg} fill />
+      </View>
+      <View
+        style={{
+          width: 72,
+          height: 84,
+          borderRadius: 20,
+          backgroundColor: C.terraWash,
+          borderWidth: 1,
+          borderColor: C.terraSoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: [{ rotate: '9deg' }, { translateX: -8 }],
+          zIndex: 0,
+        }}
+      >
+        <Glyph name="link" size={28} color={C.terra} />
+      </View>
     </View>
   );
 }

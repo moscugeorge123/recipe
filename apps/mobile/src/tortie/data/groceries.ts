@@ -1,6 +1,9 @@
+import { parsePantryText } from '@recipe/contracts';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { create } from 'zustand';
+import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { pantryKeysFrom, partitionByPantry } from '@/features/pantry/match';
 import {
@@ -19,6 +22,7 @@ import { isOneEmoji } from '@/features/recipes/emoji';
 import { convertAmount, ingredientAmount } from '@/features/recipes/units';
 import {
   formatGroceryQty,
+  groceryListOrder,
   isGroceryCategory,
 } from '@/features/shopping-list/aisle';
 import {
@@ -57,15 +61,16 @@ export type TGroc = {
   view: ShoppingListItemView;
 };
 
-/** The API stores a generic 🥣 placeholder; a lexicon match is more specific. */
+/** Prefer the emoji the organizer stored. 🥣 is the generic placeholder, so a lexicon match replaces it. */
 export function emojiFor(
   name: string,
   apiEmoji: string | null | undefined,
   fallback = '🛒',
 ): string {
+  if (apiEmoji && apiEmoji !== '🥣' && isOneEmoji(apiEmoji)) return apiEmoji;
   const L = lexOf(name);
   if (L) return L[1];
-  return apiEmoji && apiEmoji !== '🥣' ? apiEmoji : fallback;
+  return apiEmoji && isOneEmoji(apiEmoji) ? apiEmoji : fallback;
 }
 
 const CAT_AISLE: Record<string, number> = {
@@ -94,6 +99,8 @@ export function toTGroc(
   recipeTitle?: (id: string) => string | undefined,
   note?: string,
   units: Units = 'metric',
+  /** Chosen aisle. Wins over the name lexicon. */
+  aisle?: number,
 ): TGroc {
   const amount = convertAmount(v.quantity ?? null, v.unit ?? null, units);
   const src =
@@ -109,7 +116,10 @@ export function toTGroc(
     n: cap(v.name),
     q: formatGroceryQty(amount.quantity, amount.unit),
     src,
-    a: aisleIndexOf(v.name, v.category),
+    a:
+      aisle != null && aisle >= 0 && aisle <= 5
+        ? aisle
+        : aisleIndexOf(v.name, v.category),
     e: emojiFor(v.name, v.emoji),
     done: v.done,
     view: v,
@@ -121,13 +131,14 @@ export function useTGroceries(
 ) {
   const q = useShoppingList();
   const notes = usePantryExtras((s) => s.notes);
+  const aisles = useGroceryAisles((s) => s.by);
   const units = useTortiePrefs((s) => s.units);
   const list = useMemo(
     () =>
-      (q.data?.items ?? []).map((v) =>
-        toTGroc(v, recipeTitle, notes[v.id], units),
+      groceryListOrder(q.data?.items ?? []).map((v) =>
+        toTGroc(v, recipeTitle, notes[v.id], units, aisles[v.id]),
       ),
-    [q.data, recipeTitle, notes, units],
+    [q.data, recipeTitle, notes, units, aisles],
   );
   return { list, isLoading: q.isLoading };
 }
@@ -242,6 +253,8 @@ export type SmartRes = {
   q: string;
   a: number;
   sh: number;
+  /** "3 + 5 = 8" when this amount was added onto a row already there. */
+  sum?: string;
 };
 export type Pending = {
   id: string;
@@ -249,8 +262,10 @@ export type Pending = {
   dest: Dest;
   t0: number;
   res?: SmartRes;
-  /** API id kept out of its group until the row joins (only for items that weren't there before). */
-  hold?: string;
+  /** API ids kept out of their group until the row joins. */
+  holds?: string[];
+  /** Set once classification finishes. Nothing is saved until one is accepted. */
+  proposals?: Proposal[];
 };
 
 type GrocUi = {
@@ -264,6 +279,35 @@ type GrocUi = {
 
 let secT: ReturnType<typeof setTimeout> | null = null;
 
+type AislePick = {
+  /** Shopping-list id → design aisle index. Missing ids follow the name. */
+  by: Record<string, number>;
+  set: (id: string, aisle: number) => void;
+  clear: (id: string) => void;
+};
+
+/** Aisle the shopper picked. The API category still loses to the name lexicon. */
+export const useGroceryAisles = create<AislePick>()(
+  persist(
+    (set) => ({
+      by: {},
+      set: (id, aisle) =>
+        set((s) => ({ by: { ...s.by, [id]: aisle } })),
+      clear: (id) =>
+        set((s) => {
+          if (!(id in s.by)) return s;
+          const { [id]: _gone, ...by } = s.by;
+          return { by };
+        }),
+    }),
+    {
+      name: 'tortie-grocery-aisles',
+      storage: createJSONStorage(() => AsyncStorage),
+      partialize: ({ by }) => ({ by }),
+    },
+  ),
+);
+
 export const useGrocUi = create<GrocUi>()((set) => ({
   pending: [],
   fresh: {},
@@ -273,7 +317,7 @@ export const useGrocUi = create<GrocUi>()((set) => ({
     if (secT) clearTimeout(secT);
     set({ secFade: true });
     secT = setTimeout(() => {
-      useNav.getState().set({ grocSec: k });
+      useNav.getState().set({ grocSec: k, grocEdit: false, gedOn: false });
       set({ secFade: false });
     }, 160);
   },
@@ -320,7 +364,7 @@ const shopNow = (c: QueryClient) =>
 const pantryNow = (c: QueryClient) =>
   c.getQueryData<{ items: PantryItemView[] }>(PANTRY_KEY)?.items ?? [];
 
-function editShop(
+export function editShop(
   c: QueryClient,
   fn: (items: ShoppingListItemView[]) => ShoppingListItemView[],
 ) {
@@ -361,6 +405,142 @@ type PantryWrite = Partial<OrganizedPantryItem> & {
   storageLocation?: PantryItemView['storageLocation'];
 };
 
+/** A classified ingredient waiting for the user to keep or skip it. */
+export type Proposal = {
+  key: string;
+  res: SmartRes;
+  shop?: ShoppingListWriteItem;
+  pantry?: PantryWrite;
+};
+
+type Classified = { res: SmartRes; id: string; existed: boolean };
+
+function organizeWait(raw: string): number {
+  const lines = Math.max(1, parsePantryText(raw).length);
+  return Math.min(25_000, 9_000 + (lines - 1) * 2_000);
+}
+
+function linesOf(raw: string): string[] {
+  const lines = parsePantryText(raw);
+  return lines.length ? lines : [raw];
+}
+
+function shopFromOrganized(org: OrganizedPantryItem): ShoppingListWriteItem {
+  const e = emojiFor(org.name, org.emoji);
+  return {
+    name: cap(org.name),
+    ...(org.quantity != null ? { quantity: org.quantity } : {}),
+    ...(org.unit ? { unit: org.unit } : {}),
+    ...(isGroceryCategory(org.category) ? { category: org.category } : {}),
+    ...(isOneEmoji(e) ? { emoji: e } : {}),
+  };
+}
+
+function shopFromLocal(raw: string): ShoppingListWriteItem {
+  const local = parseLocal(raw);
+  return { name: local.n, ...qtyParts(local.q) };
+}
+
+function resFromShop(
+  v: ShoppingListItemView,
+  hint?: { e?: string; q?: string; sh?: number },
+): SmartRes {
+  return {
+    n: cap(v.name),
+    e: emojiFor(v.name, v.emoji, hint?.e),
+    q: formatGroceryQty(v.quantity, v.unit) || hint?.q || '',
+    a: aisleIndexOf(v.name, v.category),
+    sh: hint?.sh ?? shelfFor(v.name, v.category),
+  };
+}
+
+function unitsSame(
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean {
+  return (left ?? '').trim().toLowerCase() === (right ?? '').trim().toLowerCase();
+}
+
+function shopProposal(
+  items: ShoppingListItemView[],
+  body: ShoppingListWriteItem,
+  index: number,
+): Proposal {
+  const hit = items.find((item) => sameName(item.name, body.name));
+  const incoming = body.quantity ?? null;
+  const canAdd =
+    !!hit &&
+    hit.quantity != null &&
+    incoming != null &&
+    unitsSame(hit.unit, body.unit);
+  const total = canAdd ? hit.quantity! + incoming : null;
+  const sum = canAdd
+    ? addedLine(hit.quantity, hit.unit, incoming, body.unit, total, body.unit ?? hit.unit)
+    : undefined;
+  return {
+    key: 's' + index,
+    shop: body,
+    res: {
+      n: cap(body.name),
+      e: emojiFor(body.name, body.emoji),
+      q: formatGroceryQty(canAdd ? total : incoming, body.unit ?? hit?.unit) || '',
+      a: aisleIndexOf(body.name, body.category),
+      sh: shelfFor(body.name, body.category),
+      ...(sum ? { sum } : {}),
+    },
+  };
+}
+
+function pantryProposal(
+  items: PantryItemView[],
+  body: PantryWrite,
+  res: SmartRes,
+  index: number,
+): Proposal {
+  const hit = items.find(
+    (item) =>
+      sameName(item.name, body.name) ||
+      (!!body.canonicalName && item.canonicalName === body.canonicalName),
+  );
+  const incoming = body.quantity ?? null;
+  const canAdd =
+    !!hit &&
+    hit.quantity != null &&
+    incoming != null &&
+    unitsSame(hit.unit, body.unit);
+  const total = canAdd ? hit.quantity! + incoming : null;
+  const sum = canAdd
+    ? addedLine(hit.quantity, hit.unit, incoming, body.unit, total, body.unit ?? hit.unit)
+    : undefined;
+  return {
+    key: 'p' + index,
+    pantry: body,
+    res: {
+      ...res,
+      q: formatGroceryQty(canAdd ? total : incoming, body.unit ?? hit?.unit) || res.q,
+      ...(sum ? { sum } : {}),
+    },
+  };
+}
+
+function addedLine(
+  previous: number | null | undefined,
+  previousUnit: string | null | undefined,
+  incoming: number | null | undefined,
+  incomingUnit: string | null | undefined,
+  next: number | null | undefined,
+  nextUnit: string | null | undefined,
+): string | undefined {
+  if (previous == null || incoming == null || next == null || next === previous) {
+    return undefined;
+  }
+  const before = formatGroceryQty(previous, previousUnit);
+  const extra = formatGroceryQty(incoming, incomingUnit);
+  const total = formatGroceryQty(next, nextUnit);
+  if (!before || !extra || !total) return undefined;
+  return `${before} + ${extra} = ${total}`;
+}
+
 /**
  * Grocery & pantry actions. Smart add keeps the prototype choreography:
  * pending row → resolves after BOTH the API classification and the minimum wait →
@@ -374,64 +554,285 @@ export function useGroceryActions() {
   const organize = useOrganizePantry();
   const savePantry = useSavePantryItems();
 
-  const classifyGroc = useCallback(
-    async (raw: string, write?: ShoppingListWriteItem) => {
-      const L = parseLocal(raw);
-      const before = new Set(shopNow(client).map((x) => x.id));
-      const body: ShoppingListWriteItem = write ?? {
-        name: L.n,
-        ...qtyParts(L.q),
-      };
-      const [v] = await addItems.mutateAsync([body]);
-      if (!v) throw new Error('empty');
-      editShop(client, (items) => upsert(items, v));
-      const res: SmartRes = {
-        n: cap(v.name),
-        e: emojiFor(v.name, v.emoji, L.e),
-        q: formatGroceryQty(v.quantity, v.unit) || L.q,
-        a: aisleIndexOf(v.name, v.category),
-        sh: L.sh,
-      };
-      return { res, id: v.id, existed: before.has(v.id) };
+  const readOrganized = useCallback(
+    async (raw: string): Promise<OrganizedPantryItem[] | undefined> => {
+      try {
+        const items = (
+          await withTimeout(organize.mutateAsync({ text: raw }), organizeWait(raw))
+        ).items;
+        return items.length ? items : undefined;
+      } catch {
+        return undefined;
+      }
+    },
+    [organize],
+  );
+
+  const draftGroc = useCallback(
+    async (raw: string): Promise<Proposal[]> => {
+      const organized = await readOrganized(raw);
+      const bodies = organized
+        ? organized.map(shopFromOrganized)
+        : linesOf(raw).map(shopFromLocal);
+      const items = shopNow(client);
+      return bodies.map((body, index) => shopProposal(items, body, index));
+    },
+    [client, readOrganized],
+  );
+
+  const draftPantry = useCallback(
+    async (raw: string): Promise<Proposal[]> => {
+      const organized = await readOrganized(raw);
+      const rows = organized
+        ? organized.map((org) => {
+            const n = cap(org.name);
+            const e = emojiFor(n, org.emoji);
+            const sh = shelfFor(n, org.category);
+            const body: PantryWrite = {
+              ...org,
+              name: n,
+              ...(isGroceryCategory(org.category) ? {} : { category: undefined }),
+              storageLocation: storageFor(sh),
+            };
+            const res: SmartRes = {
+              n,
+              e,
+              q: formatGroceryQty(org.quantity, org.unit),
+              a: aisleIndexOf(n, org.category),
+              sh,
+            };
+            return { body, res };
+          })
+        : linesOf(raw).map((line) => {
+            const local = parseLocal(line);
+            const body: PantryWrite = {
+              name: local.n,
+              ...(isOneEmoji(local.e) ? { emoji: local.e } : {}),
+              ...qtyParts(local.q),
+              storageLocation: storageFor(local.sh),
+            };
+            const res: SmartRes = {
+              n: local.n,
+              e: local.e,
+              q: local.q,
+              a: local.a,
+              sh: local.sh,
+            };
+            return { body, res };
+          });
+      const items = pantryNow(client);
+      return rows.map((row, index) =>
+        pantryProposal(items, row.body, row.res, index),
+      );
+    },
+    [client, readOrganized],
+  );
+
+  const commitShop = useCallback(
+    async (proposals: Proposal[]): Promise<Classified[]> => {
+      const bodies = proposals.flatMap((proposal) =>
+        proposal.shop ? [proposal.shop] : [],
+      );
+      if (!bodies.length) return [];
+      const prior = new Map(shopNow(client).map((item) => [item.id, item]));
+      const saved: ShoppingListItemView[] = [];
+      for (let i = 0; i < bodies.length; i += 50) {
+        saved.push(...(await addItems.mutateAsync(bodies.slice(i, i + 50))));
+      }
+      editShop(client, (items) => saved.reduce(upsert, items));
+      return saved.map((v, index) => {
+        const prev = prior.get(v.id);
+        const body = bodies[index];
+        const sum = addedLine(
+          prev?.quantity,
+          prev?.unit,
+          body?.quantity,
+          body?.unit,
+          v.quantity,
+          v.unit,
+        );
+        return {
+          res: { ...resFromShop(v), ...(sum ? { sum } : {}) },
+          id: v.id,
+          existed: !!prev,
+        };
+      });
     },
     [client, addItems],
   );
 
-  const classifyPantry = useCallback(
-    async (raw: string) => {
-      const L = parseLocal(raw);
-      let org: OrganizedPantryItem | undefined;
-      try {
-        org = (await withTimeout(organize.mutateAsync({ text: raw }), 9000))
-          .items[0];
-      } catch {
-        org = undefined;
-      }
-      const n = org?.name ? cap(org.name) : L.n;
-      const e = emojiFor(n, org?.emoji, L.e);
-      const sh = shelfFor(n, org?.category);
-      const q = org ? formatGroceryQty(org.quantity, org.unit) : L.q;
-      const res: SmartRes = { n, e, q, a: aisleIndexOf(n, org?.category), sh };
-      const hit = pantryNow(client).find(
-        (p) =>
-          sameName(p.name, n) ||
-          (!!org?.canonicalName && p.canonicalName === org.canonicalName),
+  const commitPantry = useCallback(
+    async (proposals: Proposal[]): Promise<Classified[]> => {
+      const bodies = proposals.flatMap((proposal) =>
+        proposal.pantry ? [proposal.pantry] : [],
       );
-      if (hit) return { res, id: hit.id, existed: true };
-      const base = org
-        ? {
-            ...org,
-            name: n,
-            ...(isGroceryCategory(org.category) ? {} : { category: undefined }),
-          }
-        : { name: n, ...(isOneEmoji(e) ? { emoji: e } : {}), ...qtyParts(L.q) };
-      const body: PantryWrite = { ...base, storageLocation: storageFor(sh) };
-      const [v] = await savePantry.mutateAsync([body]);
-      if (!v) throw new Error('empty');
-      editPantry(client, (items) => upsert(items, v));
-      return { res, id: v.id, existed: false };
+      if (!bodies.length) return [];
+      const prior = new Map(pantryNow(client).map((item) => [item.id, item]));
+      const saved: PantryItemView[] = [];
+      for (let i = 0; i < bodies.length; i += 50) {
+        saved.push(...(await savePantry.mutateAsync(bodies.slice(i, i + 50))));
+      }
+      return saved.flatMap((v, index) => {
+        if (!v) return [];
+        const prev = prior.get(v.id);
+        const body = bodies[index];
+        const sum = addedLine(
+          prev?.quantity,
+          prev?.unit,
+          body?.quantity,
+          body?.unit,
+          v.quantity,
+          v.unit,
+        );
+        editPantry(client, (items) => upsert(items, v));
+        return [
+          {
+            res: {
+              n: cap(v.name),
+              e: emojiFor(v.name, v.emoji),
+              q: formatGroceryQty(v.quantity, v.unit),
+              a: aisleIndexOf(v.name, v.category),
+              sh: shelfFor(v.name, v.category),
+              ...(sum ? { sum } : {}),
+            },
+            id: v.id,
+            existed: !!prev,
+          },
+        ];
+      });
     },
-    [client, organize, savePantry],
+    [client, savePantry],
+  );
+
+  const classifyGroc = useCallback(
+    async (raw: string, write?: ShoppingListWriteItem): Promise<Classified[]> => {
+      const prior = new Map(shopNow(client).map((item) => [item.id, item]));
+      let bodies: ShoppingListWriteItem[];
+      if (write) {
+        bodies = [write];
+      } else {
+        const organized = await readOrganized(raw);
+        bodies = organized
+          ? organized.map(shopFromOrganized)
+          : linesOf(raw).map(shopFromLocal);
+      }
+      if (!bodies.length) throw new Error('empty');
+      const saved: ShoppingListItemView[] = [];
+      for (let i = 0; i < bodies.length; i += 50) {
+        saved.push(...(await addItems.mutateAsync(bodies.slice(i, i + 50))));
+      }
+      if (!saved.length) throw new Error('empty');
+      editShop(client, (items) => saved.reduce(upsert, items));
+      return saved.map((v, index) => {
+        const prev = prior.get(v.id);
+        const body = bodies[index];
+        const sum = addedLine(
+          prev?.quantity,
+          prev?.unit,
+          body?.quantity,
+          body?.unit,
+          v.quantity,
+          v.unit,
+        );
+        return {
+          res: { ...resFromShop(v), ...(sum ? { sum } : {}) },
+          id: v.id,
+          existed: !!prev,
+        };
+      });
+    },
+    [client, addItems, readOrganized],
+  );
+
+  const classifyPantry = useCallback(
+    async (raw: string): Promise<Classified[]> => {
+      const organized = await readOrganized(raw);
+      const rows = organized
+        ? organized.map((org) => {
+            const n = cap(org.name);
+            const e = emojiFor(n, org.emoji);
+            const sh = shelfFor(n, org.category);
+            const res: SmartRes = {
+              n,
+              e,
+              q: formatGroceryQty(org.quantity, org.unit),
+              a: aisleIndexOf(n, org.category),
+              sh,
+            };
+            return { org, res, sh };
+          })
+        : linesOf(raw).map((line) => {
+            const local = parseLocal(line);
+            const res: SmartRes = {
+              n: local.n,
+              e: local.e,
+              q: local.q,
+              a: local.a,
+              sh: local.sh,
+            };
+            return { org: undefined, res, sh: local.sh };
+          });
+      if (!rows.length) throw new Error('empty');
+      const out: Classified[] = [];
+      const bodies: PantryWrite[] = [];
+      const prior = new Map<number, { quantity: number | null; unit: string | null }>();
+      rows.forEach((row, index) => {
+        const hit = pantryNow(client).find(
+          (p) =>
+            sameName(p.name, row.res.n) ||
+            (!!row.org?.canonicalName && p.canonicalName === row.org.canonicalName),
+        );
+        if (hit) prior.set(index, { quantity: hit.quantity, unit: hit.unit });
+        const e = row.res.e;
+        const base = row.org
+          ? {
+              ...row.org,
+              name: row.res.n,
+              ...(isGroceryCategory(row.org.category)
+                ? {}
+                : { category: undefined }),
+            }
+          : {
+              name: row.res.n,
+              ...(isOneEmoji(e) ? { emoji: e } : {}),
+              ...qtyParts(row.res.q),
+            };
+        bodies.push({ ...base, storageLocation: storageFor(row.sh) });
+      });
+      if (bodies.length) {
+        const saved: PantryItemView[] = [];
+        for (let i = 0; i < bodies.length; i += 50) {
+          saved.push(...(await savePantry.mutateAsync(bodies.slice(i, i + 50))));
+        }
+        saved.forEach((v, index) => {
+          if (!v) return;
+          const prev = prior.get(index);
+          const body = bodies[index];
+          const sum = addedLine(
+            prev?.quantity,
+            prev?.unit,
+            body?.quantity,
+            body?.unit,
+            v.quantity,
+            v.unit,
+          );
+          editPantry(client, (items) => upsert(items, v));
+          out[index] = {
+            res: {
+              ...rows[index]!.res,
+              n: cap(v.name),
+              e: emojiFor(v.name, v.emoji, rows[index]!.res.e),
+              q: formatGroceryQty(v.quantity, v.unit),
+              ...(sum ? { sum } : {}),
+            },
+            id: v.id,
+            existed: !!prev,
+          };
+        });
+      }
+      return out.filter((row): row is Classified => !!row);
+    },
+    [client, readOrganized, savePantry],
   );
 
   const addRaw = useCallback(
@@ -446,34 +847,144 @@ export function useGroceryActions() {
       upd((s) => ({
         pending: [...s.pending, { id, raw, dest, t0: Date.now() }],
       }));
-      let out: { res: SmartRes; id: string; existed: boolean };
+      if (!opts?.write) {
+        try {
+          const work = dest === 'pantry' ? draftPantry(raw) : draftGroc(raw);
+          const [proposals] = await Promise.all([work, sleep(smartMin())]);
+          if (!useGrocUi.getState().pending.some((p) => p.id === id)) return;
+          if (!proposals.length) {
+            dropPending(id);
+            toast('Couldn’t add ' + raw + ' — try again');
+            return;
+          }
+          setPending(id, { proposals });
+        } catch {
+          dropPending(id);
+          toast('Couldn’t add ' + raw + ' — try again');
+        }
+        return;
+      }
+      let rows: Classified[];
       try {
         const work = (
           dest === 'pantry'
             ? classifyPantry(raw)
             : classifyGroc(raw, opts?.write)
-        ).then((r) => {
-          if (!r.existed) setPending(id, { hold: r.id });
-          return r;
+        ).then((found) => {
+          const holds = found.filter((row) => !row.existed).map((row) => row.id);
+          if (holds.length) setPending(id, { holds });
+          return found;
         });
-        [out] = await Promise.all([work, sleep(smartMin())]);
+        [rows] = await Promise.all([work, sleep(smartMin())]);
       } catch {
         dropPending(id);
         toast('Couldn’t add ' + raw + ' — try again');
         return;
       }
       if (!useGrocUi.getState().pending.some((p) => p.id === id)) return;
-      setPending(id, { res: out.res });
+      if (!rows.length) {
+        dropPending(id);
+        toast('Couldn’t add ' + raw + ' — try again');
+        return;
+      }
+      if (rows.length === 1) setPending(id, { res: rows[0]!.res });
       await sleep(joinHold());
-      if (dest === 'pantry' && out.existed)
-        usePantryExtras.getState().patch(out.id, { lv: 3, listed: false });
-      if (dest === 'groc' && opts?.note && !out.existed)
-        usePantryExtras.getState().note(out.id, opts.note);
+      for (const row of rows) {
+        if (dest === 'pantry' && row.existed)
+          usePantryExtras.getState().patch(row.id, { lv: 3, listed: false });
+        if (dest === 'groc' && opts?.note && !row.existed)
+          usePantryExtras.getState().note(row.id, opts.note);
+      }
       dropPending(id);
-      flash(out.id);
+      for (const row of rows) {
+        if (!row.existed || row.res.sum) flash(row.id);
+        if (row.res.sum) toast(row.res.n + ' · ' + row.res.sum);
+      }
+      if (rows.length > 1) {
+        toast(
+          rows.length +
+            ' items added to ' +
+            (dest === 'pantry' ? 'your pantry' : 'groceries'),
+        );
+      }
     },
-    [classifyGroc, classifyPantry],
+    [classifyGroc, classifyPantry, draftGroc, draftPantry],
   );
+
+  const finishAccepted = useCallback((rows: Classified[], dest: Dest) => {
+    for (const row of rows) {
+      if (dest === 'pantry' && row.existed)
+        usePantryExtras.getState().patch(row.id, { lv: 3, listed: false });
+      if (!row.existed || row.res.sum) flash(row.id);
+      if (row.res.sum) toast(row.res.n + ' · ' + row.res.sum);
+    }
+  }, []);
+
+  const acceptProposal = useCallback(
+    async (pendingId: string, key: string) => {
+      const group = useGrocUi.getState().pending.find((p) => p.id === pendingId);
+      const proposal = group?.proposals?.find((item) => item.key === key);
+      if (!group || !proposal) return;
+      const rest = group.proposals?.filter((item) => item.key !== key) ?? [];
+      setPending(pendingId, { proposals: rest });
+      try {
+        const rows =
+          group.dest === 'pantry'
+            ? await commitPantry([proposal])
+            : await commitShop([proposal]);
+        finishAccepted(rows, group.dest);
+      } catch {
+        const current = useGrocUi.getState().pending.find((p) => p.id === pendingId);
+        setPending(pendingId, {
+          proposals: [...(current?.proposals ?? []), proposal],
+        });
+        toast('Couldn’t add ' + proposal.res.n + ' — try again');
+        return;
+      }
+      const left = useGrocUi.getState().pending.find((p) => p.id === pendingId);
+      if (!left?.proposals?.length) dropPending(pendingId);
+    },
+    [commitPantry, commitShop, finishAccepted],
+  );
+
+  const acceptAll = useCallback(
+    async (pendingId: string) => {
+      const group = useGrocUi.getState().pending.find((p) => p.id === pendingId);
+      const proposals = group?.proposals ?? [];
+      if (!group || !proposals.length) return;
+      setPending(pendingId, { proposals: [] });
+      try {
+        const rows =
+          group.dest === 'pantry'
+            ? await commitPantry(proposals)
+            : await commitShop(proposals);
+        finishAccepted(rows, group.dest);
+        if (rows.length > 1 && !rows.some((row) => row.res.sum)) {
+          toast(
+            rows.length +
+              ' items added to ' +
+              (group.dest === 'pantry' ? 'your pantry' : 'groceries'),
+          );
+        }
+        dropPending(pendingId);
+      } catch {
+        setPending(pendingId, { proposals });
+        toast('Couldn’t add these — try again');
+      }
+    },
+    [commitPantry, commitShop, finishAccepted],
+  );
+
+  const dismissProposal = useCallback((pendingId: string, key: string) => {
+    const group = useGrocUi.getState().pending.find((p) => p.id === pendingId);
+    const rest = group?.proposals?.filter((item) => item.key !== key) ?? [];
+    if (!rest.length) dropPending(pendingId);
+    else setPending(pendingId, { proposals: rest });
+  }, []);
+
+  const dismissAll = useCallback((pendingId: string) => {
+    dropPending(pendingId);
+  }, []);
 
   const toggle = useCallback(
     (g: TGroc) => {
@@ -633,5 +1144,15 @@ export function useGroceryActions() {
     [client, addRaw],
   );
 
-  return { addRaw, toggle, clearBasket, restock, fillFromPlan };
+  return {
+    addRaw,
+    acceptProposal,
+    acceptAll,
+    dismissProposal,
+    dismissAll,
+    toggle,
+    clearBasket,
+    restock,
+    fillFromPlan,
+  };
 }

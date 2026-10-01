@@ -19,21 +19,14 @@ import Animated, {
 } from 'react-native-reanimated';
 import * as Clipboard from 'expo-clipboard';
 
-import { recipeKeys, shoppingListKeys } from '@/features/query-keys';
-import { getRecipe } from '@/features/recipes/api';
-import type { RecipeView } from '@/features/recipes/types';
-import { useAddShoppingItems } from '@/features/shopping-list/hooks';
-import type { ShoppingListListPage } from '@/features/shopping-list/types';
 import { hapticSelection } from '@/lib/haptics';
 import { announce } from '@/lib/announce';
 import { useCookbookView } from '@/tortie/data/cookbook';
+import { presentGroceryPick } from '@/tortie/data/grocery-pick';
 import { useTRecipes } from '@/tortie/data/recipes';
 import {
   allVisibleSelected,
-  bulkGroceryAdds,
-  grocerySelectionToast,
   shareSelectionToast,
-  type BulkRecipe,
 } from '@/tortie/data/selection';
 import { useFrame } from '@/tortie/frame';
 import { useMotion } from '@/tortie/motion';
@@ -55,7 +48,7 @@ export function lpStart(id: string) {
   lpTimer = null;
   lpConsumed = false;
   const s = useNav.getState();
-  if (s.sel && s.tab === 'cookbook') return;
+  if (s.sel && (s.tab === 'cookbook' || s.tab === 'plan')) return;
   lpTimer = setTimeout(() => {
     lpTimer = null;
     lpConsumed = true;
@@ -85,7 +78,7 @@ export function consumeLongPress(): boolean {
 export function onRecipeCardPress(id: string, open: (id: string) => void) {
   if (consumeLongPress()) return;
   const s = useNav.getState();
-  if (s.sel && s.tab === 'cookbook') {
+  if (s.sel && (s.tab === 'cookbook' || s.tab === 'plan')) {
     s.toggleSel(id);
     return;
   }
@@ -94,7 +87,7 @@ export function onRecipeCardPress(id: string, open: (id: string) => void) {
 
 export function onRecipeSelectAction(id: string) {
   const s = useNav.getState();
-  if (s.sel && s.tab === 'cookbook') s.toggleSel(id);
+  if (s.sel && (s.tab === 'cookbook' || s.tab === 'plan')) s.toggleSel(id);
   else s.set({ sel: [id] });
 }
 
@@ -253,39 +246,6 @@ export function SelMark({ on, grid }: { on: boolean; grid: boolean }) {
   );
 }
 
-async function loadBulkRecipes(
-  client: ReturnType<typeof useQueryClient>,
-  ids: string[],
-): Promise<{ recipes: BulkRecipe[]; failed: boolean }> {
-  const recipes: BulkRecipe[] = [];
-  let failed = false;
-  for (const id of ids) {
-    const cached = client.getQueryData<RecipeView>(recipeKeys.detail(id));
-    let view = cached && Array.isArray(cached.ingredients) ? cached : null;
-    if (!view) {
-      try {
-        view = await getRecipe(id);
-        client.setQueryData(recipeKeys.detail(id), view);
-      } catch {
-        view = null;
-        failed = true;
-      }
-    }
-    if (!view) continue;
-    recipes.push({
-      id: view.id,
-      title: view.title,
-      ings: view.ingredients.map((ing) => ({
-        n: [ing.name, ing.preparation].filter(Boolean).join(', '),
-        q: ing.quantity,
-        u: ing.unit,
-        category: ing.category,
-      })),
-    });
-  }
-  return { recipes, failed };
-}
-
 const ACTS = [
   ['library_add', 'Add to collection'],
   ['add_shopping_cart', 'Add to groceries'],
@@ -306,7 +266,6 @@ export function CookbookSelectionBars() {
   const v = useCookbookView();
   const recipes = useTRecipes();
   const client = useQueryClient();
-  const addItems = useAddShoppingItems();
   const busy = useRef(false);
   const [topH, setTopH] = useState(160);
   const visible = v.book.map((b) => b.r.id);
@@ -365,28 +324,8 @@ export function CookbookSelectionBars() {
     if (!ids?.length || busy.current) return;
     busy.current = true;
     try {
-      const { recipes: loaded, failed } = await loadBulkRecipes(client, ids);
-      const page = client.getQueryData<ShoppingListListPage>(
-        shoppingListKeys.list(),
-      );
-      const add = bulkGroceryAdds(
-        loaded,
-        (page?.items ?? []).map((g) => g.name),
-      );
-      if (!add.length) {
-        if (failed && loaded.length === 0) {
-          toast('Couldn’t add to groceries. Try again.');
-          return;
-        }
-        toast(grocerySelectionToast(0));
-        useNav.getState().clearSel();
-        return;
-      }
-      useNav.getState().clearSel();
-      toast(grocerySelectionToast(add.length));
-      addItems.mutate(add, {
-        onError: () => toast('Couldn’t add to groceries. Try again.'),
-      });
+      const opened = await presentGroceryPick(client, ids);
+      if (opened) useNav.getState().clearSel();
     } finally {
       busy.current = false;
     }

@@ -1,7 +1,15 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { createExtraction } from '@/features/extraction/api';
-import { recipeKeys } from '@/features/recipes/hooks/use-recipes';
+import type { ExtractionJobCreate } from '@/features/extraction/schemas';
+import { recipeKeys } from '@/features/query-keys';
+
+function recipeAlreadySaved(result: ExtractionJobCreate): boolean {
+  return (
+    !!result.recipeId &&
+    (!!result.deduplicated || result.status === 'completed')
+  );
+}
 
 export function useCreateExtraction() {
   const queryClient = useQueryClient();
@@ -12,7 +20,8 @@ export function useCreateExtraction() {
       forceRefresh?: boolean;
       selectedThumbnailUrl?: string;
     }) => createExtraction(input),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      if (!recipeAlreadySaved(result)) return;
       queryClient
         .invalidateQueries({ queryKey: recipeKeys.all })
         .catch(() => undefined);

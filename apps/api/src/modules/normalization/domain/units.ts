@@ -36,6 +36,11 @@ export const UNIT_MAP: Record<string, string> = {
   slices: 'slice',
   piece: 'piece',
   pieces: 'piece',
+  г: 'g',
+  гр: 'g',
+  кг: 'kg',
+  мл: 'ml',
+  л: 'l',
 };
 
 /** Romanian unit aliases. */
@@ -47,6 +52,9 @@ export const ROMANIAN_UNIT_MAP: Record<string, string> = {
   cana: 'cup',
   cani: 'cup',
   grame: 'g',
+  buc: 'piece',
+  bucata: 'piece',
+  bucati: 'piece',
 };
 
 /** Common ingredient name normalisation. */
@@ -87,9 +95,54 @@ export function normalizeUnit(raw: string | null | undefined): string | null {
   return ROMANIAN_UNIT_MAP[lower] ?? UNIT_MAP[lower] ?? lower;
 }
 
+/** "Lemons" and "Lemon" share one name. Only the last word is singularized. */
+export function singularizePhrase(raw: string): string {
+  const parts = raw.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '';
+  const last = parts.length - 1;
+  parts[last] = singularizeWord(parts[last] ?? '');
+  return parts.join(' ');
+}
+
+function singularizeWord(word: string): string {
+  if (word.length <= 3 || word.endsWith('ss') || word.endsWith('us') || word.endsWith('is')) {
+    return word;
+  }
+  if (word.endsWith('ies')) return word.slice(0, -3) + 'y';
+  if (word.endsWith('oes') || word.endsWith('ses') || word.endsWith('xes') || word.endsWith('zes') || word.endsWith('ches') || word.endsWith('shes')) {
+    return word.slice(0, -2);
+  }
+  if (word.endsWith('s')) return word.slice(0, -1);
+  return word;
+}
+
+/** Plural of a canonical name, so an older "lemons" row still matches "lemon". */
+export function pluralizePhrase(raw: string): string {
+  const parts = raw.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return '';
+  const last = parts.length - 1;
+  const word = parts[last] ?? '';
+  if (word.endsWith('y') && word.length > 2 && !/[aeiou]y$/.test(word)) {
+    parts[last] = word.slice(0, -1) + 'ies';
+  } else if (/(?:s|x|z|ch|sh|o)$/.test(word)) {
+    parts[last] = word + 'es';
+  } else {
+    parts[last] = word + 's';
+  }
+  return parts.join(' ');
+}
+
 export function normalizeIngredientName(raw: string): string {
   const lower = raw.toLowerCase().trim();
-  return INGREDIENT_ALIASES[lower] ?? lower;
+  const singular = singularizePhrase(lower);
+  return INGREDIENT_ALIASES[lower] ?? INGREDIENT_ALIASES[singular] ?? singular;
+}
+
+/** Singular key first, then the plural form an older row may still be stored under. */
+export function canonicalNameKeys(raw: string): string[] {
+  const canonical = normalizeIngredientName(raw);
+  const plural = pluralizePhrase(canonical);
+  return plural === canonical ? [canonical] : [canonical, plural];
 }
 
 const UNICODE_FRACTION_VALUES: Record<string, number> = {

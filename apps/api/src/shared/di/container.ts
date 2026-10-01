@@ -284,16 +284,17 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     (appConfig.isTest
       ? new MemoryClassificationCache()
       : new RedisBackedClassificationCache(getRedisClient()));
+  const ingredientLog = log.child({ component: 'ingredient-organizer' });
   const pantryLlm =
     options.pantryLlm !== undefined
       ? options.pantryLlm
       : appConfig.ai.openaiApiKey
-        ? new OpenAIProvider(appConfig, null)
+        ? new OpenAIProvider(appConfig, null, undefined, ingredientLog)
         : null;
   const pantryUsage = new AIUsageTracker(repositories.aiUsage, DEFAULT_PRICING);
   const pantryService = new PantryService(
     repositories.pantry,
-    new IngredientOrganizer(appConfig, pantryCache, pantryLlm, pantryUsage),
+    new IngredientOrganizer(appConfig, pantryCache, pantryLlm, pantryUsage, ingredientLog),
   );
   const shoppingListService = new ShoppingListService(
     repositories.shoppingList,

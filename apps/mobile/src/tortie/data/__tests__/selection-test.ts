@@ -2,6 +2,10 @@ import {
   allVisibleSelected,
   bulkGroceryAdds,
   collectionMembership,
+  defaultGrocerySelection,
+  groceryAddsForPick,
+  groceryPickGroups,
+  groceryPickLines,
   grocerySelectionToast,
   shareSelectionToast,
   toggleSelection,
@@ -72,6 +76,54 @@ describe('cookbook multi-select', () => {
       ['sour'],
     );
     expect(add).toEqual([]);
+  });
+
+  test('the picker starts with every ingredient checked', () => {
+    const lines = groceryPickLines(
+      [
+        {
+          id: 'r1',
+          title: 'Garlic Soup Tonight',
+          ings: [
+            { n: 'garlic, sliced', q: 2, u: 'cloves', category: 'Produce' },
+            { n: 'olive oil', q: 1, u: 'tbsp', category: 'Pantry' },
+          ],
+        },
+        {
+          id: 'r2',
+          title: 'Green Beans',
+          ings: [
+            { n: 'garlic', q: 1, u: 'clove', category: 'Produce' },
+            { n: 'lemon', q: 1, u: null, category: 'Produce' },
+          ],
+        },
+      ],
+      ['Fresh garlic'],
+    );
+    expect(groceryPickGroups(lines).map((g) => g.title)).toEqual([
+      'Garlic Soup Tonight',
+      'Green Beans',
+    ]);
+    expect(defaultGrocerySelection(lines)).toEqual([
+      'r1:0',
+      'r1:1',
+      'r2:0',
+      'r2:1',
+    ]);
+    expect(
+      groceryAddsForPick(lines, new Set(['r2:0', 'r2:1'])).map(
+        (item) => item.name,
+      ),
+    ).toEqual(['Garlic', 'Lemon']);
+    expect(groceryAddsForPick(lines, new Set(['r1:1', 'r2:1']))).toHaveLength(
+      2,
+    );
+    expect(groceryAddsForPick(lines, new Set(['r1:0']))[0]).toMatchObject({
+      name: 'Garlic',
+      quantity: 2,
+      unit: 'cloves',
+      sourceRecipeId: 'r1',
+    });
   });
 
   test('toasts match the handoff copy', () => {

@@ -3,20 +3,18 @@ import { useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
+import { useMealPlan } from '@/features/meal-plan/hooks';
 import { addUtcDays, localTodayIso } from '@/features/meal-plan/week';
 import { mondayOfWeek } from '@/features/meal-plan/types';
-import {
-  shoppingListKeys,
-  useAddFromRecipe,
-} from '@/features/shopping-list/hooks';
-import type { ShoppingListItemView } from '@/features/shopping-list/types';
 import { useCook } from '@/tortie/cook-store';
 import { useCookbook } from '@/tortie/data/cookbook';
+import { presentGroceryPick } from '@/tortie/data/grocery-pick';
 import {
   currentMonday,
   daysBetween,
   isoParts,
   MEAL_KEYS,
+  mealSlot,
   mondayAt,
   todayIndex,
   usePlan,
@@ -27,9 +25,18 @@ import {
   weekRange,
   type MealKey,
 } from '@/tortie/data/plan';
+import { findSlotRecipeEntry } from '@/tortie/data/plan-slot';
 import { useFrame } from '@/tortie/frame';
-import { DAYLETTERS, DAYNAMES, fmtT, MON, plz } from '@/tortie/lib/fmt';
+import { DAYLETTERS, DAYNAMES, fmtT, MON } from '@/tortie/lib/fmt';
 import { toast, useNav } from '@/tortie/nav-store';
+import {
+  cardWebStyle,
+  onRecipeCardPress,
+  onRecipeSelectAction,
+  SelMark,
+  useRecipeLongPress,
+} from '@/tortie/screens/cookbook-select';
+import { PlanDaySwipe } from '@/tortie/screens/plan-day-swipe';
 import { C, CSS_EASE, EASE, SH } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Grabber } from '@/tortie/ui/controls';
@@ -66,10 +73,12 @@ export function PlanScreen() {
         />
       )}
     >
-      <WeekControls on={on} />
-      <DayStrip on={on} />
-      <DayContent on={on} />
-      {dayHasRecipe ? <ShopCard on={on} /> : null}
+      <PlanDaySwipe>
+        <WeekControls on={on} />
+        <DayStrip on={on} />
+        <DayContent on={on} />
+        {dayHasRecipe ? <ShopCard on={on} /> : null}
+      </PlanDaySwipe>
     </TabScroll>
   );
 }
@@ -424,7 +433,7 @@ function DayContent({ on }: { on: boolean }) {
               </T>
             </View>
             {pd[k] ? (
-              <FilledSlot id={pd[k]} />
+              <FilledSlot id={pd[k]} meal={k} />
             ) : (
               <EmptySlot meal={k} label={label} day={day} />
             )}
@@ -435,26 +444,74 @@ function DayContent({ on }: { on: boolean }) {
   );
 }
 
-function FilledSlot({ id }: { id: string }) {
+function FilledSlot({ id, meal }: { id: string; meal: MealKey }) {
   const r = useRecipeLite(id);
   const openRecipe = useNav((s) => s.openRecipe);
+  const wk = usePlan((s) => s.wk);
+  const day = usePlan((s) => s.day);
+  const monday = mondayAt(wk);
+  const date = addUtcDays(monday, day);
+  const slot = mealSlot(meal);
+  const planQ = useMealPlan(monday);
+  const entry = findSlotRecipeEntry(
+    planQ.data?.from === monday ? planQ.data.items : undefined,
+    date,
+    slot,
+    id,
+  );
+  const entryId = entry?.id ?? '';
+  const lp = useRecipeLongPress(entryId);
+  const selOn = useNav((s) => s.sel != null && s.tab === 'plan');
+  const isSel = useNav((s) => !!entryId && !!s.sel?.includes(entryId));
+  const open = () => openRecipe(id);
+
   return (
     <Press
-      onPress={() => openRecipe(id)}
+      onLayout={entryId ? lp.onLayout : undefined}
+      onPressIn={(e) => {
+        if (entryId) lp.onPressIn(e);
+      }}
+      onPressOut={() => {
+        if (entryId) lp.onPressOut();
+      }}
+      onTouchMove={entryId ? lp.onTouchMove : undefined}
+      onTouchCancel={() => {
+        if (entryId) lp.onPressOut();
+      }}
+      onContextMenu={lp.onContextMenu}
+      onPress={() => {
+        if (!entryId) {
+          open();
+          return;
+        }
+        onRecipeCardPress(entryId, open);
+      }}
       scale={0.98}
       ms={220}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 14,
-        padding: 10,
-        paddingRight: 14,
-        backgroundColor: C.white,
-        borderWidth: 1,
-        borderColor: C.line,
-        borderRadius: 16,
-        boxShadow: SH.cardSubtle,
+      accessibilityRole="button"
+      accessibilityState={selOn ? { selected: isSel } : undefined}
+      accessibilityActions={
+        entryId ? [{ name: 'select', label: 'Select' }] : undefined
+      }
+      onAccessibilityAction={(e) => {
+        if (e.nativeEvent.actionName === 'select' && entryId)
+          onRecipeSelectAction(entryId);
       }}
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 14,
+          padding: 10,
+          paddingRight: 14,
+          backgroundColor: selOn && isSel ? '#eef2ec' : C.white,
+          borderWidth: 1,
+          borderColor: selOn && isSel ? C.green : C.line,
+          borderRadius: 16,
+          boxShadow: SH.cardSubtle,
+        },
+        cardWebStyle,
+      ]}
     >
       <Photo
         hue={r?.hue ?? 0}
@@ -468,25 +525,40 @@ function FilledSlot({ id }: { id: string }) {
           {r ? fmtT(r.time) + ' · ' + r.level : ''}
         </T>
       </View>
-      <Press
-        onPress={() => {
-          useCook.getState().begin(id);
-          useNav.getState().openCook(id);
-        }}
-        scale={0.9}
-        easing={CSS_EASE}
-        accessibilityLabel="Cook"
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 20,
-          backgroundColor: C.surface2,
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        <Glyph name="play_arrow" size={22} color={C.terra} fill />
-      </Press>
+      {selOn ? (
+        <View
+          accessibilityElementsHidden
+          importantForAccessibility="no-hide-descendants"
+          style={{
+            width: 44,
+            height: 44,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <SelMark on={isSel} grid={false} />
+        </View>
+      ) : (
+        <Press
+          onPress={() => {
+            useCook.getState().begin(id);
+            useNav.getState().openCook(id);
+          }}
+          scale={0.9}
+          easing={CSS_EASE}
+          accessibilityLabel="Cook"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 20,
+            backgroundColor: C.surface2,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <Glyph name="play_arrow" size={22} color={C.terra} fill />
+        </Press>
+      )}
     </Press>
   );
 }
@@ -532,10 +604,8 @@ function EmptySlot({
 function ShopCard({ on }: { on: boolean }) {
   const wk = usePlan((s) => s.wk);
   const addedWeek = usePlan((s) => s.addedWeek);
-  const markAdded = usePlan((s) => s.markAdded);
   const monday = mondayAt(wk);
   const { recipeIds, planned } = usePlanWeek(monday);
-  const addFromRecipe = useAddFromRecipe();
   const client = useQueryClient();
   const busy = useRef(false);
   const added = wk === 0 && addedWeek === currentMonday();
@@ -551,34 +621,13 @@ function ShopCard({ on }: { on: boolean }) {
       return;
     }
     busy.current = true;
-    const before = new Set<string>();
-    for (const [, data] of client.getQueriesData<{
-      items?: ShoppingListItemView[];
-    }>({ queryKey: shoppingListKeys.all })) {
-      for (const it of data?.items ?? []) before.add(it.id);
-    }
-    const fresh = new Set<string>();
     try {
-      for (const recipeId of recipeIds) {
-        const items = await addFromRecipe.mutateAsync({ recipeId });
-        for (const it of items) if (!before.has(it.id)) fresh.add(it.id);
-      }
-    } catch {
-      toast('Couldn’t reach your grocery list — try again');
+      await presentGroceryPick(client, recipeIds, {
+        markWeekMonday: wk === 0 ? monday : null,
+      });
+    } finally {
       busy.current = false;
-      return;
     }
-    busy.current = false;
-    if (wk !== 0) {
-      toast('Added ' + weekRange(monday) + ' to groceries');
-      return;
-    }
-    markAdded(monday);
-    toast(
-      fresh.size
-        ? plz(fresh.size, 'new item') + ' added to groceries'
-        : 'Everything’s already on your list',
-    );
   };
 
   return (
@@ -596,8 +645,7 @@ function ShopCard({ on }: { on: boolean }) {
         Shop for the whole week
       </T>
       <T style={[sans(14, 400, '#c5eacc'), { lineHeight: 21, marginTop: 6 }]}>
-        We’ll merge ingredients across recipes and skip what’s already on your
-        list.
+        Choose which ingredients to add. Duplicates across recipes are merged.
       </T>
       <Press
         onPress={addWeek}

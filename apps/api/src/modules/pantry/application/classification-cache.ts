@@ -7,6 +7,9 @@ export interface CachedClassification {
   confidence: number;
   source: 'dictionary' | 'ai' | 'fallback';
   promptVersion: string;
+  /** Set when the amount was read from the phrase itself, not a leading number. */
+  quantity?: number | null;
+  unit?: string | null;
 }
 
 export interface ClassificationCache {

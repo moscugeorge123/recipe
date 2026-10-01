@@ -42,6 +42,132 @@ export type BulkRecipe = {
   ings: BulkIng[];
 };
 
+/** Recipes staged in the add-to-groceries sheet. */
+export type GroceryPickRequest = {
+  recipes: BulkRecipe[];
+  /** When set, confirming marks this week as added to groceries. */
+  markWeekMonday: string | null;
+};
+
+/** One ingredient row in the add-to-groceries sheet. */
+export type GroceryPickLine = {
+  /** Stable for one open: recipe id plus ingredient index. */
+  id: string;
+  recipeId: string;
+  recipeTitle: string;
+  /** Full line, preparation after a comma. */
+  label: string;
+  /** Name written to the shopping list. */
+  name: string;
+  /** Name before the comma, lowercased. Dedupes a batch. */
+  key: string;
+  quantity: number | null;
+  unit: string | null;
+  category?: string | null;
+  /** Name is already on the shopping list (substring either way). */
+  onList: boolean;
+};
+
+function groceryNameParts(n: string): { raw: string; key: string } | null {
+  const raw = n.split(',')[0] ?? '';
+  const key = raw.toLowerCase();
+  if (!key) return null;
+  return { raw, key };
+}
+
+function nameOnList(key: string, existingNames: readonly string[]): boolean {
+  return existingNames.some((g) => {
+    const have = g.toLowerCase();
+    return have.includes(key) || key.includes(have);
+  });
+}
+
+/** Every named ingredient, in recipe order, for the picker sheet. */
+export function groceryPickLines(
+  recipes: readonly BulkRecipe[],
+  existingNames: readonly string[],
+): GroceryPickLine[] {
+  const lines: GroceryPickLine[] = [];
+  for (const recipe of recipes) {
+    recipe.ings.forEach((ing, index) => {
+      const parts = groceryNameParts(ing.n);
+      if (!parts) return;
+      lines.push({
+        id: `${recipe.id}:${index}`,
+        recipeId: recipe.id,
+        recipeTitle: recipe.title,
+        label: ing.n,
+        name: parts.raw.charAt(0).toUpperCase() + parts.raw.slice(1),
+        key: parts.key,
+        quantity: ing.q,
+        unit: ing.u,
+        category: ing.category,
+        onList: nameOnList(parts.key, existingNames),
+      });
+    });
+  }
+  return lines;
+}
+
+/** Every ingredient is checked when the sheet opens. */
+export function defaultGrocerySelection(
+  lines: readonly GroceryPickLine[],
+): string[] {
+  return lines.map((line) => line.id);
+}
+
+export type GroceryPickGroup = {
+  recipeId: string;
+  title: string;
+  lines: GroceryPickLine[];
+};
+
+/** Lines grouped by recipe, preserving recipe order. */
+export function groceryPickGroups(
+  lines: readonly GroceryPickLine[],
+): GroceryPickGroup[] {
+  const groups: GroceryPickGroup[] = [];
+  for (const line of lines) {
+    const last = groups[groups.length - 1];
+    if (last && last.recipeId === line.recipeId) last.lines.push(line);
+    else
+      groups.push({
+        recipeId: line.recipeId,
+        title: line.recipeTitle,
+        lines: [line],
+      });
+  }
+  return groups;
+}
+
+/**
+ * Shopping-list rows for the checked ingredients.
+ * The same name in a later recipe is skipped so the batch stays unique.
+ * Checked items already on the list are included; the server merges them.
+ */
+export function groceryAddsForPick(
+  lines: readonly GroceryPickLine[],
+  selected: ReadonlySet<string>,
+): ShoppingListWriteItem[] {
+  const seen = new Set<string>();
+  const add: ShoppingListWriteItem[] = [];
+  for (const line of lines) {
+    if (!selected.has(line.id) || seen.has(line.key)) continue;
+    seen.add(line.key);
+    add.push({
+      name: line.name,
+      ...(line.quantity != null ? { quantity: line.quantity } : {}),
+      ...(line.unit ? { unit: line.unit } : {}),
+      ...(line.category && isGroceryCategory(line.category)
+        ? { category: line.category }
+        : {}),
+      emoji: '🛒',
+      sourceRecipeId: line.recipeId,
+    });
+  }
+  return add;
+}
+
 /**
  * Items to append for "Add to groceries" (handoff §5.2).
  * Key is the name before the first comma, lowercased. Skip when that key is
@@ -51,34 +177,11 @@ export function bulkGroceryAdds(
   recipes: readonly BulkRecipe[],
   existingNames: readonly string[],
 ): ShoppingListWriteItem[] {
-  const seen = new Set<string>();
-  const have = existingNames.map((n) => n.toLowerCase());
-  const add: ShoppingListWriteItem[] = [];
-  for (const recipe of recipes) {
-    for (const ing of recipe.ings) {
-      const nm = ing.n.split(',')[0] ?? '';
-      const k = nm.toLowerCase();
-      if (
-        !k ||
-        seen.has(k) ||
-        have.some((g) => g.includes(k) || k.includes(g))
-      ) {
-        continue;
-      }
-      seen.add(k);
-      add.push({
-        name: nm.charAt(0).toUpperCase() + nm.slice(1),
-        ...(ing.q != null ? { quantity: ing.q } : {}),
-        ...(ing.u ? { unit: ing.u } : {}),
-        ...(ing.category && isGroceryCategory(ing.category)
-          ? { category: ing.category }
-          : {}),
-        emoji: '🛒',
-        sourceRecipeId: recipe.id,
-      });
-    }
-  }
-  return add;
+  const lines = groceryPickLines(recipes, existingNames);
+  return groceryAddsForPick(
+    lines,
+    new Set(lines.filter((line) => !line.onList).map((line) => line.id)),
+  );
 }
 
 /** Handoff §5.3. `n` is the number of selected recipes. */
