@@ -60,7 +60,18 @@ import type { IExtractionJobRepository } from '../../modules/jobs/repository/ext
 import type { IExtractionStageRepository } from '../../modules/jobs/repository/extraction-stage.repository.js';
 import { CookSessionService } from '../../modules/cook-sessions/application/cook-session-service.js';
 import type { ICookSessionRepository } from '../../modules/cook-sessions/repository/cook-session.repository.js';
+import { AbuseGuard } from '../../modules/auth/application/abuse-guard.js';
+import { AuthService } from '../../modules/auth/application/auth-service.js';
+import { NoopIdentityAdmin, type TokenVerifier } from '../../modules/auth/domain/token.js';
+import { PrismaAuthRepository } from '../../modules/auth/infrastructure/auth.repository.js';
+import { createFirebaseAdminAuth } from '../../modules/auth/infrastructure/firebase-admin.js';
+import { HmacTokenVerifier, TEST_HMAC_SECRET } from '../../modules/auth/infrastructure/hmac-token.js';
+import {
+  RejectingAppCheckVerifier,
+  RejectingTokenVerifier,
+} from '../../modules/auth/infrastructure/rejecting-verifier.js';
 import { ProfileBootstrapService } from '../../modules/profiles/application/profile-bootstrap-service.js';
+import { AuthenticatedProfileResolver } from '../../modules/profiles/domain/authenticated-profile-resolver.js';
 import {
   ImplicitProfileResolver,
   type ProfileResolver,
@@ -131,6 +142,8 @@ export interface AppContainer {
   cookSessionService: CookSessionService;
   profileBootstrap: ProfileBootstrapService;
   profileResolver: ProfileResolver;
+  authService: AuthService;
+  tokenVerifier: TokenVerifier;
   pipeline: RecipeExtractionPipeline;
   pantryService: PantryService;
   shoppingListService: ShoppingListService;
@@ -172,6 +185,64 @@ export function createContentRegistry(appConfig: AppConfig): ContentProviderRegi
   );
 
   return registry;
+}
+
+export interface AuthStack {
+  authService: AuthService;
+  tokenVerifier: TokenVerifier;
+  profileResolver: ProfileResolver;
+}
+
+/**
+ * Selects the token verifier without contacting Firebase or Postgres.
+ * Production never selects the HMAC verifier. Tests without Firebase credentials use HMAC.
+ */
+export function createAuthStack(appConfig: AppConfig): AuthStack {
+  const firebaseCredentials = Boolean(
+    appConfig.firebase.projectId && appConfig.firebase.clientEmail && appConfig.firebase.privateKey,
+  );
+  const useFirebase = firebaseCredentials || Boolean(appConfig.firebase.emulatorHost);
+
+  let tokenVerifier: TokenVerifier;
+  let appCheck: RejectingAppCheckVerifier | ReturnType<typeof createFirebaseAdminAuth>;
+  let identityAdmin: NoopIdentityAdmin | ReturnType<typeof createFirebaseAdminAuth>;
+
+  if (useFirebase) {
+    const admin = createFirebaseAdminAuth({
+      projectId: appConfig.firebase.projectId ?? 'demo-recipe',
+      ...(appConfig.firebase.clientEmail ? { clientEmail: appConfig.firebase.clientEmail } : {}),
+      ...(appConfig.firebase.privateKey ? { privateKey: appConfig.firebase.privateKey } : {}),
+      ...(appConfig.firebase.emulatorHost ? { emulatorHost: appConfig.firebase.emulatorHost } : {}),
+    });
+    tokenVerifier = admin;
+    appCheck = admin;
+    identityAdmin = admin;
+  } else if (appConfig.nodeEnv !== 'production' && (appConfig.isTest || appConfig.auth.hmacSecret)) {
+    tokenVerifier = new HmacTokenVerifier(appConfig.auth.hmacSecret ?? TEST_HMAC_SECRET, appConfig.nodeEnv);
+    appCheck = new RejectingAppCheckVerifier();
+    identityAdmin = new NoopIdentityAdmin();
+  } else {
+    tokenVerifier = new RejectingTokenVerifier();
+    appCheck = new RejectingAppCheckVerifier();
+    identityAdmin = new NoopIdentityAdmin();
+  }
+
+  const authService = new AuthService(new PrismaAuthRepository(prisma), identityAdmin, new AbuseGuard(), {
+    reservedUsernames: appConfig.auth.reservedUsernames,
+    phoneResendSeconds: appConfig.auth.phoneResendSeconds,
+    phoneMaxAttempts: appConfig.auth.phoneMaxAttempts,
+  });
+
+  const profileResolver = new AuthenticatedProfileResolver({
+    authRequired: appConfig.auth.required,
+    appCheckEnforce: appConfig.firebase.appCheckEnforce,
+    tokens: tokenVerifier,
+    appCheck,
+    authService,
+    fallback: new ImplicitProfileResolver(),
+  });
+
+  return { authService, tokenVerifier, profileResolver };
 }
 
 export function createContainer(options: CreateContainerOptions = {}): AppContainer {
@@ -277,7 +348,8 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
   const categoryService = new CategoryService(prisma);
   const cookSessionService = new CookSessionService(repositories.cookSession, repositories.recipe);
   const profileBootstrap = new ProfileBootstrapService(repositories.profileBootstrap);
-  const profileResolver = options.profileResolver ?? new ImplicitProfileResolver();
+  const authStack = createAuthStack(appConfig);
+  const profileResolver = options.profileResolver ?? authStack.profileResolver;
 
   const pantryCache =
     options.pantryCache ??
@@ -325,6 +397,8 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     cookSessionService,
     profileBootstrap,
     profileResolver,
+    authService: authStack.authService,
+    tokenVerifier: authStack.tokenVerifier,
     pipeline,
     pantryService,
     shoppingListService,

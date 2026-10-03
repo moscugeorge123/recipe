@@ -1,3 +1,4 @@
+export * from "./auth.js";
 export * from "./categories.js";
 export * from "./collections.js";
 export * from "./errors.js";

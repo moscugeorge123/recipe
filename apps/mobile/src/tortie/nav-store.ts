@@ -10,7 +10,7 @@ import {
 export type TabKey = 'today' | 'cookbook' | 'plan' | 'groceries';
 export const TAB_ORDER: TabKey[] = ['today', 'cookbook', 'plan', 'groceries'];
 
-export type AuthStep = 'start' | 'pw' | 'signup' | 'oauth' | 'done';
+export type AuthStep = 'start' | 'pw' | 'signup' | 'oauth' | 'forgot' | 'done';
 export type AuthProvider = 'google' | 'facebook';
 
 type Nav = {

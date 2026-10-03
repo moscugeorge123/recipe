@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
+import { useAuthLifecycle } from '@/auth/hooks/useAuth';
 import { startCookTicker } from '@/tortie/cook-store';
 import { useMotion } from '@/tortie/motion';
 import { TAB_ORDER, useNav, type TabKey } from '@/tortie/nav-store';
@@ -52,6 +53,7 @@ SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
  * editor 45 · cook 50 · sign in 56 · camera 60 · toast 70.
  */
 export function TortieShell() {
+  useAuthLifecycle();
   const rootRef = useRef<View>(null);
   const { D } = useMotion();
   const { width } = useWindowDimensions();

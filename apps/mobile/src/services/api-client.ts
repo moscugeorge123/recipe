@@ -109,6 +109,39 @@ export function unwrapCollection<T>(parsed: unknown): {
   };
 }
 
+export type AuthTokenProvider = (
+  forceRefresh?: boolean,
+) => Promise<string | null>;
+
+let authTokenProvider: AuthTokenProvider | null = null;
+let appCheckTokenProvider: (() => Promise<string | null>) | null = null;
+
+export function setAuthTokenProvider(fn: AuthTokenProvider) {
+  authTokenProvider = fn;
+}
+
+export function setAppCheckTokenProvider(fn: () => Promise<string | null>) {
+  appCheckTokenProvider = fn;
+}
+
+async function readAuthToken(force: boolean): Promise<string | null> {
+  if (!authTokenProvider) return null;
+  try {
+    return await authTokenProvider(force);
+  } catch {
+    return null;
+  }
+}
+
+async function readAppCheckToken(): Promise<string | null> {
+  if (!appCheckTokenProvider) return null;
+  try {
+    return await appCheckTokenProvider();
+  } catch {
+    return null;
+  }
+}
+
 function joinUrl(baseUrl: string, path: string): string {
   const normalizedBase = baseUrl.replace(/\/$/, '');
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
@@ -134,13 +167,18 @@ async function request<T>(
   path: string,
   body?: unknown,
   options?: ApiRequestOptions,
+  refreshed = false,
 ): Promise<T> {
+  const token = await readAuthToken(refreshed);
+  const appCheck = await readAppCheckToken();
   const response = await fetch(joinUrl(getApiBaseUrl(), path), {
     method,
     headers: {
       Accept: 'application/json',
       ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
       ...options?.headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(appCheck ? { 'X-Firebase-AppCheck': appCheck } : {}),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: options?.signal,
@@ -150,6 +188,14 @@ async function request<T>(
 
   if (!response.ok) {
     const code = isErrorEnvelope(parsed) ? parsed.error.code : undefined;
+    if (
+      !refreshed &&
+      response.status === 401 &&
+      code === 'AUTH_TOKEN_EXPIRED' &&
+      authTokenProvider
+    ) {
+      return request<T>(method, path, body, options, true);
+    }
     const message = isErrorEnvelope(parsed)
       ? parsed.error.message
       : `Request failed with status ${response.status}`;

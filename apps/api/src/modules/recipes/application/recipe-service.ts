@@ -94,6 +94,8 @@ export class RecipeService {
   }
 
   async getByIdForProfile(id: string, userId: string): Promise<RecipeDetailView> {
+    // Ownership is the application user id from request.profile.userId. Callers must not
+    // accept an owner id from the client; Firebase UID is resolved before this method runs.
     const recipe = await this.recipeRepo.findEffectiveById(id, userId);
     if (!recipe) {
       throw new RecipeNotFoundError();

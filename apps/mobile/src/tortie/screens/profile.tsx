@@ -1,5 +1,15 @@
+import {
+  AuthErrorCode,
+  AuthProviderId,
+  authErrorMessage,
+  canUnlinkProvider,
+} from '@recipe/contracts';
 import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
+
+import { useRequireAuth } from '@/auth/hooks/useAuth';
+import { authService } from '@/auth/instance';
+import { AccountSecurity } from '@/tortie/screens/account-security';
 import {
   ScrollView,
   StyleSheet,
@@ -329,7 +339,7 @@ function SignedIn({
 }) {
   const prefs = useTortiePrefs();
   const linked = useTortieAuth((s) => s.linked);
-  const link = useTortieAuth((s) => s.link);
+  const [linking, setLinking] = useState<null | 'google' | 'facebook'>(null);
   const recipes = useTRecipes();
   const colls = useCollections();
   const cooked = useCookSessions({ status: 'COMPLETED', pageSize: 1 });
@@ -345,14 +355,43 @@ function SignedIn({
 
   const signOut = () => {
     useNav.getState().set({ pfOut: true });
-    setTimeout(
-      () => {
-        useTortieAuth.getState().signOut();
-        useNav.getState().set({ pfOut: false });
-      },
-      Math.round(280 * motionMultiplier()),
-    );
+    setTimeout(() => {
+      void authService
+        .signOut()
+        .catch(() => undefined)
+        .finally(() => {
+          useNav.getState().set({ pfOut: false });
+        });
+    }, Math.round(280 * motionMultiplier()));
     toast('Signed out');
+  };
+
+  const connect = (key: 'google' | 'facebook') => {
+    if (linking) return;
+    setLinking(key);
+    const run =
+      key === 'google' ? authService.linkGoogle() : authService.linkFacebook();
+    void run
+      .then(() => toast(`${PROV_NAME[key]} connected`))
+      .catch((err: unknown) =>
+        toast(err instanceof Error ? err.message : 'Something went wrong. Try again.'),
+      )
+      .finally(() => setLinking(null));
+  };
+
+  const disconnect = (key: 'google' | 'facebook') => {
+    const providerId =
+      key === 'google' ? AuthProviderId.GOOGLE : AuthProviderId.FACEBOOK;
+    if (!canUnlinkProvider(user?.providers ?? [], providerId)) {
+      toast(authErrorMessage(AuthErrorCode.AUTH_LAST_PROVIDER));
+      return;
+    }
+    void authService
+      .unlinkProvider(providerId)
+      .then(() => toast(`${PROV_NAME[key]} disconnected`))
+      .catch((err: unknown) =>
+        toast(err instanceof Error ? err.message : 'Something went wrong. Try again.'),
+      );
   };
 
   const prov = user?.prov ?? 'email';
@@ -655,6 +694,9 @@ function SignedIn({
           {(['google', 'facebook'] as const).map((k, i) => {
             const isOn = linked[k];
             const n = PROV_NAME[k];
+            const providerId =
+              k === 'google' ? AuthProviderId.GOOGLE : AuthProviderId.FACEBOOK;
+            const canDrop = canUnlinkProvider(user?.providers ?? [], providerId);
             return (
               <View
                 key={k}
@@ -690,13 +732,29 @@ function SignedIn({
                   }
                 />
                 {isOn ? (
-                  <Glyph name="check_circle" size={24} color={C.green} fill />
+                  canDrop ? (
+                    <Press
+                      onPress={() => disconnect(k)}
+                      scale={0.94}
+                      pressedBg={C.surface2}
+                      bg="transparent"
+                      style={{
+                        height: 34,
+                        paddingHorizontal: 14,
+                        borderRadius: 99,
+                        borderWidth: 1,
+                        borderColor: C.line,
+                        justifyContent: 'center',
+                      }}
+                    >
+                      <T style={sans(13, 700, C.ink2)}>Disconnect</T>
+                    </Press>
+                  ) : (
+                    <Glyph name="check_circle" size={24} color={C.green} fill />
+                  )
                 ) : (
                   <Press
-                    onPress={() => {
-                      link(k);
-                      toast(`${n} connected`);
-                    }}
+                    onPress={() => connect(k)}
                     scale={0.94}
                     pressedBg={C.greenWash3}
                     bg="transparent"
@@ -709,7 +767,9 @@ function SignedIn({
                       justifyContent: 'center',
                     }}
                   >
-                    <T style={sans(13, 700, C.green)}>Connect</T>
+                    <T style={sans(13, 700, C.green)}>
+                      {linking === k ? 'Connecting' : 'Connect'}
+                    </T>
                   </Press>
                 )}
               </View>
@@ -719,6 +779,10 @@ function SignedIn({
       </Stagger>
 
       <Stagger i={5} on={on}>
+        <AccountSecurity />
+      </Stagger>
+
+      <Stagger i={6} on={on}>
         <Press
           onPress={signOut}
           scale={0.97}
@@ -773,6 +837,7 @@ function StepBtn({
 
 function Guest({ on }: { on: boolean }) {
   const openAuth = useNav((s) => s.openAuth);
+  const requireAuth = useRequireAuth();
   const recipes = useTRecipes();
   const colls = useCollections();
   const perks: [string, string, string][] = [
@@ -931,7 +996,13 @@ function Guest({ on }: { on: boolean }) {
           }}
         >
           <T style={sans(14, 400, C.ink2)}>Already have an account?</T>
-          <Press onPress={() => openAuth('login')} style={{ padding: 4 }}>
+          <Press
+            onPress={() => {
+              if (!requireAuth()) return;
+              openAuth('login');
+            }}
+            style={{ padding: 4 }}
+          >
             <T style={sans(14, 700, C.green)}>Log in</T>
           </Press>
         </View>

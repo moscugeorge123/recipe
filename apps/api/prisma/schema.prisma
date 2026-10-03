@@ -124,17 +124,58 @@ enum MealEntryKind {
   NOTE
 }
 
+enum AppRole {
+  USER
+  ADMIN
+}
+
+enum RecipeVisibility {
+  PRIVATE
+  UNLISTED
+  PUBLIC
+}
+
+enum AuthAuditEvent {
+  USER_REGISTERED
+  USER_LOGIN
+  USER_LOGOUT
+  USER_EMAIL_VERIFIED
+  USER_PHONE_VERIFIED
+  PROVIDER_LINKED
+  PROVIDER_UNLINKED
+  PASSWORD_CHANGED
+  EMAIL_CHANGED
+  PHONE_CHANGED
+  ACCOUNT_DELETED
+  FAILED_LOGIN
+  PASSWORD_RESET_REQUESTED
+}
+
 // --- Profiles & ownership ----------------------------------------------------
 
 model User {
-  id          String   @id @default(uuid()) @db.Uuid
-  profileKey  String?  @unique
-  authSubject String?  @unique
-  email       String?  @unique
-  displayName String?
-  preferences Json     @default("{}")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String    @id @default(uuid()) @db.Uuid
+  profileKey          String?   @unique
+  /// Legacy subject slot. Set to the Firebase UID when the account is linked.
+  authSubject         String?   @unique
+  /// Canonical identity. One application user per Firebase UID.
+  firebaseUid         String?   @unique
+  username            String?
+  usernameNormalized  String?   @unique
+  email               String?   @unique
+  displayName         String?
+  photoUrl            String?
+  phoneNumber         String?
+  emailVerified       Boolean   @default(false)
+  phoneVerified       Boolean   @default(false)
+  providers           String[]  @default([])
+  onboardingCompleted Boolean   @default(false)
+  role                AppRole   @default(USER)
+  lastLoginAt         DateTime?
+  deletedAt           DateTime?
+  preferences         Json      @default("{}")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   recipes           UserRecipe[]
   categories        Category[]
@@ -145,14 +186,47 @@ model User {
   shoppingListItems ShoppingListItem[]
   mealPlanEntries   MealPlanEntry[]
   aiUsage           AIUsage[]
+  usernameClaim     UsernameReservation?
+  authAudits        AuthAudit[]
 
   @@map("users")
+}
+
+/// Atomic username claim. Unique on the normalized form so two requests cannot share it.
+model UsernameReservation {
+  usernameNormalized String   @id
+  firebaseUid        String
+  userId             String   @unique @db.Uuid
+  createdAt          DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([firebaseUid])
+  @@map("usernames")
+}
+
+model AuthAudit {
+  id          String         @id @default(uuid()) @db.Uuid
+  userId      String?        @db.Uuid
+  firebaseUid String?
+  event       AuthAuditEvent
+  /// Non-secret context only: provider id, reason category. Never tokens or passwords.
+  metadata    Json           @default("{}")
+  createdAt   DateTime       @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([firebaseUid, createdAt])
+  @@index([event, createdAt])
+  @@map("auth_audits")
 }
 
 model UserRecipe {
   id                 String            @id @default(uuid()) @db.Uuid
   userId             String            @db.Uuid
   recipeId           String            @db.Uuid
+  /// Ownership is `userId` (the application user of a Firebase UID). Visibility is separate.
+  visibility         RecipeVisibility  @default(PRIVATE)
   reviewState        RecipeReviewState @default(NEEDS_REVIEW)
   rating             Int?
   isFavorite         Boolean           @default(false)

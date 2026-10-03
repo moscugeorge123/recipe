@@ -12,6 +12,7 @@ import { collectionsRoutes } from '../modules/collections/api/collections.routes
 import { pantryRoutes } from '../modules/pantry/api/pantry.routes.js';
 import { mealPlanRoutes } from '../modules/meal-plan/api/meal-plan.routes.js';
 import { shoppingListRoutes } from '../modules/shopping-list/api/shopping-list.routes.js';
+import { authRoutes } from '../modules/auth/api/auth.routes.js';
 import { opsRoutes } from '../modules/ops/api/ops.routes.js';
 import { createLogger, type AppLogger } from '../infrastructure/logging/logger.js';
 import type { AppContainer } from '../shared/di/container.js';
@@ -92,21 +93,11 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerSwagger(app, config);
 
   /*
-   * AUTHENTICATION EXTENSION POINT
-   * ------------------------------
-   * Nothing is implemented here on purpose. When authentication is added:
-   *
-   *   1. Create `app/plugins/auth.ts` that verifies the credential (e.g. a Cognito JWT) and
-   *      decorates the request with the caller: `request.auth = { userId, scopes }`.
-   *   2. Expose it as a route-level hook, not a global one, so public endpoints stay public:
-   *        app.decorate('authenticate', async (request) => { ... throw new UnauthorizedError() })
-   *   3. Opt individual routes in:
-   *        app.get('/private', { preHandler: [app.authenticate], schema }, handler)
-   *   4. Throw `UnauthorizedError` / `ForbiddenError`; the error handler already maps them to
-   *      401/403 with the standard envelope. Document them per protected route by adding
-   *      `401: errorResponseSchema` to that route's `response` map.
-   *
-   * `/health` must remain unauthenticated for the load balancer.
+   * Firebase Authentication is implemented in `modules/auth`.
+   * AuthenticatedProfileResolver verifies the bearer token and sets `request.profile` plus
+   * `request.auth`. Invalid bearer tokens are rejected with 401 even when AUTH_REQUIRED is
+   * false. Missing Authorization keeps the implicit profile unless AUTH_REQUIRED is true.
+   * `/health` is registered outside that hook and stays public.
    */
 
   const healthChecks = options.healthChecks ?? [];
@@ -120,6 +111,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       await versioned.register(healthRoutes, { checks: healthChecks });
       await versioned.register(async (resources) => {
         registerProfileContext(resources, container.profileResolver);
+        await resources.register(authRoutes, {
+          authService: container.authService,
+        });
         await resources.register(jobsRoutes, {
           extractionJobService: container.extractionJobService,
           linkPreviewService: container.linkPreviewService,
@@ -150,6 +144,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         });
         await resources.register(opsRoutes, {
           prisma: container.prisma,
+          adminOnly: config.auth.required,
         });
       });
     },
