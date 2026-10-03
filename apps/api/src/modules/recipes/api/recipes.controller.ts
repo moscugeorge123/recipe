@@ -95,7 +95,7 @@ export function serializeRecipeDetail(
       ...step,
       ...stepTemperature(step),
       ingredientHint: ingredientHintForStep(
-        step.instruction,
+        [step.title, step.instruction].filter(Boolean).join(' '),
         recipe.ingredients.map((ing) => ({
           name: ing.name,
           quantity: ing.quantity?.toString() ?? null,

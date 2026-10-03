@@ -85,6 +85,7 @@ jest.mock('react-native-reanimated', () => {
       out: (fn: (t: number) => number) => fn,
       inOut: (fn: (t: number) => number) => fn,
       bezier: () => (t: number) => t,
+      bezierFn: () => (t: number) => t,
     },
     FadeIn: motionChain(),
     FadeOut: motionChain(),
@@ -196,10 +197,48 @@ jest.mock('lucide-react-native', () => {
   );
 });
 
+jest.mock('expo-share-intent', () => ({
+  ShareIntentProvider: ({ children }: { children: unknown }) => children,
+  useShareIntentContext: () => ({
+    hasShareIntent: false,
+    shareIntent: { text: null, webUrl: null, files: null, meta: null },
+    resetShareIntent: jest.fn(),
+    error: null,
+  }),
+}));
+
 jest.mock('expo-clipboard', () => ({
   getStringAsync: jest.fn(async () => ''),
   hasStringAsync: jest.fn(async () => true),
   setStringAsync: jest.fn(),
+}));
+
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn(async () => null),
+  getAllScheduledNotificationsAsync: jest.fn(async () => []),
+  scheduleNotificationAsync: jest.fn(async () => 'cook-timer'),
+  cancelScheduledNotificationAsync: jest.fn(async () => undefined),
+  getPermissionsAsync: jest.fn(async () => ({
+    granted: true,
+    canAskAgain: false,
+    status: 'granted',
+  })),
+  requestPermissionsAsync: jest.fn(async () => ({
+    granted: true,
+    canAskAgain: false,
+    status: 'granted',
+  })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({
+    remove: jest.fn(),
+  })),
+  getLastNotificationResponseAsync: jest.fn(async () => null),
+  AndroidNotificationPriority: { MAX: 'max' },
+  AndroidImportance: { MAX: 7 },
+  AndroidNotificationVisibility: { PUBLIC: 1 },
+  AndroidAudioUsage: { ALARM: 4 },
+  AndroidAudioContentType: { SONIFICATION: 4 },
+  SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
 
 jest.mock('expo-keep-awake', () => ({

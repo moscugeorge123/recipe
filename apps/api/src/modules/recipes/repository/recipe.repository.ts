@@ -31,6 +31,7 @@ export interface CreateRecipeIngredientInput {
 
 export interface CreateRecipeStepInput {
   stepOrder: number;
+  title?: string | null;
   instruction: string;
   durationMinutes?: number | null;
   temperature?: string | null;
@@ -38,6 +39,7 @@ export interface CreateRecipeStepInput {
   temperatureFahrenheit?: number | null;
   ingredientRefs?: number[];
   stage?: string;
+  ahead?: boolean;
   confidence?: number;
   provenance?: Prisma.InputJsonValue;
   warnings?: Prisma.InputJsonValue;
@@ -178,6 +180,7 @@ export interface EffectiveRecipeRecord {
   steps: Array<{
     id: string;
     stepOrder: number;
+    title: string | null;
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;
@@ -185,6 +188,7 @@ export interface EffectiveRecipeRecord {
     temperatureFahrenheit: number | null;
     ingredientRefs: number[];
     stage: string;
+    ahead: boolean;
     confidence: number;
     provenance: Prisma.JsonValue;
     warnings: Prisma.JsonValue;
@@ -236,6 +240,7 @@ export interface RevisionSnapshotInput {
   }>;
   steps: Array<{
     stepOrder: number;
+    title?: string | null;
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;
@@ -243,6 +248,7 @@ export interface RevisionSnapshotInput {
     temperatureFahrenheit?: number | null;
     ingredientRefs?: number[];
     stage: string;
+    ahead?: boolean;
   }>;
 }
 

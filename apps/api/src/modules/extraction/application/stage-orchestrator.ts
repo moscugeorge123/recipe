@@ -528,6 +528,7 @@ export function createDefaultStageHandlers(
         })),
         steps: normalized.steps.map((step) => ({
           stepOrder: step.stepOrder,
+          title: step.title,
           instruction: step.instruction,
           durationMinutes: step.durationMinutes,
           temperature: step.temperature,
@@ -535,6 +536,7 @@ export function createDefaultStageHandlers(
           temperatureFahrenheit: step.temperatureFahrenheit ?? null,
           ingredientRefs: step.ingredientRefs ?? [],
           stage: step.stage,
+          ahead: step.ahead,
           confidence: step.confidence,
           provenance: step.provenance,
           warnings: step.warnings,
@@ -608,9 +610,11 @@ export function createDefaultStageHandlers(
           })),
           steps: recipe.steps.map((step) => ({
             stepOrder: step.stepOrder,
+            title: step.title,
             instruction: step.instruction,
             durationMinutes: step.durationMinutes,
             temperature: step.temperature,
+            ahead: step.ahead,
             confidence: step.confidence,
           })),
         },

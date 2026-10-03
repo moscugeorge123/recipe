@@ -19,7 +19,8 @@ export function useCreateExtraction() {
       url: string;
       forceRefresh?: boolean;
       selectedThumbnailUrl?: string;
-    }) => createExtraction(input),
+      signal?: AbortSignal;
+    }) => createExtraction(input, input.signal),
     onSuccess: (result) => {
       if (!recipeAlreadySaved(result)) return;
       queryClient

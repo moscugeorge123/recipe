@@ -74,6 +74,7 @@ function effective(overrides: Partial<EffectiveRecipeRecord> = {}): EffectiveRec
       {
         id: '66666666-6666-4666-8666-666666666666',
         stepOrder: 1,
+        title: 'Boil the pasta',
         instruction: 'Boil pasta',
         durationMinutes: 10,
         temperature: null,
@@ -81,6 +82,7 @@ function effective(overrides: Partial<EffectiveRecipeRecord> = {}): EffectiveRec
         temperatureFahrenheit: null,
         ingredientRefs: [0],
         stage: 'COOK',
+        ahead: false,
         confidence: 0.8,
         provenance: {},
         warnings: [],

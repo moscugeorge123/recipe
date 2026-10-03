@@ -417,7 +417,10 @@ export function RecipeEditor() {
     upEd(
       (d) => ({
         ...d,
-        steps: [...d.steps, { k, t: '', d: '', m: 0, auto: false, det: null }],
+        steps: [
+          ...d.steps,
+          { k, t: '', d: '', m: 0, auto: false, det: null, ahead: false },
+        ],
       }),
       true,
     );

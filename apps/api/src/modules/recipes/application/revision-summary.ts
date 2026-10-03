@@ -24,10 +24,12 @@ export type RevisionSummarySnapshot = {
   }>;
   steps: Array<{
     stepOrder: number;
+    title?: string | null;
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;
     stage: string;
+    ahead?: boolean;
   }>;
 };
 
@@ -84,9 +86,14 @@ function ingredientSignature(item: RevisionSummarySnapshot['ingredients'][number
 }
 
 function stepSignature(item: RevisionSummarySnapshot['steps'][number]): string {
-  return [item.instruction, item.durationMinutes ?? '', item.temperature ?? '', item.stage].join(
-    '\0',
-  );
+  return [
+    item.title ?? '',
+    item.instruction,
+    item.durationMinutes ?? '',
+    item.temperature ?? '',
+    item.stage,
+    item.ahead ? 'ahead' : '',
+  ].join('\0');
 }
 
 function describeCollection(noun: string, current: string[], previous: string[]): string | null {
@@ -230,10 +237,12 @@ export function toRevisionSummarySnapshot(revision: {
   }>;
   steps: Array<{
     stepOrder: number;
+    title?: string | null;
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;
     stage: string;
+    ahead?: boolean;
   }>;
 }): RevisionSummarySnapshot {
   return {
@@ -262,10 +271,12 @@ export function toRevisionSummarySnapshot(revision: {
     })),
     steps: revision.steps.map((item) => ({
       stepOrder: item.stepOrder,
+      title: item.title ?? null,
       instruction: item.instruction,
       durationMinutes: item.durationMinutes,
       temperature: item.temperature,
       stage: item.stage,
+      ahead: item.ahead ?? false,
     })),
   };
 }

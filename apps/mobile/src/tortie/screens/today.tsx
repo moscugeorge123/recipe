@@ -288,7 +288,11 @@ function CookingNow({ on }: { on: boolean }) {
                   sans(11, 700, C.ink3),
                   { letterSpacing: em(11, 0.05), textTransform: 'uppercase' },
                 ]}
-              >{`Step ${ast + 1} of ${an}`}</T>
+              >
+                {st.ahead
+                  ? 'Before you start'
+                  : `Step ${ast + 1} of ${an}`}
+              </T>
               <T
                 numberOfLines={1}
                 style={[serif(17, 600), { lineHeight: 20.4, marginTop: 2 }]}

@@ -69,6 +69,7 @@ function detail(overrides: Partial<RecipeDetailView> = {}): RecipeDetailView {
       {
         id: '66666666-6666-4666-8666-666666666666',
         stepOrder: 1,
+        title: 'Bake the cake',
         instruction: 'Bake at 180°C (350°F) for 35 minutes.',
         durationMinutes: 35,
         temperature: '180°C',
@@ -76,6 +77,7 @@ function detail(overrides: Partial<RecipeDetailView> = {}): RecipeDetailView {
         temperatureFahrenheit: null,
         ingredientRefs: [0, 1],
         stage: 'COOK',
+        ahead: false,
         confidence: 0.9,
         provenance: {},
         warnings: [],

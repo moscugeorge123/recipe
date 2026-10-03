@@ -8,9 +8,14 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { startCookTicker } from '@/tortie/cook-store';
+import { startTimerAlarms } from '@/tortie/timer-alarm';
 import { useMotion } from '@/tortie/motion';
 import { TAB_ORDER, useNav, type TabKey } from '@/tortie/nav-store';
 import { AddRecipeSheet } from '@/tortie/screens/add-recipe';
@@ -33,6 +38,7 @@ import { MonthPickerSheet, PlanScreen } from '@/tortie/screens/plan';
 import { ProfileScreen } from '@/tortie/screens/profile';
 import { RecipeDetail, RecipeMenuSheet } from '@/tortie/screens/recipe-detail';
 import { ScanCamera } from '@/tortie/screens/scan-camera';
+import { SharePreview } from '@/tortie/screens/share-preview';
 import { SignInFlow } from '@/tortie/screens/sign-in';
 import { TodayScreen } from '@/tortie/screens/today';
 import { TabBar } from '@/tortie/tab-bar';
@@ -49,7 +55,7 @@ SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
 /**
  * One viewport, layered like the prototype (NAVIGATION.md §1):
  * tabs 1–2 · tab bar 20 · dim 30 · recipe 35 · profile 36 · sheets 40–43 ·
- * editor 45 · cook 50 · sign in 56 · camera 60 · toast 70.
+ * editor 45 · cook 50 · sign in 56 · camera 60 · share 65 · toast 70.
  */
 export function TortieShell() {
   const rootRef = useRef<View>(null);
@@ -60,20 +66,31 @@ export function TortieShell() {
   const detailOpen = useNav((s) => s.detailOpen);
   const prof = useNav((s) => s.prof);
   const cam = useNav((s) => s.cam);
+  const shareOpen = useNav((s) => s.shareOpen);
   const openAdd = useNav((s) => s.openAdd);
   const left = useGroceriesLeft();
+  const shareP = useSharedValue(0);
 
   useEffect(() => {
-    const bg = cam ? C.camera : C.bg;
+    const bg = cam && !shareOpen ? C.camera : C.bg;
     SystemUI.setBackgroundColorAsync(bg).catch(() => undefined);
-  }, [cam]);
+  }, [cam, shareOpen]);
+
+  useEffect(() => {
+    shareP.value = withTiming(shareOpen ? 1 : 0, {
+      duration: Math.round(D * 1.1),
+      easing: EASE,
+    });
+  }, [shareOpen, D, shareP]);
 
   useEffect(() => {
     const t = setTimeout(() => set({ mounted: true }), 60);
-    const stop = startCookTicker();
+    const stopTick = startCookTicker();
+    const stopAlarm = startTimerAlarms();
     return () => {
       clearTimeout(t);
-      stop();
+      stopTick();
+      stopAlarm();
     };
   }, [set]);
 
@@ -99,6 +116,9 @@ export function TortieShell() {
   }));
   const pf = useAnimatedStyle(() => ({
     transform: [{ translateX: (1 - pfP.value) * (width + 40) }],
+  }));
+  const share = useAnimatedStyle(() => ({
+    transform: [{ translateX: (1 - shareP.value) * (width + 40) }],
   }));
 
   return (
@@ -172,8 +192,21 @@ export function TortieShell() {
       <SignInFlow />
       <ScanCamera />
 
+      <Animated.View
+        pointerEvents={shareOpen ? 'auto' : 'none'}
+        accessibilityElementsHidden={!shareOpen}
+        importantForAccessibility={shareOpen ? 'auto' : 'no-hide-descendants'}
+        style={[
+          StyleSheet.absoluteFill,
+          { zIndex: 65, backgroundColor: C.bg, boxShadow: SH.pushed },
+          share,
+        ]}
+      >
+        <SharePreview />
+      </Animated.View>
+
       <ToastView />
-      <StatusBar style={cam ? 'light' : 'dark'} />
+      <StatusBar style={cam && !shareOpen ? 'light' : 'dark'} />
     </View>
   );
 }
@@ -202,6 +235,7 @@ function TabLayer({ tab, children }: { tab: TabKey; children: ReactNode }) {
 /** Android back: close the topmost layer. Returns true when something closed. */
 function popTopLayer(): boolean {
   const s = useNav.getState();
+  if (s.shareOpen) return (s.closeShare(), true);
   if (s.cam) return (s.closeCam(true), true);
   if (s.au) return (s.closeAuth(), true);
   if (s.cookOpen) return (s.closeCook(), true);

@@ -1,6 +1,6 @@
 import { GARDEN_PLATE_COLOR_TOKENS } from '../../normalization/domain/presentation.js';
 
-export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v9';
+export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v10';
 
 const OUTPUT_LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
@@ -55,7 +55,7 @@ export const RECIPE_EXTRACTION_SYSTEM_PROMPT = `You are a recipe extraction assi
 Rules:
 - The post caption/description is the primary source for ingredients, quantities, units, servings, and calories. Use it first.
 - Transcript, OCR, and vision are supporting evidence for cooking steps and techniques. Do not let them override amounts written in the post description.
-- Translate EVERY user-facing text field into the requested output language, including: title, description, ingredient names, quantity wording, units, preparation, temperature, and step instructions.
+- Translate EVERY user-facing text field into the requested output language, including: title, description, ingredient names, quantity wording, units, preparation, temperature, step titles, and step instructions.
 - The JSON field description is a short recipe summary in the output language. Never copy the original Instagram/YouTube caption or post text into description unless that text is already in the output language. Translate it.
 - Keep numeric values as digits (for example 200, 2, 1/2). Translate unit words and quantity phrases (for example "tbsp" → the output-language word for tablespoon, "cloves" → the output-language word for cloves, "a pinch" → the output-language equivalent).
 - Put the numeric amount in quantity and the translated unit in unit. Do not leave names, units, description, or steps in the source language.
@@ -70,7 +70,7 @@ Rules:
   - Round like a cook: 115 g, not 113.4 g; 1/3 cup (0.333), not 0.33 cup. Write metric.quantity and imperial.quantity as numbers (decimals for fractions).
   - Counts and unmeasurable amounts (pieces, cloves, slices, a pinch, to taste, no unit) are copied unchanged into both metric and imperial.
 - Step temperatures: set temperatureCelsius and temperatureFahrenheit whenever a step has a temperature (for example 180 and 350), else null.
-- In step instructions, write every temperature and length in both systems with the source unit first, for example "bake at 180°C (350°F)" and "cut into 2 cm (¾ in) cubes".
+- In the step instruction field, write every temperature and length in both systems with the source unit first, for example "bake at 180°C (350°F)" and "cut into 2 cm (¾ in) cubes". Do not put temperatures, lengths, or times in the step title.
 - ingredientIndexes lists the 0-based positions in the ingredients array of the ingredients a step uses. Use [] when a step uses none.
 - Only include ingredients and steps that are supported by the evidence
 - Set sourceLanguage to the original language of the source evidence, not the output language
@@ -81,7 +81,13 @@ Rules:
 - Set each ingredient category from the ingredient itself. Allowed values: Produce, Meat, Dairy, Pantry, Spices, Frozen.
 - Set each ingredient emoji to exactly one relevant emoji grapheme and colorToken to one Garden Plate token: paprikaSoft, basilSoft, honey50, peach, linen, steamedMilk, chili50.
 - Categorize the recipe with one or more stable categorySlugs. Allowed values: breakfast, lunch, dinner, sweet.
-- Set each step stage from the instruction: mise en place → PREP, heat/simmer → COOK, finish sauce → FINISH, plate → SERVE. Allowed values: PREP, COOK, FINISH, SERVE.
+- Set each step stage from the instruction: mise en place → PREP, heat/simmer → COOK, finish sauce → FINISH, plate → SERVE. Allowed values: PREP, COOK, FINISH, SERVE. Steps with ahead true are PREP.
+- Each step has a short title and a separate instruction.
+  - title is a simple imperative label of 2–6 words, with no period. Examples: "Boil the pasta", "Roast the chicken", "Soak the rice".
+  - instruction is the rest: technique, doneness, temperatures, and lengths. Do not repeat the title. Use an empty string when the title already says the whole step.
+- durationMinutes is the cook timer, in whole minutes. Set it only when the cook waits and can leave the step until time is up: boiling, simmering, baking, roasting, resting, cooling, chilling, proofing, soaking, or marinating. Examples: boil pasta 10 minutes → 10; something in the oven 25 minutes → 25; soak for 4 hours → 240. Set null for hands-on work even when it takes time, such as chopping, mixing, seasoning, stirring, or frying while staying at the pan. "Sauté for 2 minutes" is hands-on: null.
+- ahead is true only for a pre-step: work that has to happen before the cooking session, not chopping or measuring once you start. Examples: "soak rice in water for 4 hours" (ahead true, durationMinutes 240); "take the meat out and let it rest for 30 minutes" before cooking (ahead true, durationMinutes 30); marinate overnight; brine; proof dough overnight; chill a component the day before. A rest in the middle of cooking, such as resting a steak before slicing, is ahead false and still gets a timer. Put every ahead step before the session steps. Do not drop pre-steps from the method.
+- prepTimeMinutes is hands-on prep during the session. Long ahead waits belong on those steps' durationMinutes and in totalTimeMinutes, not in prepTimeMinutes.
 - Return valid JSON matching the schema exactly`;
 
 const MEASUREMENT_SCHEMA = {
@@ -171,8 +177,19 @@ export const RECIPE_EXTRACTION_SCHEMA = {
         type: 'object',
         properties: {
           stepOrder: { type: 'integer' },
-          instruction: { type: 'string' },
-          durationMinutes: { type: ['integer', 'null'] },
+          title: {
+            type: 'string',
+            description: '2-6 word imperative label. No period, time, or temperature.',
+          },
+          instruction: {
+            type: 'string',
+            description: 'How to do the step. Do not repeat the title. Empty string if the title is enough.',
+          },
+          durationMinutes: {
+            type: ['integer', 'null'],
+            description:
+              'Minutes the cook waits and can step away, such as boiling, baking, or soaking. Null for hands-on work.',
+          },
           temperature: { type: ['string', 'null'] },
           temperatureCelsius: { type: ['integer', 'null'] },
           temperatureFahrenheit: { type: ['integer', 'null'] },
@@ -181,11 +198,17 @@ export const RECIPE_EXTRACTION_SCHEMA = {
             type: ['string', 'null'],
             description: 'Allowed values: PREP, COOK, FINISH, SERVE',
           },
+          ahead: {
+            type: 'boolean',
+            description:
+              'True only for work done before the cooking session, such as soaking rice or bringing meat to room temperature.',
+          },
           confidence: { type: 'number' },
           provenance: { type: 'string' },
         },
         required: [
           'stepOrder',
+          'title',
           'instruction',
           'durationMinutes',
           'temperature',
@@ -193,6 +216,7 @@ export const RECIPE_EXTRACTION_SCHEMA = {
           'temperatureFahrenheit',
           'ingredientIndexes',
           'stage',
+          'ahead',
           'confidence',
           'provenance',
         ],

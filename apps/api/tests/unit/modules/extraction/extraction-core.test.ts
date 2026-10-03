@@ -16,6 +16,7 @@ import {
 import {
   RECIPE_EXTRACTION_PROMPT_VERSION,
   RECIPE_EXTRACTION_SCHEMA,
+  RECIPE_EXTRACTION_SYSTEM_PROMPT,
   describeOutputLanguage,
 } from '../../../../src/modules/recipes/prompts/recipe-extraction-v1.js';
 import type { LLMInput, LLMProvider, LLMResult } from '../../../../src/infrastructure/ai/llm/llm-provider.js';
@@ -255,7 +256,7 @@ describe('ConfidenceCalculator', () => {
           sortOrder: 0,
         },
       ],
-      steps: [{ stepOrder: 1, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', confidence: 0.8, provenance: {}, warnings: [] }],
+      steps: [{ stepOrder: 1, title: null, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', ahead: false, confidence: 0.8, provenance: {}, warnings: [] }],
     });
 
     const withoutQty = calculator.calculate({
@@ -286,7 +287,7 @@ describe('ConfidenceCalculator', () => {
           sortOrder: 0,
         },
       ],
-      steps: [{ stepOrder: 1, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', confidence: 0.5, provenance: {}, warnings: [] }],
+      steps: [{ stepOrder: 1, title: null, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', ahead: false, confidence: 0.5, provenance: {}, warnings: [] }],
     });
 
     expect(withQty).toBeGreaterThan(withoutQty);
@@ -437,8 +438,17 @@ describe('RECIPE_EXTRACTION_SCHEMA', () => {
     expect(step.properties.ingredientIndexes.items.type).toBe('integer');
   });
 
+  it('asks for a short title, a wait-only timer, and pre-steps', () => {
+    expect(step.properties.title.type).toBe('string');
+    expect(step.properties.ahead.type).toBe('boolean');
+    expect(step.properties.durationMinutes.type).toEqual(['integer', 'null']);
+    expect(RECIPE_EXTRACTION_SYSTEM_PROMPT).toContain('durationMinutes is the cook timer');
+    expect(RECIPE_EXTRACTION_SYSTEM_PROMPT).toContain('ahead is true only for a pre-step');
+    expect(RECIPE_EXTRACTION_SYSTEM_PROMPT).toContain('soak rice in water for 4 hours');
+  });
+
   it('uses the bumped prompt version', () => {
-    expect(RECIPE_EXTRACTION_PROMPT_VERSION).toBe('recipe-extraction-v9');
+    expect(RECIPE_EXTRACTION_PROMPT_VERSION).toBe('recipe-extraction-v10');
   });
 });
 
@@ -565,6 +575,49 @@ describe('RecipeNormalizer nutrition, units and steps', () => {
       temperatureCelsius: 180,
       temperatureFahrenheit: 350,
       ingredientRefs: [0, 1],
+      title: null,
+      ahead: false,
+      durationMinutes: null,
+    });
+  });
+
+  it('keeps a short title, a wait timer, and moves pre-steps first', () => {
+    const result = normalizer.normalize({
+      title: 'Rice bowl',
+      sourceLanguage: 'en',
+      ingredients: [],
+      steps: [
+        {
+          stepOrder: 1,
+          title: 'Chop the onion',
+          instruction: 'Chop the onion. Dice it fine.',
+          durationMinutes: null,
+          ahead: false,
+          confidence: 0.9,
+        },
+        {
+          stepOrder: 2,
+          title: 'SOAK THE RICE.',
+          instruction: 'Soak the rice. Cover with cold water for 4 hours.',
+          durationMinutes: 240,
+          ahead: true,
+          stage: 'PREP',
+          confidence: 0.9,
+        },
+      ],
+    });
+    expect(result.steps.map((step) => step.title)).toEqual(['Soak the rice', 'Chop the onion']);
+    expect(result.steps[0]).toMatchObject({
+      instruction: 'Cover with cold water for 4 hours.',
+      durationMinutes: 240,
+      ahead: true,
+      stepOrder: 1,
+    });
+    expect(result.steps[1]).toMatchObject({
+      instruction: 'Dice it fine.',
+      durationMinutes: null,
+      ahead: false,
+      stepOrder: 2,
     });
   });
 });

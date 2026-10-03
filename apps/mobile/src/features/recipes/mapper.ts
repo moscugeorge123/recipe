@@ -277,6 +277,7 @@ function mapStep(
   return {
     id: step.id,
     stepOrder: step.stepOrder,
+    title: step.title?.trim() || null,
     instruction: step.instruction,
     durationSeconds:
       step.durationMinutes === null ? null : step.durationMinutes * 60,
@@ -287,6 +288,7 @@ function mapStep(
       (ref) => ref < ingredients.length,
     ),
     stage: asStepStage(step.stage) ?? stageForIndex(index, total),
+    ahead: step.ahead === true,
     ingredientHint:
       step.ingredientHint ?? hintFromIngredients(step.instruction, ingredients),
     confidence: step.confidence,

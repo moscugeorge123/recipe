@@ -58,6 +58,7 @@ const timerOf = (timers: Record<string, StepTimer>, key: string, m: number) =>
     run: false,
     title: '',
     recipeTitle: '',
+    endsAt: null,
   };
 
 export function CookMode() {
@@ -533,7 +534,9 @@ function StepPage({
           paddingBottom: 120,
         }}
       >
-        <T style={sans(13, 700, C.terra)}>{`Step ${i + 1}`}</T>
+        <T style={sans(13, 700, C.terra)}>
+          {st.ahead ? 'Before you start' : `Step ${i + 1}`}
+        </T>
         <T
           style={serif(34, 500, C.ink, {
             lineHeight: 37.4,
@@ -878,6 +881,17 @@ function Intro({ r, scale }: { r: TDetail | null; scale: number }) {
               <T style={sans(13, 700)}>{String(i + 1)}</T>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
+              {st.ahead ? (
+                <T
+                  style={sans(11, 700, C.terra, {
+                    letterSpacing: em(11, 0.06),
+                    textTransform: 'uppercase',
+                    marginBottom: 3,
+                  })}
+                >
+                  Before you start
+                </T>
+              ) : null}
               <View
                 style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}
               >

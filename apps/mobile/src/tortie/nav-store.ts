@@ -30,6 +30,11 @@ type Nav = {
 
   /** Add-a-recipe sheet. */
   addSheet: boolean;
+  /** Link shared in from another app. */
+  shareOpen: boolean;
+  shareUrl: string | null;
+  shareTitle: string | null;
+  shareNonce: number;
   /** Camera scan. */
   cam: boolean;
   /** Set when the camera hands a photo back to the add sheet. */
@@ -102,6 +107,8 @@ type Actions = {
   closeProfile: () => void;
   openAdd: () => void;
   closeAdd: () => void;
+  openShare: (url: string, title?: string | null) => void;
+  closeShare: () => void;
   openCam: () => void;
   closeCam: (reopenSheet: boolean) => void;
   openMenu: () => void;
@@ -142,6 +149,10 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   profNonce: 0,
   pfOut: false,
   addSheet: false,
+  shareOpen: false,
+  shareUrl: null,
+  shareTitle: null,
+  shareNonce: 0,
   cam: false,
   scanUri: null,
   menu: false,
@@ -201,6 +212,14 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   closeProfile: () => set({ prof: false }),
   openAdd: () => set({ addSheet: true }),
   closeAdd: () => set({ addSheet: false }),
+  openShare: (url, title = null) =>
+    set((s) => ({
+      shareOpen: true,
+      shareUrl: url,
+      shareTitle: title,
+      shareNonce: s.shareNonce + 1,
+    })),
+  closeShare: () => set({ shareOpen: false }),
   openCam: () => set({ addSheet: false, cam: true }),
   closeCam: (reopen) => set({ cam: false, addSheet: reopen }),
   openMenu: () => set({ menu: true, menuV: 'main', menuBulk: false }),

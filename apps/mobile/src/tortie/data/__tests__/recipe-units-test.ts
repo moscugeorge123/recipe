@@ -117,6 +117,41 @@ describe('toTDetail units', () => {
     expect(r.steps[1]?.d).toBe('Bake at 350°F (180°C) until golden.');
   });
 
+  test('uses an extracted title and marks a pre-step', () => {
+    const view = mapRecipeDetail({
+      ...dto,
+      steps: [
+        {
+          ...dto.steps[0]!,
+          title: 'Soak the rice',
+          instruction: 'Cover with cold water.',
+          durationMinutes: 240,
+          ahead: true,
+        },
+        {
+          ...dto.steps[1]!,
+          title: 'Chop the onion',
+          instruction: 'Dice it fine.',
+          durationMinutes: null,
+          ahead: false,
+        },
+      ],
+    });
+    const r = toTDetail(view, 'metric');
+    expect(r.steps[0]).toMatchObject({
+      t: 'Soak the rice',
+      d: 'Cover with cold water.',
+      m: 240,
+      ahead: true,
+    });
+    expect(r.steps[1]).toMatchObject({
+      t: 'Chop the onion',
+      d: 'Dice it fine.',
+      m: 0,
+      ahead: false,
+    });
+  });
+
   test('prefers extracted ingredient refs over keyword matching', () => {
     const r = toTDetail(view, 'metric');
     expect(r.steps[0]?.need).toEqual([1]);

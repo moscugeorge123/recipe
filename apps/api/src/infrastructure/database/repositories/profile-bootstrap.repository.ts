@@ -137,10 +137,12 @@ export class PrismaProfileBootstrapRepository implements IProfileBootstrapReposi
               create: recipe.steps.map((step) => ({
                 sourceId: step.id,
                 stepOrder: step.stepOrder,
+                title: step.title,
                 instruction: step.instruction,
                 durationMinutes: step.durationMinutes,
                 temperature: step.temperature,
                 stage: step.stage,
+                ahead: step.ahead,
                 confidence: step.confidence,
                 provenance: requiredJson(step.provenance),
                 warnings: requiredJson(step.warnings),

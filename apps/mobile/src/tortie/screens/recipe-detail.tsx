@@ -391,6 +391,17 @@ export function RecipeDetail() {
                       </T>
                     </View>
                     <View style={{ flex: 1, minWidth: 0 }}>
+                      {st.ahead ? (
+                        <T
+                          style={sans(11, 700, C.terra, {
+                            letterSpacing: em(11, 0.06),
+                            textTransform: 'uppercase',
+                            marginBottom: 4,
+                          })}
+                        >
+                          Before you start
+                        </T>
+                      ) : null}
                       <View
                         style={{
                           flexDirection: 'row',

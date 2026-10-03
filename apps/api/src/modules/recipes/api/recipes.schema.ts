@@ -77,6 +77,7 @@ export const recipeIngredientSchema = z.object({
 export const recipeStepSchema = z.object({
   id: dbUuid(),
   stepOrder: z.number().int(),
+  title: z.string().nullable(),
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),
@@ -84,6 +85,7 @@ export const recipeStepSchema = z.object({
   temperatureFahrenheit: z.number().int().nullable(),
   ingredientRefs: z.array(z.number().int().nonnegative()),
   stage: z.string(),
+  ahead: z.boolean(),
   ingredientHint: z.string().nullable(),
   confidence: z.number(),
   provenance: z.unknown(),
@@ -269,10 +271,12 @@ const patchRecipeIngredientSchema = z.object({
 
 const patchRecipeStepSchema = z.object({
   stepOrder: z.number(),
+  title: z.string().nullable().optional(),
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),
   stage: z.string().optional(),
+  ahead: z.boolean().optional(),
   confidence: z.number().optional(),
   provenance: z.unknown().optional(),
   warnings: z.unknown().optional(),

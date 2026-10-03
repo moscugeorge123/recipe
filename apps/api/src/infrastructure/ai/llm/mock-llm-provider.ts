@@ -102,13 +102,28 @@ export class MockLLMProvider implements LLMProvider {
       for (const line of stepsSection[1].split('\n')) {
         const trimmed = line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '').trim();
         if (trimmed) {
-          steps.push({ stepOrder: steps.length + 1, instruction: trimmed, confidence: 0.7 });
+          const words = trimmed.split(/\s+/);
+          steps.push({
+            stepOrder: steps.length + 1,
+            title: words.slice(0, 6).join(' '),
+            instruction: words.slice(6).join(' '),
+            durationMinutes: null,
+            ahead: false,
+            confidence: 0.7,
+          });
         }
       }
     }
 
     if (steps.length === 0 && description) {
-      steps.push({ stepOrder: 1, instruction: description, confidence: 0.5 });
+      steps.push({
+        stepOrder: 1,
+        title: description.split(/\s+/).slice(0, 6).join(' '),
+        instruction: description.split(/\s+/).slice(6).join(' '),
+        durationMinutes: null,
+        ahead: false,
+        confidence: 0.5,
+      });
     }
 
     const kcal = calories ?? Math.min(900, 150 * Math.max(1, ingredients.length));

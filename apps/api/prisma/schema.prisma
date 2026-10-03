@@ -389,6 +389,8 @@ model RecipeStep {
   id                    String  @id @default(uuid()) @db.Uuid
   recipeId              String  @db.Uuid
   stepOrder             Int
+  /// Short imperative label. Null on recipes extracted before step titles existed.
+  title                 String?
   instruction           String
   durationMinutes       Int?
   temperature           String?
@@ -398,6 +400,8 @@ model RecipeStep {
   ingredientRefs        Int[]   @default([])
   /// Cooking stage: PREP | COOK | FINISH | SERVE
   stage                 String  @default("COOK")
+  /// Work that happens before the cooking session (soak, rest meat, marinate overnight).
+  ahead                 Boolean @default(false)
   confidence            Float   @default(0)
   provenance            Json    @default("{}")
   warnings              Json    @default("[]")
@@ -495,6 +499,7 @@ model RecipeRevisionStep {
   revisionId            String  @db.Uuid
   sourceId              String? @db.Uuid
   stepOrder             Int
+  title                 String?
   instruction           String
   durationMinutes       Int?
   temperature           String?
@@ -502,6 +507,7 @@ model RecipeRevisionStep {
   temperatureFahrenheit Int?
   ingredientRefs        Int[]   @default([])
   stage                 String  @default("COOK")
+  ahead                 Boolean @default(false)
   confidence            Float   @default(0)
   provenance            Json    @default("{}")
   warnings              Json    @default("[]")

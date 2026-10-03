@@ -14,6 +14,8 @@ export type EdStep = {
   m: number;
   auto: boolean;
   det: number | null;
+  /** Work that happens before the cooking session. */
+  ahead: boolean;
   src?: number;
 };
 export type Draft = {
@@ -84,6 +86,7 @@ export function makeDraft(r: TDetail): Draft {
       m: x.m,
       auto: false,
       det: detectMin(x.t + ' ' + x.d),
+      ahead: x.ahead,
       src: i,
     })),
   };
@@ -100,7 +103,7 @@ export function blankDraft(): Draft {
     base: 4,
     time: 30,
     ings: [{ k: k(), txt: '' }],
-    steps: [{ k: k(), t: '', d: '', m: 0, auto: false, det: null }],
+    steps: [{ k: k(), t: '', d: '', m: 0, auto: false, det: null, ahead: false }],
   };
 }
 
@@ -157,15 +160,6 @@ export function diffCount(ed: Draft, e0: Draft): number {
   return n;
 }
 
-/** Title + text back into one instruction that `splitStep` reads apart again. */
-function joinStep(t: string, d: string): string {
-  const a = t.trim();
-  const b = d.trim();
-  if (!a) return b;
-  if (!b) return a;
-  return (/[.!?]$/.test(a) ? a : a + '.') + ' ' + b;
-}
-
 /**
  * Draft → `PATCH /recipes/:id`. Rows the user didn't touch keep their exact API
  * values; edited rows are parsed from free text (`parseIng`). Returns null with a
@@ -218,7 +212,7 @@ export function toRecipePatch(
       const o = step0.get(x.k);
       const src = x.src != null ? base.steps[x.src] : undefined;
       const minutes = x.m > 0 ? Math.round(x.m) : null;
-      if (src && o && o.t === x.t && o.d === x.d) {
+      if (src && o && o.t === x.t && o.d === x.d && o.ahead === x.ahead) {
         return {
           ...src,
           stepOrder: i + 1,
@@ -227,10 +221,12 @@ export function toRecipePatch(
       }
       return {
         stepOrder: i + 1,
-        instruction: joinStep(x.t, x.d),
+        title: x.t.trim() || null,
+        instruction: x.d.trim() || x.t.trim(),
         durationMinutes: minutes,
         temperature: src?.temperature ?? null,
         stage: src?.stage ?? 'COOK',
+        ahead: x.ahead,
       };
     });
 

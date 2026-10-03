@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { useCreateExtraction } from '@/features/extraction/hooks/use-create-extraction';
 import { useExtractionJob } from '@/features/extraction/hooks/use-extraction-job';
@@ -11,11 +11,12 @@ import { useTRecipe } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { fmtT, plz } from '@/tortie/lib/fmt';
 import { afterMotion, toast, useNav } from '@/tortie/nav-store';
-import { C, CSS_EASE, EASE } from '@/tortie/theme';
+import { C, CSS_EASE } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { BRAND_COLOR, BrandLogo, type Brand } from '@/tortie/ui/brand';
 import { Grabber } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
+import { ImportProgress } from '@/tortie/ui/import-progress';
 import { Input, RevealBox } from '@/tortie/ui/input';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
@@ -48,19 +49,6 @@ const urlIn = (t: string | null | undefined) =>
 const bare = (u: string) => u.replace(/^https?:\/\/(www\.)?/, '');
 const withScheme = (u: string) =>
   /^https?:\/\//i.test(u) ? u : 'https://' + u;
-
-const STAGES: [
-  number,
-  (r: { ingCount: number; stepCount: number } | null) => string,
-][] = [
-  [8, () => 'Reading the page'],
-  [
-    42,
-    (r) =>
-      r ? 'Found ' + plz(r.ingCount, 'ingredient') : 'Finding the ingredients',
-  ],
-  [78, (r) => (r ? 'Wrote ' + plz(r.stepCount, 'step') : 'Writing the steps')],
-];
 
 /** 0 idle · 1 importing · 2 done. */
 type Imp = 0 | 1 | 2;
@@ -609,84 +597,5 @@ function OptionRow({
       </View>
       <Glyph name="chevron_right" size={20} color="#727971" />
     </Press>
-  );
-}
-
-function ImportProgress({
-  pct,
-  recipe,
-}: {
-  pct: number;
-  recipe: { ingCount: number; stepCount: number } | null;
-}) {
-  const [w, setW] = useState(0);
-  const fill = useAnimatedStyle(() => ({
-    width: tw((w * pct) / 100, 90, Easing.linear),
-  }));
-  return (
-    <View
-      style={{
-        marginTop: 20,
-        backgroundColor: C.white,
-        borderWidth: 1,
-        borderColor: C.line,
-        borderRadius: 16,
-        padding: 18,
-      }}
-    >
-      <View
-        onLayout={(e) => setW(e.nativeEvent.layout.width)}
-        style={{
-          height: 6,
-          backgroundColor: C.surface3,
-          borderRadius: 9,
-          overflow: 'hidden',
-        }}
-      >
-        <Animated.View
-          style={[
-            { height: '100%', backgroundColor: C.terra, borderRadius: 9 },
-            fill,
-          ]}
-        />
-      </View>
-      <View style={{ gap: 12, marginTop: 16 }}>
-        {STAGES.map(([at, label]) => (
-          <StageRow
-            key={at}
-            on={pct >= at}
-            done={pct >= at + 20}
-            label={label(recipe)}
-          />
-        ))}
-      </View>
-    </View>
-  );
-}
-
-function StageRow({
-  on,
-  done,
-  label,
-}: {
-  on: boolean;
-  done: boolean;
-  label: string;
-}) {
-  const a = useAnimatedStyle(() => ({
-    opacity: tw(on ? 1 : 0.3, 300, CSS_EASE),
-    transform: [{ translateX: tw(on ? 0 : -6, 400, EASE) }],
-  }));
-  return (
-    <Animated.View
-      style={[{ flexDirection: 'row', alignItems: 'center', gap: 10 }, a]}
-    >
-      <Glyph
-        name={done ? 'check_circle' : 'progress_activity'}
-        size={20}
-        color={done ? C.green : C.terra}
-      />
-      <T style={sans(14, 600)}>{label}</T>
-    </Animated.View>
   );
 }

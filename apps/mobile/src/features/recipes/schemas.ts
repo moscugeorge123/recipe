@@ -35,6 +35,7 @@ export const recipeIngredientSchema = z.object({
 export const recipeStepSchema = z.object({
   id: z.string(),
   stepOrder: z.number().int(),
+  title: z.string().nullable().optional(),
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),
@@ -42,6 +43,7 @@ export const recipeStepSchema = z.object({
   temperatureFahrenheit: z.number().int().nullable().optional(),
   ingredientRefs: z.array(z.number().int().nonnegative()).optional(),
   stage: z.string(),
+  ahead: z.boolean().optional(),
   ingredientHint: z.string().nullable(),
   confidence: z.number(),
   provenance: z.unknown(),
@@ -214,13 +216,20 @@ export const patchRecipeBodySchema = z.object({
     .min(1),
   steps: z
     .array(
-      z.object({
-        stepOrder: z.number().int().positive(),
-        instruction: z.string().trim().min(1),
-        durationMinutes: z.number().int().nonnegative().nullable(),
-        temperature: z.string().nullable(),
-        stage: z.string(),
-      }),
+      z
+        .object({
+          stepOrder: z.number().int().positive(),
+          title: z.string().nullable().optional(),
+          instruction: z.string(),
+          durationMinutes: z.number().int().nonnegative().nullable(),
+          temperature: z.string().nullable(),
+          stage: z.string(),
+          ahead: z.boolean().optional(),
+        })
+        .refine(
+          (step) => step.instruction.trim().length > 0 || Boolean(step.title?.trim()),
+          { message: 'Add step text', path: ['instruction'] },
+        ),
     )
     .min(1),
 });

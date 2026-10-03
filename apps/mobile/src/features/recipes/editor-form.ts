@@ -17,10 +17,12 @@ export type IngredientDraft = {
 };
 
 export type StepDraft = {
+  title: string;
   instruction: string;
   durationMinutes: string;
   temperature: string;
   stage: string;
+  ahead: boolean;
   confidence: number;
 };
 
@@ -52,10 +54,12 @@ export const EMPTY_INGREDIENT: IngredientDraft = {
 };
 
 export const EMPTY_STEP: StepDraft = {
+  title: '',
   instruction: '',
   durationMinutes: '',
   temperature: '',
   stage: 'COOK',
+  ahead: false,
   confidence: 1,
 };
 
@@ -111,6 +115,7 @@ export function editorDefaults(recipe: RecipeView): RecipeEditorValues {
       confidence: ingredient.confidence ?? 0,
     })),
     steps: (recipe.steps ?? []).map((step) => ({
+      title: step.title ?? '',
       instruction: step.instruction ?? '',
       durationMinutes: textNumber(
         step.durationSeconds == null
@@ -119,6 +124,7 @@ export function editorDefaults(recipe: RecipeView): RecipeEditorValues {
       ),
       temperature: step.temperature ?? '',
       stage: step.stage ?? 'COOK',
+      ahead: step.ahead ?? false,
       confidence: step.confidence ?? 0,
     })),
   };
@@ -173,10 +179,12 @@ export function toPatchBody(
     })),
     steps: values.steps.map((step, index) => ({
       stepOrder: index + 1,
+      title: step.title.trim() || null,
       instruction: step.instruction.trim(),
       durationMinutes: nullableNumber(step.durationMinutes),
       temperature: step.temperature.trim() || null,
       stage: step.stage || 'COOK',
+      ahead: step.ahead,
     })),
   };
 }

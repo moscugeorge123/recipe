@@ -379,7 +379,7 @@ function SignedIn({
     [
       'notifications_active',
       'Timer alerts',
-      'Chime and vibrate when a timer ends',
+      'Rings an alarm, even if the app is closed',
       prefs.timerAlerts,
       () => prefs.set({ timerAlerts: !prefs.timerAlerts }),
     ],

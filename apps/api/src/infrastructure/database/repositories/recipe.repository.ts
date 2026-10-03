@@ -728,6 +728,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
               steps: {
                 create: target.steps.map((item) => ({
                   stepOrder: item.stepOrder,
+                  title: item.title,
                   instruction: item.instruction,
                   durationMinutes: item.durationMinutes,
                   temperature: item.temperature,
@@ -735,6 +736,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
                   temperatureFahrenheit: item.temperatureFahrenheit,
                   ingredientRefs: item.ingredientRefs,
                   stage: item.stage,
+                  ahead: item.ahead,
                   confidence: item.confidence,
                   provenance: item.provenance as Prisma.InputJsonValue,
                   warnings: item.warnings as Prisma.InputJsonValue,
@@ -955,6 +957,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
       steps: revision.steps.map((step) => ({
         id: step.id,
         stepOrder: step.stepOrder,
+        title: step.title,
         instruction: step.instruction,
         durationMinutes: step.durationMinutes,
         temperature: step.temperature,
@@ -962,6 +965,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         temperatureFahrenheit: step.temperatureFahrenheit,
         ingredientRefs: step.ingredientRefs,
         stage: step.stage,
+        ahead: step.ahead,
         confidence: step.confidence,
         provenance: step.provenance,
         warnings: step.warnings,

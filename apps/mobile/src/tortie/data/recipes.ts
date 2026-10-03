@@ -53,12 +53,14 @@ export type TIng = {
   tint: string;
 };
 export type TStep = {
-  /** Short title (first sentence of the instruction). */
+  /** Short title from extraction, or the first sentence when a recipe has none. */
   t: string;
   /** Remaining instruction text. */
   d: string;
-  /** Timer minutes (0 = no timer). */
+  /** Timer minutes (0 = no timer). Set only when the step waits. */
   m: number;
+  /** Work that happens before the cooking session. */
+  ahead: boolean;
   /** Phase label from the step stage. */
   ph: string;
   heat: string;
@@ -135,6 +137,23 @@ function splitStep(text: string): [string, string] {
   return [s.replace(/[.!?]$/, ''), ''];
 }
 
+function stripLeadingTitle(instruction: string, title: string): string {
+  const heading = title.trim();
+  if (!heading) return instruction.trim();
+  const pattern = new RegExp(
+    `^${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s.:;—\\-–]*`,
+    'i',
+  );
+  return instruction.trim().replace(pattern, '').trim();
+}
+
+function stepCopy(step: RecipeStepView, units: Units): [string, string] {
+  const instruction = preferUnits(step.instruction, units);
+  const title = step.title?.trim().replace(/[.!?]+$/g, '').trim();
+  if (!title) return splitStep(instruction);
+  return [title, stripLeadingTitle(instruction, title)];
+}
+
 /** Amounts, heat and in-text measurements follow `units` (Profile → Units). */
 export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
   const base = toTRecipe(v);
@@ -152,7 +171,7 @@ export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
   const steps: TStep[] = [...v.steps]
     .sort((a, b) => a.stepOrder - b.stepOrder)
     .map((s: RecipeStepView) => {
-      const [t, d] = splitStep(preferUnits(s.instruction, units));
+      const [t, d] = stepCopy(s, units);
       const tx = s.instruction.toLowerCase();
       const refs = (s.ingredientRefs ?? []).filter((i) => i < ings.length);
       const need = refs.length
@@ -166,6 +185,7 @@ export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
         m: s.durationSeconds
           ? Math.max(1, Math.round(s.durationSeconds / 60))
           : 0,
+        ahead: s.ahead,
         ph: STAGE[s.stage] ?? '',
         heat: stepHeat(s, units),
         tip: '',

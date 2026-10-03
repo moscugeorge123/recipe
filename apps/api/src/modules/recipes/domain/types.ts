@@ -26,6 +26,8 @@ export interface ExtractedIngredient {
 
 export interface ExtractedStep {
   stepOrder: number;
+  /** Short imperative label. Missing on extractions from older prompts. */
+  title?: string | null;
   instruction: string;
   durationMinutes?: number | null;
   temperature?: string | null;
@@ -33,6 +35,8 @@ export interface ExtractedStep {
   temperatureFahrenheit?: number | null;
   ingredientIndexes?: number[] | null;
   stage?: string | null;
+  /** Work that happens before the cooking session. */
+  ahead?: boolean | null;
   confidence: number;
   provenance?: string;
 }
@@ -81,6 +85,7 @@ export interface NormalizedIngredient {
 
 export interface NormalizedStep {
   stepOrder: number;
+  title: string | null;
   instruction: string;
   durationMinutes: number | null;
   temperature: string | null;
@@ -88,6 +93,7 @@ export interface NormalizedStep {
   temperatureFahrenheit?: number | null;
   ingredientRefs?: number[];
   stage: string;
+  ahead: boolean;
   confidence: number;
   provenance: Prisma.InputJsonValue;
   warnings: Prisma.InputJsonValue;

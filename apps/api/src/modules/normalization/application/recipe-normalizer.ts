@@ -2,7 +2,9 @@ import type { Prisma } from '@prisma/client';
 
 import type {
   ExtractedRecipe,
+  ExtractedStep,
   NormalizedRecipe,
+  NormalizedStep,
   NutritionSource,
   RecipeDifficulty,
 } from '../../recipes/domain/types.js';
@@ -13,7 +15,43 @@ import { IngredientNormalizer } from './ingredient-normalizer.js';
 
 const MAX_KCAL_PER_SERVING = 5000;
 const MAX_GRAMS_PER_SERVING = 1000;
+const MAX_TITLE_WORDS = 8;
+const MAX_TIMER_MINUTES = 7 * 24 * 60;
 const DIFFICULTIES: readonly RecipeDifficulty[] = ['Easy', 'Medium', 'Hard'];
+
+function stripLeadingTitle(instruction: string, title: string): string {
+  const heading = title.trim();
+  if (!heading) return instruction.trim();
+  const pattern = new RegExp(
+    `^${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s.:;—\\-–]*`,
+    'i',
+  );
+  return instruction.trim().replace(pattern, '').trim();
+}
+
+/** Shortens an oversized title into the instruction. durationMinutes is the wait timer from the model. */
+export function shapeExtractedStep(step: ExtractedStep): {
+  title: string | null;
+  instruction: string;
+  ahead: boolean;
+  durationMinutes: number | null;
+} {
+  const cleaned = (step.title ?? '').trim().replace(/[.!?]+$/g, '').trim();
+  const words = cleaned.split(/\s+/).filter(Boolean);
+  const head = words.slice(0, MAX_TITLE_WORDS).join(' ');
+  const overflow = words.slice(MAX_TITLE_WORDS).join(' ');
+  let instruction = stripLeadingTitle(step.instruction ?? '', cleaned);
+  if (overflow && !instruction.toLocaleLowerCase().includes(overflow.toLocaleLowerCase())) {
+    instruction = [overflow, instruction].filter(Boolean).join(' ');
+  }
+
+  return {
+    title: head ? toSentenceCase(head) : null,
+    instruction,
+    ahead: step.ahead === true,
+    durationMinutes: boundedInt(step.durationMinutes, 1, MAX_TIMER_MINUTES),
+  };
+}
 
 function boundedInt(value: unknown, min: number, max: number): number | null {
   if (typeof value !== 'number' || !Number.isFinite(value)) return null;
@@ -119,27 +157,39 @@ export class RecipeNormalizer {
       };
     });
 
-    const steps = extracted.steps.map((step, index) => {
-      const temperature = reconcileTemperature({
-        celsius: step.temperatureCelsius ?? null,
-        fahrenheit: step.temperatureFahrenheit ?? null,
-        text: step.temperature ?? null,
-        instruction: step.instruction,
+    const steps: NormalizedStep[] = extracted.steps
+      .map((step, index) => ({ step, index }))
+      .sort((a, b) => {
+        const aheadA = a.step.ahead === true;
+        const aheadB = b.step.ahead === true;
+        if (aheadA !== aheadB) return aheadA ? -1 : 1;
+        return a.step.stepOrder - b.step.stepOrder || a.index - b.index;
+      })
+      .map(({ step }, index, ordered) => {
+        const copy = shapeExtractedStep(step);
+        const instruction = addDualMeasurements(copy.instruction);
+        const temperature = reconcileTemperature({
+          celsius: step.temperatureCelsius ?? null,
+          fahrenheit: step.temperatureFahrenheit ?? null,
+          text: step.temperature ?? null,
+          instruction: instruction || copy.title || '',
+        });
+        return {
+          stepOrder: index + 1,
+          title: copy.title,
+          instruction,
+          durationMinutes: copy.durationMinutes,
+          temperature: step.temperature ?? null,
+          temperatureCelsius: temperature?.celsius ?? null,
+          temperatureFahrenheit: temperature?.fahrenheit ?? null,
+          ingredientRefs: ingredientRefs(step.ingredientIndexes, ingredients.length),
+          stage: isStepStage(step.stage) ? step.stage : stageForIndex(index, ordered.length),
+          ahead: copy.ahead,
+          confidence: step.confidence,
+          provenance: step.provenance ? { source: step.provenance } : {},
+          warnings: [] as Prisma.InputJsonValue,
+        };
       });
-      return {
-        stepOrder: step.stepOrder,
-        instruction: addDualMeasurements(step.instruction.trim()),
-        durationMinutes: step.durationMinutes ?? null,
-        temperature: step.temperature ?? null,
-        temperatureCelsius: temperature?.celsius ?? null,
-        temperatureFahrenheit: temperature?.fahrenheit ?? null,
-        ingredientRefs: ingredientRefs(step.ingredientIndexes, ingredients.length),
-        stage: isStepStage(step.stage) ? step.stage : stageForIndex(index, extracted.steps.length),
-        confidence: step.confidence,
-        provenance: step.provenance ? { source: step.provenance } : {},
-        warnings: [] as Prisma.InputJsonValue,
-      };
-    });
 
     const computedTotal = (extracted.prepTimeMinutes ?? 0) + (extracted.cookTimeMinutes ?? 0);
     const totalTimeMinutes =
