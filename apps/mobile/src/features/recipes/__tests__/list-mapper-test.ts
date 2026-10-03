@@ -50,6 +50,27 @@ describe('mapRecipeListItem', () => {
     expect(view.ingredientCount).toBe(8);
     expect(view.stepCount).toBe(4);
     expect(view.createdAt).toBe('2026-01-01T00:00:00.000Z');
+    expect(view.isFavorite).toBe(false);
+    expect(view.rating).toBeNull();
+    expect(view.cookCount).toBe(0);
+    expect(view.reviewState).toBeUndefined();
+  });
+
+  test('maps engagement fields used on Home cards', () => {
+    const view = mapRecipeListItem({
+      ...fixture,
+      isFavorite: true,
+      rating: 4,
+      cookCount: 3,
+      reviewState: 'READY',
+      categories: [{ id: 'c1', slug: 'pasta', name: 'Pasta', sortOrder: 0 }],
+    });
+
+    expect(view.isFavorite).toBe(true);
+    expect(view.rating).toBe(4);
+    expect(view.cookCount).toBe(3);
+    expect(view.reviewState).toBe('READY');
+    expect(view.categories?.[0]?.name).toBe('Pasta');
   });
 
   test('applies defaults when list fields are null', () => {

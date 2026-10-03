@@ -84,6 +84,7 @@ describe('YouTubeLinkUnfurler', () => {
       'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
     );
 
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- vi.fn spy
     expect(ytdlp.fetchMetadata).not.toHaveBeenCalled();
     expect(preview).toEqual({
       url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',

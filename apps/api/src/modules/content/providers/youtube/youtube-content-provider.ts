@@ -2,15 +2,31 @@ import type { SourceType } from '@prisma/client';
 
 import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
 import { logStep } from '../../../../infrastructure/logging/log-step.js';
-import type { AcquiredContent, AcquisitionContext, ContentProvider } from '../../domain/types.js';
+import { downloadMedia, type FetchLike } from '../../../../shared/utils/download-media.js';
+import type {
+  AcquiredContent,
+  AcquisitionContext,
+  ContentCaptionTrack,
+  ContentProvider,
+} from '../../domain/types.js';
+import { buildCaptionTrack, formatChapters, selectCaptionTrack } from './youtube-captions.js';
 import type { VideoDownloadClient, YtDlpMetadata } from './ytdlp-client.js';
 
 const YOUTUBE_HOSTS = ['youtube.com', 'www.youtube.com', 'youtu.be', 'm.youtube.com'];
 
+export interface YouTubeProviderOptions {
+  /** Set false to skip fetching captions (Whisper transcribes the audio instead). */
+  fetchCaptions?: boolean;
+  fetchImpl?: FetchLike;
+}
+
 export class YouTubeContentProvider implements ContentProvider {
   readonly sourceType: SourceType = 'YOUTUBE';
 
-  constructor(private readonly ytdlp: VideoDownloadClient) {}
+  constructor(
+    private readonly ytdlp: VideoDownloadClient,
+    private readonly options: YouTubeProviderOptions = {},
+  ) {}
 
   supports(url: string): boolean {
     try {
@@ -52,6 +68,9 @@ export class YouTubeContentProvider implements ContentProvider {
     const images = metadata.thumbnail
       ? [{ url: metadata.thumbnail, mimeType: 'image/jpeg' as const }]
       : [];
+    const captions =
+      this.options.fetchCaptions === false ? undefined : await this.fetchCaptions(metadata, ctx);
+    const chapters = formatChapters(metadata.chapters);
 
     return {
       sourceType: 'YOUTUBE',
@@ -63,14 +82,42 @@ export class YouTubeContentProvider implements ContentProvider {
         : {}),
       ...(metadata.uploader ? { author: metadata.uploader } : {}),
       ...(metadata.language ? { language: metadata.language } : {}),
-      ...(videoLocalPath ? { videoLocalPath } : {}),
+      ...(videoLocalPath ? { videoLocalPath, videos: [{ localPath: videoLocalPath }] } : {}),
+      ...(captions ? { captions } : {}),
       ...(metadata.thumbnail ? { thumbnailUrl: metadata.thumbnail } : {}),
       images,
       metadata: {
         provider: 'yt-dlp',
         durationSeconds: metadata.duration,
+        ...(chapters.length > 0 ? { chapters } : {}),
+        ...(captions ? { captionsKind: captions.kind, captionsLanguage: captions.language } : {}),
         ...(downloadError ? { downloadError } : {}),
       },
     };
+  }
+
+  /** Captions are best-effort: any failure falls back to Whisper on the downloaded audio. */
+  private async fetchCaptions(
+    metadata: YtDlpMetadata,
+    ctx: AcquisitionContext,
+  ): Promise<ContentCaptionTrack | undefined> {
+    const candidate = selectCaptionTrack(metadata);
+    if (!candidate) {
+      return undefined;
+    }
+    try {
+      const { data } = await downloadMedia(candidate.url, {
+        maxBytes: 5 * 1024 * 1024,
+        timeoutMs: 30_000,
+        ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+      });
+      return buildCaptionTrack(candidate, data.toString('utf8'));
+    } catch (error: unknown) {
+      ctx.log?.warn(
+        { step: 'youtube.captions', kind: candidate.kind, language: candidate.language, err: error },
+        'youtube.captions failed',
+      );
+      return undefined;
+    }
   }
 }

@@ -19,16 +19,22 @@ to be consumed by a React Native application and deployed to **AWS ECS/Fargate**
 
 The HTTP API accepts extraction requests and returns immediately with a job id. A separate **worker**
 process executes the multi-stage pipeline (content acquisition → media processing → AI extraction →
-normalization → validation). See [`architecture.md`](architecture.md) for the full design.
+normalization → validation). Calories and macros are estimated by the AI extractor and stored on
+the recipe. See [`architecture.md`](architecture.md)
+for the full design.
 
 `POST /api/v1/recipes/preview` unfurls title, author and thumbnails for the import screen without
 creating a job. It shares the extract rate limit. Instagram preview is oEmbed/Open Graph only
 (never Apify); set `META_APP_ID` + `META_APP_SECRET` for Graph oEmbed. YouTube preview uses public oEmbed plus `i.ytimg.com` stills (never yt-dlp, never downloads).
 Extraction still uses yt-dlp on the worker.
 
+Identity is an **implicit singleton profile** (`00000000-0000-4000-8000-000000000001`) until
+authentication is wired at the `AUTHENTICATION EXTENSION POINT` in `src/app/app.ts`. Controllers
+already read `request.profile`; swapping `ImplicitProfileResolver` is the replacement point.
+
 The scaffold ships with request validation, centralised error handling, structured logging, OpenAPI
-documentation, health checks, security defaults, graceful shutdown and a full test suite. The `example`
-feature remains as a reference until recipe endpoints ship in Phase 9.
+documentation, health checks, operational aggregates (`GET /api/v1/ops/summary`), security defaults,
+graceful shutdown and a full test suite.
 
 ---
 
@@ -90,13 +96,14 @@ come from the ECS task definition and secrets from Secrets Manager or SSM Parame
 | `REDIS_URL`             | `redis://localhost:6379` | BullMQ queue backend.                                              |
 | `STORAGE_PROVIDER`      | `local`       | `local` or `s3`.                                                           |
 | `STORAGE_LOCAL_PATH`    | `./storage`   | Local artifact directory (dev).                                            |
-| `OPENAI_API_KEY`        | _(unset)_     | Required when AI providers are enabled (Phase 7).                          |
-| `META_APP_ID`           | _(unset)_     | Optional Instagram Graph oEmbed for `POST /recipes/preview`.               |
-| `META_APP_SECRET`       | _(unset)_     | Pair with `META_APP_ID`. Preview falls back to Open Graph when unset.      |
-| `YTDLP_PATH`            | `yt-dlp`      | Binary used for YouTube preview and extraction. Must be on PATH.           |
-| `EXTRACTION_MAX_RETRIES`| `5`           | Queue retry limit for transient failures.                                  |
-| `EXTRACTION_QUEUE_CONCURRENCY` | `2`  | Worker concurrency (Phase 4).                                              |
-| `MAX_VIDEO_DURATION_SECONDS` | `600` | Rejects videos longer than this.                                       |
+| `OPENAI_API_KEY`        | _(unset)_     | Live extraction/pantry AI. Tests never call OpenAI.                   |
+| `AI_INGREDIENT_MODEL`   | `gpt-5-nano`  | Pantry batch model after dictionary/cache. Never GPT-5.6.             |
+| `META_APP_ID`           | _(unset)_     | Optional Instagram Graph oEmbed for `POST /recipes/preview`.          |
+| `META_APP_SECRET`       | _(unset)_     | Pair with `META_APP_ID`. Preview falls back to Open Graph when unset. |
+| `YTDLP_PATH`            | `yt-dlp`      | Binary used for YouTube preview and extraction. Must be on PATH.      |
+| `EXTRACTION_MAX_RETRIES`| `5`           | Queue retry limit for transient failures.                             |
+| `EXTRACTION_QUEUE_CONCURRENCY` | `2`  | Extraction worker concurrency.                                        |
+| `MAX_VIDEO_DURATION_SECONDS` | `600` | Rejects videos longer than this.                                   |
 
 See `.env.example` for the full list including AI models and external provider tokens.
 
@@ -137,11 +144,35 @@ DATABASE_URL=postgresql://postgres:postgres@localhost:5432/recipe_api npm run db
 ```
 
 ```
-http://localhost:3000/health          liveness
-http://localhost:3000/api/v1/health   same contract, documented
-http://localhost:3000/api/v1/example  demo endpoints (removed in Phase 9)
-http://localhost:3000/docs            Swagger UI
+http://localhost:3000/health              liveness (ALB)
+http://localhost:3000/api/v1/health       same contract, documented
+http://localhost:3000/api/v1/ops/summary  operator aggregates (no PII)
+http://localhost:3000/docs                Swagger UI
 ```
+
+### Ingredient-model policy
+
+Pantry organization (and import emoji/category enrichment) is **configuration, not code**:
+
+1. Deterministic dictionary + classification cache.
+2. One compact batch to `AI_INGREDIENT_MODEL` (`gpt-5-nano`).
+3. Compatibility fallback `AI_INGREDIENT_FALLBACK_MODEL` (`gpt-4.1-nano`).
+4. At most `AI_INGREDIENT_MAX_ESCALATIONS` items to `gpt-4o-mini`.
+5. Item/token budgets: `AI_INGREDIENT_MAX_ITEMS`, `AI_INGREDIENT_MAX_INPUT_TOKENS`, `AI_INGREDIENT_MAX_OUTPUT_TOKENS`.
+
+Usage lands in `ai_usage`. `GET /api/v1/ops/summary` totals tokens, cost, cache, and escalation calls.
+
+### Data ownership and revisions
+
+Every imported recipe is owned by the singleton profile. `PATCH /recipes/:id` appends an immutable snapshot; the original import (revision 0) is recoverable. Stale `expectedRevisionNumber` returns `409 RECIPE_REVISION_CONFLICT` (logged, not stored as a counter).
+
+### Queue workers
+
+| Queue | Processor | Process |
+| --- | --- | --- |
+| `extraction-jobs` | `src/worker/processors/extraction.processor.ts` | `npx nx run api:dev:worker` |
+
+Tests use in-memory queues so `app.inject()` completes extraction without Redis.
 
 ## Production
 
@@ -205,15 +236,21 @@ npm run test:coverage # coverage report (text + lcov in coverage/)
 ```
 
 Tests need no network and no AWS environment. Database integration tests under
-`tests/integration/database/` run when PostgreSQL is reachable (skipped otherwise).
+`tests/integration/` run when PostgreSQL is reachable (`skipIf` otherwise). They always
+target `recipe_api_test`, never `recipe_api`.
 
 ```bash
 # With Postgres running (e.g. via docker compose up postgres):
-# Apply migrations to the test database once. `npm test` always uses recipe_api_test,
-# even if `.env` points DATABASE_URL at the development recipe_api database.
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/recipe_api_test npm run db:migrate:deploy
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/recipe_api_test npx prisma migrate status
 npm test
 ```
+
+The focused journey is `tests/integration/api/platform-journey.test.ts` (import → categories/emoji →
+immutable edit → favorite/rating/note → collection → pantry match → completed cooks →
+home ordering). It uses the fake content provider — no live OpenAI.
+
+`GET /api/v1/ops/summary` is covered by `tests/integration/api/ops-summary.test.ts`.
 
 ## Code quality
 
@@ -431,16 +468,18 @@ A note on CORS and mobile: React Native's `fetch` is not a browser and is not su
 same-origin policy, so the mobile app works with an empty `CORS_ORIGINS`. The allow-list exists for
 web clients (Expo web, an admin dashboard, local tooling).
 
-### Authentication (not implemented)
+### Authentication (replacement point)
 
 There is no authentication and no fake stand-in. The extension points are in place:
 
 - `UnauthorizedError` and `ForbiddenError` already map to 401/403 with the standard envelope.
-- `app.ts` contains a commented `AUTHENTICATION EXTENSION POINT` describing the intended wiring:
-  a plugin that verifies the credential (e.g. a Cognito JWT), decorates the request with the caller,
-  and is applied as a **route-level** `preHandler` so public routes stay public.
+- `app.ts` contains a commented `AUTHENTICATION EXTENSION POINT`.
+- `ImplicitProfileResolver` (`src/modules/profiles/domain/profile.ts`) is the swap target: a future
+  JWT resolver should still decorate `request.profile` with `{ userId, mode }`.
 - CORS already allows the `Authorization` request header.
 - `/health` must remain unauthenticated for the load balancer.
+- `GET /api/v1/ops/summary` is unauthenticated while the singleton profile is in use. Gate it when
+  auth ships.
 
 ---
 
@@ -481,8 +520,7 @@ on a laptop, in Compose, or on Fargate.
   RDS/Aurora or DynamoDB, shared cache to ElastiCache.
 - **Graceful shutdown** means rolling deployments and scale-in are invisible to clients.
 
-The one exception is the `example` feature's in-memory `Map`, which is demo-only and marked as such:
-each task would see different data. Real features must use an external store.
+The `example` demo feature has been removed. Real features persist to PostgreSQL.
 
 ### Settings that matter on ECS
 
@@ -573,7 +611,8 @@ Each of the following can be added without restructuring what exists:
 | Layer                 | Location                      | What it covers                                                                                                                                                      |
 | --------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | **Unit**              | `src/**/*.test.ts`            | Service logic, configuration validation, pagination, the error hierarchy, logger configuration and the shutdown contract.                                           |
-| **Integration / API** | `tests/integration/*.test.ts` | The real Fastify app via `app.inject()`. |
+| **Integration / API** | `tests/integration/api/` | Real Fastify app via `app.inject()`, including `platform-journey.test.ts`. |
+| **Ops**               | `tests/integration/api/ops-summary.test.ts` | Aggregated operator counters. |
 | **Integration / DB**  | `tests/integration/database/` | Prisma repositories (requires Postgres). |
 | **End-to-end**        | `tests/e2e/*.test.ts`         | A spawned server process: real HTTP requests, real SIGTERM/SIGINT handling, clean exit codes, and the shape of emitted log lines.                                   |
 
@@ -604,6 +643,19 @@ will need to:
 4. **Add CI** to run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test`, then
    build and push the image.
 5. **Choose an infrastructure-as-code tool** and add it under `infra/`.
-6. **Decide on authentication** (Cognito, Auth0, …) and implement it at the documented extension
-   point.
-7. **Delete the `example` feature** once real features exist.
+6. **Decide on authentication** (Cognito, Auth0, …) and replace `ImplicitProfileResolver` plus the
+   documented extension point in `app.ts`. Gate `/api/v1/ops/summary` at the same time.
+7. **Set `OPENAI_API_KEY`** in production. A missing key is visible (pantry dictionary/fallback) and
+   does not destroy user data.
+
+### Operational log queries
+
+Not every failure is a table row. Use these when `GET /api/v1/ops/summary` says a metric is not persisted:
+
+```text
+# Revision conflicts (HTTP 409, nothing stored)
+error.code=RECIPE_REVISION_CONFLICT
+
+# Pantry fallback / escalation (also in ai_usage.operation)
+pantry_organize_cache | pantry_organize_batch | pantry_organize_fallback | pantry_organize_escalation
+```

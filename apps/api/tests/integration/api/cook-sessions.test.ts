@@ -12,7 +12,10 @@ import {
 
 const dbAvailable = await isDatabaseAvailable();
 
-async function extractRecipe(app: FastifyInstance, url = 'https://example.com/fake-recipe'): Promise<string> {
+async function extractRecipe(
+  app: FastifyInstance,
+  url = 'https://example.com/fake-recipe',
+): Promise<string> {
   const created = await app.inject({
     method: 'POST',
     url: '/api/v1/recipes/extract',
@@ -36,7 +39,9 @@ describe.skipIf(!dbAvailable)('cook session API endpoints', () => {
 
   beforeEach(async () => {
     await resetDatabase(prisma);
-    app = await buildTestApp({ container: createTestContainer({ enableMediaProcessing: false }) });
+    const container = createTestContainer({ enableMediaProcessing: false });
+    await container.profileBootstrap.ensureDefaults();
+    app = await buildTestApp({ container });
   });
 
   afterEach(async () => {
@@ -208,9 +213,10 @@ describe.skipIf(!dbAvailable)('cook session API endpoints', () => {
       expect(patched.json().data.status).toBe('IN_PROGRESS');
 
       const visits = Object.fromEntries(
-        (patched.json().data.steps as { stepIndex: number; visitCount: number }[]).map(
-          (step) => [step.stepIndex, step.visitCount],
-        ),
+        (patched.json().data.steps as { stepIndex: number; visitCount: number }[]).map((step) => [
+          step.stepIndex,
+          step.visitCount,
+        ]),
       );
       expect(visits[0]).toBe(1);
       if (nextStep !== 0) {
@@ -250,9 +256,9 @@ describe.skipIf(!dbAvailable)('cook session API endpoints', () => {
       });
 
       expect(back.statusCode).toBe(200);
-      const step0 = (
-        back.json().data.steps as { stepIndex: number; visitCount: number }[]
-      ).find((step) => step.stepIndex === 0);
+      const step0 = (back.json().data.steps as { stepIndex: number; visitCount: number }[]).find(
+        (step) => step.stepIndex === 0,
+      );
       expect(step0?.visitCount).toBe(2);
     });
 

@@ -21,6 +21,7 @@
     "postinstall": "prisma generate",
     "start": "node dist/index.js",
     "start:worker": "node dist/worker/index.js",
+    "import:smoke": "tsx --env-file-if-exists=.env src/scripts/import-smoke.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -35,6 +36,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@recipe/contracts": "*",
     "@aws-sdk/client-s3": "^3.1114.0",
     "@aws-sdk/s3-request-presigner": "^3.1114.0",
     "@fastify/cors": "11.3.0",

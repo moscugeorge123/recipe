@@ -210,6 +210,9 @@ export class CookSessionService {
       throw new CookSessionNotFoundError();
     }
 
+    if (existing.status === 'COMPLETED') {
+      await this.recipeRepo.adjustCompletedCookCount(existing.userId, existing.recipeId, -1);
+    }
     await this.cookSessionRepo.delete(id);
   }
 
@@ -220,7 +223,7 @@ export class CookSessionService {
     }
   }
 
-  private applyProgress(
+  private async applyProgress(
     existing: CookSessionWithRecipe,
     patch: PatchCookSessionBody,
   ): Promise<CookSessionWithRecipe> {
@@ -258,6 +261,27 @@ export class CookSessionService {
       ...(reopening ? { finishedAt: null } : {}),
     };
 
-    return this.cookSessionRepo.update(existing.id, input);
+    const updated = await this.cookSessionRepo.update(existing.id, input);
+    await this.syncCompletedCookCount(
+      existing.status,
+      updated.status,
+      existing.userId,
+      existing.recipeId,
+    );
+    return updated;
+  }
+
+  private async syncCompletedCookCount(
+    previous: CookSessionStatus,
+    next: CookSessionStatus,
+    userId: string,
+    recipeId: string,
+  ): Promise<void> {
+    const wasCompleted = previous === 'COMPLETED';
+    const isCompleted = next === 'COMPLETED';
+    if (wasCompleted === isCompleted) {
+      return;
+    }
+    await this.recipeRepo.adjustCompletedCookCount(userId, recipeId, isCompleted ? 1 : -1);
   }
 }

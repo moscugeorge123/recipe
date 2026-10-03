@@ -1,11 +1,24 @@
 import type { Prisma } from '@prisma/client';
+import type { NutritionSource, RecipeDifficulty } from '@recipe/contracts';
+
+export type { NutritionSource, RecipeDifficulty };
+
+/** An amount in one measurement system as returned by the model. */
+export interface ExtractedMeasurement {
+  quantity?: string | number | null;
+  unit?: string | null;
+}
 
 export interface ExtractedIngredient {
   name: string;
   quantity?: string | null;
   unit?: string | null;
+  metric?: ExtractedMeasurement | null;
+  imperial?: ExtractedMeasurement | null;
   preparation?: string | null;
   optional?: boolean;
+  emoji?: string | null;
+  colorToken?: string | null;
   category?: string | null;
   confidence: number;
   provenance?: string;
@@ -13,10 +26,17 @@ export interface ExtractedIngredient {
 
 export interface ExtractedStep {
   stepOrder: number;
+  /** Short imperative label. Missing on extractions from older prompts. */
+  title?: string | null;
   instruction: string;
   durationMinutes?: number | null;
   temperature?: string | null;
+  temperatureCelsius?: number | null;
+  temperatureFahrenheit?: number | null;
+  ingredientIndexes?: number[] | null;
   stage?: string | null;
+  /** Work that happens before the cooking session. */
+  ahead?: boolean | null;
   confidence: number;
   provenance?: string;
 }
@@ -28,14 +48,17 @@ export interface ExtractedRecipe {
   prepTimeMinutes?: number | null;
   cookTimeMinutes?: number | null;
   totalTimeMinutes?: number | null;
+  difficulty?: string | null;
   sourceLanguage: string;
   calories?: number | null;
+  nutritionSource?: string | null;
   cuisine?: string | null;
   nutrition?: {
     proteinGrams?: number | null;
     carbsGrams?: number | null;
     fatGrams?: number | null;
   } | null;
+  categorySlugs?: string[] | null;
   ingredients: ExtractedIngredient[];
   steps: ExtractedStep[];
 }
@@ -45,8 +68,14 @@ export interface NormalizedIngredient {
   canonicalName: string;
   quantity: Prisma.Decimal | null;
   unit: string | null;
+  metricQuantity?: Prisma.Decimal | null;
+  metricUnit?: string | null;
+  imperialQuantity?: Prisma.Decimal | null;
+  imperialUnit?: string | null;
   preparation: string | null;
   optional: boolean;
+  emoji?: string;
+  colorToken?: string;
   category: string;
   confidence: number;
   provenance: Prisma.InputJsonValue;
@@ -56,10 +85,15 @@ export interface NormalizedIngredient {
 
 export interface NormalizedStep {
   stepOrder: number;
+  title: string | null;
   instruction: string;
   durationMinutes: number | null;
   temperature: string | null;
+  temperatureCelsius?: number | null;
+  temperatureFahrenheit?: number | null;
+  ingredientRefs?: number[];
   stage: string;
+  ahead: boolean;
   confidence: number;
   provenance: Prisma.InputJsonValue;
   warnings: Prisma.InputJsonValue;
@@ -72,12 +106,15 @@ export interface NormalizedRecipe {
   prepTimeMinutes: number | null;
   cookTimeMinutes: number | null;
   totalTimeMinutes: number | null;
+  difficulty?: RecipeDifficulty | null;
   sourceLanguage: string;
   calories: number | null;
+  nutritionSource?: NutritionSource | null;
   cuisine: string | null;
   nutrition: Prisma.InputJsonValue | null;
   confidence: number;
   warnings: Prisma.InputJsonValue;
+  categorySlugs?: string[];
   ingredients: NormalizedIngredient[];
   steps: NormalizedStep[];
 }

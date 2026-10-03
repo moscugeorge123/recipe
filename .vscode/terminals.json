@@ -1,0 +1,18 @@
+{
+  "autorun": false,
+  "terminals": [
+    {
+      "name": "Mobile",
+      "focus": true,
+      "command": "npm run dev:mobile"
+    },
+    {
+      "name": "Web",
+      "command": "npm run dev:api"
+    },
+    {
+      "name": "Worker",
+      "command": "npm run dev:worker"
+    }
+  ]
+}

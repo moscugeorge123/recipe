@@ -1,13 +1,14 @@
 import { z } from 'zod';
 
 import { paginationQuerySchema } from '../../../shared/pagination/pagination.js';
+import { dbUuid } from '../../../shared/validation/uuid.js';
 
 export const cookSessionStatusSchema = z.enum(['IN_PROGRESS', 'COMPLETED', 'STOPPED']);
 
 export type CookSessionStatusValue = z.infer<typeof cookSessionStatusSchema>;
 
 export const cookSessionIdParamsSchema = z.object({
-  id: z.uuid('id must be a UUID'),
+  id: dbUuid('id must be a UUID'),
 });
 
 export const listCookSessionsQuerySchema = paginationQuerySchema.extend({
@@ -18,7 +19,7 @@ export type ListCookSessionsQuery = z.infer<typeof listCookSessionsQuerySchema>;
 
 export const createCookSessionBodySchema = z
   .object({
-    recipeId: z.uuid('recipeId must be a UUID'),
+    recipeId: dbUuid('recipeId must be a UUID'),
     currentStepIndex: z.number().int().min(0).optional(),
   })
   .strict();
@@ -38,7 +39,7 @@ export const patchCookSessionBodySchema = z
 export type PatchCookSessionBody = z.infer<typeof patchCookSessionBodySchema>;
 
 export const cookSessionRecipeSchema = z.object({
-  id: z.uuid(),
+  id: dbUuid(),
   title: z.string(),
   stepCount: z.number().int(),
 });
@@ -52,8 +53,8 @@ export const cookSessionStepSchema = z.object({
 });
 
 export const cookSessionSchema = z.object({
-  id: z.uuid(),
-  recipeId: z.uuid(),
+  id: dbUuid(),
+  recipeId: dbUuid(),
   status: cookSessionStatusSchema,
   currentStepIndex: z.number().int(),
   startedAt: z.iso.datetime(),
@@ -66,6 +67,6 @@ export const cookSessionSchema = z.object({
 });
 
 export const deleteCookSessionResponseSchema = z.object({
-  id: z.uuid(),
+  id: dbUuid(),
   deleted: z.literal(true),
 });

@@ -1,0 +1,309 @@
+import { create } from 'zustand';
+
+import { BASE_D } from '@/tortie/theme';
+import { motionMultiplier } from '@/tortie/motion';
+import {
+  toggleSelection,
+  type GroceryPickRequest,
+} from '@/tortie/data/selection';
+
+export type TabKey = 'today' | 'cookbook' | 'plan' | 'groceries';
+export const TAB_ORDER: TabKey[] = ['today', 'cookbook', 'plan', 'groceries'];
+
+export type AuthStep = 'start' | 'pw' | 'signup' | 'oauth' | 'done';
+export type AuthProvider = 'google' | 'facebook';
+
+type Nav = {
+  /** Flips true 60ms after first mount so the first stagger runs. */
+  mounted: boolean;
+  tab: TabKey;
+
+  detailOpen: boolean;
+  detailId: string | null;
+  /** Increments every time the detail opens (scroll to top, reset to Ingredients). */
+  detailNonce: number;
+
+  prof: boolean;
+  profNonce: number;
+  /** Profile content hidden while switching signed-in ↔ guest. */
+  pfOut: boolean;
+
+  /** Add-a-recipe sheet. */
+  addSheet: boolean;
+  /** Link shared in from another app. */
+  shareOpen: boolean;
+  shareUrl: string | null;
+  shareTitle: string | null;
+  shareNonce: number;
+  /** Camera scan. */
+  cam: boolean;
+  /** Set when the camera hands a photo back to the add sheet. */
+  scanUri: string | null;
+
+  menu: boolean;
+  menuV: 'main' | 'coll' | 'plan';
+  /** Add-to-collection sheet opened from cookbook multi-select. */
+  menuBulk: boolean;
+  /**
+   * Multi-select ids. `null` is the mode off.
+   * Cookbook stores recipe ids; the plan stores meal-plan entry ids.
+   * Never an empty array — dropping the last id sets `null`.
+   */
+  sel: string[] | null;
+
+  /** New collection sheet; `ncRecipeIds` are added on create. */
+  nc: boolean;
+  ncRecipeIds: string[];
+
+  /** Cookbook filter / sort sheet. */
+  fs: boolean;
+  /** Plan month picker. */
+  cal: boolean;
+
+  /** Edit pantry item sheet. */
+  pedOn: boolean;
+  pedId: string | null;
+
+  /** Shopping list edit mode. Tapping a row opens the item sheet. */
+  grocEdit: boolean;
+  /** Edit shopping-list item sheet. */
+  gedOn: boolean;
+  gedId: string | null;
+
+  /** Add-to-groceries ingredient picker. Content stays while the sheet closes. */
+  grocPickOn: boolean;
+  grocPick: GroceryPickRequest | null;
+  grocPickNonce: number;
+
+  edit: boolean;
+  editMode: 'edit' | 'new';
+  editId: string | null;
+  editNonce: number;
+
+  cookOpen: boolean;
+  cookId: string | null;
+  cookNonce: number;
+
+  au: boolean;
+  auStep: AuthStep;
+  auMode: 'signup' | 'login';
+  auProv: AuthProvider;
+
+  /** Cross-screen hand-offs. */
+  cookbookColl: string | null;
+  grocSec: 'groc' | 'pantry';
+
+  toast: string;
+  toastOn: boolean;
+  toastNonce: number;
+};
+
+type Actions = {
+  set: (p: Partial<Nav>) => void;
+  goTab: (t: TabKey) => void;
+  openRecipe: (id: string) => void;
+  closeRecipe: () => void;
+  openProfile: () => void;
+  closeProfile: () => void;
+  openAdd: () => void;
+  closeAdd: () => void;
+  openShare: (url: string, title?: string | null) => void;
+  closeShare: () => void;
+  openCam: () => void;
+  closeCam: (reopenSheet: boolean) => void;
+  openMenu: () => void;
+  closeMenu: () => void;
+  clearSel: () => void;
+  toggleSel: (id: string) => void;
+  /** Replace the selection with the visible ids. No-op when `ids` is empty. */
+  selectIds: (ids: string[]) => void;
+  openBulkCollections: () => void;
+  openNewCollection: (forRecipe?: string | string[] | null) => void;
+  openEditor: (id: string) => void;
+  openNewRecipe: () => void;
+  closeEditor: () => void;
+  openCook: (id: string) => void;
+  closeCook: () => void;
+  openGroceryPick: (pick: GroceryPickRequest) => void;
+  closeGroceryPick: () => void;
+  openAuth: (mode: 'signup' | 'login', prov?: AuthProvider) => void;
+  closeAuth: () => void;
+  toastShow: (msg: string) => void;
+};
+
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+let bulkExit: ReturnType<typeof setTimeout> | null = null;
+
+function cancelBulkExit() {
+  if (bulkExit) clearTimeout(bulkExit);
+  bulkExit = null;
+}
+
+export const useNav = create<Nav & Actions>()((set, get) => ({
+  mounted: false,
+  tab: 'today',
+  detailOpen: false,
+  detailId: null,
+  detailNonce: 0,
+  prof: false,
+  profNonce: 0,
+  pfOut: false,
+  addSheet: false,
+  shareOpen: false,
+  shareUrl: null,
+  shareTitle: null,
+  shareNonce: 0,
+  cam: false,
+  scanUri: null,
+  menu: false,
+  menuV: 'main',
+  menuBulk: false,
+  sel: null,
+  nc: false,
+  ncRecipeIds: [],
+  fs: false,
+  cal: false,
+  pedOn: false,
+  pedId: null,
+  grocEdit: false,
+  gedOn: false,
+  gedId: null,
+  grocPickOn: false,
+  grocPick: null,
+  grocPickNonce: 0,
+  edit: false,
+  editMode: 'edit',
+  editId: null,
+  editNonce: 0,
+  cookOpen: false,
+  cookId: null,
+  cookNonce: 0,
+  au: false,
+  auStep: 'start',
+  auMode: 'signup',
+  auProv: 'google',
+  cookbookColl: null,
+  grocSec: 'groc',
+  toast: '',
+  toastOn: false,
+  toastNonce: 0,
+
+  set: (p) => set(p),
+  goTab: (t) => {
+    if (get().tab === t) return;
+    cancelBulkExit();
+    const bulk = get().menuBulk;
+    set({
+      tab: t,
+      sel: null,
+      grocEdit: false,
+      gedOn: false,
+      ...(bulk ? { menu: false, menuBulk: false } : {}),
+    });
+  },
+  openRecipe: (id) =>
+    set((s) => ({
+      detailId: id,
+      detailOpen: true,
+      detailNonce: s.detailNonce + 1,
+    })),
+  closeRecipe: () => set({ detailOpen: false, menu: false, menuBulk: false }),
+  openProfile: () => set((s) => ({ prof: true, profNonce: s.profNonce + 1 })),
+  closeProfile: () => set({ prof: false }),
+  openAdd: () => set({ addSheet: true }),
+  closeAdd: () => set({ addSheet: false }),
+  openShare: (url, title = null) =>
+    set((s) => ({
+      shareOpen: true,
+      shareUrl: url,
+      shareTitle: title,
+      shareNonce: s.shareNonce + 1,
+    })),
+  closeShare: () => set({ shareOpen: false }),
+  openCam: () => set({ addSheet: false, cam: true }),
+  closeCam: (reopen) => set({ cam: false, addSheet: reopen }),
+  openMenu: () => set({ menu: true, menuV: 'main', menuBulk: false }),
+  closeMenu: () => {
+    const bulk = get().menuBulk;
+    set({ menu: false });
+    if (!bulk) return;
+    cancelBulkExit();
+    // ~60% of base duration, so checks don't empty while the sheet is still on screen.
+    const wait = Math.round(BASE_D * motionMultiplier() * 0.6);
+    bulkExit = setTimeout(() => {
+      bulkExit = null;
+      set({ sel: null, menuBulk: false });
+    }, wait);
+  },
+  clearSel: () => {
+    cancelBulkExit();
+    const bulk = get().menuBulk;
+    set(bulk ? { sel: null, menu: false, menuBulk: false } : { sel: null });
+  },
+  toggleSel: (id) =>
+    set((s) => ({ sel: s.sel ? toggleSelection(s.sel, id) : s.sel })),
+  selectIds: (ids) => {
+    if (!ids.length) return;
+    set({ sel: [...ids] });
+  },
+  openBulkCollections: () => {
+    cancelBulkExit();
+    set({ menu: true, menuV: 'coll', menuBulk: true });
+  },
+  openNewCollection: (forRecipe = null) =>
+    set({
+      nc: true,
+      ncRecipeIds:
+        forRecipe == null
+          ? []
+          : Array.isArray(forRecipe)
+            ? [...forRecipe]
+            : [forRecipe],
+    }),
+  openEditor: (id) =>
+    set((s) => ({
+      edit: true,
+      editMode: 'edit',
+      editId: id,
+      editNonce: s.editNonce + 1,
+    })),
+  openNewRecipe: () =>
+    set((s) => ({
+      addSheet: false,
+      edit: true,
+      editMode: 'new',
+      editId: null,
+      editNonce: s.editNonce + 1,
+    })),
+  closeEditor: () => set({ edit: false }),
+  openCook: (id) =>
+    set((s) => ({ cookOpen: true, cookId: id, cookNonce: s.cookNonce + 1 })),
+  closeCook: () => set({ cookOpen: false }),
+  openGroceryPick: (pick) =>
+    set((s) => ({
+      grocPickOn: true,
+      grocPick: pick,
+      grocPickNonce: s.grocPickNonce + 1,
+    })),
+  closeGroceryPick: () => set({ grocPickOn: false }),
+  openAuth: (mode, prov) =>
+    set({
+      au: true,
+      auMode: mode,
+      auStep: prov ? 'oauth' : 'start',
+      auProv: prov ?? get().auProv,
+    }),
+  closeAuth: () => set({ au: false }),
+  toastShow: (msg) => {
+    if (toastTimer) clearTimeout(toastTimer);
+    set((s) => ({ toast: msg, toastOn: true, toastNonce: s.toastNonce + 1 }));
+    toastTimer = setTimeout(() => set({ toastOn: false }), 2400);
+  },
+}));
+
+export const toast = (msg: string) => useNav.getState().toastShow(msg);
+
+/** `setTimeout` scaled by the motion multiplier (sheet → sheet hand-offs). */
+export function afterMotion(ms: number, fn: () => void) {
+  return setTimeout(fn, Math.round(ms * motionMultiplier()));
+}

@@ -74,13 +74,26 @@ function serializeReply(reply: { statusCode: number }): Record<string, unknown> 
   };
 }
 
-export function buildFileRollOptions(config: AppConfig): FileRollOptions | undefined {
+export type LogProcessName = 'api' | 'worker';
+
+export interface CreateLoggerOptions {
+  /** Tags every line so API and worker output can be told apart in the shared files. */
+  processName?: LogProcessName;
+}
+
+/** Name of the daily file that only receives job-scoped lines (every import step). */
+export const IMPORT_LOG_FILE = 'import';
+
+export function buildFileRollOptions(
+  config: AppConfig,
+  fileName: string = config.service.name,
+): FileRollOptions | undefined {
   if (config.nodeEnv === 'test' || !config.logging.directory) {
     return undefined;
   }
 
   return {
-    file: path.resolve(config.logging.directory, config.service.name),
+    file: path.resolve(config.logging.directory, fileName),
     frequency: 'daily',
     mkdir: true,
     extension: '.log',
@@ -91,7 +104,10 @@ export function buildFileRollOptions(config: AppConfig): FileRollOptions | undef
   };
 }
 
-export function buildLoggerOptions(config: AppConfig): LoggerOptions {
+export function buildLoggerOptions(
+  config: AppConfig,
+  options: CreateLoggerOptions = {},
+): LoggerOptions {
   return {
     level: config.logging.level,
     timestamp: stdTimeFunctions.isoTime,
@@ -102,6 +118,7 @@ export function buildLoggerOptions(config: AppConfig): LoggerOptions {
       service: config.service.name,
       version: config.service.version,
       env: config.nodeEnv,
+      ...(options.processName ? { process: options.processName } : {}),
     },
     redact: {
       paths: REDACTED_PATHS,
@@ -130,7 +147,7 @@ async function buildLogStreams(config: AppConfig): Promise<StreamEntry[]> {
         translateTime: 'HH:MM:ss.l',
         ignore: 'pid,hostname,service,version,env',
         destination: 1,
-      }) as DestinationStream,
+      }),
     });
   } else if (config.logging.directory) {
     streams.push({
@@ -144,13 +161,46 @@ async function buildLogStreams(config: AppConfig): Promise<StreamEntry[]> {
     streams.push({
       stream: await pinoRoll(rollOptions),
     });
+
+    const importRollOptions = buildFileRollOptions(config, IMPORT_LOG_FILE);
+    if (importRollOptions) {
+      streams.push({
+        stream: jobLinesOnly(await pinoRoll(importRollOptions)),
+      });
+    }
   }
 
   return streams;
 }
 
-export async function createLogger(config: AppConfig): Promise<AppLogger> {
-  const options = buildLoggerOptions(config);
+/** Keeps only lines tied to an extraction job, so an import can be read without HTTP polling noise. */
+export function isJobLogLine(line: string): boolean {
+  return line.includes('"jobId":"');
+}
+
+function jobLinesOnly(destination: DestinationStream): DestinationStream {
+  // pino.multistream drives children through write / flushSync / end.
+  const target = destination as DestinationStream & { flushSync?: () => void; end?: () => void };
+  return {
+    write(line: string): void {
+      if (isJobLogLine(line)) {
+        target.write(line);
+      }
+    },
+    flushSync(): void {
+      target.flushSync?.();
+    },
+    end(): void {
+      target.end?.();
+    },
+  } as DestinationStream;
+}
+
+export async function createLogger(
+  config: AppConfig,
+  loggerOptions: CreateLoggerOptions = {},
+): Promise<AppLogger> {
+  const options = buildLoggerOptions(config, loggerOptions);
   const streams = await buildLogStreams(config);
   if (streams.length === 0) {
     return pino(options);

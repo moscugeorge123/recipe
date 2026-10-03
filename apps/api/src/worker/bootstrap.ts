@@ -9,9 +9,8 @@ import {
   closeExtractionProcessor,
   registerExtractionProcessor,
 } from './processors/extraction.processor.js';
-
 export async function createWorkerLogger(appConfig: AppConfig = config): Promise<AppLogger> {
-  return createLogger(appConfig);
+  return createLogger(appConfig, { processName: 'worker' });
 }
 
 export async function startWorker(appConfig: AppConfig = config): Promise<AppLogger> {
@@ -23,6 +22,13 @@ export async function startWorker(appConfig: AppConfig = config): Promise<AppLog
 
   const container = createContainer({ logger: log });
   await registerExtractionProcessor(container);
+  log.info(
+    {
+      pantryCache: 'redis-when-ready',
+      ingredientModel: appConfig.ai.ingredientModel,
+    },
+    'Pantry organizer shares this Redis client for classification cache',
+  );
 
   const [ytdlpOk, ffmpegOk] = await Promise.all([
     isYtDlpAvailable(appConfig.providers.ytdlpPath),

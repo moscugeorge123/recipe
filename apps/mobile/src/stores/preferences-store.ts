@@ -11,7 +11,7 @@ export const usePreferencesStore = create<PreferencesState>()(
     (set) => ({
       displayName: DEFAULT_DISPLAY_NAME,
       hasOnboarded: false,
-      cookingTheme: 'dark',
+      cookingTheme: 'light',
       reduceMotion: 'system',
       units: 'metric',
       tasteTags: [],
@@ -26,7 +26,7 @@ export const usePreferencesStore = create<PreferencesState>()(
         set({
           displayName: DEFAULT_DISPLAY_NAME,
           hasOnboarded: false,
-          cookingTheme: 'dark',
+          cookingTheme: 'light',
           reduceMotion: 'system',
           units: 'metric',
           tasteTags: [],

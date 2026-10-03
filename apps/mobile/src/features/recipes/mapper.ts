@@ -1,8 +1,11 @@
 import { placeholderPairs } from '@/theme/tokens';
+import { displayUnit } from '@/features/recipes/plan';
 import type {
   Difficulty,
   IngredientCategory,
+  MeasurementView,
   RecipeIngredientView,
+  RecipeMacros,
   RecipeListItemView,
   RecipeStepView,
   RecipeView,
@@ -162,6 +165,31 @@ function stringField(
   return null;
 }
 
+function gramsField(
+  record: Record<string, unknown>,
+  key: string,
+): number | null {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+    ? value
+    : null;
+}
+
+/** Per-serving macros the extractor stored on `recipe.nutrition`; null when none are known. */
+export function macrosFromNutrition(nutrition: unknown): RecipeMacros | null {
+  const record = metadataRecord(nutrition);
+  const macros: RecipeMacros = {
+    proteinGrams: gramsField(record, 'proteinGrams'),
+    carbsGrams: gramsField(record, 'carbsGrams'),
+    fatGrams: gramsField(record, 'fatGrams'),
+  };
+  return macros.proteinGrams === null &&
+    macros.carbsGrams === null &&
+    macros.fatGrams === null
+    ? null
+    : macros;
+}
+
 function asIngredientCategory(value: string): IngredientCategory | null {
   return INGREDIENT_CATEGORIES.has(value)
     ? (value as IngredientCategory)
@@ -202,19 +230,35 @@ function hintFromIngredients(
     .slice(0, 2)
     .map((ing) => {
       const qty = ing.quantity ?? '';
-      const unit = ing.unit ? ` ${ing.unit}` : '';
-      return `${qty}${unit} ${ing.name}`.trim();
+      const unit = displayUnit(ing.unit);
+      const unitPart = unit ? ` ${unit}` : '';
+      return `${qty}${unitPart} ${ing.name}`.trim();
     });
 
   return hintParts.length ? hintParts.join('|') : null;
+}
+
+function mapMeasurement(
+  measurement: RecipeIngredientDto['metric'],
+): MeasurementView | null {
+  if (!measurement) return null;
+  return {
+    quantity: coerceQuantity(measurement.quantity),
+    unit: measurement.unit,
+  };
 }
 
 function mapIngredient(ingredient: RecipeIngredientDto): RecipeIngredientView {
   return {
     id: ingredient.id,
     name: ingredient.name,
+    canonicalName: ingredient.canonicalName,
+    emoji: ingredient.emoji ?? '🥣',
+    colorToken: ingredient.colorToken ?? 'peach',
     quantity: coerceQuantity(ingredient.quantity),
     unit: ingredient.unit,
+    metric: mapMeasurement(ingredient.metric),
+    imperial: mapMeasurement(ingredient.imperial),
     preparation: ingredient.preparation,
     optional: ingredient.optional,
     category:
@@ -233,11 +277,18 @@ function mapStep(
   return {
     id: step.id,
     stepOrder: step.stepOrder,
+    title: step.title?.trim() || null,
     instruction: step.instruction,
     durationSeconds:
       step.durationMinutes === null ? null : step.durationMinutes * 60,
     temperature: step.temperature,
+    temperatureCelsius: step.temperatureCelsius ?? null,
+    temperatureFahrenheit: step.temperatureFahrenheit ?? null,
+    ingredientRefs: (step.ingredientRefs ?? []).filter(
+      (ref) => ref < ingredients.length,
+    ),
     stage: asStepStage(step.stage) ?? stageForIndex(index, total),
+    ahead: step.ahead === true,
     ingredientHint:
       step.ingredientHint ?? hintFromIngredients(step.instruction, ingredients),
     confidence: step.confidence,
@@ -288,6 +339,9 @@ export function mapRecipeDetail(dto: RecipeDetailDto): RecipeView {
       stringField(meta, 'thumbnailUrl', 'thumbnail'),
     placeholder: placeholderForId(dto.id),
     minutes,
+    prepTimeMinutes: dto.prepTimeMinutes,
+    cookTimeMinutes: dto.cookTimeMinutes,
+    totalTimeMinutes: dto.totalTimeMinutes,
     difficulty: dto.difficulty ?? difficultyFromMinutes(minutes),
     servings: dto.servings ?? 4,
     cuisine:
@@ -297,6 +351,8 @@ export function mapRecipeDetail(dto: RecipeDetailDto): RecipeView {
         dto.source?.metadata,
       ),
     calories: dto.calories,
+    nutritionSource: dto.nutritionSource ?? null,
+    macros: macrosFromNutrition(dto.nutrition),
     confidence: dto.confidence,
     warnings: dto.warnings,
     ingredients,
@@ -304,6 +360,15 @@ export function mapRecipeDetail(dto: RecipeDetailDto): RecipeView {
       mapStep(step, index, sortedSteps.length, ingredients),
     ),
     createdAt: dto.createdAt,
+    revisionId: dto.revisionId,
+    revisionNumber: dto.revisionNumber ?? 0,
+    reviewState: dto.reviewState ?? 'NEEDS_REVIEW',
+    categories: dto.categories ?? [],
+    isFavorite: dto.isFavorite ?? false,
+    rating: dto.rating ?? null,
+    ratingAverage: dto.ratingAverage ?? dto.rating ?? null,
+    ratingCount: dto.ratingCount ?? (dto.rating == null ? 0 : 1),
+    cookCount: dto.cookCount ?? 0,
   };
 }
 
@@ -323,6 +388,9 @@ export function mapRecipeListItem(dto: RecipeListItemView): RecipeView {
     thumbnailUrl: dto.thumbnailUrl,
     placeholder: placeholderForId(dto.id),
     minutes,
+    prepTimeMinutes: dto.prepTimeMinutes,
+    cookTimeMinutes: dto.cookTimeMinutes,
+    totalTimeMinutes: dto.totalTimeMinutes,
     difficulty: dto.difficulty ?? difficultyFromMinutes(minutes),
     servings: dto.servings ?? 4,
     cuisine: dto.cuisine ?? 'Imported',
@@ -334,5 +402,13 @@ export function mapRecipeListItem(dto: RecipeListItemView): RecipeView {
     ingredientCount: dto.ingredientCount,
     stepCount: dto.stepCount,
     createdAt: dto.createdAt,
+    revisionNumber: 0,
+    reviewState: dto.reviewState,
+    categories: dto.categories ?? [],
+    isFavorite: dto.isFavorite ?? false,
+    rating: dto.rating ?? null,
+    ratingAverage: dto.ratingAverage ?? dto.rating ?? null,
+    ratingCount: dto.ratingCount ?? (dto.rating == null ? 0 : 1),
+    cookCount: dto.cookCount ?? 0,
   };
 }

@@ -1,6 +1,8 @@
 # Recipe mobile
 
-Production-ready Expo + TypeScript boilerplate for a React Native mobile app. It is a starting foundation, not a product: no authentication, backend, or business features.
+Expo + TypeScript app for importing, reviewing, cooking, and organizing recipes. It talks to the
+Recipe API using the implicit singleton profile (no login yet). `EXPO_PUBLIC_API_URL` is the only
+client config — OpenAI keys stay on the server.
 
 This app lives in an Nx workspace. From the **repository root**:
 
@@ -71,6 +73,10 @@ npm run test:watch
 npm run test:ci
 ```
 
+Focused journeys live in `src/app/__tests__/platform-journeys-test.tsx` (import review/history
+errors, kitchen pantry/collections, pantry organize/save) plus existing home, recipe detail,
+editor, notes, and rating tests.
+
 ## Linting and formatting
 
 ```bash
@@ -83,16 +89,15 @@ npm run typecheck
 
 ## E2E (Maestro)
 
-The flow in `.maestro/flows/home-to-settings.yaml`:
+Flows in `.maestro/flows/`:
 
-1. Launches the app (`com.recipe.app`)
-2. Skips onboarding if it appears
-3. Asserts Home (`TONIGHT`) is visible
-4. Navigates to Kitchen
-5. Opens capture from the center + control
-6. Asserts the capture copy “Send me anything.”
+- `home-to-settings.yaml` — Skip onboarding, Recipes wordmark, Profile, capture chooser
+- `kitchen-pantry.yaml` — Groceries → Pantry empty/organize copy
+- `recipe-surface.yaml` — best-effort Recipes / import / rating / calories / history (mostly optional)
 
-Maestro needs a **development or preview build** installed on a simulator/emulator or device. Expo Go is not a reliable target for this flow.
+**Limitation:** Maestro needs a **development or preview build** (`com.recipe.app`). Expo Go is not
+a reliable target for API-backed screens (import extract/review, recipe detail, history).
+The YAML is still a best-effort flow with `optional: true` where a clean install has no recipes.
 
 ```bash
 # after installing Maestro and a native build of this app

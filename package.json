@@ -35,5 +35,10 @@
     "unrs-resolver@1.12.2": true,
     "msgpackr-extract@3.0.4": true,
     "esbuild@0.28.2": true
+  },
+  "dependencies": {
+    "expo": "~57.0.16",
+    "react": "19.2.3",
+    "react-native": "0.86.2"
   }
 }

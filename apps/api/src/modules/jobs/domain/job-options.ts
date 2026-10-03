@@ -1,5 +1,4 @@
 export interface JobOptions {
-  extractNutrition: boolean;
   extractImages: boolean;
   highAccuracy: boolean;
   selectedThumbnailUrl?: string;
@@ -17,7 +16,6 @@ export function parseJobOptions(raw: unknown): JobOptions {
       : undefined;
 
   return {
-    extractNutrition: record.extractNutrition === true,
     extractImages: record.extractImages !== false,
     highAccuracy: record.highAccuracy === true,
     ...(selectedThumbnailUrl ? { selectedThumbnailUrl } : {}),

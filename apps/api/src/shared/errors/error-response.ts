@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { ErrorResponse } from '@recipe/contracts';
 
 /**
  * The single error shape every failed request returns, regardless of where the failure
@@ -19,6 +20,10 @@ export const errorResponseSchema = z
         .optional()
         .describe('Field-level problems, present for validation errors'),
       requestId: z.string().optional().describe('Correlates this response with server logs'),
+      retryable: z
+        .boolean()
+        .optional()
+        .describe('Whether the client should offer a retry for this failure'),
     }),
   })
   .meta({
@@ -36,7 +41,7 @@ export const errorResponseSchema = z
     ],
   });
 
-export type ErrorResponse = z.infer<typeof errorResponseSchema>;
+export type { ErrorResponse };
 
 /**
  * Failure responses every endpoint can produce, ready to spread into a route's `response` map:

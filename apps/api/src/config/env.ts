@@ -95,7 +95,29 @@ const rawEnvSchema = z.object({
   OPENAI_API_KEY: z.string().optional(),
   AI_DEFAULT_MODEL: z.string().min(1).default('gpt-4o-mini'),
   AI_WHISPER_MODEL: z.string().min(1).default('whisper-1'),
-  AI_VISION_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  // gpt-4o-mini bills each high-detail frame at ~37k tokens; gpt-4.1-mini at ~2.5k.
+  AI_VISION_MODEL: z.string().min(1).default('gpt-4.1-mini'),
+  AI_MAX_RETRIES: z.coerce.number().int().nonnegative().max(10).default(5),
+  AI_INGREDIENT_MODEL: z
+    .string()
+    .min(1)
+    .default('gpt-5-nano')
+    .refine((value) => !/gpt-5\.6/i.test(value), 'GPT-5.6 is not allowed for pantry organization'),
+  AI_INGREDIENT_FALLBACK_MODEL: z
+    .string()
+    .min(1)
+    .default('gpt-4.1-nano')
+    .refine((value) => !/gpt-5\.6/i.test(value), 'GPT-5.6 is not allowed for pantry organization'),
+  AI_INGREDIENT_ESCALATION_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  AI_INGREDIENT_REASONING_EFFORT: z
+    .enum(['none', 'minimal', 'low', 'medium', 'high'])
+    .default('none'),
+  AI_INGREDIENT_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().max(4096).default(1024),
+  AI_INGREDIENT_MAX_INPUT_TOKENS: z.coerce.number().int().positive().max(16_000).default(2500),
+  AI_INGREDIENT_MAX_ITEMS: z.coerce.number().int().positive().max(100).default(40),
+  AI_INGREDIENT_MAX_ESCALATIONS: z.coerce.number().int().nonnegative().max(20).default(5),
+  AI_INGREDIENT_LOW_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.55),
+  AI_INGREDIENT_PROMPT_VERSION: z.string().min(1).default('ingredient-enrichment-v2'),
 
   // --- Sentry (optional) -------------------------------------------------------
   SENTRY_DSN: z.string().optional(),
@@ -109,12 +131,40 @@ const rawEnvSchema = z.object({
   EXTRACTION_EXTRACT_RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60_000),
   MAX_VIDEO_DURATION_SECONDS: z.coerce.number().int().positive().default(600),
   MEDIA_RETENTION_HOURS: z.coerce.number().int().positive().default(72),
-  FRAME_INTERVAL_SECONDS: z.coerce.number().int().positive().default(2),
+  /** Minimum sampling interval; widened automatically so MAX_FRAMES covers the whole video. */
+  FRAME_INTERVAL_SECONDS: z.coerce.number().positive().default(1),
   MAX_FRAMES: z.coerce.number().int().positive().default(150),
+  /**
+   * A sampled frame is kept only when at least this fraction of its (downscaled, grayscale)
+   * pixels differ from the previously kept frame. Low enough that a changed text overlay counts.
+   */
+  FRAME_DEDUPE_MIN_CHANGED_RATIO: z.coerce.number().min(0).max(1).default(0.002),
+  /** Frames sent to OCR per job, sampled evenly across the video(s). */
+  OCR_MAX_FRAMES: z.coerce.number().int().positive().max(200).default(24),
+  /** Frames + images sent to vision analysis per job (doubled, up to 12+, for high-accuracy jobs). */
+  VISION_MAX_IMAGES: z.coerce.number().int().positive().max(50).default(6),
+  /** Parallel OCR/vision calls per job. */
+  MEDIA_AI_CONCURRENCY: z.coerce.number().int().positive().max(16).default(4),
+  /** Carousel/post image slides downloaded and OCR'd (Instagram allows up to 20). */
+  MAX_POST_IMAGES: z.coerce.number().int().positive().max(50).default(20),
+  /** Videos inside a carousel that get downloaded and processed. */
+  MAX_POST_VIDEOS: z.coerce.number().int().nonnegative().max(10).default(3),
+  MAX_MEDIA_DOWNLOAD_BYTES: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(200 * 1024 * 1024),
+  /** Character budget for OCR + vision text in the extraction prompt (~4 chars per token). */
+  EVIDENCE_MEDIA_MAX_CHARS: z.coerce.number().int().positive().default(16_000),
+  EVIDENCE_TRANSCRIPT_MAX_CHARS: z.coerce.number().int().positive().default(20_000),
+  /** Use YouTube manual/auto captions as the transcript instead of Whisper when available. */
+  YOUTUBE_PREFER_CAPTIONS: z.stringbool().default(true),
   FAKE_PIPELINE_DELAY_MS: z.coerce.number().int().nonnegative().default(0),
 
   // --- External content providers (Phase 5+) -----------------------------------
   APIFY_API_TOKEN: z.string().optional(),
+  /** Re-fetch pages that block us (401/402/403/429/503) through Apify's headless browser. */
+  WEB_BLOCKED_FALLBACK: z.stringbool().default(true),
   /** Optional Instagram Graph oEmbed app token (`{app-id}|{app-secret}`). */
   META_APP_ID: z.string().optional(),
   META_APP_SECRET: z.string().optional(),
@@ -225,6 +275,17 @@ const configSchema = rawEnvSchema.transform((raw) => ({
     defaultModel: raw.AI_DEFAULT_MODEL,
     whisperModel: raw.AI_WHISPER_MODEL,
     visionModel: raw.AI_VISION_MODEL,
+    maxRetries: raw.AI_MAX_RETRIES,
+    ingredientModel: raw.AI_INGREDIENT_MODEL,
+    ingredientFallbackModel: raw.AI_INGREDIENT_FALLBACK_MODEL,
+    ingredientEscalationModel: raw.AI_INGREDIENT_ESCALATION_MODEL,
+    ingredientReasoningEffort: raw.AI_INGREDIENT_REASONING_EFFORT,
+    ingredientMaxOutputTokens: raw.AI_INGREDIENT_MAX_OUTPUT_TOKENS,
+    ingredientMaxInputTokens: raw.AI_INGREDIENT_MAX_INPUT_TOKENS,
+    ingredientMaxItems: raw.AI_INGREDIENT_MAX_ITEMS,
+    ingredientMaxEscalations: raw.AI_INGREDIENT_MAX_ESCALATIONS,
+    ingredientLowConfidence: raw.AI_INGREDIENT_LOW_CONFIDENCE,
+    ingredientPromptVersion: raw.AI_INGREDIENT_PROMPT_VERSION,
   },
   sentry: raw.SENTRY_DSN
     ? {
@@ -242,10 +303,21 @@ const configSchema = rawEnvSchema.transform((raw) => ({
     mediaRetentionHours: raw.MEDIA_RETENTION_HOURS,
     frameIntervalSeconds: raw.FRAME_INTERVAL_SECONDS,
     maxFrames: raw.MAX_FRAMES,
+    frameDedupeMinChangedRatio: raw.FRAME_DEDUPE_MIN_CHANGED_RATIO,
+    ocrMaxFrames: raw.OCR_MAX_FRAMES,
+    visionMaxImages: raw.VISION_MAX_IMAGES,
+    mediaAiConcurrency: raw.MEDIA_AI_CONCURRENCY,
+    maxPostImages: raw.MAX_POST_IMAGES,
+    maxPostVideos: raw.MAX_POST_VIDEOS,
+    maxMediaDownloadBytes: raw.MAX_MEDIA_DOWNLOAD_BYTES,
+    evidenceMediaMaxChars: raw.EVIDENCE_MEDIA_MAX_CHARS,
+    evidenceTranscriptMaxChars: raw.EVIDENCE_TRANSCRIPT_MAX_CHARS,
+    youtubePreferCaptions: raw.YOUTUBE_PREFER_CAPTIONS,
     fakePipelineDelayMs: raw.FAKE_PIPELINE_DELAY_MS,
   },
   providers: {
     apifyApiToken: raw.APIFY_API_TOKEN,
+    webBlockedFallback: raw.WEB_BLOCKED_FALLBACK,
     metaAppId: raw.META_APP_ID,
     metaAppSecret: raw.META_APP_SECRET,
     ytdlpPath: raw.YTDLP_PATH,

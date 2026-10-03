@@ -34,6 +34,35 @@ describe('AIUsageTracker', () => {
     });
     expect((records[0] as { estimatedCostUsd: number }).estimatedCostUsd).toBeGreaterThan(0);
   });
+
+  it('accepts profile-owned usage without an extraction job', async () => {
+    const records: unknown[] = [];
+    const repo: IAIUsageRepository = {
+      create: async (input) => {
+        records.push(input);
+        return { ...input, id: '2', createdAt: new Date() } as never;
+      },
+      findByJobId: async () => [],
+    };
+    const tracker = new AIUsageTracker(repo, DEFAULT_PRICING);
+
+    await tracker.track({
+      userId: '00000000-0000-4000-8000-000000000001',
+      recipeRevisionId: '00000000-0000-4000-8000-000000000201',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      operation: 'pantry_classification',
+      inputTokens: 100,
+      outputTokens: 50,
+      durationMs: 200,
+    });
+
+    expect(records[0]).toMatchObject({
+      userId: '00000000-0000-4000-8000-000000000001',
+      operation: 'pantry_classification',
+    });
+    expect(records[0]).not.toHaveProperty('jobId');
+  });
 });
 
 describe('estimateCost', () => {

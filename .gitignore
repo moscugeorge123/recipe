@@ -50,8 +50,8 @@ yarn-error.*
 # tests
 coverage/
 
-# Local media storage (API dev)
-storage/
+# Local media storage (API dev). Anchored so source under infrastructure/storage stays tracked.
+/storage/
 apps/api/storage/
 
 # Logs

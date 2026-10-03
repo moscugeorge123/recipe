@@ -6,6 +6,7 @@ import { PrismaExtractionStageRepository } from '../../infrastructure/database/r
 import { PrismaMediaAssetRepository } from '../../infrastructure/database/repositories/media-asset.repository.js';
 import { PrismaOCRRepository } from '../../infrastructure/database/repositories/ocr.repository.js';
 import { PrismaCookSessionRepository } from '../../infrastructure/database/repositories/cook-session.repository.js';
+import { PrismaProfileBootstrapRepository } from '../../infrastructure/database/repositories/profile-bootstrap.repository.js';
 import { PrismaRecipeRepository } from '../../infrastructure/database/repositories/recipe.repository.js';
 import { PrismaRecipeSourceRepository } from '../../infrastructure/database/repositories/recipe-source.repository.js';
 import { PrismaTranscriptRepository } from '../../infrastructure/database/repositories/transcript.repository.js';
@@ -13,7 +14,11 @@ import { PrismaVisionRepository } from '../../infrastructure/database/repositori
 import { prisma } from '../../infrastructure/database/prisma/client.js';
 import pino from 'pino';
 
-import { buildLoggerOptions, silentLogger, type AppLogger } from '../../infrastructure/logging/logger.js';
+import {
+  buildLoggerOptions,
+  silentLogger,
+  type AppLogger,
+} from '../../infrastructure/logging/logger.js';
 import {
   BullMQQueueProvider,
   InMemoryQueueProvider,
@@ -25,9 +30,11 @@ import type { QueueProvider } from '../../infrastructure/queues/bullmq/queue-pro
 import { getRedisClient } from '../../infrastructure/redis/client.js';
 import { createStorageProvider } from '../../infrastructure/storage/create-storage-provider.js';
 import type { StorageProvider } from '../../infrastructure/storage/storage-provider.js';
+import { CategoryService } from '../../modules/categories/application/category-service.js';
 import { ContentAcquisitionService } from '../../modules/content/application/content-acquisition.service.js';
 import { FakeContentProvider } from '../../modules/content/providers/fake/fake-content-provider.js';
 import { FacebookContentProvider } from '../../modules/content/providers/facebook/facebook-content-provider.js';
+import { ApifyPageFetcher } from '../../modules/content/providers/generic/apify-page-fetcher.js';
 import { GenericWebContentProvider } from '../../modules/content/providers/generic/generic-web-content-provider.js';
 import { HttpApifyClient } from '../../modules/content/providers/instagram/apify-client.js';
 import { InstagramContentProvider } from '../../modules/content/providers/instagram/instagram-content-provider.js';
@@ -53,12 +60,39 @@ import type { IExtractionJobRepository } from '../../modules/jobs/repository/ext
 import type { IExtractionStageRepository } from '../../modules/jobs/repository/extraction-stage.repository.js';
 import { CookSessionService } from '../../modules/cook-sessions/application/cook-session-service.js';
 import type { ICookSessionRepository } from '../../modules/cook-sessions/repository/cook-session.repository.js';
+import { ProfileBootstrapService } from '../../modules/profiles/application/profile-bootstrap-service.js';
+import {
+  ImplicitProfileResolver,
+  type ProfileResolver,
+} from '../../modules/profiles/domain/profile.js';
 import { RecipeService } from '../../modules/recipes/application/recipe-service.js';
 import { MediaProcessingService } from '../../modules/media/application/media-processing.service.js';
 import { FfmpegMediaProcessor } from '../../modules/media/ffmpeg/ffmpeg-media-processor.js';
 import type { IMediaAssetRepository } from '../../modules/media/repository/media-asset.repository.js';
 import type { IRecipeRepository } from '../../modules/recipes/repository/recipe.repository.js';
 import type { IRecipeSourceRepository } from '../../modules/recipes/repository/recipe-source.repository.js';
+import { PrismaCollectionRepository } from '../../infrastructure/database/repositories/collection.repository.js';
+import { PrismaPantryRepository } from '../../infrastructure/database/repositories/pantry.repository.js';
+import { PrismaMealPlanRepository } from '../../infrastructure/database/repositories/meal-plan.repository.js';
+import { PrismaShoppingListRepository } from '../../infrastructure/database/repositories/shopping-list.repository.js';
+import { CollectionService } from '../../modules/collections/application/collection-service.js';
+import type { ICollectionRepository } from '../../modules/collections/repository/collection.repository.js';
+import { OpenAIProvider } from '../../infrastructure/ai/llm/openai-provider.js';
+import type { LLMProvider } from '../../infrastructure/ai/llm/llm-provider.js';
+import { AIUsageTracker } from '../../infrastructure/ai/usage/ai-usage-tracker.js';
+import { DEFAULT_PRICING } from '../../infrastructure/ai/usage/pricing.js';
+import {
+  MemoryClassificationCache,
+  RedisBackedClassificationCache,
+  type ClassificationCache,
+} from '../../modules/pantry/application/classification-cache.js';
+import { IngredientOrganizer } from '../../modules/pantry/application/ingredient-organizer.js';
+import { PantryService } from '../../modules/pantry/application/pantry-service.js';
+import type { IPantryRepository } from '../../modules/pantry/repository/pantry.repository.js';
+import { MealPlanService } from '../../modules/meal-plan/application/meal-plan-service.js';
+import type { IMealPlanRepository } from '../../modules/meal-plan/repository/meal-plan.repository.js';
+import { ShoppingListService } from '../../modules/shopping-list/application/shopping-list-service.js';
+import type { IShoppingListRepository } from '../../modules/shopping-list/repository/shopping-list.repository.js';
 
 /**
  * Lightweight composition root. Grows as modules are wired in; no DI framework required.
@@ -81,6 +115,11 @@ export interface AppContainer {
     ocr: PrismaOCRRepository;
     vision: PrismaVisionRepository;
     aiUsage: PrismaAIUsageRepository;
+    profileBootstrap: PrismaProfileBootstrapRepository;
+    pantry: IPantryRepository;
+    shoppingList: IShoppingListRepository;
+    mealPlan: IMealPlanRepository;
+    collection: ICollectionRepository;
   };
   contentRegistry: ContentProviderRegistry;
   contentAcquisition: ContentAcquisitionService;
@@ -88,8 +127,15 @@ export interface AppContainer {
   mediaProcessing: MediaProcessingService;
   extractionJobService: ExtractionJobService;
   recipeService: RecipeService;
+  categoryService: CategoryService;
   cookSessionService: CookSessionService;
+  profileBootstrap: ProfileBootstrapService;
+  profileResolver: ProfileResolver;
   pipeline: RecipeExtractionPipeline;
+  pantryService: PantryService;
+  shoppingListService: ShoppingListService;
+  mealPlanService: MealPlanService;
+  collectionService: CollectionService;
   createQueue(): QueueProvider;
 }
 
@@ -98,17 +144,32 @@ export interface CreateContainerOptions {
   queue?: QueueProvider;
   enableMediaProcessing?: boolean;
   logger?: AppLogger;
+  profileResolver?: ProfileResolver;
+  pantryLlm?: LLMProvider | null;
+  pantryCache?: ClassificationCache;
 }
 
 export function createContentRegistry(appConfig: AppConfig): ContentProviderRegistry {
   const registry = new DefaultContentProviderRegistry();
 
-  registry.register(new InstagramContentProvider(new HttpApifyClient(appConfig.providers.apifyApiToken ?? '')));
+  registry.register(
+    new InstagramContentProvider(new HttpApifyClient(appConfig.providers.apifyApiToken ?? ''), {
+      maxVideos: appConfig.extraction.maxPostVideos,
+      maxDownloadBytes: appConfig.extraction.maxMediaDownloadBytes,
+    }),
+  );
   registry.register(new YouTubeContentProvider(new YtDlpClient(appConfig.providers.ytdlpPath)));
   registry.register(new FacebookContentProvider());
   registry.register(new TikTokContentProvider());
   registry.register(new FakeContentProvider());
-  registry.register(new GenericWebContentProvider());
+  const { apifyApiToken, webBlockedFallback } = appConfig.providers;
+  registry.register(
+    new GenericWebContentProvider(
+      apifyApiToken && webBlockedFallback && !appConfig.isTest
+        ? { blockedPageFetcher: new ApifyPageFetcher(apifyApiToken) }
+        : {},
+    ),
+  );
 
   return registry;
 }
@@ -116,8 +177,7 @@ export function createContentRegistry(appConfig: AppConfig): ContentProviderRegi
 export function createContainer(options: CreateContainerOptions = {}): AppContainer {
   const appConfig = config;
   const log =
-    options.logger ??
-    (appConfig.isTest ? silentLogger() : pino(buildLoggerOptions(appConfig)));
+    options.logger ?? (appConfig.isTest ? silentLogger() : pino(buildLoggerOptions(appConfig)));
   const storage = options.storage ?? createStorageProvider(appConfig);
 
   const repositories = {
@@ -132,6 +192,11 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     ocr: new PrismaOCRRepository(prisma),
     vision: new PrismaVisionRepository(prisma),
     aiUsage: new PrismaAIUsageRepository(prisma),
+    profileBootstrap: new PrismaProfileBootstrapRepository(prisma),
+    pantry: new PrismaPantryRepository(prisma),
+    shoppingList: new PrismaShoppingListRepository(prisma),
+    mealPlan: new PrismaMealPlanRepository(prisma),
+    collection: new PrismaCollectionRepository(prisma),
   };
 
   const contentRegistry = createContentRegistry(appConfig);
@@ -198,9 +263,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
 
   const queue =
     queueInstance ??
-    (options.queue === undefined
-      ? new LazyQueueProvider(createQueue)
-      : createQueue());
+    (options.queue === undefined ? new LazyQueueProvider(createQueue) : createQueue());
 
   const extractionJobService = new ExtractionJobService(
     repositories.extractionJob,
@@ -210,8 +273,40 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     log,
   );
 
-  const recipeService = new RecipeService(repositories.recipe, repositories.recipeSource);
+  const recipeService = new RecipeService(repositories.recipe);
+  const categoryService = new CategoryService(prisma);
   const cookSessionService = new CookSessionService(repositories.cookSession, repositories.recipe);
+  const profileBootstrap = new ProfileBootstrapService(repositories.profileBootstrap);
+  const profileResolver = options.profileResolver ?? new ImplicitProfileResolver();
+
+  const pantryCache =
+    options.pantryCache ??
+    (appConfig.isTest
+      ? new MemoryClassificationCache()
+      : new RedisBackedClassificationCache(getRedisClient()));
+  const ingredientLog = log.child({ component: 'ingredient-organizer' });
+  const pantryLlm =
+    options.pantryLlm !== undefined
+      ? options.pantryLlm
+      : appConfig.ai.openaiApiKey
+        ? new OpenAIProvider(appConfig, null, undefined, ingredientLog)
+        : null;
+  const pantryUsage = new AIUsageTracker(repositories.aiUsage, DEFAULT_PRICING);
+  const pantryService = new PantryService(
+    repositories.pantry,
+    new IngredientOrganizer(appConfig, pantryCache, pantryLlm, pantryUsage, ingredientLog),
+  );
+  const shoppingListService = new ShoppingListService(
+    repositories.shoppingList,
+    repositories.pantry,
+    repositories.recipe,
+  );
+  const mealPlanService = new MealPlanService(
+    repositories.mealPlan,
+    repositories.recipe,
+    shoppingListService,
+  );
+  const collectionService = new CollectionService(repositories.collection);
 
   return {
     config: appConfig,
@@ -226,13 +321,20 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     mediaProcessing,
     extractionJobService,
     recipeService,
+    categoryService,
     cookSessionService,
+    profileBootstrap,
+    profileResolver,
     pipeline,
+    pantryService,
+    shoppingListService,
+    mealPlanService,
+    collectionService,
     createQueue,
   };
 }
 
-/** Test container with in-memory queue for synchronous pipeline execution. */
+/** Test container with in-memory queues for synchronous pipeline execution. */
 export function createTestContainer(options: CreateContainerOptions = {}): AppContainer {
   const queue = options.queue ?? new InMemoryQueueProvider();
   const container = createContainer({ ...options, queue });
