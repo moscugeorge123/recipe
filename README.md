@@ -6,6 +6,7 @@ Nx monorepo for the Recipe mobile app and extraction API.
 | --- | --- | --- |
 | **mobile** | `apps/mobile` | Expo SDK 57, React Native, TypeScript |
 | **api** | `apps/api` | Fastify, TypeScript, PostgreSQL, BullMQ |
+| **dashboard** | `apps/dashboard` | Vite, React, TypeScript |
 
 The original **Recipe API** project on Desktop is unchanged. This repo contains a copy under `apps/api`.
 
@@ -37,6 +38,9 @@ npx nx web mobile
 
 npx nx dev api           # Fastify API with reload
 npx nx run api:dev:worker
+
+npx nx run dashboard:dev:fixtures   # Import ledger with sample data
+npx nx dev dashboard                # Import ledger against the API
 ```
 
 Equivalent npm scripts:
@@ -85,6 +89,7 @@ npx nx graph
 ```text
 apps/mobile     Expo app
 apps/api        Extraction API + worker
+apps/dashboard  Import ledger (cost, tokens, steps, logs)
 packages/       Shared libraries (none yet)
 ```
 
@@ -93,3 +98,4 @@ Each app keeps its own `package.json`, tooling, and README:
 - [apps/mobile/README.md](apps/mobile/README.md)
 - [apps/api/README.md](apps/api/README.md)
 - [apps/api/architecture.md](apps/api/architecture.md)
+- [apps/dashboard/README.md](apps/dashboard/README.md)

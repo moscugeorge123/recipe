@@ -10,10 +10,19 @@ import { PrismaRecipeRepository } from '../../infrastructure/database/repositori
 import { PrismaRecipeSourceRepository } from '../../infrastructure/database/repositories/recipe-source.repository.js';
 import { PrismaTranscriptRepository } from '../../infrastructure/database/repositories/transcript.repository.js';
 import { PrismaVisionRepository } from '../../infrastructure/database/repositories/vision.repository.js';
+import {
+  PrismaProviderUsageRepository,
+  type CreateProviderUsageInput,
+} from '../../infrastructure/database/repositories/provider-usage.repository.js';
 import { prisma } from '../../infrastructure/database/prisma/client.js';
 import pino from 'pino';
 
-import { buildLoggerOptions, silentLogger, type AppLogger } from '../../infrastructure/logging/logger.js';
+import {
+  buildLoggerOptions,
+  silentLogger,
+  type AppLogger,
+} from '../../infrastructure/logging/logger.js';
+import { FileLogReader } from '../../infrastructure/logging/log-reader.js';
 import {
   BullMQQueueProvider,
   InMemoryQueueProvider,
@@ -26,6 +35,8 @@ import { getRedisClient } from '../../infrastructure/redis/client.js';
 import { createStorageProvider } from '../../infrastructure/storage/create-storage-provider.js';
 import type { StorageProvider } from '../../infrastructure/storage/storage-provider.js';
 import { ContentAcquisitionService } from '../../modules/content/application/content-acquisition.service.js';
+import type { ProviderChargeRecorder } from '../../modules/content/application/content-acquisition.service.js';
+import { DashboardService } from '../../modules/dashboard/application/dashboard.service.js';
 import { FakeContentProvider } from '../../modules/content/providers/fake/fake-content-provider.js';
 import { FacebookContentProvider } from '../../modules/content/providers/facebook/facebook-content-provider.js';
 import { GenericWebContentProvider } from '../../modules/content/providers/generic/generic-web-content-provider.js';
@@ -81,6 +92,7 @@ export interface AppContainer {
     ocr: PrismaOCRRepository;
     vision: PrismaVisionRepository;
     aiUsage: PrismaAIUsageRepository;
+    providerUsage: PrismaProviderUsageRepository;
   };
   contentRegistry: ContentProviderRegistry;
   contentAcquisition: ContentAcquisitionService;
@@ -89,6 +101,7 @@ export interface AppContainer {
   extractionJobService: ExtractionJobService;
   recipeService: RecipeService;
   cookSessionService: CookSessionService;
+  dashboardService: DashboardService;
   pipeline: RecipeExtractionPipeline;
   createQueue(): QueueProvider;
 }
@@ -103,7 +116,9 @@ export interface CreateContainerOptions {
 export function createContentRegistry(appConfig: AppConfig): ContentProviderRegistry {
   const registry = new DefaultContentProviderRegistry();
 
-  registry.register(new InstagramContentProvider(new HttpApifyClient(appConfig.providers.apifyApiToken ?? '')));
+  registry.register(
+    new InstagramContentProvider(new HttpApifyClient(appConfig.providers.apifyApiToken ?? '')),
+  );
   registry.register(new YouTubeContentProvider(new YtDlpClient(appConfig.providers.ytdlpPath)));
   registry.register(new FacebookContentProvider());
   registry.register(new TikTokContentProvider());
@@ -113,12 +128,23 @@ export function createContentRegistry(appConfig: AppConfig): ContentProviderRegi
   return registry;
 }
 
+function withChargeRecording(
+  repository: PrismaProviderUsageRepository,
+): PrismaProviderUsageRepository & ProviderChargeRecorder {
+  return Object.assign(repository, {
+    async record(input: CreateProviderUsageInput): Promise<void> {
+      await repository.create(input);
+    },
+  });
+}
+
 export function createContainer(options: CreateContainerOptions = {}): AppContainer {
   const appConfig = config;
   const log =
-    options.logger ??
-    (appConfig.isTest ? silentLogger() : pino(buildLoggerOptions(appConfig)));
+    options.logger ?? (appConfig.isTest ? silentLogger() : pino(buildLoggerOptions(appConfig)));
   const storage = options.storage ?? createStorageProvider(appConfig);
+
+  const providerUsageRepository = withChargeRecording(new PrismaProviderUsageRepository(prisma));
 
   const repositories = {
     extractionJob: new PrismaExtractionJobRepository(prisma),
@@ -132,10 +158,15 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     ocr: new PrismaOCRRepository(prisma),
     vision: new PrismaVisionRepository(prisma),
     aiUsage: new PrismaAIUsageRepository(prisma),
+    providerUsage: providerUsageRepository,
   };
 
   const contentRegistry = createContentRegistry(appConfig);
-  const contentAcquisition = new ContentAcquisitionService(contentRegistry, log);
+  const contentAcquisition = new ContentAcquisitionService(
+    contentRegistry,
+    log,
+    providerUsageRepository,
+  );
   const linkPreviewService = createLinkPreviewService(appConfig, { log });
 
   const mediaProcessing = new MediaProcessingService(
@@ -198,9 +229,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
 
   const queue =
     queueInstance ??
-    (options.queue === undefined
-      ? new LazyQueueProvider(createQueue)
-      : createQueue());
+    (options.queue === undefined ? new LazyQueueProvider(createQueue) : createQueue());
 
   const extractionJobService = new ExtractionJobService(
     repositories.extractionJob,
@@ -212,6 +241,10 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
 
   const recipeService = new RecipeService(repositories.recipe, repositories.recipeSource);
   const cookSessionService = new CookSessionService(repositories.cookSession, repositories.recipe);
+  const dashboardService = new DashboardService(
+    prisma,
+    new FileLogReader(appConfig.logging.directory),
+  );
 
   return {
     config: appConfig,
@@ -227,6 +260,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     extractionJobService,
     recipeService,
     cookSessionService,
+    dashboardService,
     pipeline,
     createQueue,
   };

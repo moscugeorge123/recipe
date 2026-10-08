@@ -5,6 +5,7 @@ import { config as defaultConfig, type AppConfig } from '../config/env.js';
 import { healthRoutes } from '../features/health/health.routes.js';
 import type { DependencyCheck } from '../features/health/health.types.js';
 import { cookSessionsRoutes } from '../modules/cook-sessions/api/cook-sessions.routes.js';
+import { dashboardRoutes } from '../modules/dashboard/api/dashboard.routes.js';
 import { jobsRoutes } from '../modules/jobs/api/jobs.routes.js';
 import { recipesRoutes } from '../modules/recipes/api/recipes.routes.js';
 import { createLogger, type AppLogger } from '../infrastructure/logging/logger.js';
@@ -114,6 +115,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
       });
       await versioned.register(cookSessionsRoutes, {
         cookSessionService: container.cookSessionService,
+      });
+      await versioned.register(dashboardRoutes, {
+        dashboardService: container.dashboardService,
       });
     },
     { prefix: config.api.prefix },
