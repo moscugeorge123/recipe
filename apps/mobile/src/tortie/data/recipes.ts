@@ -154,6 +154,37 @@ function stepCopy(step: RecipeStepView, units: Units): [string, string] {
   return [title, stripLeadingTitle(instruction, title)];
 }
 
+function ingredientNamed(ing: TIng, text: string): boolean {
+  const tx = text.toLowerCase();
+  return ingKeys(ing.n).some((k) => hasKey(tx, k));
+}
+
+/**
+ * "You'll need" is the first time a cook handles an ingredient.
+ * Later steps drop it when an earlier step already listed it, or named it.
+ */
+function withoutRepeatedNeeds(
+  ings: TIng[],
+  steps: { step: TStep; instruction: string }[],
+): TStep[] {
+  const seen = new Set<number>();
+  return steps.map(({ step, instruction }, index) => {
+    const earlier = steps
+      .slice(0, index)
+      .map((item) => item.instruction)
+      .join('\n');
+    const need = step.need.filter((j) => {
+      if (seen.has(j)) return false;
+      const ing = ings[j];
+      return !!ing && !ingredientNamed(ing, earlier);
+    });
+    for (const j of step.need) {
+      if (j >= 0 && j < ings.length) seen.add(j);
+    }
+    return { ...step, need };
+  });
+}
+
 /** Amounts, heat and in-text measurements follow `units` (Profile → Units). */
 export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
   const base = toTRecipe(v);
@@ -168,7 +199,7 @@ export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
     const amount = ingredientAmount(x, units);
     return { q: amount.quantity, u: amount.unit ?? '', n, emo, tint: e.tint };
   });
-  const steps: TStep[] = [...v.steps]
+  const drafted = [...v.steps]
     .sort((a, b) => a.stepOrder - b.stepOrder)
     .map((s: RecipeStepView) => {
       const [t, d] = stepCopy(s, units);
@@ -180,18 +211,22 @@ export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
             .map((g, i) => (ingKeys(g.n).some((k) => hasKey(tx, k)) ? i : -1))
             .filter((i) => i >= 0);
       return {
-        t,
-        d,
-        m: s.durationSeconds
-          ? Math.max(1, Math.round(s.durationSeconds / 60))
-          : 0,
-        ahead: s.ahead,
-        ph: STAGE[s.stage] ?? '',
-        heat: stepHeat(s, units),
-        tip: '',
-        need,
+        instruction: s.instruction,
+        step: {
+          t,
+          d,
+          m: s.durationSeconds
+            ? Math.max(1, Math.round(s.durationSeconds / 60))
+            : 0,
+          ahead: s.ahead,
+          ph: STAGE[s.stage] ?? '',
+          heat: stepHeat(s, units),
+          tip: '',
+          need,
+        },
       };
     });
+  const steps = withoutRepeatedNeeds(ings, drafted);
   return { ...base, ings, steps, view: v };
 }
 

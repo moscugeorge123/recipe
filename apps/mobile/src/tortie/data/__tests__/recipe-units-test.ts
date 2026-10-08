@@ -157,6 +157,39 @@ describe('toTDetail units', () => {
     expect(r.steps[0]?.need).toEqual([1]);
     expect(r.steps[1]?.need).toEqual([]);
   });
+
+  test('hides ingredients a later step already used', () => {
+    const repeat = mapRecipeDetail({
+      ...dto,
+      steps: [
+        { ...dto.steps[0]!, ingredientRefs: [0, 1] },
+        {
+          ...dto.steps[1]!,
+          instruction: 'Blend everything until creamy.',
+          ingredientRefs: [0, 1],
+        },
+      ],
+    });
+    const mixed = mapRecipeDetail({
+      ...dto,
+      steps: [
+        {
+          ...dto.steps[0]!,
+          instruction: 'Stir the flour into melted butter.',
+          ingredientRefs: [0],
+        },
+        {
+          ...dto.steps[1]!,
+          instruction: 'Blend everything until creamy.',
+          ingredientRefs: [1],
+        },
+      ],
+    });
+    expect(toTDetail(repeat, 'metric').steps[1]?.need).toEqual([]);
+    const introduced = toTDetail(mixed, 'metric');
+    expect(introduced.steps[0]?.need).toEqual([0]);
+    expect(introduced.steps[1]?.need).toEqual([]);
+  });
 });
 
 describe('toRecipePatch difficulty', () => {
