@@ -8,6 +8,7 @@ import {
   formatYtDlpError,
   isYtDlpAvailable,
   YtDlpClient,
+  YTDLP_FORMAT,
   type ExecFileFn,
 } from '../../../../src/modules/content/providers/youtube/ytdlp-client.js';
 
@@ -90,13 +91,13 @@ describe('YtDlpClient', () => {
     expect(result.filePath).toBe(written);
     expect(execFile).toHaveBeenCalledWith(
       '/usr/bin/yt-dlp',
-      expect.arrayContaining(['-f', 'bv*+ba/b', '--no-playlist', '--no-simulate']),
+      expect.arrayContaining(['-f', YTDLP_FORMAT, '--no-playlist', '--no-simulate']),
       expect.objectContaining({ timeout: 300_000 }),
     );
   });
 
   it('fails the download when yt-dlp reports a path that was not written', async () => {
-    const destPath = path.join(os.tmpdir(), `ytdlp-missing-${Date.now()}`, 'video.mp4');
+    const destPath = path.join(os.tmpdir(), `ytdlp-missing-${String(Date.now())}`, 'video.mp4');
     const execFile = vi.fn<ExecFileFn>(async () => ({
       stdout: JSON.stringify({ title: 'Cake', _filename: destPath }),
       stderr: '',

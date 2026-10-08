@@ -139,18 +139,37 @@ describe.skipIf(!dbAvailable)('recipe API endpoints', () => {
       expect(response.statusCode).toBe(200);
       const recipe = response.json().data;
       expect(recipe.title).toBe('Fake pasta recipe');
+      expect(recipe.revisionNumber).toBe(0);
+      expect(recipe.categories.length).toBeGreaterThan(0);
       expect(recipe.ingredients.length).toBeGreaterThan(0);
       expect(recipe.steps.length).toBeGreaterThan(0);
       expect(recipe.confidence).toBeGreaterThan(0);
       expect(recipe.source.author).toBe('fixture-chef');
       expect(recipe.source.thumbnailUrl).toBe('https://example.com/fake-thumb.jpg');
-      expect(recipe.nutrition).toBeNull();
+      expect(recipe.calories).toBeGreaterThan(0);
+      expect(['stated', 'estimated']).toContain(recipe.nutritionSource);
+      expect(recipe.nutrition).toEqual({
+        proteinGrams: expect.any(Number),
+        carbsGrams: expect.any(Number),
+        fatGrams: expect.any(Number),
+      });
       expect(recipe.source.sourceLabel).toEqual(expect.any(String));
       for (const ingredient of recipe.ingredients) {
         expect(ingredient.category).toEqual(expect.any(String));
+        expect(ingredient.metric).toEqual({
+          quantity: expect.toBeOneOf([null, expect.any(String)]),
+          unit: expect.toBeOneOf([null, expect.any(String)]),
+        });
+        expect(ingredient.imperial).toEqual({
+          quantity: expect.toBeOneOf([null, expect.any(String)]),
+          unit: expect.toBeOneOf([null, expect.any(String)]),
+        });
       }
       for (const step of recipe.steps) {
         expect(step.stage).toEqual(expect.any(String));
+        expect(Array.isArray(step.ingredientRefs)).toBe(true);
+        expect(step).toHaveProperty('temperatureCelsius');
+        expect(step).toHaveProperty('temperatureFahrenheit');
       }
       expect(recipe.cuisine === null || typeof recipe.cuisine === 'string').toBe(true);
       expect(recipe).toHaveProperty('difficulty');

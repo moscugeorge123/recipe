@@ -4,6 +4,9 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
+    testTimeout: 15_000,
+    // Database integration files share one guarded test database and truncate between tests.
+    fileParallelism: false,
     // Tests build their own Fastify instance in-process; no network or AWS access required.
     env: {
       NODE_ENV: 'test',

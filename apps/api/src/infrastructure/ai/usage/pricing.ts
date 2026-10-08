@@ -9,6 +9,8 @@ export interface AIPricingTable {
 
 /** Default pricing estimates (USD per 1k tokens). Override via env in production. */
 export const DEFAULT_PRICING: AIPricingTable = {
+  'gpt-5-nano': { inputPer1kTokens: 0.00005, outputPer1kTokens: 0.0004 },
+  'gpt-4.1-nano': { inputPer1kTokens: 0.0001, outputPer1kTokens: 0.0004 },
   'gpt-4o-mini': { inputPer1kTokens: 0.00015, outputPer1kTokens: 0.0006 },
   'gpt-4o': { inputPer1kTokens: 0.0025, outputPer1kTokens: 0.01 },
   'whisper-1': { inputPer1kTokens: 0.006, outputPer1kTokens: 0 },

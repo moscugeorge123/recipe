@@ -1,23 +1,20 @@
 import { useMemo } from 'react';
 
+import {
+  catalogRecipes,
+  collectionsForCatalog,
+  mergeCookedCounts,
+  mergeInboxStatus,
+  mergeSavedIds,
+} from '@/features/catalog/catalog';
+import { collectionsFromQueue } from '@/features/kitchen/pending-sync';
+import { useCollections } from '@/features/collections/hooks';
+import { usePantryItems } from '@/features/pantry/hooks';
 import { useRecipes } from '@/features/recipes/hooks/use-recipes';
 import { mapRecipeListItem } from '@/features/recipes/mapper';
-import { SEED_RECIPES } from '@/features/recipes/seed';
 import type { RecipeId, RecipeView } from '@/features/recipes/types';
 import { isHave } from '@/stores/contracts';
 import { useKitchenStore } from '@/stores/kitchen-store';
-
-function mergeCatalog(seed: RecipeView[], api: RecipeView[]): RecipeView[] {
-  const apiUrls = new Set(
-    api
-      .map((recipe) => recipe.originalUrl)
-      .filter((url): url is string => !!url),
-  );
-  const seedKept = seed.filter(
-    (recipe) => !recipe.originalUrl || !apiUrls.has(recipe.originalUrl),
-  );
-  return [...seedKept, ...api];
-}
 
 export function useCatalog() {
   const listQuery = useRecipes(1, 50);
@@ -27,16 +24,73 @@ export function useCatalog() {
     [listQuery.data?.items],
   );
 
-  const pantryStaples = useKitchenStore((state) => state.pantryStaples);
-  const inboxStatus = useKitchenStore((state) => state.inboxStatus);
-  const savedIds = useKitchenStore((state) => state.savedIds);
-  const wantIds = useKitchenStore((state) => state.wantIds);
-  const cookedCounts = useKitchenStore((state) => state.cookedCounts);
-  const collections = useKitchenStore((state) => state.collections);
+  const leftoverStaples = useKitchenStore((state) => state.pantryStaples);
+  const leftoverCollections = useKitchenStore((state) => state.collections);
+  const pendingSync = useKitchenStore((state) => state.pendingSync);
+  const migration = useKitchenStore((state) => state.kitchenMigration);
+  const migrationComplete = migration?.status === 'completed';
+  const collectionsQuery = useCollections();
+  const pantryQuery = usePantryItems();
+  const pantryKeys = useMemo(() => {
+    const fromApi = (pantryQuery.data?.items ?? []).flatMap((item) =>
+      [item.canonicalName, item.name].filter(
+        (value): value is string => !!value,
+      ),
+    );
+    const local = migrationComplete ? [] : leftoverStaples;
+    return [...new Set([...fromApi, ...local])];
+  }, [leftoverStaples, migrationComplete, pantryQuery.data?.items]);
 
-  const recipes = useMemo(
-    () => mergeCatalog(SEED_RECIPES, apiRecipes),
-    [apiRecipes],
+  const localInbox = useKitchenStore((state) => state.inboxStatus);
+  const localSaved = useKitchenStore((state) => state.savedIds);
+  const wantIds = useKitchenStore((state) => state.wantIds);
+  const localCooked = useKitchenStore((state) => state.cookedCounts);
+
+  const recipes = useMemo(() => catalogRecipes(apiRecipes), [apiRecipes]);
+
+  const inboxStatus = useMemo(
+    () =>
+      mergeInboxStatus({
+        recipes,
+        local: localInbox,
+        migrationComplete,
+      }),
+    [localInbox, migrationComplete, recipes],
+  );
+
+  const savedIds = useMemo(
+    () =>
+      mergeSavedIds({
+        recipes,
+        local: localSaved,
+        migrationComplete,
+      }),
+    [localSaved, migrationComplete, recipes],
+  );
+
+  const cookedCounts = useMemo(
+    () => mergeCookedCounts({ recipes, local: localCooked }),
+    [localCooked, recipes],
+  );
+
+  const collections = useMemo(
+    () =>
+      collectionsForCatalog({
+        leftover: leftoverCollections,
+        queued: collectionsFromQueue(pendingSync),
+        api: (collectionsQuery.data?.items ?? []).map((item) => ({
+          id: item.id,
+          name: item.name,
+          recipeIds: item.recipeIds,
+        })),
+        migrationComplete,
+      }),
+    [
+      collectionsQuery.data?.items,
+      leftoverCollections,
+      migrationComplete,
+      pendingSync,
+    ],
   );
 
   const byId = useMemo(() => {
@@ -58,7 +112,7 @@ export function useCatalog() {
     }
 
     const have = recipe.ingredients.filter((ing) =>
-      isHave(ing.name, pantryStaples),
+      isHave(ing.name, pantryKeys, ing.canonicalName),
     ).length;
     return {
       recipe,
@@ -68,12 +122,16 @@ export function useCatalog() {
         have === recipe.ingredients.length
           ? 'everything in stock'
           : `buy ${recipe.ingredients
-              .filter((ing) => !isHave(ing.name, pantryStaples))
+              .filter((ing) => !isHave(ing.name, pantryKeys, ing.canonicalName))
               .slice(0, 2)
               .map((ing) => ing.name.split(',')[0]?.toLowerCase())
               .join(', ')}`,
     };
   });
+
+  const fromCache = listQuery.data?.fromCache === true;
+  const offline =
+    fromCache || (listQuery.isError && (listQuery.data?.items.length ?? 0) > 0);
 
   return {
     recipes,
@@ -89,8 +147,14 @@ export function useCatalog() {
     wantIds,
     cookedCounts,
     isApiLoading: listQuery.isLoading,
-    isApiError: listQuery.isError,
+    isApiError: listQuery.isError && !offline,
     isApiFetching: listQuery.isFetching,
+    fromCache: offline,
+    syncLabel: offline
+      ? 'Showing last saved kitchen. We’ll refresh when you’re back online.'
+      : listQuery.isError
+        ? 'Couldn’t reach your kitchen. Retry when you have a signal.'
+        : null,
     refetch: listQuery.refetch,
   };
 }

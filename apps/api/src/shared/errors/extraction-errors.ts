@@ -78,6 +78,18 @@ export class MediaProcessingFailedError extends AppError {
   }
 }
 
+/** The link resolved, but its content is not a food or drink recipe. Not retryable. */
+export class NotARecipeError extends AppError {
+  constructor(options: AppErrorOptions = {}) {
+    super({
+      code: ErrorCode.NOT_A_RECIPE,
+      statusCode: 422,
+      message: options.message ?? 'The link does not look like a food recipe',
+      ...options,
+    });
+  }
+}
+
 export class ExtractionFailedError extends AppError {
   constructor(options: AppErrorOptions = {}) {
     super({

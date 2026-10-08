@@ -1,34 +1,9 @@
 /**
- * Machine-readable error codes returned to clients.
- *
- * Mobile clients should branch on these codes rather than on HTTP status codes or
- * human-readable messages, both of which may change.
+ * Kept as the API-local import path for compatibility. The canonical machine-readable
+ * contract lives in the shared package so mobile and API cannot drift.
  */
-export const ErrorCode = {
-  VALIDATION_ERROR: 'VALIDATION_ERROR',
-  BAD_REQUEST: 'BAD_REQUEST',
-  UNAUTHORIZED: 'UNAUTHORIZED',
-  FORBIDDEN: 'FORBIDDEN',
-  NOT_FOUND: 'NOT_FOUND',
-  CONFLICT: 'CONFLICT',
-  PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
-  UNSUPPORTED_MEDIA_TYPE: 'UNSUPPORTED_MEDIA_TYPE',
-  TOO_MANY_REQUESTS: 'TOO_MANY_REQUESTS',
-  INTERNAL_SERVER_ERROR: 'INTERNAL_SERVER_ERROR',
-  SERVICE_UNAVAILABLE: 'SERVICE_UNAVAILABLE',
+import { ErrorCode as SharedErrorCode } from '@recipe/contracts';
+import type { ErrorCode as SharedErrorCodeType } from '@recipe/contracts';
 
-  // Recipe extraction (see architecture.md)
-  UNSUPPORTED_SOURCE: 'UNSUPPORTED_SOURCE',
-  INVALID_URL: 'INVALID_URL',
-  JOB_NOT_FOUND: 'JOB_NOT_FOUND',
-  RECIPE_NOT_FOUND: 'RECIPE_NOT_FOUND',
-  COOK_SESSION_NOT_FOUND: 'COOK_SESSION_NOT_FOUND',
-  JOB_ALREADY_COMPLETED: 'JOB_ALREADY_COMPLETED',
-  JOB_CANCELLED: 'JOB_CANCELLED',
-  EXTRACTION_FAILED: 'EXTRACTION_FAILED',
-  CONTENT_ACQUISITION_FAILED: 'CONTENT_ACQUISITION_FAILED',
-  MEDIA_PROCESSING_FAILED: 'MEDIA_PROCESSING_FAILED',
-  PROVIDER_RATE_LIMITED: 'PROVIDER_RATE_LIMITED',
-} as const;
-
-export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];
+export const ErrorCode = SharedErrorCode;
+export type ErrorCode = SharedErrorCodeType;

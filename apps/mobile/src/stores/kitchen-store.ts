@@ -2,51 +2,29 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { isMigratableRecipeId, isSeedRecipeId } from '@/features/kitchen/ids';
+import {
+  PENDING_SYNC_SCHEMA_VERSION,
+  upsertPendingOp,
+  type PendingSyncOp,
+} from '@/features/kitchen/pending-sync';
 import { DEFAULT_PANTRY_STAPLES } from '@/stores/contracts';
 import type { KitchenState } from '@/stores/contracts';
-
-const defaultCollections: KitchenState['collections'] = [
-  {
-    id: 'sunday',
-    name: 'Sunday cooking',
-    recipeIds: ['seed:galette', 'seed:harissa', 'seed:dal'],
-  },
-  {
-    id: 'twenty',
-    name: '20 minutes flat',
-    recipeIds: ['seed:pistachio', 'seed:gnocchi', 'seed:congee'],
-  },
-  {
-    id: 'mum',
-    name: 'From Mum',
-    recipeIds: ['seed:congee', 'seed:dal', 'seed:harissa'],
-  },
-  {
-    id: 'six',
-    name: 'Feeding six',
-    recipeIds: ['seed:galette', 'seed:harissa', 'seed:gnocchi'],
-  },
-];
 
 export const useKitchenStore = create<KitchenState>()(
   persist(
     (set, get) => ({
-      inboxStatus: {
-        'seed:gnocchi': 'ready',
-        'seed:galette': 'needs_review',
-      },
-      savedIds: ['seed:harissa', 'seed:dal'],
-      wantIds: ['seed:congee'],
-      cookedCounts: {
-        'seed:dal': 2,
-        'seed:harissa': 4,
-        'seed:congee': 1,
-      },
+      inboxStatus: {},
+      savedIds: [],
+      wantIds: [],
+      cookedCounts: {},
       recipeNotes: {},
-      collections: defaultCollections,
+      collections: [],
       pantryStaples: [...DEFAULT_PANTRY_STAPLES],
       servingsByRecipe: {},
       recentSearches: ['harissa', 'galette', 'congee', 'one-pan'],
+      pendingSync: [],
+      kitchenMigration: null,
       markInbox: (id, status) =>
         set((state) => ({
           inboxStatus: { ...state.inboxStatus, [id]: status },
@@ -72,13 +50,17 @@ export const useKitchenStore = create<KitchenState>()(
             ? state.wantIds.filter((item) => item !== id)
             : [...state.wantIds, id],
         })),
-      incrementCooked: (id) =>
+      incrementCooked: (id) => {
+        if (!isSeedRecipeId(id)) {
+          return;
+        }
         set((state) => ({
           cookedCounts: {
             ...state.cookedCounts,
             [id]: (state.cookedCounts[id] ?? 0) + 1,
           },
-        })),
+        }));
+      },
       addRecipeNote: (id, text) => {
         const trimmed = text.trim();
         if (!trimmed) {
@@ -113,24 +95,58 @@ export const useKitchenStore = create<KitchenState>()(
           ].slice(0, 8),
         }));
       },
-      addCollection: (name) =>
+      addCollection: (name) => {
+        const id = `col-${Date.now()}`;
+        const op: PendingSyncOp = {
+          id: `ps-col-${id}`,
+          schemaVersion: PENDING_SYNC_SCHEMA_VERSION,
+          kind: 'collection.upsert',
+          status: 'pending',
+          attempts: 0,
+          createdAt: Date.now(),
+          payload: {
+            clientId: id,
+            name,
+            recipeIds: [],
+            createdAt: Date.now(),
+          },
+        };
         set((state) => ({
-          collections: [
-            ...state.collections,
-            {
-              id: `col-${Date.now()}`,
-              name,
-              recipeIds: [],
-            },
-          ],
-        })),
+          collections: [...state.collections, { id, name, recipeIds: [] }],
+          pendingSync: upsertPendingOp(state.pendingSync, op),
+        }));
+      },
       markStaple: (name) => {
         const key = name.toLowerCase();
         if (get().pantryStaples.includes(key)) {
           return;
         }
-        set((state) => ({ pantryStaples: [...state.pantryStaples, key] }));
+        const op: PendingSyncOp = {
+          id: `ps-pantry-${key}`,
+          schemaVersion: PENDING_SYNC_SCHEMA_VERSION,
+          kind: 'pantry.upsert',
+          status: 'pending',
+          attempts: 0,
+          createdAt: Date.now(),
+          payload: { name: key },
+        };
+        set((state) => ({
+          pantryStaples: [...state.pantryStaples, key],
+          pendingSync: upsertPendingOp(state.pendingSync, op),
+        }));
       },
+      enqueuePending: (op) =>
+        set((state) => ({
+          pendingSync: upsertPendingOp(state.pendingSync, op),
+        })),
+      patchPending: (id, patch) =>
+        set((state) => ({
+          pendingSync: state.pendingSync.map((item) =>
+            item.id === id ? ({ ...item, ...patch } as PendingSyncOp) : item,
+          ),
+        })),
+      applyMigrationLeftovers: (patch) => set(patch),
+      setKitchenMigration: (doc) => set({ kitchenMigration: doc }),
     }),
     {
       name: 'mise.kitchen.v1',
@@ -144,8 +160,44 @@ export const useKitchenStore = create<KitchenState>()(
           ...current,
           ...stored,
           recipeNotes: stored.recipeNotes ?? {},
+          pendingSync: stored.pendingSync ?? [],
+          kitchenMigration: stored.kitchenMigration ?? null,
         };
       },
     },
   ),
 );
+
+export function enqueueIdempotent(
+  kind: PendingSyncOp['kind'],
+  recipeOrName: string,
+): void {
+  if (kind === 'collection.upsert') {
+    return;
+  }
+  const now = Date.now();
+  if (kind === 'pantry.upsert') {
+    useKitchenStore.getState().enqueuePending({
+      id: `ps-pantry-${recipeOrName.toLowerCase()}`,
+      schemaVersion: PENDING_SYNC_SCHEMA_VERSION,
+      kind,
+      status: 'pending',
+      attempts: 0,
+      createdAt: now,
+      payload: { name: recipeOrName },
+    });
+    return;
+  }
+  if (!isMigratableRecipeId(recipeOrName)) {
+    return;
+  }
+  useKitchenStore.getState().enqueuePending({
+    id: `ps-${kind}-${recipeOrName}`,
+    schemaVersion: PENDING_SYNC_SCHEMA_VERSION,
+    kind,
+    status: 'pending',
+    attempts: 0,
+    createdAt: now,
+    payload: { recipeId: recipeOrName },
+  } as PendingSyncOp);
+}

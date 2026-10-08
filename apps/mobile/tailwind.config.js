@@ -42,7 +42,7 @@ module.exports = {
       },
       borderRadius: {
         card: '16px',
-        cta: '18px',
+        cta: '28px',
         icon: '14px',
         sheet: '28px',
       },

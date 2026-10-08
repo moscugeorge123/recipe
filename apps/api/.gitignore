@@ -12,8 +12,8 @@ coverage/
 .env.*
 !.env.example
 
-# Local media storage (dev)
-storage/
+# Local media storage (dev). Anchored so src/infrastructure/storage stays tracked.
+/storage/
 
 # Logs
 *.log

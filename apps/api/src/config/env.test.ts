@@ -81,6 +81,25 @@ describe('loadConfig', () => {
     expect(config.extraction.queueConcurrency).toBe(2);
   });
 
+  it('defaults pantry ingredient models and budgets', () => {
+    const config = loadConfig({});
+
+    expect(config.ai.ingredientModel).toBe('gpt-5-nano');
+    expect(config.ai.ingredientFallbackModel).toBe('gpt-4.1-nano');
+    expect(config.ai.ingredientEscalationModel).toBe('gpt-4o-mini');
+    expect(config.ai.ingredientReasoningEffort).toBe('none');
+    expect(config.ai.ingredientMaxOutputTokens).toBe(1024);
+    expect(config.ai.ingredientMaxItems).toBe(40);
+    expect(config.ai.ingredientPromptVersion).toBe('ingredient-enrichment-v2');
+  });
+
+  it('rejects GPT-5.6 as a pantry ingredient model', () => {
+    expect(() => loadConfig({ AI_INGREDIENT_MODEL: 'gpt-5.6' })).toThrow(EnvValidationError);
+    expect(() => loadConfig({ AI_INGREDIENT_FALLBACK_MODEL: 'gpt-5.6-luna' })).toThrow(
+      EnvValidationError,
+    );
+  });
+
   it('parses optional Meta app credentials', () => {
     const config = loadConfig({
       META_APP_ID: 'app-id',

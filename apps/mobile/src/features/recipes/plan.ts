@@ -71,10 +71,23 @@ export function formatQty(
   unit: string | null,
   multiplier = 1,
 ): string {
+  const shownUnit = displayUnit(unit);
   if (quantity === null) {
-    return unit ?? '';
+    return shownUnit ?? '';
   }
   const value = Math.round(quantity * multiplier * 10) / 10;
   const text = Number.isInteger(value) ? String(value) : String(value);
-  return unit ? `${text} ${unit}` : text;
+  return shownUnit ? `${text} ${shownUnit}` : text;
+}
+
+/** Count units like "piece" are implied by the number — don't show them. */
+export function displayUnit(unit: string | null | undefined): string | null {
+  if (!unit) {
+    return null;
+  }
+  const lower = unit.toLowerCase().trim();
+  if (lower === 'piece' || lower === 'pieces') {
+    return null;
+  }
+  return unit;
 }

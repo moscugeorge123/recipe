@@ -1,16 +1,18 @@
 import type { AIPricingTable } from './pricing.js';
 import { estimateCost } from './pricing.js';
-import type { IAIUsageRepository } from '../../database/repositories/ai-usage.repository.js';
+import type {
+  AIUsageLink,
+  IAIUsageRepository,
+} from '../../database/repositories/ai-usage.repository.js';
 
-export interface TrackUsageInput {
-  jobId: string;
+export type TrackUsageInput = AIUsageLink & {
   provider: string;
   model: string;
   operation: string;
   inputTokens: number;
   outputTokens: number;
   durationMs: number;
-}
+};
 
 export class AIUsageTracker {
   constructor(

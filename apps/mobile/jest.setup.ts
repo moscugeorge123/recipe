@@ -2,7 +2,12 @@ import 'react-native-gesture-handler/jestSetup';
 
 process.env.EXPO_PUBLIC_API_URL = 'http://localhost:3000/api/v1';
 
-jest.mock('react-native-worklets', () => ({}));
+jest.mock('react-native-worklets', () => ({
+  scheduleOnRN: <T extends (...args: never[]) => unknown>(
+    fn: T,
+    ...args: Parameters<T>
+  ) => fn(...args),
+}));
 
 jest.mock('react-native-reanimated', () => {
   const RN = require('react-native') as typeof import('react-native');
@@ -15,6 +20,27 @@ jest.mock('react-native-reanimated', () => {
     createAnimatedComponent: (Component: unknown) => Component,
   };
 
+  const motionChain = () => {
+    const chain: Record<string, unknown> = {};
+    const methods = [
+      'duration',
+      'delay',
+      'springify',
+      'damping',
+      'stiffness',
+      'mass',
+      'withInitialValues',
+      'easing',
+      'randomDelay',
+      'build',
+      'reduceMotion',
+    ];
+    methods.forEach((name) => {
+      chain[name] = () => chain;
+    });
+    return chain;
+  };
+
   return {
     __esModule: true,
     default: Animated,
@@ -22,8 +48,24 @@ jest.mock('react-native-reanimated', () => {
     useSharedValue: <T>(init: T) => ({ value: init }),
     useAnimatedStyle: (updater: () => unknown) => updater(),
     useAnimatedProps: (updater: () => unknown) => updater(),
-    withTiming: <T>(toValue: T) => toValue,
-    withSpring: <T>(toValue: T) => toValue,
+    useEvent: jest.fn(() => undefined),
+    useHandler: jest.fn(() => ({})),
+    withTiming: <T>(
+      toValue: T,
+      _config?: unknown,
+      callback?: (finished: boolean) => void,
+    ) => {
+      callback?.(true);
+      return toValue;
+    },
+    withSpring: <T>(
+      toValue: T,
+      _config?: unknown,
+      callback?: (finished: boolean) => void,
+    ) => {
+      callback?.(true);
+      return toValue;
+    },
     withSequence: <T>(...values: T[]) => values[values.length - 1],
     withDelay: <T>(_delay: number, value: T) => value,
     withRepeat: <T>(value: T) => value,
@@ -43,15 +85,19 @@ jest.mock('react-native-reanimated', () => {
       out: (fn: (t: number) => number) => fn,
       inOut: (fn: (t: number) => number) => fn,
       bezier: () => (t: number) => t,
+      bezierFn: () => (t: number) => t,
     },
-    FadeIn: {
-      duration: () => ({ springify: () => ({ damping: () => ({}) }) }),
-    },
-    FadeOut: { duration: () => ({}) },
-    SlideInDown: {
-      duration: () => ({ springify: () => ({ damping: () => ({}) }) }),
-    },
-    FadeInDown: { duration: () => ({ springify: () => ({}) }) },
+    FadeIn: motionChain(),
+    FadeOut: motionChain(),
+    FadeInDown: motionChain(),
+    FadeInUp: motionChain(),
+    FadeOutUp: motionChain(),
+    FadeOutDown: motionChain(),
+    SlideInDown: motionChain(),
+    ZoomIn: motionChain(),
+    ZoomOut: motionChain(),
+    LinearTransition: motionChain(),
+    Layout: motionChain(),
     runOnJS: <T extends (...args: never[]) => unknown>(fn: T) => fn,
     runOnUI: <T extends (...args: never[]) => unknown>(fn: T) => fn,
   };
@@ -127,10 +173,72 @@ jest.mock('react-native-svg', () => {
   };
 });
 
+jest.mock('lucide-react-native', () => {
+  const React = require('react') as typeof import('react');
+  const { View } = require('react-native') as typeof import('react-native');
+
+  return new Proxy(
+    { __esModule: true },
+    {
+      get(target, prop) {
+        if (prop in target) {
+          return target[prop as keyof typeof target];
+        }
+        if (typeof prop !== 'string' || prop === 'then') {
+          return undefined;
+        }
+        function LucideIcon(props: Record<string, unknown>) {
+          return React.createElement(View, props as never);
+        }
+        LucideIcon.displayName = prop;
+        return LucideIcon;
+      },
+    },
+  );
+});
+
+jest.mock('expo-share-intent', () => ({
+  ShareIntentProvider: ({ children }: { children: unknown }) => children,
+  useShareIntentContext: () => ({
+    hasShareIntent: false,
+    shareIntent: { text: null, webUrl: null, files: null, meta: null },
+    resetShareIntent: jest.fn(),
+    error: null,
+  }),
+}));
+
 jest.mock('expo-clipboard', () => ({
   getStringAsync: jest.fn(async () => ''),
   hasStringAsync: jest.fn(async () => true),
   setStringAsync: jest.fn(),
+}));
+
+jest.mock('expo-notifications', () => ({
+  setNotificationHandler: jest.fn(),
+  setNotificationChannelAsync: jest.fn(async () => null),
+  getAllScheduledNotificationsAsync: jest.fn(async () => []),
+  scheduleNotificationAsync: jest.fn(async () => 'cook-timer'),
+  cancelScheduledNotificationAsync: jest.fn(async () => undefined),
+  getPermissionsAsync: jest.fn(async () => ({
+    granted: true,
+    canAskAgain: false,
+    status: 'granted',
+  })),
+  requestPermissionsAsync: jest.fn(async () => ({
+    granted: true,
+    canAskAgain: false,
+    status: 'granted',
+  })),
+  addNotificationResponseReceivedListener: jest.fn(() => ({
+    remove: jest.fn(),
+  })),
+  getLastNotificationResponseAsync: jest.fn(async () => null),
+  AndroidNotificationPriority: { MAX: 'max' },
+  AndroidImportance: { MAX: 7 },
+  AndroidNotificationVisibility: { PUBLIC: 1 },
+  AndroidAudioUsage: { ALARM: 4 },
+  AndroidAudioContentType: { SONIFICATION: 4 },
+  SchedulableTriggerInputTypes: { DATE: 'date' },
 }));
 
 jest.mock('expo-keep-awake', () => ({
@@ -177,3 +285,4 @@ AccessibilityInfo.addEventListener = jest.fn(
     >,
 );
 AccessibilityInfo.announceForAccessibility = jest.fn();
+AccessibilityInfo.setAccessibilityFocus = jest.fn();

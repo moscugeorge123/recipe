@@ -8,8 +8,17 @@ import { RecipeNormalizer } from '../../../../src/modules/normalization/applicat
 import { ConfidenceCalculator } from '../../../../src/modules/confidence/application/confidence-calculator.js';
 import { RecipeValidator } from '../../../../src/modules/validation/application/recipe-validator.js';
 import { serializeStageError } from '../../../../src/modules/extraction/application/stage-orchestrator.js';
-import { normalizeIngredientName, normalizeUnit } from '../../../../src/modules/normalization/domain/units.js';
-import { describeOutputLanguage } from '../../../../src/modules/recipes/prompts/recipe-extraction-v1.js';
+import {
+  normalizeIngredientName,
+  normalizeUnit,
+  parseQuantity,
+} from '../../../../src/modules/normalization/domain/units.js';
+import {
+  RECIPE_EXTRACTION_PROMPT_VERSION,
+  RECIPE_EXTRACTION_SCHEMA,
+  RECIPE_EXTRACTION_SYSTEM_PROMPT,
+  describeOutputLanguage,
+} from '../../../../src/modules/recipes/prompts/recipe-extraction-v1.js';
 import type { LLMInput, LLMProvider, LLMResult } from '../../../../src/infrastructure/ai/llm/llm-provider.js';
 describe('EvidenceBuilder', () => {
   const builder = new EvidenceBuilder();
@@ -103,7 +112,58 @@ describe('RecipeExtractor with MockLLM', () => {
     expect(recipe.ingredients.length).toBeGreaterThan(0);
     expect(recipe.ingredients[0]?.quantity).toBeTruthy();
     expect(recipe.calories).toBe(420);
+    expect(recipe.nutritionSource).toBe('stated');
+    expect(recipe.nutrition).toEqual({
+      proteinGrams: expect.any(Number),
+      carbsGrams: expect.any(Number),
+      fatGrams: expect.any(Number),
+    });
     expect(recipe.steps.length).toBeGreaterThan(0);
+  });
+
+  it('returns an estimated calorie figure when the evidence states none', async () => {
+    const evidence = new EvidenceBuilder().build({
+      acquiredContent: {
+        sourceType: 'GENERIC_WEB',
+        originalUrl: 'https://example.com/fake-recipe',
+        normalizedUrl: 'https://example.com/fake-recipe',
+        title: 'Fake Pasta Recipe',
+        caption: 'Mix 200g spaghetti with garlic and olive oil. Serves 2.',
+        images: [],
+        metadata: {},
+      },
+    });
+
+    const { recipe } = await new RecipeExtractor(new MockLLMProvider()).extract({
+      evidence,
+      outputLanguage: 'en',
+    });
+
+    expect(recipe.calories).toBeGreaterThan(0);
+    expect(recipe.nutritionSource).toBe('estimated');
+    expect(['Easy', 'Medium', 'Hard']).toContain(recipe.difficulty);
+  });
+});
+
+describe('parseQuantity', () => {
+  it.each([
+    ['2', 2],
+    ['1/2', 0.5],
+    ['1 1/2', 1.5],
+    ['1½', 1.5],
+    ['½', 0.5],
+    ['2-3', 2],
+    ['0,5', 0.5],
+    ['200g', 200],
+    ['about 3', 3],
+  ])('%s → %d', (raw, expected) => {
+    expect(parseQuantity(raw)).toBe(expected);
+  });
+
+  it('returns null for text without a number', () => {
+    expect(parseQuantity('a pinch')).toBeNull();
+    expect(parseQuantity('1/0')).toBeNull();
+    expect(parseQuantity(null)).toBeNull();
   });
 });
 
@@ -196,7 +256,7 @@ describe('ConfidenceCalculator', () => {
           sortOrder: 0,
         },
       ],
-      steps: [{ stepOrder: 1, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', confidence: 0.8, provenance: {}, warnings: [] }],
+      steps: [{ stepOrder: 1, title: null, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', ahead: false, confidence: 0.8, provenance: {}, warnings: [] }],
     });
 
     const withoutQty = calculator.calculate({
@@ -227,7 +287,7 @@ describe('ConfidenceCalculator', () => {
           sortOrder: 0,
         },
       ],
-      steps: [{ stepOrder: 1, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', confidence: 0.5, provenance: {}, warnings: [] }],
+      steps: [{ stepOrder: 1, title: null, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', ahead: false, confidence: 0.5, provenance: {}, warnings: [] }],
     });
 
     expect(withQty).toBeGreaterThan(withoutQty);
@@ -302,14 +362,18 @@ describe('output language', () => {
     expect(captured).toContain('Write the entire recipe in Romanian (ro)');
     expect(captured).toContain('quantity phrases, units, preparation, temperature');
     expect(captured).toContain('Do not paste the original post caption into description');
-    expect(captured).not.toContain('proteinGrams');
   });
 
-  it('asks the model for per-serving macros when extractNutrition is true', async () => {
+  it('always asks for per-serving calories and macros, stated or estimated', async () => {
     let captured = '';
+    let schema: Record<string, unknown> = {};
     const llm: LLMProvider = {
-      generateStructured: async <T>(input: LLMInput): Promise<LLMResult<T>> => {
+      generateStructured: async <T>(
+        input: LLMInput,
+        requested: Record<string, unknown>,
+      ): Promise<LLMResult<T>> => {
         captured = input.messages.map((m) => m.content).join('\n');
+        schema = requested;
         return {
           data: {
             title: 'Pasta',
@@ -325,17 +389,236 @@ describe('output language', () => {
       },
     };
 
-    await new RecipeExtractor(llm).extract({
-      evidence: [],
-      outputLanguage: 'en',
-      extractNutrition: true,
-    });
+    await new RecipeExtractor(llm).extract({ evidence: [], outputLanguage: 'en' });
 
     expect(captured).toContain('proteinGrams');
-    expect(captured).toContain('carbsGrams');
-    expect(captured).toContain('fatGrams');
     expect(captured).toContain('per serving');
-    expect(captured).toContain('otherwise null');
+    expect(captured).toContain('nutritionSource "estimated"');
+    expect(captured).toContain('Never return null for calories or macros');
+    expect(captured).toContain('180°C (350°F)');
+    expect(schema.required).toEqual(
+      expect.arrayContaining(['calories', 'nutrition', 'nutritionSource', 'difficulty']),
+    );
+  });
+});
+
+describe('RECIPE_EXTRACTION_SCHEMA', () => {
+  const properties = RECIPE_EXTRACTION_SCHEMA.properties;
+  const ingredient = properties.ingredients.items;
+  const step = properties.steps.items;
+
+  it('is strict-mode compatible: every property is required and no extras are allowed', () => {
+    const check = (node: {
+      properties: Record<string, unknown>;
+      required: readonly string[];
+      additionalProperties: boolean;
+    }): void => {
+      expect([...node.required].sort()).toEqual(Object.keys(node.properties).sort());
+      expect(node.additionalProperties).toBe(false);
+    };
+    check(RECIPE_EXTRACTION_SCHEMA);
+    check(ingredient);
+    check(step);
+    check(properties.nutrition);
+    check(ingredient.properties.metric);
+    check(ingredient.properties.imperial);
+  });
+
+  it('makes calories, macros, difficulty and nutritionSource non-nullable', () => {
+    expect(properties.calories.type).toBe('integer');
+    expect(properties.nutrition.type).toBe('object');
+    expect(properties.nutrition.properties.proteinGrams.type).toBe('integer');
+    expect(properties.nutritionSource.enum).toEqual(['stated', 'estimated']);
+    expect(properties.difficulty.enum).toEqual(['Easy', 'Medium', 'Hard']);
+  });
+
+  it('asks for step temperatures in both scales and ingredient indexes', () => {
+    expect(step.properties.temperatureCelsius.type).toEqual(['integer', 'null']);
+    expect(step.properties.temperatureFahrenheit.type).toEqual(['integer', 'null']);
+    expect(step.properties.ingredientIndexes.items.type).toBe('integer');
+  });
+
+  it('asks for a short title, a wait-only timer, and pre-steps', () => {
+    expect(step.properties.title.type).toBe('string');
+    expect(step.properties.ahead.type).toBe('boolean');
+    expect(step.properties.durationMinutes.type).toEqual(['integer', 'null']);
+    expect(RECIPE_EXTRACTION_SYSTEM_PROMPT).toContain('durationMinutes is the cook timer');
+    expect(RECIPE_EXTRACTION_SYSTEM_PROMPT).toContain('ahead is true only for a pre-step');
+    expect(RECIPE_EXTRACTION_SYSTEM_PROMPT).toContain('soak rice in water for 4 hours');
+  });
+
+  it('uses the bumped prompt version', () => {
+    expect(RECIPE_EXTRACTION_PROMPT_VERSION).toBe('recipe-extraction-v10');
+  });
+});
+
+describe('RecipeNormalizer nutrition, units and steps', () => {
+  const normalizer = new RecipeNormalizer();
+
+  it('keeps stated nutrition and marks it stated', () => {
+    const result = normalizer.normalize({
+      title: 'Soup',
+      sourceLanguage: 'en',
+      calories: 320.4,
+      nutritionSource: 'stated',
+      nutrition: { proteinGrams: 12.6, carbsGrams: 40, fatGrams: 9 },
+      ingredients: [],
+      steps: [],
+    });
+    expect(result.calories).toBe(320);
+    expect(result.nutrition).toEqual({ proteinGrams: 13, carbsGrams: 40, fatGrams: 9 });
+    expect(result.nutritionSource).toBe('stated');
+  });
+
+  it('defaults the source to estimated and drops implausible values', () => {
+    const result = normalizer.normalize({
+      title: 'Soup',
+      sourceLanguage: 'en',
+      calories: 99999,
+      nutritionSource: 'guess',
+      nutrition: { proteinGrams: -3, carbsGrams: 50, fatGrams: null },
+      ingredients: [],
+      steps: [],
+    });
+    expect(result.calories).toBeNull();
+    expect(result.nutrition).toEqual({ proteinGrams: null, carbsGrams: 50, fatGrams: null });
+    expect(result.nutritionSource).toBe('estimated');
+  });
+
+  it('has no nutrition source when nothing is known', () => {
+    const result = normalizer.normalize({
+      title: 'Soup',
+      sourceLanguage: 'en',
+      ingredients: [],
+      steps: [],
+    });
+    expect(result.calories).toBeNull();
+    expect(result.nutrition).toBeNull();
+    expect(result.nutritionSource).toBeNull();
+  });
+
+  it('normalizes difficulty and servings', () => {
+    const result = normalizer.normalize({
+      title: 'Soup',
+      sourceLanguage: 'en',
+      difficulty: 'medium',
+      servings: 0,
+      ingredients: [],
+      steps: [],
+    });
+    expect(result.difficulty).toBe('Medium');
+    expect(result.servings).toBeNull();
+    expect(
+      normalizer.normalize({ title: 'x', sourceLanguage: 'en', difficulty: 'Weekend', ingredients: [], steps: [] })
+        .difficulty,
+    ).toBeNull();
+  });
+
+  it('fills metric and imperial amounts for every ingredient', () => {
+    const result = normalizer.normalize({
+      title: 'Cake',
+      sourceLanguage: 'en',
+      ingredients: [
+        {
+          name: 'flour',
+          quantity: '1 1/2',
+          unit: 'cups',
+          metric: { quantity: 180, unit: 'g' },
+          imperial: { quantity: 1.5, unit: 'cup' },
+          confidence: 0.9,
+        },
+        { name: 'butter', quantity: '113', unit: 'g', confidence: 0.9 },
+        { name: 'garlic', quantity: '2', unit: 'cloves', confidence: 0.9 },
+        { name: 'salt', quantity: null, unit: null, optional: true, confidence: 0.9 },
+      ],
+      steps: [],
+    });
+    const [flour, butter, garlic, salt] = result.ingredients;
+    expect(flour).toMatchObject({ unit: 'cup', metricUnit: 'g', imperialUnit: 'cup' });
+    expect(flour?.quantity?.toNumber()).toBe(1.5);
+    expect(flour?.metricQuantity?.toNumber()).toBe(180);
+    expect(butter?.metricQuantity?.toNumber()).toBe(113);
+    expect(butter).toMatchObject({ metricUnit: 'g', imperialUnit: 'oz' });
+    expect(butter?.imperialQuantity?.toNumber()).toBe(4);
+    expect(garlic).toMatchObject({ metricUnit: 'clove', imperialUnit: 'clove' });
+    expect(garlic?.metricQuantity?.toNumber()).toBe(2);
+    expect(salt).toMatchObject({
+      metricQuantity: null,
+      metricUnit: null,
+      imperialQuantity: null,
+      imperialUnit: null,
+    });
+  });
+
+  it('adds °C/°F, dual inline measurements and valid ingredient refs to steps', () => {
+    const result = normalizer.normalize({
+      title: 'Cake',
+      sourceLanguage: 'en',
+      ingredients: [
+        { name: 'flour', quantity: '200', unit: 'g', confidence: 0.9 },
+        { name: 'butter', quantity: '100', unit: 'g', confidence: 0.9 },
+      ],
+      steps: [
+        {
+          stepOrder: 1,
+          instruction: 'Bake at 180°C until golden, then cut into 2 cm squares.',
+          temperature: '180°C',
+          temperatureCelsius: 180,
+          temperatureFahrenheit: 180,
+          ingredientIndexes: [1, 0, 1, 7, -1],
+          confidence: 0.9,
+        },
+      ],
+    });
+    expect(result.steps[0]).toMatchObject({
+      instruction: 'Bake at 180°C (350°F) until golden, then cut into 2 cm (¾ in) squares.',
+      temperatureCelsius: 180,
+      temperatureFahrenheit: 350,
+      ingredientRefs: [0, 1],
+      title: null,
+      ahead: false,
+      durationMinutes: null,
+    });
+  });
+
+  it('keeps a short title, a wait timer, and moves pre-steps first', () => {
+    const result = normalizer.normalize({
+      title: 'Rice bowl',
+      sourceLanguage: 'en',
+      ingredients: [],
+      steps: [
+        {
+          stepOrder: 1,
+          title: 'Chop the onion',
+          instruction: 'Chop the onion. Dice it fine.',
+          durationMinutes: null,
+          ahead: false,
+          confidence: 0.9,
+        },
+        {
+          stepOrder: 2,
+          title: 'SOAK THE RICE.',
+          instruction: 'Soak the rice. Cover with cold water for 4 hours.',
+          durationMinutes: 240,
+          ahead: true,
+          stage: 'PREP',
+          confidence: 0.9,
+        },
+      ],
+    });
+    expect(result.steps.map((step) => step.title)).toEqual(['Soak the rice', 'Chop the onion']);
+    expect(result.steps[0]).toMatchObject({
+      instruction: 'Cover with cold water for 4 hours.',
+      durationMinutes: 240,
+      ahead: true,
+      stepOrder: 1,
+    });
+    expect(result.steps[1]).toMatchObject({
+      instruction: 'Dice it fine.',
+      durationMinutes: null,
+      ahead: false,
+      stepOrder: 2,
+    });
   });
 });
 

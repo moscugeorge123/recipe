@@ -106,7 +106,7 @@ export async function startServer(config: AppConfig = defaultConfig): Promise<Fa
   initSentry(config);
 
   const healthChecks = config.isTest ? [] : createHealthChecks();
-  const app = await buildApp({ config, healthChecks });
+  const app = await buildApp({ config, healthChecks, bootstrapProfile: true });
 
   registerShutdownHandlers(app, config);
 

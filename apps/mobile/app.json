@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Recipe",
+    "name": "Tortie",
     "slug": "recipe",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -8,16 +8,24 @@
     "scheme": "recipe",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon",
       "bundleIdentifier": "com.recipe.app",
-      "supportsTablet": true
+      "supportsTablet": true,
+      "entitlements": {
+        "com.apple.developer.usernotifications.time-sensitive": true
+      },
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true,
+          "NSAllowsLocalNetworking": true
+        }
+      }
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "package": "com.recipe.app",
       "adaptiveIcon": {
-        "backgroundColor": "#FFF8F2",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false
@@ -32,13 +40,59 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFF8F2",
+          "backgroundColor": "#FFFFFF",
           "image": "./assets/images/splash-icon.png",
-          "imageWidth": 76
+          "imageWidth": 240
         }
       ],
       "expo-secure-store",
-      "expo-font"
+      [
+        "expo-share-intent",
+        {
+          "iosActivationRules": {
+            "NSExtensionActivationSupportsWebURLWithMaxCount": 1,
+            "NSExtensionActivationSupportsWebPageWithMaxCount": 1,
+            "NSExtensionActivationSupportsText": true
+          },
+          "iosShareExtensionName": "Tortie",
+          "androidIntentFilters": ["text/*"],
+          "androidMainActivityAttributes": {
+            "android:launchMode": "singleTask"
+          }
+        }
+      ],
+      "expo-font",
+      "expo-asset",
+      [
+        "expo-navigation-bar",
+        {
+          "enforceContrast": false
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Tortie to use your camera to scan recipe pages.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Tortie to pick a photo of a recipe page.",
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "sounds": ["./assets/sounds/cook_alarm.wav"],
+          "color": "#a23e18"
+        }
+      ],
+      "./plugins/with-exact-alarm",
+      "./plugins/with-internet-access"
     ],
     "experiments": {
       "typedRoutes": true,

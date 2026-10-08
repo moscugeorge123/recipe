@@ -65,7 +65,12 @@ export class MockLLMProvider implements LLMProvider {
       for (const line of ingredientSection[1].split('\n')) {
         const trimmed = line.replace(/^[-*]\s*/, '').trim();
         if (trimmed) {
-          ingredients.push({ name: trimmed, sortOrder: ingredients.length, confidence: 0.7 });
+          ingredients.push({
+            name: trimmed,
+            sortOrder: ingredients.length,
+            confidence: 0.7,
+            ...presentationFor(trimmed),
+          });
         }
       }
     }
@@ -73,14 +78,21 @@ export class MockLLMProvider implements LLMProvider {
     if (ingredients.length === 0 && description) {
       const qtyMatch = /(\d+\s*(?:g|ml|cup|cups|tbsp|tsp)?)\s+(\w+)/gi.exec(description);
       if (qtyMatch) {
+        const name = qtyMatch[2] ?? 'ingredient';
         ingredients.push({
-          name: qtyMatch[2] ?? 'ingredient',
+          name,
           quantity: qtyMatch[1],
           sortOrder: 0,
           confidence: 0.6,
+          ...presentationFor(name),
         });
       } else {
-        ingredients.push({ name: 'main ingredient', sortOrder: 0, confidence: 0.5 });
+        ingredients.push({
+          name: 'main ingredient',
+          sortOrder: 0,
+          confidence: 0.5,
+          ...presentationFor('main ingredient'),
+        });
       }
     }
 
@@ -90,22 +102,89 @@ export class MockLLMProvider implements LLMProvider {
       for (const line of stepsSection[1].split('\n')) {
         const trimmed = line.replace(/^\d+\.\s*/, '').replace(/^[-*]\s*/, '').trim();
         if (trimmed) {
-          steps.push({ stepOrder: steps.length + 1, instruction: trimmed, confidence: 0.7 });
+          const words = trimmed.split(/\s+/);
+          steps.push({
+            stepOrder: steps.length + 1,
+            title: words.slice(0, 6).join(' '),
+            instruction: words.slice(6).join(' '),
+            durationMinutes: null,
+            ahead: false,
+            confidence: 0.7,
+          });
         }
       }
     }
 
     if (steps.length === 0 && description) {
-      steps.push({ stepOrder: 1, instruction: description, confidence: 0.5 });
+      steps.push({
+        stepOrder: 1,
+        title: description.split(/\s+/).slice(0, 6).join(' '),
+        instruction: description.split(/\s+/).slice(6).join(' '),
+        durationMinutes: null,
+        ahead: false,
+        confidence: 0.5,
+      });
     }
+
+    const kcal = calories ?? Math.min(900, 150 * Math.max(1, ingredients.length));
 
     return {
       title,
       description,
-      calories,
+      calories: kcal,
+      nutritionSource: calories === null ? 'estimated' : 'stated',
+      nutrition: macroSplit(kcal),
+      difficulty: steps.length <= 3 ? 'Easy' : steps.length <= 6 ? 'Medium' : 'Hard',
       sourceLanguage: 'en',
+      categorySlugs: categorySlugsFor(`${title} ${description}`),
       ingredients,
-      steps,
+      steps: steps.map((step) => ({ ...step, ingredientIndexes: [] })),
     };
   }
+}
+
+/** Rough 20/50/30 protein/carb/fat energy split so mock macros agree with mock kcal. */
+function macroSplit(kcal: number): { proteinGrams: number; carbsGrams: number; fatGrams: number } {
+  return {
+    proteinGrams: Math.round((kcal * 0.2) / 4),
+    carbsGrams: Math.round((kcal * 0.5) / 4),
+    fatGrams: Math.round((kcal * 0.3) / 9),
+  };
+}
+
+function presentationFor(name: string): {
+  emoji: string;
+  colorToken: string;
+  category: string;
+} {
+  const n = name.toLowerCase();
+  if (/(tomato|lettuce|onion|garlic|herb|basil|lemon|spinach)/.test(n)) {
+    return { emoji: '🥬', colorToken: 'basilSoft', category: 'Produce' };
+  }
+  if (/(chicken|beef|pork|lamb|fish|salmon)/.test(n)) {
+    return { emoji: '🍗', colorToken: 'paprikaSoft', category: 'Meat' };
+  }
+  if (/(milk|cheese|butter|yogurt|cream)/.test(n)) {
+    return { emoji: '🥛', colorToken: 'steamedMilk', category: 'Dairy' };
+  }
+  if (/(pasta|spaghetti|flour|rice|oil|olive)/.test(n)) {
+    return { emoji: '🍝', colorToken: 'peach', category: 'Pantry' };
+  }
+  return { emoji: '🥣', colorToken: 'peach', category: 'Pantry' };
+}
+
+function categorySlugsFor(text: string): string[] {
+  const lower = text.toLowerCase();
+  const slugs: string[] = [];
+  if (/(cake|cookie|dessert|sweet|brownie|pudding|pie|tart|chocolate)/.test(lower)) {
+    slugs.push('sweet');
+  }
+  if (/(breakfast|brunch|pancake|waffle|oat|omelette|omelet|cereal|toast)/.test(lower)) {
+    slugs.push('breakfast');
+  } else if (/(lunch|sandwich|salad|wrap)/.test(lower)) {
+    slugs.push('lunch');
+  } else if (slugs.length === 0) {
+    slugs.push('dinner');
+  }
+  return slugs;
 }

@@ -43,7 +43,7 @@ export class RecipeValidator {
     );
 
     for (const step of recipe.steps) {
-      const lower = step.instruction.toLowerCase();
+      const lower = `${step.title ?? ''} ${step.instruction}`.toLowerCase();
       const hasIngredientRef = [...ingredientNames].some(
         (name) => name.length > 3 && lower.includes(name),
       );

@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
 import { DEFAULT_TEST_DATABASE_URL, resolveDatabaseUrl } from '../../src/config/env.js';
+import { PrismaProfileBootstrapRepository } from '../../src/infrastructure/database/repositories/profile-bootstrap.repository.js';
 
 const TEST_DATABASE_URL = resolveDatabaseUrl({
   nodeEnv: 'test',
@@ -36,10 +37,24 @@ export function getTestPrisma(): PrismaClient {
   return testPrisma;
 }
 
-/** Truncates all application tables between tests. */
-export async function resetDatabase(db: PrismaClient = getTestPrisma()): Promise<void> {
+/** Truncates all application tables between tests and restores migration-level defaults. */
+export async function resetDatabase(
+  db: PrismaClient = getTestPrisma(),
+  options: { bootstrapDefaults?: boolean } = {},
+): Promise<void> {
   const tables = [
     'ai_usage',
+    'collection_recipes',
+    'collections',
+    'recipe_notes',
+    'recipe_categories',
+    'recipe_revision_categories',
+    'recipe_revision_steps',
+    'recipe_revision_ingredients',
+    'recipe_revisions',
+    'pantry_items',
+    'shopping_list_items',
+    'meal_plan_entries',
     'extraction_evidence',
     'vision_analyses',
     'ocr_results',
@@ -50,13 +65,19 @@ export async function resetDatabase(db: PrismaClient = getTestPrisma()): Promise
     'recipe_ingredients',
     'cook_session_step_stats',
     'cook_sessions',
+    'user_recipes',
+    'categories',
     'recipes',
     'extraction_stages',
     'extraction_jobs',
     'recipe_sources',
+    'users',
   ];
 
   await db.$executeRawUnsafe(`TRUNCATE TABLE ${tables.join(', ')} RESTART IDENTITY CASCADE`);
+  if (options.bootstrapDefaults !== false) {
+    await new PrismaProfileBootstrapRepository(db).ensureDefaults();
+  }
 }
 
 export async function disconnectTestDatabase(): Promise<void> {
@@ -75,4 +96,17 @@ export async function isDatabaseAvailable(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+/** Distinguishes a reachable database from one that has not applied the foundation migration. */
+export async function isPersistenceFoundationAvailable(): Promise<boolean> {
+  if (!(await isDatabaseAvailable())) {
+    return false;
+  }
+
+  const db = getTestPrisma();
+  const rows = await db.$queryRaw<Array<{ tableName: string | null }>>`
+    SELECT to_regclass('public.users')::text AS "tableName"
+  `;
+  return rows[0]?.tableName === 'users';
 }

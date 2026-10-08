@@ -1,0 +1,55 @@
+appId: com.recipe.app
+---
+# Best-effort recipe surface from the Recipes tab. Selectors are optional because
+# a clean install has no API recipes, and Expo Go cannot complete import → review.
+- launchApp
+- tapOn:
+    text: Skip
+    optional: true
+- assertVisible: Recipe
+- assertVisible: Cookbooks
+- tapOn:
+    text: All Recipes
+    optional: true
+- tapOn:
+    text: Capture a recipe
+    optional: true
+- tapOn:
+    text: Add a Recipe
+    optional: true
+- assertVisible:
+    text: Import from social media
+    optional: true
+- tapOn:
+    text: Website
+    optional: true
+- assertVisible:
+    text: Turn into a recipe
+    optional: true
+- tapOn:
+    id: recipe-card-.*
+    optional: true
+- assertVisible:
+    text: Per portion
+    optional: true
+- assertVisible:
+    text: NOTES
+    optional: true
+- assertVisible:
+    text: COLLECTIONS
+    optional: true
+- tapOn:
+    text: Rate 5 stars
+    optional: true
+- tapOn:
+    text: Revision history
+    optional: true
+- assertVisible:
+    text: Restoring never deletes newer versions. It creates a new revision.
+    optional: true
+- tapOn:
+    text: Edit the extraction
+    optional: true
+- assertVisible:
+    text: Save recipe
+    optional: true

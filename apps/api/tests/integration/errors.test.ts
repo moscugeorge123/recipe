@@ -23,6 +23,7 @@ describe('error handling', () => {
         code: 'NOT_FOUND',
         message: 'Route GET /does-not-exist not found',
         requestId: expect.any(String),
+        retryable: false,
       },
     });
   });
@@ -99,6 +100,7 @@ describe('error handling', () => {
       code: 'INTERNAL_SERVER_ERROR',
       message: 'Internal server error',
       requestId: expect.any(String),
+      retryable: true,
     });
     // Nothing from the original error may reach the client.
     expect(response.body).not.toContain('hunter2');

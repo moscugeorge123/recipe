@@ -12,6 +12,8 @@ export interface Transcript {
   fullText: string;
   segments: TranscriptSegment[];
   provider: Prisma.InputJsonValue;
+  /** Speech-to-text on the audio, or captions/subtitles supplied by the platform. */
+  source?: 'speech' | 'manual_captions' | 'auto_captions';
 }
 
 export interface AudioInput {

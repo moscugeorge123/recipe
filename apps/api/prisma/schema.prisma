@@ -84,6 +84,132 @@ enum CookSessionStatus {
   STOPPED
 }
 
+enum RevisionSource {
+  IMPORT
+  USER_EDIT
+  AI_ASSISTED
+  RESTORE
+  MIGRATION
+}
+
+enum RecipeReviewState {
+  NEEDS_REVIEW
+  READY
+}
+
+enum PantryClassificationStatus {
+  UNCLASSIFIED
+  PENDING
+  CLASSIFIED
+  NEEDS_REVIEW
+  FAILED
+}
+
+enum PantryStorageLocation {
+  PANTRY
+  FRIDGE
+  FREEZER
+  OTHER
+}
+
+enum MealSlot {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum MealEntryKind {
+  RECIPE
+  NOTE
+}
+
+// --- Profiles & ownership ----------------------------------------------------
+
+model User {
+  id          String   @id @default(uuid()) @db.Uuid
+  profileKey  String?  @unique
+  authSubject String?  @unique
+  email       String?  @unique
+  displayName String?
+  preferences Json     @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  recipes           UserRecipe[]
+  categories        Category[]
+  revisions         RecipeRevision[]
+  cookSessions      CookSession[]
+  collections       Collection[]
+  pantryItems       PantryItem[]
+  shoppingListItems ShoppingListItem[]
+  mealPlanEntries   MealPlanEntry[]
+  aiUsage           AIUsage[]
+
+  @@map("users")
+}
+
+model UserRecipe {
+  id                 String            @id @default(uuid()) @db.Uuid
+  userId             String            @db.Uuid
+  recipeId           String            @db.Uuid
+  reviewState        RecipeReviewState @default(NEEDS_REVIEW)
+  rating             Int?
+  isFavorite         Boolean           @default(false)
+  completedCookCount Int               @default(0)
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipe            Recipe             @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  categoryLinks     RecipeCategory[]
+  revisions         RecipeRevision[]
+  notes             RecipeNote[]
+  collectionEntries CollectionRecipe[]
+
+  @@unique([userId, recipeId])
+  @@unique([id, userId])
+  @@index([userId, updatedAt])
+  @@index([userId, reviewState, updatedAt])
+  @@index([userId, isFavorite, updatedAt])
+  @@index([userId, rating])
+  @@index([userId, createdAt, id], map: "user_recipes_latest_idx")
+  @@index([userId, isFavorite(sort: Desc), completedCookCount(sort: Desc), updatedAt(sort: Desc), id], map: "user_recipes_engagement_idx")
+  @@map("user_recipes")
+}
+
+model Category {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  slug      String
+  name      String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipes RecipeCategory[]
+
+  @@unique([userId, slug])
+  @@unique([id, userId])
+  @@index([userId, sortOrder])
+  @@map("categories")
+}
+
+model RecipeCategory {
+  userRecipeId String   @db.Uuid
+  categoryId   String   @db.Uuid
+  userId       String   @db.Uuid
+  createdAt    DateTime @default(now())
+
+  userRecipe UserRecipe @relation(fields: [userRecipeId, userId], references: [id, userId], onDelete: Cascade)
+  category   Category   @relation(fields: [categoryId, userId], references: [id, userId], onDelete: Cascade)
+
+  @@id([userRecipeId, categoryId])
+  @@index([userId, categoryId])
+  @@map("recipe_categories")
+}
+
 // --- Source & jobs -----------------------------------------------------------
 
 model RecipeSource {
@@ -119,8 +245,8 @@ model ExtractionJob {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  recipeSource RecipeSource      @relation(fields: [recipeSourceId], references: [id], onDelete: Cascade)
-  recipe       Recipe?           @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  recipeSource RecipeSource         @relation(fields: [recipeSourceId], references: [id], onDelete: Cascade)
+  recipe       Recipe?              @relation(fields: [recipeId], references: [id], onDelete: SetNull)
   stages       ExtractionStage[]
   mediaAssets  MediaAsset[]
   evidence     ExtractionEvidence[]
@@ -159,10 +285,15 @@ model Recipe {
   prepTimeMinutes  Int?
   cookTimeMinutes  Int?
   totalTimeMinutes Int?
+  /// kcal per serving, always produced by the extractor (stated or estimated)
   calories         Int?
   cuisine          String?
-  /// Macro breakdown, e.g. { proteinGrams, carbsGrams, fatGrams }
+  /// Macro breakdown per serving, e.g. { proteinGrams, carbsGrams, fatGrams }
   nutrition        Json?
+  /// stated | estimated — whether calories/macros came from the source or an AI estimate
+  nutritionSource  String?
+  /// Easy | Medium | Hard, from the source or the extractor
+  difficulty       String?
   sourceLanguage   String?
   confidence       Float    @default(0)
   warnings         Json     @default("[]")
@@ -171,13 +302,14 @@ model Recipe {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  recipeSourceId String       @unique @db.Uuid
-  recipeSource   RecipeSource @relation(fields: [recipeSourceId], references: [id], onDelete: Cascade)
+  recipeSourceId String               @unique @db.Uuid
+  recipeSource   RecipeSource         @relation(fields: [recipeSourceId], references: [id], onDelete: Cascade)
   job            ExtractionJob?
   ingredients    RecipeIngredient[]
   steps          RecipeStep[]
   evidence       ExtractionEvidence[]
   cookSessions   CookSession[]
+  users          UserRecipe[]
 
   @@index([createdAt])
   @@map("recipes")
@@ -185,6 +317,7 @@ model Recipe {
 
 model CookSession {
   id                   String            @id @default(uuid()) @db.Uuid
+  userId               String            @default("00000000-0000-4000-8000-000000000001") @db.Uuid
   recipeId             String            @db.Uuid
   status               CookSessionStatus @default(IN_PROGRESS)
   currentStepIndex     Int               @default(0)
@@ -194,11 +327,15 @@ model CookSession {
   createdAt            DateTime          @default(now())
   updatedAt            DateTime          @updatedAt
 
+  user      User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   recipe    Recipe                @relation(fields: [recipeId], references: [id], onDelete: Cascade)
   stepStats CookSessionStepStat[]
+  notes     RecipeNote[]
 
   @@index([status, updatedAt])
+  @@index([userId, updatedAt])
   @@index([recipeId])
+  @@index([userId, recipeId, status], map: "cook_sessions_userId_recipeId_status_idx")
   @@map("cook_sessions")
 }
 
@@ -219,20 +356,28 @@ model CookSessionStepStat {
 }
 
 model RecipeIngredient {
-  id             String   @id @default(uuid()) @db.Uuid
-  recipeId       String   @db.Uuid
-  name           String
-  canonicalName  String?
-  quantity       Decimal? @db.Decimal(10, 3)
-  unit           String?
-  preparation    String?
-  optional       Boolean  @default(false)
+  id               String   @id @default(uuid()) @db.Uuid
+  recipeId         String   @db.Uuid
+  name             String
+  canonicalName    String?
+  quantity         Decimal? @db.Decimal(10, 3)
+  unit             String?
+  /// Same amount in metric (g/kg/ml/l/cm, or the original count unit)
+  metricQuantity   Decimal? @db.Decimal(10, 3)
+  metricUnit       String?
+  /// Same amount in US imperial (oz/lb/tsp/tbsp/cup/in, or the original count unit)
+  imperialQuantity Decimal? @db.Decimal(10, 3)
+  imperialUnit     String?
+  preparation      String?
+  optional         Boolean  @default(false)
+  emoji            String   @default("🥣")
+  colorToken       String   @default("peach")
   /// Grocery grouping: Produce | Meat | Dairy | Pantry | Spices | Frozen
-  category       String   @default("Pantry")
-  confidence     Float    @default(0)
-  provenance     Json     @default("{}")
-  warnings       Json     @default("[]")
-  sortOrder      Int      @default(0)
+  category         String   @default("Pantry")
+  confidence       Float    @default(0)
+  provenance       Json     @default("{}")
+  warnings         Json     @default("[]")
+  sortOrder        Int      @default(0)
 
   recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
@@ -241,21 +386,255 @@ model RecipeIngredient {
 }
 
 model RecipeStep {
-  id              String  @id @default(uuid()) @db.Uuid
-  recipeId        String  @db.Uuid
-  stepOrder       Int
-  instruction     String
-  durationMinutes Int?
-  temperature     String?
+  id                    String  @id @default(uuid()) @db.Uuid
+  recipeId              String  @db.Uuid
+  stepOrder             Int
+  /// Short imperative label. Null on recipes extracted before step titles existed.
+  title                 String?
+  instruction           String
+  durationMinutes       Int?
+  temperature           String?
+  temperatureCelsius    Int?
+  temperatureFahrenheit Int?
+  /// 0-based indexes into the recipe's ingredients used by this step
+  ingredientRefs        Int[]   @default([])
   /// Cooking stage: PREP | COOK | FINISH | SERVE
-  stage           String  @default("COOK")
-  confidence      Float   @default(0)
-  provenance      Json    @default("{}")
-  warnings        Json    @default("[]")
+  stage                 String  @default("COOK")
+  /// Work that happens before the cooking session (soak, rest meat, marinate overnight).
+  ahead                 Boolean @default(false)
+  confidence            Float   @default(0)
+  provenance            Json    @default("{}")
+  warnings              Json    @default("[]")
 
   recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
 
   @@map("recipe_steps")
+}
+
+model RecipeRevision {
+  id               String         @id @default(uuid()) @db.Uuid
+  userRecipeId     String         @db.Uuid
+  authorUserId     String?        @db.Uuid
+  revisionNumber   Int
+  source           RevisionSource
+  title            String
+  description      String?
+  servings         Int?
+  prepTimeMinutes  Int?
+  cookTimeMinutes  Int?
+  totalTimeMinutes Int?
+  calories         Int?
+  cuisine          String?
+  nutrition        Json?
+  nutritionSource  String?
+  difficulty       String?
+  sourceLanguage   String?
+  confidence       Float          @default(0)
+  warnings         Json           @default("[]")
+  promptVersion    String?
+  rawExtraction    Json?
+  createdAt        DateTime       @default(now())
+
+  userRecipe  UserRecipe                 @relation(fields: [userRecipeId], references: [id], onDelete: Cascade)
+  author      User?                      @relation(fields: [authorUserId], references: [id], onDelete: SetNull)
+  ingredients RecipeRevisionIngredient[]
+  steps       RecipeRevisionStep[]
+  categories  RecipeRevisionCategory[]
+  aiUsage     AIUsage[]
+
+  @@unique([userRecipeId, revisionNumber])
+  @@index([userRecipeId, createdAt])
+  @@index([authorUserId])
+  @@map("recipe_revisions")
+}
+
+model RecipeRevisionIngredient {
+  id               String   @id @default(uuid()) @db.Uuid
+  revisionId       String   @db.Uuid
+  sourceId         String?  @db.Uuid
+  name             String
+  canonicalName    String?
+  quantity         Decimal? @db.Decimal(10, 3)
+  unit             String?
+  metricQuantity   Decimal? @db.Decimal(10, 3)
+  metricUnit       String?
+  imperialQuantity Decimal? @db.Decimal(10, 3)
+  imperialUnit     String?
+  preparation      String?
+  optional         Boolean  @default(false)
+  emoji            String   @default("🥣")
+  colorToken       String   @default("peach")
+  category         String   @default("Pantry")
+  confidence       Float    @default(0)
+  provenance       Json     @default("{}")
+  warnings         Json     @default("[]")
+  sortOrder        Int      @default(0)
+
+  revision RecipeRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@unique([revisionId, sourceId])
+  @@index([revisionId, sortOrder])
+  @@index([canonicalName])
+  @@map("recipe_revision_ingredients")
+}
+
+model RecipeRevisionCategory {
+  id         String   @id @default(uuid()) @db.Uuid
+  revisionId String   @db.Uuid
+  categoryId String?  @db.Uuid
+  slug       String
+  name       String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  revision RecipeRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@unique([revisionId, slug])
+  @@index([revisionId, sortOrder])
+  @@map("recipe_revision_categories")
+}
+
+model RecipeRevisionStep {
+  id                    String  @id @default(uuid()) @db.Uuid
+  revisionId            String  @db.Uuid
+  sourceId              String? @db.Uuid
+  stepOrder             Int
+  title                 String?
+  instruction           String
+  durationMinutes       Int?
+  temperature           String?
+  temperatureCelsius    Int?
+  temperatureFahrenheit Int?
+  ingredientRefs        Int[]   @default([])
+  stage                 String  @default("COOK")
+  ahead                 Boolean @default(false)
+  confidence            Float   @default(0)
+  provenance            Json    @default("{}")
+  warnings              Json    @default("[]")
+
+  revision RecipeRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@unique([revisionId, stepOrder])
+  @@unique([revisionId, sourceId])
+  @@index([revisionId])
+  @@map("recipe_revision_steps")
+}
+
+model RecipeNote {
+  id            String   @id @default(uuid()) @db.Uuid
+  userRecipeId  String   @db.Uuid
+  cookSessionId String?  @db.Uuid
+  body          String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  userRecipe  UserRecipe   @relation(fields: [userRecipeId], references: [id], onDelete: Cascade)
+  cookSession CookSession? @relation(fields: [cookSessionId], references: [id], onDelete: SetNull)
+
+  @@index([userRecipeId, updatedAt])
+  @@index([cookSessionId])
+  @@map("recipe_notes")
+}
+
+model Collection {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipes CollectionRecipe[]
+
+  @@unique([userId, name])
+  @@index([userId, updatedAt])
+  @@map("collections")
+}
+
+model CollectionRecipe {
+  collectionId String   @db.Uuid
+  userRecipeId String   @db.Uuid
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+
+  collection Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  userRecipe UserRecipe @relation(fields: [userRecipeId], references: [id], onDelete: Cascade)
+
+  @@id([collectionId, userRecipeId])
+  @@index([userRecipeId])
+  @@map("collection_recipes")
+}
+
+model PantryItem {
+  id                   String                     @id @default(uuid()) @db.Uuid
+  userId               String                     @db.Uuid
+  name                 String
+  canonicalName        String?
+  rawText              String?
+  locale               String                     @default("en")
+  promptVersion        String?
+  quantity             Decimal?                   @db.Decimal(10, 3)
+  unit                 String?
+  category             String?
+  emoji                String?
+  colorToken           String?
+  storageLocation      PantryStorageLocation      @default(PANTRY)
+  expiresAt            DateTime?
+  classificationStatus PantryClassificationStatus @default(UNCLASSIFIED)
+  classification       Json                       @default("{}")
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  aiUsage AIUsage[]
+
+  @@index([userId, updatedAt])
+  @@index([userId, canonicalName])
+  @@index([userId, expiresAt])
+  @@index([userId, category])
+  @@map("pantry_items")
+}
+
+model ShoppingListItem {
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @db.Uuid
+  name                  String
+  canonicalName         String?
+  quantity              Decimal? @db.Decimal(10, 3)
+  unit                  String?
+  category              String?
+  emoji                 String?
+  done                  Boolean  @default(false)
+  fromRecipeCount       Int      @default(0)
+  source                String   @default("MANUAL") // MANUAL | RECIPE | MEAL_PLAN
+  sourceRecipeId        String?  @db.Uuid
+  sourceMealPlanEntryId String?  @db.Uuid
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, done, updatedAt])
+  @@index([userId, canonicalName])
+  @@map("shopping_list_items")
+}
+
+model MealPlanEntry {
+  id        String        @id @default(uuid()) @db.Uuid
+  userId    String        @db.Uuid
+  date      DateTime      @db.Date
+  slot      MealSlot
+  kind      MealEntryKind
+  recipeId  String?       @db.Uuid
+  note      String?
+  sortOrder Int           @default(0)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date, slot, sortOrder])
+  @@map("meal_plan_entries")
 }
 
 // --- Media & AI artifacts ----------------------------------------------------
@@ -344,9 +723,9 @@ model ExtractionEvidence {
   confidence       Float          @default(0)
   metadata         Json           @default("{}")
 
-  job    ExtractionJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  recipe Recipe?       @relation(fields: [recipeId], references: [id], onDelete: SetNull)
-  recipeId String?     @db.Uuid
+  job      ExtractionJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  recipe   Recipe?       @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  recipeId String?       @db.Uuid
 
   @@index([jobId])
   @@map("extraction_evidence")
@@ -354,7 +733,10 @@ model ExtractionEvidence {
 
 model AIUsage {
   id               String   @id @default(uuid()) @db.Uuid
-  jobId            String   @db.Uuid
+  jobId            String?  @db.Uuid
+  userId           String?  @db.Uuid
+  recipeRevisionId String?  @db.Uuid
+  pantryItemId     String?  @db.Uuid
   provider         String
   model            String
   operation        String
@@ -364,8 +746,14 @@ model AIUsage {
   durationMs       Int      @default(0)
   createdAt        DateTime @default(now())
 
-  job ExtractionJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job            ExtractionJob?  @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  user           User?           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipeRevision RecipeRevision? @relation(fields: [recipeRevisionId], references: [id], onDelete: SetNull)
+  pantryItem     PantryItem?     @relation(fields: [pantryItemId], references: [id], onDelete: SetNull)
 
   @@index([jobId])
+  @@index([userId, createdAt])
+  @@index([recipeRevisionId])
+  @@index([pantryItemId])
   @@map("ai_usage")
 }

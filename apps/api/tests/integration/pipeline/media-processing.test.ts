@@ -108,10 +108,11 @@ describe.skipIf(!ffmpegAvailable || !dbAvailable)('media processing integration'
     expect(result.frameStorageKeys.length).toBeGreaterThan(0);
     expect(result.deduplicatedFrameCount).toBeGreaterThan(0);
 
-    const audio = await storage.download(result.audioStorageKey);
+    expect(result.hasAudio).toBe(true);
+    const audio = await storage.download(result.audioStorageKey ?? '');
     expect(audio.byteLength).toBeGreaterThan(0);
 
-    const thumbnail = await storage.download(result.thumbnailStorageKey);
+    const thumbnail = await storage.download(result.thumbnailStorageKey ?? '');
     expect(thumbnail.byteLength).toBeGreaterThan(0);
 
     const assets = await mediaAssetRepo.findByJobId(jobId);
@@ -120,6 +121,73 @@ describe.skipIf(!ffmpegAvailable || !dbAvailable)('media processing integration'
     expect(types).toContain('VIDEO');
     expect(types).toContain('THUMBNAIL');
     expect(types.filter((t) => t === 'FRAME').length).toBe(result.deduplicatedFrameCount);
+  });
+});
+
+describe.skipIf(!ffmpegAvailable)('silent text-overlay video (no database)', () => {
+  let tempDir: string;
+  let videoPath: string;
+
+  beforeAll(async () => {
+    tempDir = await mkdtemp(path.join(os.tmpdir(), 'silent-video-'));
+    videoPath = path.join(tempDir, 'silent.mp4');
+    // No audio stream; a small "caption" box alternates position every 2s on a static background,
+    // the way recipe reels swap text overlays.
+    await execFileAsync(
+      'ffmpeg',
+      [
+        '-f', 'lavfi',
+        '-i', 'color=c=orange:s=360x640:d=8:r=10',
+        '-vf',
+        "drawbox=x=30:y=300:w=60:h=20:color=black:t=fill:enable='lt(mod(t,4),2)',drawbox=x=150:y=400:w=60:h=20:color=black:t=fill:enable='gte(mod(t,4),2)'",
+        '-pix_fmt', 'yuv420p',
+        '-y', videoPath,
+      ],
+      { timeout: 30_000 },
+    );
+  });
+
+  afterAll(async () => {
+    await rm(tempDir, { recursive: true, force: true });
+  });
+
+  it('skips audio, keeps every distinct overlay frame and records timestamps', async () => {
+    const config = loadConfig({
+      NODE_ENV: 'test',
+      FRAME_INTERVAL_SECONDS: '1',
+      MAX_FRAMES: '50',
+    });
+    const assets: Array<{ assetType: string; metadata?: unknown }> = [];
+    const repo = {
+      create: async (input: { assetType: string; metadata?: unknown }) => {
+        assets.push(input);
+        return input as never;
+      },
+      findByJobAndType: async () => [],
+      findByJobId: async () => [],
+    };
+    const service = new MediaProcessingService(
+      new FfmpegMediaProcessor(),
+      new LocalStorageProvider(path.join(tempDir, 'storage')),
+      repo,
+      config,
+    );
+
+    const result = await service.processVideo({
+      jobId: '00000000-0000-4000-8000-0000000000aa',
+      videoLocalPath: videoPath,
+      tempDir: path.join(tempDir, 'processing'),
+    });
+
+    expect(result.hasAudio).toBe(false);
+    expect(result.audioStorageKey).toBeUndefined();
+    expect(assets.some((a) => a.assetType === 'AUDIO')).toBe(false);
+    // 8 sampled frames alternate between two overlays every 2s -> 4 distinct segments kept.
+    expect(result.deduplicatedFrameCount).toBe(4);
+    const stamps = assets
+      .filter((a) => a.assetType === 'FRAME')
+      .map((a) => (a.metadata as { timestampSeconds: number }).timestampSeconds);
+    expect(stamps).toEqual([0, 2, 4, 6]);
   });
 });
 

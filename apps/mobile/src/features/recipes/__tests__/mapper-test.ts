@@ -170,4 +170,80 @@ describe('mapRecipeDetail', () => {
     expect(view.creator).toBe('@noor.cooks');
     expect(view.thumbnailUrl).toBe('https://img.example/t.jpg');
   });
+
+  test('reads per-serving calories and macros from the recipe AI estimate', () => {
+    expect(mapRecipeDetail(fixture)).toMatchObject({
+      calories: 420,
+      macros: null,
+    });
+
+    const view = mapRecipeDetail({
+      ...fixture,
+      nutrition: { proteinGrams: 32, carbsGrams: null, fatGrams: 18 },
+    });
+    expect(view.macros).toEqual({
+      proteinGrams: 32,
+      carbsGrams: null,
+      fatGrams: 18,
+    });
+
+    expect(
+      mapRecipeDetail({
+        ...fixture,
+        nutrition: { proteinGrams: null, carbsGrams: 'lots', fatGrams: -1 },
+      }).macros,
+    ).toBeNull();
+  });
+
+  test('maps the nutrition source so the UI can label estimates', () => {
+    expect(mapRecipeDetail(fixture).nutritionSource).toBeNull();
+    expect(
+      mapRecipeDetail({ ...fixture, nutritionSource: 'estimated' })
+        .nutritionSource,
+    ).toBe('estimated');
+  });
+
+  test('maps metric and imperial amounts, step temperatures and ingredient refs', () => {
+    const view = mapRecipeDetail({
+      ...fixture,
+      ingredients: [
+        {
+          ...fixture.ingredients[0]!,
+          quantity: '1.5',
+          unit: 'cup',
+          metric: { quantity: '180', unit: 'g' },
+          imperial: { quantity: '1.5', unit: 'cup' },
+        },
+        fixture.ingredients[1]!,
+      ],
+      steps: [
+        { ...fixture.steps[0]!, ingredientRefs: [1, 0, 9] },
+        {
+          ...fixture.steps[1]!,
+          temperatureCelsius: 200,
+          temperatureFahrenheit: 400,
+        },
+      ],
+    });
+
+    expect(view.ingredients[0]).toMatchObject({
+      quantity: 1.5,
+      unit: 'cup',
+      metric: { quantity: 180, unit: 'g' },
+      imperial: { quantity: 1.5, unit: 'cup' },
+    });
+    expect(view.ingredients[1]?.metric).toBeNull();
+    expect(view.steps[0]?.ingredientRefs).toEqual([1, 0]);
+    expect(view.steps[1]).toMatchObject({
+      temperatureCelsius: 200,
+      temperatureFahrenheit: 400,
+    });
+  });
+
+  test('parses cached payloads saved before measurements existed', () => {
+    const view = mapRecipeDetail(fixture);
+    expect(view.ingredients[0]?.metric).toBeNull();
+    expect(view.steps[0]?.ingredientRefs).toEqual([]);
+    expect(view.steps[0]?.temperatureCelsius).toBeNull();
+  });
 });

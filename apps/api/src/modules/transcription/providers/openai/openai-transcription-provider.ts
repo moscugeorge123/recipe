@@ -2,7 +2,9 @@ import OpenAI from 'openai';
 import { Readable } from 'node:stream';
 
 import type { AppConfig } from '../../../../config/env.js';
+import { openAIErrorFields } from '../../../../infrastructure/ai/llm/openai-provider.js';
 import type { AIUsageTracker } from '../../../../infrastructure/ai/usage/ai-usage-tracker.js';
+import { silentLogger, type AppLogger } from '../../../../infrastructure/logging/logger.js';
 import type {
   AudioInput,
   TranscriptionOptions,
@@ -18,30 +20,50 @@ export class OpenAITranscriptionProvider implements TranscriptionProvider {
     config: AppConfig,
     private readonly usageTracker: AIUsageTracker | null,
     private readonly jobId?: string,
+    private readonly log: AppLogger = silentLogger(),
   ) {
     if (!config.ai.openaiApiKey) {
       throw new Error('OPENAI_API_KEY is required for OpenAITranscriptionProvider');
     }
-    this.client = new OpenAI({ apiKey: config.ai.openaiApiKey });
+    this.client = new OpenAI({ apiKey: config.ai.openaiApiKey, maxRetries: config.ai.maxRetries });
     this.model = config.ai.whisperModel;
   }
 
   async transcribe(audio: AudioInput, opts?: TranscriptionOptions): Promise<Transcript> {
     const model = opts?.model ?? this.model;
     const startedAt = Date.now();
+    const fields = { step: 'ai.whisper.call', model, audioBytes: audio.data.byteLength };
 
     const file = await OpenAI.toFile(audio.data, audio.filename ?? 'audio.mp3', {
       type: audio.mimeType,
     });
 
-    const response = await this.client.audio.transcriptions.create({
-      file,
-      model,
-      ...(opts?.language ? { language: opts.language } : {}),
-      response_format: 'verbose_json',
-    });
+    const response = await this.client.audio.transcriptions
+      .create({
+        file,
+        model,
+        ...(opts?.language ? { language: opts.language } : {}),
+        response_format: 'verbose_json',
+      })
+      .catch((error: unknown) => {
+        this.log.error(
+          { ...fields, durationMs: Date.now() - startedAt, ...openAIErrorFields(error), err: error },
+          'ai.whisper.call failed',
+        );
+        throw error;
+      });
 
     const durationMs = Date.now() - startedAt;
+    this.log.info(
+      {
+        ...fields,
+        durationMs,
+        textChars: response.text.length,
+        detectedLanguage: 'language' in response ? response.language : null,
+        segments: 'segments' in response && Array.isArray(response.segments) ? response.segments.length : 0,
+      },
+      'ai.whisper.call completed',
+    );
     const durationMinutes = audio.data.byteLength / (16000 * 2 * 60);
 
     if (this.usageTracker && this.jobId) {
