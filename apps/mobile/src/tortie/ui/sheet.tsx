@@ -34,6 +34,14 @@ import { C, EASE, SH } from '@/tortie/theme';
 import { BlurWhenClosed, KeyboardScroll } from '@/tortie/ui/input';
 import { useKeyboard, useKeyboardLift } from '@/tortie/ui/keyboard';
 import { sheetDragDecision } from '@/tortie/ui/sheet-drag';
+import {
+  blockAfterSettle,
+  blockOnDragEnd,
+  blockOnDragStart,
+  SHEET_PRESS_SETTLE_MS,
+  sheetPressCommits,
+  type SheetPressBlock,
+} from '@/tortie/ui/sheet-press';
 import { SheetScrollCtx, type SheetScrollApi } from '@/tortie/ui/sheet-scroll';
 
 export { SheetScroll } from '@/tortie/ui/sheet-scroll';
@@ -42,6 +50,12 @@ const KEYBOARD_TOP_GAP = 8;
 const KEYBOARD_BOTTOM_GAP = 16;
 
 const SheetDrag = createContext<GestureType | null>(null);
+const SheetPressCtx = createContext<() => boolean>(() => true);
+
+/** True when a press should commit. False during a dismiss drag and the lift that follows it. */
+export function useSheetPressCommits() {
+  return useContext(SheetPressCtx);
+}
 
 function releaseSheetDrag(
   dragY: SharedValue<number>,
@@ -50,7 +64,7 @@ function releaseSheetDrag(
   durSv: SharedValue<number>,
   velocityY: number,
   success: boolean,
-  requestClose: () => void,
+  finish: (dismissed: boolean) => void,
 ) {
   'worklet';
   const height = Math.max(hSv.value, 1);
@@ -62,14 +76,18 @@ function releaseSheetDrag(
   if (dismiss) {
     p.value = Math.max(0, 1 - Math.min(y, travel) / travel);
     dragY.value = 0;
-    runOnJS(requestClose)();
+    runOnJS(finish)(true);
     return;
   }
-  if (y <= 0) return;
+  if (y <= 0) {
+    runOnJS(finish)(false);
+    return;
+  }
   dragY.value = withTiming(0, {
     duration: Math.min(durSv.value, 320),
     easing: EASE,
   });
+  runOnJS(finish)(false);
 }
 
 /** Pan gesture for the sheet grabber. Null outside a `Sheet`. */
@@ -140,6 +158,47 @@ export function Sheet({
   const requestClose = useCallback(() => {
     onCloseRef.current();
   }, []);
+
+  const blockRef = useRef<SheetPressBlock>('clear');
+  const blockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const markDrag = useCallback(() => {
+    if (blockTimer.current) {
+      clearTimeout(blockTimer.current);
+      blockTimer.current = null;
+    }
+    blockRef.current = blockOnDragStart();
+  }, []);
+  const finishDrag = useCallback(
+    (dismissed: boolean) => {
+      if (blockTimer.current) {
+        clearTimeout(blockTimer.current);
+        blockTimer.current = null;
+      }
+      blockRef.current = blockOnDragEnd(dismissed);
+      if (dismissed) {
+        requestClose();
+        return;
+      }
+      blockTimer.current = setTimeout(() => {
+        blockRef.current = blockAfterSettle(blockRef.current);
+        blockTimer.current = null;
+      }, SHEET_PRESS_SETTLE_MS);
+    },
+    [requestClose],
+  );
+  const commitsPress = useCallback(
+    () => sheetPressCommits(blockRef.current),
+    [],
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    if (blockTimer.current) {
+      clearTimeout(blockTimer.current);
+      blockTimer.current = null;
+    }
+    blockRef.current = 'clear';
+  }, [open]);
 
   useEffect(() => {
     if (open) dragY.value = 0;
@@ -225,6 +284,7 @@ export function Sheet({
         .onStart(() => {
           owner.value = 2;
           pulling.value = 0;
+          runOnJS(markDrag)();
         })
         .onUpdate((e) => {
           if (owner.value !== 2) return;
@@ -246,7 +306,7 @@ export function Sheet({
             durSv,
             e.velocityY,
             success,
-            requestClose,
+            finishDrag,
           );
         }),
     [
@@ -255,13 +315,14 @@ export function Sheet({
       decided,
       dragY,
       durSv,
+      finishDrag,
       hSv,
+      markDrag,
       originX,
       originY,
       owner,
       p,
       pulling,
-      requestClose,
       scrollActive,
       scrollY,
       viewH,
@@ -275,6 +336,7 @@ export function Sheet({
         .blocksExternalGesture(pan)
         .onStart(() => {
           owner.value = 1;
+          runOnJS(markDrag)();
         })
         .onUpdate((e) => {
           dragY.value = Math.max(0, e.translationY);
@@ -289,10 +351,10 @@ export function Sheet({
             durSv,
             e.velocityY,
             success,
-            requestClose,
+            finishDrag,
           );
         }),
-    [dragY, durSv, hSv, owner, p, pan, requestClose],
+    [dragY, durSv, finishDrag, hSv, markDrag, owner, p, pan],
   );
 
   const scrim = useAnimatedStyle(() => {
@@ -361,7 +423,8 @@ export function Sheet({
           ]}
         >
           <SheetDrag.Provider value={drag}>
-            <SheetScrollCtx.Provider value={scrollApi}>
+            <SheetPressCtx.Provider value={commitsPress}>
+              <SheetScrollCtx.Provider value={scrollApi}>
               <BlurWhenClosed open={open}>
                 {avoidKeyboard ? (
                   <KeyboardScroll
@@ -377,7 +440,8 @@ export function Sheet({
                   children
                 )}
               </BlurWhenClosed>
-            </SheetScrollCtx.Provider>
+              </SheetScrollCtx.Provider>
+            </SheetPressCtx.Provider>
           </SheetDrag.Provider>
         </Animated.View>
       </GestureDetector>
