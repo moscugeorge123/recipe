@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import { create } from 'zustand';
 
 import { listMealPlan } from '@/features/meal-plan/api';
@@ -347,3 +348,40 @@ export const usePlan = create<PlanState & PlanActions>()((set, get) => {
     },
   };
 });
+
+let planSyncedDay = localTodayIso();
+
+/** When the local date changes, select today on the current week. */
+export function syncPlanToToday(now = new Date()): boolean {
+  const today = localTodayIso(now);
+  if (today === planSyncedDay) return false;
+  planSyncedDay = today;
+  const cursor = planLogicalCursor(usePlan.getState());
+  if (cursor.wk === 0 && cursor.day !== todayIndex(now)) {
+    usePlan.getState().setDay(todayIndex(now));
+  }
+  return true;
+}
+
+/** Test hook: the day the plan cursor last treated as today. */
+export function rememberPlanDay(iso: string) {
+  planSyncedDay = iso;
+}
+
+/** Recomputes when the app returns to the foreground on a new local date. */
+export function usePlanToday() {
+  const [stamp, setStamp] = useState(() => localTodayIso());
+  useEffect(() => {
+    const refresh = () => {
+      const next = localTodayIso();
+      setStamp((cur) => (cur === next ? cur : next));
+      syncPlanToToday();
+    };
+    refresh();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') refresh();
+    });
+    return () => sub.remove();
+  }, []);
+  return stamp;
+}
