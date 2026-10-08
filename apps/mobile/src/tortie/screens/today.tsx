@@ -17,6 +17,7 @@ import {
   MEAL_KEYS,
   todayIndex,
   usePlan,
+  usePlanToday,
   usePlanWeek,
   useRecipeSlot,
   type MealKey,
@@ -840,6 +841,7 @@ function KitchenMark() {
 }
 
 function ThisWeek({ on }: { on: boolean }) {
+  const stamp = usePlanToday();
   const { week, isLoading } = usePlanWeek(currentMonday());
   const goTab = useNav((s) => s.goTab);
   const mounted = useNav((s) => s.mounted);
@@ -848,13 +850,19 @@ function ThisWeek({ on }: { on: boolean }) {
   const [fade, setFade] = useState(false);
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (t.current && clearTimeout(t.current)), []);
+  useEffect(() => {
+    const i = todayIndex();
+    setHi(i);
+    setSel(i);
+    setFade(false);
+  }, [stamp]);
 
   const dates = useMemo(() => {
     const m = new Date(`${currentMonday()}T00:00:00.000Z`);
     return Array.from({ length: 7 }, (_, i) =>
       new Date(m.getTime() + i * 864e5).getUTCDate(),
     );
-  }, []);
+  }, [stamp]);
 
   const select = (i: number) => {
     if (i === hi) return;
