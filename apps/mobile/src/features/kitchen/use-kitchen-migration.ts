@@ -3,14 +3,28 @@ import { useCallback, useEffect } from 'react';
 import { type QueryClient, useQueryClient } from '@tanstack/react-query';
 
 import {
+  clearUntouchedPantrySeed,
   defaultKitchenMigrationDeps,
   leftoverAfterMigration,
   runKitchenMigration,
 } from '@/features/kitchen/migration';
+import { deletePantryItem, listPantryItems } from '@/features/pantry/api';
 import { pantryKeys, recipeKeys } from '@/features/query-keys';
 import { useKitchenStore } from '@/stores/kitchen-store';
 
 let migrating = false;
+
+async function dropSeededPantry(queryClient: QueryClient): Promise<void> {
+  const removed = await clearUntouchedPantrySeed({
+    alreadyCleared: useKitchenStore.getState().pantrySeedCleared,
+    list: () => listPantryItems({ page: 1, pageSize: 100 }),
+    remove: (id) => deletePantryItem(id),
+    markCleared: () => useKitchenStore.getState().markPantrySeedCleared(),
+  });
+  if (removed) {
+    await queryClient.invalidateQueries({ queryKey: pantryKeys.all });
+  }
+}
 
 export async function startKitchenMigration(
   queryClient: QueryClient,
@@ -18,34 +32,34 @@ export async function startKitchenMigration(
   if (migrating) {
     return;
   }
-  if (useKitchenStore.getState().kitchenMigration?.status === 'completed') {
-    return;
-  }
   migrating = true;
   try {
-    const state = useKitchenStore.getState();
-    const doc = await runKitchenMigration(
-      {
-        inboxStatus: state.inboxStatus,
-        savedIds: state.savedIds,
-        cookedCounts: state.cookedCounts,
-        recipeNotes: state.recipeNotes,
-        collections: state.collections,
-        pantryStaples: state.pantryStaples,
-      },
-      defaultKitchenMigrationDeps((op) => {
-        useKitchenStore.getState().enqueuePending(op);
-      }, AsyncStorage),
-    );
-    const leftovers = leftoverAfterMigration(useKitchenStore.getState(), doc);
-    useKitchenStore.getState().applyMigrationLeftovers(leftovers);
-    useKitchenStore.getState().setKitchenMigration(doc);
-    if (doc.status === 'completed') {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: recipeKeys.all }),
-        queryClient.invalidateQueries({ queryKey: pantryKeys.all }),
-      ]);
+    if (useKitchenStore.getState().kitchenMigration?.status !== 'completed') {
+      const state = useKitchenStore.getState();
+      const doc = await runKitchenMigration(
+        {
+          inboxStatus: state.inboxStatus,
+          savedIds: state.savedIds,
+          cookedCounts: state.cookedCounts,
+          recipeNotes: state.recipeNotes,
+          collections: state.collections,
+          pantryStaples: state.pantryStaples,
+        },
+        defaultKitchenMigrationDeps((op) => {
+          useKitchenStore.getState().enqueuePending(op);
+        }, AsyncStorage),
+      );
+      const leftovers = leftoverAfterMigration(useKitchenStore.getState(), doc);
+      useKitchenStore.getState().applyMigrationLeftovers(leftovers);
+      useKitchenStore.getState().setKitchenMigration(doc);
+      if (doc.status === 'completed') {
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: recipeKeys.all }),
+          queryClient.invalidateQueries({ queryKey: pantryKeys.all }),
+        ]);
+      }
     }
+    await dropSeededPantry(queryClient);
   } finally {
     migrating = false;
   }
