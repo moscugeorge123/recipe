@@ -22,6 +22,7 @@ import {
   type MealKey,
   type TDay,
 } from '@/tortie/data/plan';
+import { cookAgainList } from '@/tortie/data/cook-again';
 import { useTRecipe, useTRecipes, type TRecipe } from '@/tortie/data/recipes';
 import {
   clock,
@@ -1136,13 +1137,7 @@ function CookAgain({ on }: { on: boolean }) {
   const { list, isLoading } = useTRecipes();
   const goTab = useNav((s) => s.goTab);
   const openRecipe = useNav((s) => s.openRecipe);
-  const again = useMemo(() => {
-    const cooked = list
-      .filter((r) => r.cooked > 0)
-      .sort((a, b) => b.cooked - a.cooked);
-    const ids = new Set(cooked.map((r) => r.id));
-    return [...cooked, ...list.filter((r) => !ids.has(r.id))].slice(0, 4);
-  }, [list]);
+  const again = useMemo(() => cookAgainList(list), [list]);
 
   if (!again.length && !isLoading) return null;
   const cards: (TRecipe | null)[] = again.length
