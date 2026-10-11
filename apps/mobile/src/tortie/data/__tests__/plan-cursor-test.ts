@@ -7,7 +7,7 @@ jest.mock('@/tortie/nav-store', () => ({
 }));
 
 import { planDayShift } from '@/tortie/data/plan-day-shift';
-import { planLogicalCursor, usePlan } from '@/tortie/data/plan';
+import { planLogicalCursor, rememberPlanDay, syncPlanToToday, usePlan } from '@/tortie/data/plan';
 
 /** Reset visible + logical cursor without waiting on leftover timeouts. */
 function resetPlan(day = 2, wk = 0) {
@@ -136,5 +136,30 @@ describe('usePlan logical cursor', () => {
 
     jest.advanceTimersByTime(150);
     expect(usePlan.getState().day).toBe(3);
+  });
+
+  test('a new local day selects today on the current week', () => {
+    resetPlan(2, 0);
+    rememberPlanDay('2026-10-07');
+    expect(syncPlanToToday(new Date(2026, 9, 8, 15))).toBe(true);
+    jest.advanceTimersByTime(150);
+    expect(planLogicalCursor(usePlan.getState())).toEqual({ wk: 0, day: 3 });
+    expect(usePlan.getState().day).toBe(3);
+  });
+
+  test('the same local day leaves a chosen day alone', () => {
+    resetPlan(1, 0);
+    rememberPlanDay('2026-10-08');
+    expect(syncPlanToToday(new Date(2026, 9, 8, 15))).toBe(false);
+    expect(usePlan.getState().day).toBe(1);
+  });
+
+  test('a new day on another week does not move the cursor', () => {
+    resetPlan(1, 1);
+    rememberPlanDay('2026-10-07');
+    expect(syncPlanToToday(new Date(2026, 9, 8, 15))).toBe(true);
+    jest.advanceTimersByTime(150);
+    expect(usePlan.getState().wk).toBe(1);
+    expect(usePlan.getState().day).toBe(1);
   });
 });

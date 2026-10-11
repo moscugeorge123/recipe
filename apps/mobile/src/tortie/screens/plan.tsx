@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
@@ -18,6 +18,7 @@ import {
   mondayAt,
   todayIndex,
   usePlan,
+  usePlanToday,
   usePlannedDates,
   usePlanWeek,
   useRecipeLite,
@@ -57,6 +58,7 @@ const SLOTS: [MealKey, string, string][] = [
 const usePlanOn = () => useNav((s) => s.tab === 'plan' && s.mounted);
 
 export function PlanScreen() {
+  usePlanToday();
   const on = usePlanOn();
   const wk = usePlan((s) => s.wk);
   const day = usePlan((s) => s.day);
@@ -249,13 +251,8 @@ function DayStrip({ on }: { on: boolean }) {
   const wk = usePlan((s) => s.wk);
   const day = usePlan((s) => s.day);
   const setDay = usePlan((s) => s.setDay);
-  const [w, setW] = useState(0);
-  const colW = Math.max(0, (w - 10) / 7);
   const monday = mondayAt(wk);
   const tIdx = todayIndex();
-  const pill = useAnimatedStyle(() => ({
-    transform: [{ translateX: tw(day * colW, 460) }],
-  }));
   return (
     <Stagger
       i={1}
@@ -269,29 +266,6 @@ function DayStrip({ on }: { on: boolean }) {
         padding: 5,
       }}
     >
-      <View
-        style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
-        pointerEvents="none"
-        onLayout={(e) => setW(e.nativeEvent.layout.width)}
-      />
-      {w > 0 ? (
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            {
-              position: 'absolute',
-              top: 5,
-              bottom: 5,
-              left: 5,
-              width: colW,
-              borderRadius: 17,
-              backgroundColor: C.green,
-              boxShadow: SH.greenCta,
-            },
-            pill,
-          ]}
-        />
-      ) : null}
       {DAYLETTERS.map((l, i) => (
         <DayBtn
           key={i}
@@ -330,6 +304,7 @@ function DayBtn({
   const a = useAnimatedStyle(() => ({
     opacity: tw(wkOut ? 0 : 1, 160, CSS_EASE),
     transform: [{ translateX: tw(wkOut ? -wkDir * 10 : 0, 260, EASE) }],
+    backgroundColor: tw(on ? C.green : 'rgba(50,83,60,0)', 260, CSS_EASE),
   }));
   const col = useAnimatedStyle(() => ({
     color: tw(on ? C.bg : C.ink, 300, CSS_EASE),
@@ -345,6 +320,7 @@ function DayBtn({
         paddingBottom: 8,
         alignItems: 'center',
         gap: 4,
+        borderRadius: 12,
       }}
       animatedStyle={a}
     >
