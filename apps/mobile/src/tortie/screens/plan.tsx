@@ -493,6 +493,7 @@ function FilledSlot({ id, meal }: { id: string; meal: MealKey }) {
         hue={r?.hue ?? 0}
         uri={r?.uri}
         radius={16}
+        size={64}
         style={{ width: 64, height: 64 }}
       />
       <View style={{ flex: 1, minWidth: 0 }}>

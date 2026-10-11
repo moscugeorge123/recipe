@@ -11,6 +11,10 @@ import { PrismaRecipeRepository } from '../../infrastructure/database/repositori
 import { PrismaRecipeSourceRepository } from '../../infrastructure/database/repositories/recipe-source.repository.js';
 import { PrismaTranscriptRepository } from '../../infrastructure/database/repositories/transcript.repository.js';
 import { PrismaVisionRepository } from '../../infrastructure/database/repositories/vision.repository.js';
+import {
+  PrismaProviderUsageRepository,
+  type CreateProviderUsageInput,
+} from '../../infrastructure/database/repositories/provider-usage.repository.js';
 import { prisma } from '../../infrastructure/database/prisma/client.js';
 import pino from 'pino';
 
@@ -19,6 +23,7 @@ import {
   silentLogger,
   type AppLogger,
 } from '../../infrastructure/logging/logger.js';
+import { FileLogReader } from '../../infrastructure/logging/log-reader.js';
 import {
   BullMQQueueProvider,
   InMemoryQueueProvider,
@@ -32,6 +37,8 @@ import { createStorageProvider } from '../../infrastructure/storage/create-stora
 import type { StorageProvider } from '../../infrastructure/storage/storage-provider.js';
 import { CategoryService } from '../../modules/categories/application/category-service.js';
 import { ContentAcquisitionService } from '../../modules/content/application/content-acquisition.service.js';
+import type { ProviderChargeRecorder } from '../../modules/content/application/content-acquisition.service.js';
+import { DashboardService } from '../../modules/dashboard/application/dashboard.service.js';
 import { FakeContentProvider } from '../../modules/content/providers/fake/fake-content-provider.js';
 import { FacebookContentProvider } from '../../modules/content/providers/facebook/facebook-content-provider.js';
 import { ApifyPageFetcher } from '../../modules/content/providers/generic/apify-page-fetcher.js';
@@ -120,6 +127,7 @@ export interface AppContainer {
     shoppingList: IShoppingListRepository;
     mealPlan: IMealPlanRepository;
     collection: ICollectionRepository;
+    providerUsage: PrismaProviderUsageRepository;
   };
   contentRegistry: ContentProviderRegistry;
   contentAcquisition: ContentAcquisitionService;
@@ -131,6 +139,7 @@ export interface AppContainer {
   cookSessionService: CookSessionService;
   profileBootstrap: ProfileBootstrapService;
   profileResolver: ProfileResolver;
+  dashboardService: DashboardService;
   pipeline: RecipeExtractionPipeline;
   pantryService: PantryService;
   shoppingListService: ShoppingListService;
@@ -174,11 +183,23 @@ export function createContentRegistry(appConfig: AppConfig): ContentProviderRegi
   return registry;
 }
 
+function withChargeRecording(
+  repository: PrismaProviderUsageRepository,
+): PrismaProviderUsageRepository & ProviderChargeRecorder {
+  return Object.assign(repository, {
+    async record(input: CreateProviderUsageInput): Promise<void> {
+      await repository.create(input);
+    },
+  });
+}
+
 export function createContainer(options: CreateContainerOptions = {}): AppContainer {
   const appConfig = config;
   const log =
     options.logger ?? (appConfig.isTest ? silentLogger() : pino(buildLoggerOptions(appConfig)));
   const storage = options.storage ?? createStorageProvider(appConfig);
+
+  const providerUsageRepository = withChargeRecording(new PrismaProviderUsageRepository(prisma));
 
   const repositories = {
     extractionJob: new PrismaExtractionJobRepository(prisma),
@@ -197,10 +218,15 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     shoppingList: new PrismaShoppingListRepository(prisma),
     mealPlan: new PrismaMealPlanRepository(prisma),
     collection: new PrismaCollectionRepository(prisma),
+    providerUsage: providerUsageRepository,
   };
 
   const contentRegistry = createContentRegistry(appConfig);
-  const contentAcquisition = new ContentAcquisitionService(contentRegistry, log);
+  const contentAcquisition = new ContentAcquisitionService(
+    contentRegistry,
+    log,
+    providerUsageRepository,
+  );
   const linkPreviewService = createLinkPreviewService(appConfig, { log });
 
   const mediaProcessing = new MediaProcessingService(
@@ -307,6 +333,10 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     shoppingListService,
   );
   const collectionService = new CollectionService(repositories.collection);
+  const dashboardService = new DashboardService(
+    prisma,
+    new FileLogReader(appConfig.logging.directory),
+  );
 
   return {
     config: appConfig,
@@ -325,6 +355,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     cookSessionService,
     profileBootstrap,
     profileResolver,
+    dashboardService,
     pipeline,
     pantryService,
     shoppingListService,

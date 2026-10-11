@@ -7,8 +7,16 @@
       "command": "npm run dev:mobile"
     },
     {
-      "name": "Web",
+      "name": "API",
       "command": "npm run dev:api"
+    },
+    {
+      "name": "Dashboard",
+      "command": "npm run dev:dashboard"
+    },
+    {
+      "name": "Dashboard Fixtures",
+      "command": "npm run dev:dashboard:fixtures"
     },
     {
       "name": "Worker",

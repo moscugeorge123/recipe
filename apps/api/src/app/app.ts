@@ -6,6 +6,7 @@ import { healthRoutes } from '../features/health/health.routes.js';
 import type { DependencyCheck } from '../features/health/health.types.js';
 import { cookSessionsRoutes } from '../modules/cook-sessions/api/cook-sessions.routes.js';
 import { categoriesRoutes } from '../modules/categories/api/categories.routes.js';
+import { dashboardRoutes } from '../modules/dashboard/api/dashboard.routes.js';
 import { jobsRoutes } from '../modules/jobs/api/jobs.routes.js';
 import { recipesRoutes } from '../modules/recipes/api/recipes.routes.js';
 import { collectionsRoutes } from '../modules/collections/api/collections.routes.js';
@@ -151,6 +152,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         await resources.register(opsRoutes, {
           prisma: container.prisma,
         });
+      });
+      await versioned.register(dashboardRoutes, {
+        dashboardService: container.dashboardService,
       });
     },
     { prefix: config.api.prefix },

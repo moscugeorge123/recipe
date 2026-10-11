@@ -110,3 +110,6 @@ export const QUERY_FRESHNESS = {
   collections: 30_000,
   profile: 5 * 60_000,
 } as const;
+
+/** Page size of the Cookbook list query; the home prefetch must use the same key. */
+export const COOKBOOK_PAGE_SIZE = 100;
