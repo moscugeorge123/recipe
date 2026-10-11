@@ -2,7 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 
 import { getImport } from '../api';
 import { EmptyState, ErrorState, LoadingState, ShareBar, StatusText } from '../components/ui';
-import { formatDuration, formatTokens, formatUsd, stageLabel } from '../format';
+import { formatDuration, formatTokens, formatUsd, formatUsdExact, stageLabel } from '../format';
 import { displayTitle, formatError, providerLabel, sourceLabel } from '../text';
 import type { ThirdPartyCharge } from '../types';
 import { useQuery } from '../use-query';
@@ -66,16 +66,16 @@ export function ImportDetailPage() {
       <section className="cost-strip" aria-label="Cost breakdown">
         <div>
           <span>AI</span>
-          <strong className="money">{formatUsd(detail.costs.aiUsd)}</strong>
+          <strong className="money">{formatUsdExact(detail.costs.aiUsd)}</strong>
         </div>
         <div>
           <span>Third-party</span>
-          <strong className="money">{formatUsd(detail.costs.thirdPartyUsd)}</strong>
+          <strong className="money">{formatUsdExact(detail.costs.thirdPartyUsd)}</strong>
           {providers ? <em>{providers}</em> : null}
         </div>
         <div>
           <span>Total</span>
-          <strong className="money">{formatUsd(detail.costs.totalUsd)}</strong>
+          <strong className="money">{formatUsdExact(detail.costs.totalUsd)}</strong>
         </div>
       </section>
 

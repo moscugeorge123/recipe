@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { formatDuration, formatTokens, formatUsd, stageLabel } from './format';
+import { formatDuration, formatTokens, formatUsd, formatUsdExact, stageLabel } from './format';
 
 describe('formatUsd', () => {
   it('renders zero with two fraction digits', () => {
@@ -18,6 +18,19 @@ describe('formatUsd', () => {
     expect(formatUsd(0.013365)).toBe('$0.01');
     expect(formatUsd(1.5)).toBe('$1.50');
     expect(formatUsd(12)).toBe('$12.00');
+  });
+});
+
+describe('formatUsdExact', () => {
+  it('keeps the ledger amount through six decimal places', () => {
+    expect(formatUsdExact(0)).toBe('$0.00');
+    expect(formatUsdExact(-0)).toBe('$0.00');
+    expect(formatUsdExact(0.0027)).toBe('$0.0027');
+    expect(formatUsdExact(0.011137)).toBe('$0.011137');
+    expect(formatUsdExact(0.013837)).toBe('$0.013837');
+    expect(formatUsdExact(-0.013837)).toBe('-$0.013837');
+    expect(formatUsdExact(1.5)).toBe('$1.50');
+    expect(formatUsdExact(1200)).toBe('$1,200.00');
   });
 });
 

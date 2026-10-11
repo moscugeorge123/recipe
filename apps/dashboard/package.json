@@ -12,7 +12,7 @@
   },
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5173",
-    "dev:fixtures": "VITE_USE_FIXTURES=true vite --host 0.0.0.0 --port 5173",
+    "dev:fixtures": "vite --host 0.0.0.0 --port 5173 --mode fixtures",
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "preview": "vite preview --host 0.0.0.0 --port 5173",
     "typecheck": "tsc -p tsconfig.json --noEmit",

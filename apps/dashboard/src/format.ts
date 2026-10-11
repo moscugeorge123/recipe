@@ -11,6 +11,22 @@ export function formatUsd(n: number): string {
   }).format(n);
 }
 
+/** Ledger precision is 6 decimal places. Keeps sub-cent amounts visible. */
+export function formatUsdExact(n: number): string {
+  if (!Number.isFinite(n)) return '$0.00';
+  const negative = n < 0;
+  const scaled = Math.round(Math.abs(n) * 1_000_000);
+  if (scaled === 0) return '$0.00';
+
+  const whole = Math.floor(scaled / 1_000_000);
+  const fraction = String(scaled % 1_000_000)
+    .padStart(6, '0')
+    .replace(/0+$/, '')
+    .padEnd(2, '0');
+  const grouped = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(whole);
+  return `${negative ? '-' : ''}$${grouped}.${fraction}`;
+}
+
 export function formatDuration(ms: number | null | undefined): string {
   if (ms === null || ms === undefined || Number.isNaN(ms) || ms < 0) return '—';
 

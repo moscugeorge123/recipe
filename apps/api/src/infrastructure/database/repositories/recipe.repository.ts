@@ -121,6 +121,20 @@ function buildListWhere(params: {
         { revisions: { some: { title: { contains: params.q, mode: 'insensitive' } } } },
         { revisions: { some: { description: { contains: params.q, mode: 'insensitive' } } } },
         { revisions: { some: { cuisine: { contains: params.q, mode: 'insensitive' } } } },
+        {
+          revisions: {
+            some: {
+              ingredients: {
+                some: {
+                  OR: [
+                    { name: { contains: params.q, mode: 'insensitive' } },
+                    { canonicalName: { contains: params.q, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
+          },
+        },
       ],
     });
   }

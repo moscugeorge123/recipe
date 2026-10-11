@@ -1,4 +1,5 @@
-import { useState, type ReactNode, type Ref } from 'react';
+import { FlashList, type FlashListProps } from '@shopify/flash-list';
+import { useState, type ComponentProps, type ReactNode, type Ref } from 'react';
 import {
   StyleSheet,
   View,
@@ -41,9 +42,6 @@ export function TabScroll({
 }: TabScrollProps) {
   const f = useFrame();
   const [compact, setCompact] = useState(false);
-  const shadow = useAnimatedStyle(() => ({
-    opacity: tw(compact ? 1 : 0, 220, CSS_EASE),
-  }));
   const handle = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const c = e.nativeEvent.contentOffset.y > 24;
     if (c !== compact) {
@@ -53,16 +51,87 @@ export function TabScroll({
     onScroll?.(e);
   };
   return (
+    <TabShell header={header} compact={compact}>
+      <KeyboardScroll
+        {...rest}
+        ref={scrollRef}
+        style={[{ flex: 1 }, style]}
+        showsVerticalScrollIndicator={false}
+        onScroll={handle}
+        contentContainerStyle={{ paddingBottom: f.tabContentBottom }}
+      >
+        <View style={{ paddingHorizontal: 20 }}>{children}</View>
+      </KeyboardScroll>
+    </TabShell>
+  );
+}
+
+type TabListProps<T> = Omit<FlashListProps<T>, 'contentContainerStyle'> & {
+  header: (compact: boolean) => ReactNode;
+  /** Remounts the list when it changes (e.g. grid <-> rows). */
+  listKey?: string;
+  /** Animated style for the list body; the fixed header is not affected. */
+  bodyStyle?: ComponentProps<typeof Animated.View>['style'];
+};
+
+/**
+ * Virtualized `TabScroll`: same fixed header, compact threshold and bottom
+ * padding, but the body is a FlashList so only visible rows stay mounted.
+ */
+export function TabList<T>({
+  header,
+  listKey,
+  bodyStyle,
+  onScroll,
+  ...rest
+}: TabListProps<T>) {
+  const f = useFrame();
+  const [compact, setCompact] = useState(false);
+  const handle = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const c = e.nativeEvent.contentOffset.y > 24;
+    if (c !== compact) setCompact(c);
+    onScroll?.(e);
+  };
+  return (
+    <TabShell header={header} compact={compact}>
+      <Animated.View style={[{ flex: 1 }, bodyStyle]}>
+        <FlashList
+          key={listKey}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          {...rest}
+          onScroll={handle}
+          scrollEventThrottle={16}
+          contentContainerStyle={{
+            paddingHorizontal: 20,
+            paddingBottom: f.tabContentBottom,
+          }}
+        />
+      </Animated.View>
+    </TabShell>
+  );
+}
+
+function TabShell({
+  header,
+  compact,
+  children,
+}: {
+  header: (compact: boolean) => ReactNode;
+  compact: boolean;
+  children: ReactNode;
+}) {
+  const f = useFrame();
+  const shadow = useAnimatedStyle(() => ({
+    opacity: tw(compact ? 1 : 0, 220, CSS_EASE),
+  }));
+  return (
     <View style={{ flex: 1 }}>
       <View style={{ zIndex: 5, backgroundColor: C.bg }}>
         <View pointerEvents="none" style={StyleSheet.absoluteFill}>
           <Animated.View
             style={[
-              {
-                flex: 1,
-                backgroundColor: C.bg,
-                boxShadow: SH.header,
-              },
+              { flex: 1, backgroundColor: C.bg, boxShadow: SH.header },
               shadow,
             ]}
           />
@@ -77,16 +146,7 @@ export function TabScroll({
           {header(compact)}
         </View>
       </View>
-      <KeyboardScroll
-        {...rest}
-        ref={scrollRef}
-        style={[{ flex: 1 }, style]}
-        showsVerticalScrollIndicator={false}
-        onScroll={handle}
-        contentContainerStyle={{ paddingBottom: f.tabContentBottom }}
-      >
-        <View style={{ paddingHorizontal: 20 }}>{children}</View>
-      </KeyboardScroll>
+      {children}
     </View>
   );
 }

@@ -1183,6 +1183,7 @@ function CookAgain({ on }: { on: boolean }) {
                 caption="photo"
                 captionSize={10}
                 radius={16}
+                size={150}
                 style={{ height: 150 }}
               />
               <T style={[serif(16, 600), { lineHeight: 19.2, marginTop: 8 }]}>

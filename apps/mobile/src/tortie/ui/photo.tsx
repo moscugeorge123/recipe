@@ -1,8 +1,9 @@
 import { Image } from 'expo-image';
-import { useId, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import { View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 
+import { thumbFor } from '@/tortie/lib/thumb';
 import { phCaption, stripeA, stripeB } from '@/tortie/color';
 import { mono, T } from '@/tortie/ui/text';
 
@@ -15,6 +16,8 @@ type PhotoProps = {
   captionSize?: number;
   captionStyle?: StyleProp<ViewStyle>;
   radius?: number;
+  /** Rendered width in px; picks a smaller thumbnail where the host allows. */
+  size?: number;
   style?: StyleProp<ViewStyle>;
   children?: ReactNode;
 };
@@ -30,10 +33,13 @@ export function Photo({
   captionSize = 11,
   captionStyle,
   radius = 0,
+  size,
   style,
   children,
 }: PhotoProps) {
   const id = useId().replace(/:/g, '');
+  const [loaded, setLoaded] = useState<string | null>(null);
+  const showStripes = !uri || loaded !== uri;
   return (
     <View
       style={[
@@ -45,13 +51,17 @@ export function Photo({
         style,
       ]}
     >
-      <Stripes hue={hue} id={id} />
+      {showStripes ? <Stripes hue={hue} id={id} /> : null}
       {uri ? (
         <Image
-          source={{ uri }}
+          source={{ uri: thumbFor(uri, size) }}
+          recyclingKey={uri}
+          cachePolicy="memory-disk"
+          priority="normal"
+          onLoad={() => setLoaded(uri)}
           style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
           contentFit="cover"
-          transition={200}
+          transition={120}
         />
       ) : caption ? (
         <View

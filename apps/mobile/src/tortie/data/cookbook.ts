@@ -172,9 +172,9 @@ const combineDetails = (
 ): DetailData[] => rs.map((r) => r.data);
 
 /**
- * Ingredient names per recipe for ingredient search and "Cook from my pantry".
- * The list endpoint has no ingredients, so this loads the details only while one of
- * those features is in use; it shares `recipeKeys.detail` with the detail screen.
+ * Ingredient names per recipe for "Cook from my pantry". The list endpoint has no
+ * ingredients, so this loads the details only while that filter is on (ingredient
+ * search runs on the server); it shares `recipeKeys.detail` with the detail screen.
  */
 export function useIngredientIndex(
   ids: string[],
@@ -270,7 +270,7 @@ export function useCookbookView() {
   const server = useRecipeSearch(q);
   const pn = usePantryWords();
   const ids = useMemo(() => recipes.list.map((r) => r.id), [recipes.list]);
-  const ingIndex = useIngredientIndex(ids, q.length > 0 || rf.pantry);
+  const ingIndex = useIngredientIndex(ids, rf.pantry);
 
   const allColls = useMemo(
     () => collections.data?.items ?? [],
@@ -286,14 +286,7 @@ export function useCookbookView() {
     const home = (r: TRecipe) => homeCount(ingIndex.get(r.id) ?? [], pn);
     const out = recipes.list.filter((r) => {
       if (!matchesQuick(r, filter)) return false;
-      if (
-        q &&
-        !(
-          r.title.toLowerCase().includes(q) ||
-          serverIds?.has(r.id) ||
-          (ingIndex.get(r.id) ?? []).some((n) => n.includes(q))
-        )
-      )
+      if (q && !(r.title.toLowerCase().includes(q) || serverIds?.has(r.id)))
         return false;
       if (collO && !collO.recipeIds.includes(r.id)) return false;
       if (rf.time !== 'any' && r.time > rf.time) return false;

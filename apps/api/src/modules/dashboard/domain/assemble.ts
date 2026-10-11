@@ -1,3 +1,5 @@
+import { thirdPartyCharge } from '../../../infrastructure/providers/provider-pricing.js';
+
 /**
  * Pure import-dashboard projections. No database and no HTTP types.
  */
@@ -253,9 +255,45 @@ function sumMoney(values: readonly DecimalLike[]): number {
   return roundMoney(total);
 }
 
+/**
+ * Stored provider rows win. Jobs that acquired content before charges were recorded
+ * still get the table rate, so an Instagram import shows its Apify cost.
+ */
+function providerChargesFor(job: ImportJobInput): ProviderUsageInput[] {
+  if (job.providerUsage.length > 0) {
+    return job.providerUsage;
+  }
+
+  const estimated = estimateProviderCharge(job);
+  return estimated === null ? [] : [estimated];
+}
+
+function estimateProviderCharge(job: ImportJobInput): ProviderUsageInput | null {
+  const acquisition = selectLatestAttempts(job.stages).get('ACQUIRING_CONTENT');
+  if (acquisition === undefined || acquisition.status !== 'COMPLETED') {
+    return null;
+  }
+
+  const charge = thirdPartyCharge(job.recipeSource.sourceType, 1);
+  if (charge.estimatedCostUsd <= 0) {
+    return null;
+  }
+
+  return {
+    id: job.id,
+    provider: charge.provider,
+    operation: charge.operation,
+    sourceType: charge.sourceType,
+    units: charge.units,
+    estimatedCostUsd: charge.estimatedCostUsd,
+    durationMs: asInt(acquisition.durationMs ?? 0),
+    createdAt: acquisition.completedAt ?? job.createdAt,
+  };
+}
+
 function costsFor(job: ImportJobInput): CostBreakdown {
   const aiUsd = sumMoney(job.aiUsage.map((row) => row.estimatedCostUsd));
-  const thirdPartyUsd = sumMoney(job.providerUsage.map((row) => row.estimatedCostUsd));
+  const thirdPartyUsd = sumMoney(providerChargesFor(job).map((row) => row.estimatedCostUsd));
   return {
     aiUsd,
     thirdPartyUsd,
@@ -510,7 +548,7 @@ export function assembleImportDetail(job: ImportJobInput): ImportDetail {
     slowestStep: slowestStage(steps),
     aiUsage: job.aiUsage.map(toAiUsageItem),
     aiByModel: groupAiByModel(job.aiUsage),
-    thirdParty: job.providerUsage.map(toThirdPartyCharge),
+    thirdParty: providerChargesFor(job).map(toThirdPartyCharge),
   };
 }
 
@@ -562,7 +600,7 @@ function aggregateSlowestSteps(jobs: readonly ImportJobInput[]): SlowestStepAggr
 
 export function assembleSummary(jobs: readonly ImportJobInput[]): DashboardSummary {
   const aiRows = jobs.flatMap((job) => job.aiUsage);
-  const thirdPartyRows = jobs.flatMap((job) => job.providerUsage);
+  const thirdPartyRows = jobs.flatMap((job) => providerChargesFor(job));
   const aiUsd = sumMoney(aiRows.map((row) => row.estimatedCostUsd));
   const thirdPartyUsd = sumMoney(thirdPartyRows.map((row) => row.estimatedCostUsd));
 

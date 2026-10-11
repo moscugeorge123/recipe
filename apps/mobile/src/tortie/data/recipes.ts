@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
+import { COOKBOOK_PAGE_SIZE } from '@/features/query-keys';
 import { useRecipes } from '@/features/recipes/hooks/use-recipes';
 import { difficultyFromMinutes } from '@/features/recipes/mapper';
 import type {
@@ -204,7 +205,7 @@ export type RecipeSort = 'latest' | 'engagement';
 
 /** All recipes in the cookbook (API list, newest first). */
 export function useTRecipes(sort: RecipeSort = 'latest') {
-  const q = useRecipes(1, 100, { sort });
+  const q = useRecipes(1, COOKBOOK_PAGE_SIZE, { sort });
   const list = useMemo(() => (q.data?.items ?? []).map(toTRecipe), [q.data]);
   return {
     list,

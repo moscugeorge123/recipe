@@ -222,6 +222,63 @@ describe('assemble import detail', () => {
     expect(detail.thirdParty[0]?.estimatedCostUsd).toBe(0.001);
     expect(detail.aiUsage[0]?.estimatedCostUsd).toBe(0.01);
   });
+
+  it('estimates the Apify charge when Instagram content was acquired without a stored row', () => {
+    const detail = assembleImportDetail(
+      job({
+        status: 'COMPLETED',
+        stages: [
+          stage({
+            stage: 'ACQUIRING_CONTENT',
+            status: 'COMPLETED',
+            durationMs: 2100,
+            completedAt: '2026-10-03T14:01:50.000Z',
+          }),
+        ],
+      }),
+    );
+
+    expect(detail.thirdParty).toEqual([
+      {
+        id: '11111111-1111-4111-8111-111111111111',
+        provider: 'apify',
+        operation: 'instagram-scraper',
+        sourceType: 'INSTAGRAM',
+        units: 1,
+        estimatedCostUsd: 0.0027,
+        durationMs: 2100,
+        createdAt: '2026-10-03T14:01:50.000Z',
+      },
+    ]);
+    expect(detail.costs).toEqual({
+      aiUsd: 0,
+      thirdPartyUsd: 0.0027,
+      totalUsd: 0.0027,
+    });
+  });
+
+  it('does not invent an Apify charge when acquisition did not finish or the source is free', () => {
+    const failed = assembleImportDetail(
+      job({
+        status: 'FAILED',
+        stages: [stage({ stage: 'ACQUIRING_CONTENT', status: 'FAILED', durationMs: 100 })],
+      }),
+    );
+    expect(failed.thirdParty).toEqual([]);
+    expect(failed.costs.thirdPartyUsd).toBe(0);
+
+    const youtube = assembleImportDetail(
+      job({
+        recipeSource: {
+          sourceType: 'YOUTUBE',
+          originalUrl: 'https://www.youtube.com/watch?v=abc',
+        },
+        stages: [stage({ stage: 'ACQUIRING_CONTENT', status: 'COMPLETED', durationMs: 4000 })],
+      }),
+    );
+    expect(youtube.thirdParty).toEqual([]);
+    expect(youtube.costs.thirdPartyUsd).toBe(0);
+  });
 });
 
 describe('assemble usage', () => {
@@ -333,6 +390,10 @@ describe('assemble summary', () => {
         id: '33333333-3333-4333-8333-333333333333',
         status: 'COMPLETED',
         recipeId: null,
+        recipeSource: {
+          sourceType: 'YOUTUBE',
+          originalUrl: 'https://www.youtube.com/watch?v=abc',
+        },
         stages: [stage({ stage: 'ACQUIRING_CONTENT', status: 'COMPLETED', durationMs: 3000 })],
       }),
       job({ id: '44444444-4444-4444-8444-444444444444', status: 'FAILED' }),
@@ -368,5 +429,28 @@ describe('assemble summary', () => {
         sampleCount: 2,
       },
     ]);
+  });
+
+  it('adds the estimated Apify cost to the ledger total', () => {
+    const summary = assembleSummary([
+      job({
+        id: '88888888-8888-4888-8888-888888888888',
+        status: 'COMPLETED',
+        recipeId: '99999999-9999-4999-8999-999999999999',
+        aiUsage: [
+          ai({
+            id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+            estimatedCostUsd: 0.01,
+          }),
+        ],
+        stages: [stage({ stage: 'ACQUIRING_CONTENT', status: 'COMPLETED', durationMs: 1800 })],
+      }),
+    ]);
+
+    expect(summary.costs).toEqual({
+      aiUsd: 0.01,
+      thirdPartyUsd: 0.0027,
+      totalUsd: 0.0127,
+    });
   });
 });
