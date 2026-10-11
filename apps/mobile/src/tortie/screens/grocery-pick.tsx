@@ -20,7 +20,7 @@ import { toast, useNav } from '@/tortie/nav-store';
 import { C, CSS_EASE } from '@/tortie/theme';
 import { Checkbox, Grabber } from '@/tortie/ui/controls';
 import { Press } from '@/tortie/ui/press';
-import { Sheet, SheetScroll } from '@/tortie/ui/sheet';
+import { Sheet, SheetScroll, useSheetPressCommits } from '@/tortie/ui/sheet';
 import { sans, serif, T } from '@/tortie/ui/text';
 
 /**
@@ -259,28 +259,48 @@ export function GroceryPickSheet() {
           borderTopColor: C.surface3,
         }}
       >
-        <Press
-          onPress={confirm}
-          disabled={addCount === 0}
-          scale={0.97}
-          easing={CSS_EASE}
-          accessibilityLabel={
+        <ConfirmAdd
+          count={addCount}
+          label={
             addCount ? `Add ${plz(addCount, 'item')}` : 'Add to groceries'
           }
-          style={{
-            height: 54,
-            borderRadius: 99,
-            backgroundColor: C.green,
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: addCount === 0 ? 0.4 : 1,
-          }}
-        >
-          <T style={sans(15, 700, C.bg)}>
-            {addCount ? `Add ${plz(addCount, 'item')}` : 'Add to groceries'}
-          </T>
-        </Press>
+          onConfirm={confirm}
+        />
       </View>
     </Sheet>
+  );
+}
+
+function ConfirmAdd({
+  count,
+  label,
+  onConfirm,
+}: {
+  count: number;
+  label: string;
+  onConfirm: () => void;
+}) {
+  const commitsPress = useSheetPressCommits();
+  return (
+    <Press
+      onPress={() => {
+        if (!commitsPress()) return;
+        onConfirm();
+      }}
+      disabled={count === 0}
+      scale={0.97}
+      easing={CSS_EASE}
+      accessibilityLabel={label}
+      style={{
+        height: 54,
+        borderRadius: 99,
+        backgroundColor: C.green,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: count === 0 ? 0.4 : 1,
+      }}
+    >
+      <T style={sans(15, 700, C.bg)}>{label}</T>
+    </Press>
   );
 }
