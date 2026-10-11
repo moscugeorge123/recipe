@@ -6,10 +6,11 @@ import {
   listRecipeNotes,
   createRecipeNote,
 } from '@/features/recipes/api';
-import type {
-  InboxStatus,
-  KitchenCollection,
-  RecipeNote,
+import {
+  isDefaultPantrySeed,
+  type InboxStatus,
+  type KitchenCollection,
+  type RecipeNote,
 } from '@/stores/contracts';
 import type { RecipeId } from '@/features/recipes/types';
 
@@ -319,6 +320,50 @@ async function migrateNotes(
   await persist(deps, doc);
 }
 
+export function userPantryStaples(staples: readonly string[]): string[] {
+  const names = [
+    ...new Set(
+      staples.map((name) => name.trim()).filter((name) => name.length > 0),
+    ),
+  ];
+  if (isDefaultPantrySeed(names)) return [];
+  return names;
+}
+
+export function untouchedPantrySeedIds(
+  items: { id: string; name: string; canonicalName?: string | null }[],
+  total = items.length,
+): string[] | null {
+  if (total !== items.length) return null;
+  const names = items.map((item) =>
+    (item.canonicalName ?? item.name).trim().toLowerCase(),
+  );
+  if (!isDefaultPantrySeed(names)) return null;
+  return items.map((item) => item.id);
+}
+
+/** Deletes the built-in staple rows once, and only when the pantry is exactly that list. */
+export async function clearUntouchedPantrySeed(deps: {
+  alreadyCleared: boolean;
+  list: () => Promise<{
+    items: { id: string; name: string; canonicalName?: string | null }[];
+    meta: { total: number };
+  }>;
+  remove: (id: string) => Promise<unknown>;
+  markCleared: () => void;
+}): Promise<boolean> {
+  if (deps.alreadyCleared) return false;
+  const listed = await deps.list();
+  const ids = untouchedPantrySeedIds(listed.items, listed.meta.total);
+  if (!ids) {
+    deps.markCleared();
+    return false;
+  }
+  await Promise.all(ids.map((id) => deps.remove(id)));
+  deps.markCleared();
+  return true;
+}
+
 async function migratePantry(
   snapshot: LocalKitchenSnapshot,
   doc: KitchenMigrationDocument,
@@ -329,13 +374,7 @@ async function migratePantry(
     return;
   }
   group.status = 'in_progress';
-  const names = [
-    ...new Set(
-      snapshot.pantryStaples
-        .map((name) => name.trim())
-        .filter((name) => name.length > 0),
-    ),
-  ];
+  const names = userPantryStaples(snapshot.pantryStaples);
   group.attempted = names.length;
   group.skippedSeed = 0;
   await persist(deps, doc);

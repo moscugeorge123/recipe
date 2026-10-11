@@ -52,6 +52,8 @@ export type KitchenState = {
   recentSearches: string[];
   pendingSync: PendingSyncOp[];
   kitchenMigration: KitchenMigrationDocument | null;
+  /** True after the untouched default pantry seed was checked once. */
+  pantrySeedCleared: boolean;
   markInbox: (id: RecipeId, status: InboxStatus) => void;
   confirmReviewed: (id: RecipeId) => void;
   toggleSaved: (id: RecipeId) => void;
@@ -66,6 +68,7 @@ export type KitchenState = {
   patchPending: (id: string, patch: Partial<PendingSyncOp>) => void;
   applyMigrationLeftovers: (patch: Partial<KitchenState>) => void;
   setKitchenMigration: (doc: KitchenMigrationDocument) => void;
+  markPantrySeedCleared: () => void;
 };
 
 export type ShopItem = {
@@ -144,6 +147,19 @@ export const DEFAULT_PANTRY_STAPLES = [
   'chilli flakes',
   'onion',
 ] as const;
+
+/** True when the names are exactly the built-in staple list and nothing else. */
+export function isDefaultPantrySeed(names: readonly string[]): boolean {
+  const got = new Set(
+    names
+      .map((name) => name.trim().toLowerCase())
+      .filter((name) => name.length > 0),
+  );
+  return (
+    got.size === DEFAULT_PANTRY_STAPLES.length &&
+    DEFAULT_PANTRY_STAPLES.every((name) => got.has(name))
+  );
+}
 
 export function isHave(
   name: string,

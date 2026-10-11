@@ -1,10 +1,12 @@
 import {
+  clearUntouchedPantrySeed,
   emptyMigrationDocument,
   leftoverAfterMigration,
   runKitchenMigration,
   type KitchenMigrationDeps,
   type LocalKitchenSnapshot,
 } from '@/features/kitchen/migration';
+import { DEFAULT_PANTRY_STAPLES } from '@/stores/contracts';
 import type { CollectionUpsertOp } from '@/features/kitchen/pending-sync';
 
 const API_ID = '11111111-1111-4111-8111-111111111111';
@@ -275,5 +277,67 @@ describe('kitchen migration', () => {
     expect(leftovers.pantryStaples).toEqual([]);
     expect(leftovers.collections).toEqual([]);
     expect(leftovers.cookedCounts).toEqual({ 'seed:dal': 2 });
+  });
+
+  test('does not upload the built-in pantry staple list', async () => {
+    const created: string[] = [];
+    const harness = deps({
+      createPantryItems: async (items) => {
+        created.push(items[0]?.name ?? '');
+        return [{ id: 'p1' }] as never;
+      },
+    });
+    const doc = await runKitchenMigration(
+      snapshot({ pantryStaples: [...DEFAULT_PANTRY_STAPLES] }),
+      harness,
+    );
+    expect(doc.status).toBe('completed');
+    expect(created).toEqual([]);
+  });
+
+  test('removes a pantry that is only the built-in seed', async () => {
+    const removed: string[] = [];
+    let cleared = false;
+    const did = await clearUntouchedPantrySeed({
+      alreadyCleared: false,
+      list: async () => ({
+        items: DEFAULT_PANTRY_STAPLES.map((name, index) => ({
+          id: `p${index}`,
+          name,
+          canonicalName: name,
+        })),
+        meta: { total: DEFAULT_PANTRY_STAPLES.length },
+      }),
+      remove: async (id) => {
+        removed.push(id);
+      },
+      markCleared: () => {
+        cleared = true;
+      },
+    });
+    expect(did).toBe(true);
+    expect(removed).toEqual(['p0', 'p1', 'p2', 'p3', 'p4', 'p5', 'p6']);
+    expect(cleared).toBe(true);
+  });
+
+  test('leaves a pantry that has anything besides the built-in seed', async () => {
+    const removed: string[] = [];
+    let cleared = false;
+    const did = await clearUntouchedPantrySeed({
+      alreadyCleared: false,
+      list: async () => ({
+        items: [{ id: 'p1', name: 'olive oil', canonicalName: 'olive oil' }],
+        meta: { total: 1 },
+      }),
+      remove: async (id) => {
+        removed.push(id);
+      },
+      markCleared: () => {
+        cleared = true;
+      },
+    });
+    expect(did).toBe(false);
+    expect(removed).toEqual([]);
+    expect(cleared).toBe(true);
   });
 });
