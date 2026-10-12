@@ -1,6 +1,11 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { ScrollView, View, useWindowDimensions, type TextInput } from 'react-native';
+import {
+  ScrollView,
+  View,
+  useWindowDimensions,
+  type TextInput,
+} from 'react-native';
 import Animated, {
   useAnimatedStyle,
   withDelay,
@@ -16,6 +21,7 @@ import { convertAmount } from '@/features/recipes/units';
 import {
   useDeleteShoppingItem,
   usePatchShoppingItem,
+  useShoppingList,
 } from '@/features/shopping-list/hooks';
 import { tint } from '@/tortie/color';
 import {
@@ -192,8 +198,6 @@ export function GroceriesScreen() {
           on={on}
           sub={sub}
           isP={isP}
-          showClear={!isP && gDone > 0}
-          onClear={() => void act.clearBasket()}
           n0={groc.filter((g) => !g.done).length}
           n1={pantry.length}
           low={nLow > 0}
@@ -490,8 +494,6 @@ function GrocHeader({
   on,
   sub,
   isP,
-  showClear,
-  onClear,
   n0,
   n1,
   low,
@@ -504,8 +506,6 @@ function GrocHeader({
   on: boolean;
   sub: string;
   isP: boolean;
-  showClear: boolean;
-  onClear: () => void;
   n0: number;
   n1: number;
   low: boolean;
@@ -562,25 +562,6 @@ function GrocHeader({
             </T>
           </Animated.View>
         </View>
-        {showClear ? (
-          <Press
-            onPress={onClear}
-            scale={0.95}
-            easing={CSS_EASE}
-            style={{
-              flexShrink: 0,
-              height: 36,
-              paddingHorizontal: 14,
-              borderRadius: 99,
-              borderWidth: 1,
-              borderColor: C.line,
-              backgroundColor: C.white,
-              justifyContent: 'center',
-            }}
-          >
-            <T style={sans(13, 600)}>Clear basket</T>
-          </Press>
-        ) : null}
       </Animated.View>
       <Segmented
         index={isP ? 1 : 0}
@@ -610,6 +591,83 @@ function GrocHeader({
         />
       </Animated.View>
     </Stagger>
+  );
+}
+
+const BASKET_ACTS = [
+  ['delete', 'Clear', C.terra],
+  ['kitchen', 'Add to pantry', C.green],
+] as const;
+
+/**
+ * Checked shopping-list rows. Same bottom action bar as cookbook multi-select:
+ * Clear drops them, Add to pantry moves them home.
+ */
+export function GroceryBasketBar() {
+  const f = useFrame();
+  const { m, reduced } = useMotion();
+  const ms = Math.round(520 * m);
+  const tab = useNav((s) => s.tab);
+  const sec = useNav((s) => s.grocSec);
+  const list = useShoppingList();
+  const act = useGroceryActions();
+  const done = (list.data?.items ?? []).filter((item) => item.done).length;
+  const active = tab === 'groceries' && sec === 'groc' && done > 0;
+  const bot = useAnimatedStyle(() => ({
+    opacity: reduced ? tw(active ? 1 : 0, ms) : 1,
+    transform: [{ translateY: reduced ? 0 : tw(active ? 0 : f.tabBarH, ms) }],
+  }));
+  const hidden = !active;
+  return (
+    <Animated.View
+      pointerEvents={hidden ? 'none' : 'auto'}
+      accessibilityElementsHidden={hidden}
+      importantForAccessibility={hidden ? 'no-hide-descendants' : 'auto'}
+      style={[
+        {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 22,
+          height: f.tabBarH,
+          paddingHorizontal: 10,
+          paddingBottom: f.tabBarPad,
+          backgroundColor: C.bg,
+          borderTopWidth: 1,
+          borderTopColor: C.line,
+        },
+        bot,
+      ]}
+    >
+      <View style={{ flex: 1, flexDirection: 'row' }}>
+        {BASKET_ACTS.map(([icon, label, color]) => (
+          <Press
+            key={label}
+            onPress={() => {
+              if (label === 'Clear') void act.clearChecked();
+              else void act.addCheckedToPantry();
+            }}
+            scale={0.92}
+            ms={200}
+            easing={CSS_EASE}
+            accessibilityLabel={label}
+            style={{
+              flex: 1,
+              minWidth: 0,
+              alignItems: 'center',
+              paddingTop: 12,
+              gap: 4,
+            }}
+          >
+            <Glyph name={icon} size={24} color={color} />
+            <T style={[sans(11, 600, C.ink), { textAlign: 'center' }]}>
+              {label}
+            </T>
+          </Press>
+        ))}
+      </View>
+    </Animated.View>
   );
 }
 
@@ -792,9 +850,7 @@ function ReviewGroup({
             paddingHorizontal: 4,
           }}
         >
-          <T style={sans(13, 600, C.ink2)}>
-            {proposals.length} ready to add
-          </T>
+          <T style={sans(13, 600, C.ink2)}>{proposals.length} ready to add</T>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Press
               onPress={onNone}
@@ -1409,8 +1465,7 @@ export function EditGrocerySheet() {
     const name = typed && typed !== cur.n ? typed : cur.view.name;
     const shown = shownQty(cur.view.quantity, cur.view.unit, units);
     const parsed = parseFloat(d.amt.replace(',', '.'));
-    const nextQty =
-      d.amt.trim() === '' || Number.isNaN(parsed) ? null : parsed;
+    const nextQty = d.amt.trim() === '' || Number.isNaN(parsed) ? null : parsed;
     const shownQtyN =
       shown.amt === '' || Number.isNaN(+shown.amt) ? null : +shown.amt;
     const qtySame = nextQty === shownQtyN && d.unit === shown.unit;

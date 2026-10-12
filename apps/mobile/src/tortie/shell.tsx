@@ -33,6 +33,7 @@ import {
   EditGrocerySheet,
   EditPantrySheet,
   GroceriesScreen,
+  GroceryBasketBar,
 } from '@/tortie/screens/groceries';
 import { MonthPickerSheet, PlanScreen } from '@/tortie/screens/plan';
 import { ProfileScreen } from '@/tortie/screens/profile';
@@ -147,6 +148,7 @@ export function TortieShell() {
         <TabBar onPlus={openAdd} groceriesLeft={left} />
         <CookbookSelectionBars />
         <PlanSelectionBars />
+        <GroceryBasketBar />
         <Animated.View
           pointerEvents="none"
           style={[
