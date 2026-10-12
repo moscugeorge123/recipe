@@ -3,22 +3,23 @@ import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
-import { useCreateExtraction } from '@/features/extraction/hooks/use-create-extraction';
-import { useExtractionJob } from '@/features/extraction/hooks/use-extraction-job';
-import { errorCodeOf, importFailureToast } from '@/lib/user-error';
-import { hueOf } from '@/tortie/color';
+import type { ImportErrorAction } from '@/features/extraction/error-groups';
+import { useLinkPreview } from '@/features/link-preview/hooks/use-link-preview';
+import { brandNameOf, runningJobs } from '@/features/extraction/import-jobs';
+import { startImport, retryImport } from '@/tortie/data/import-engine';
 import { useTRecipe } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
-import { fmtT, plz } from '@/tortie/lib/fmt';
-import { afterMotion, toast, useNav } from '@/tortie/nav-store';
+import { useImports } from '@/tortie/import-store';
+import { afterMotion, useNav } from '@/tortie/nav-store';
 import { C, CSS_EASE } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { BRAND_COLOR, BrandLogo, type Brand } from '@/tortie/ui/brand';
 import { Grabber } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
+import { ImportDone } from '@/tortie/ui/import-done';
+import { ImportErrorCard } from '@/tortie/ui/import-error';
 import { ImportProgress } from '@/tortie/ui/import-progress';
 import { Input, RevealBox } from '@/tortie/ui/input';
-import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { Sheet } from '@/tortie/ui/sheet';
 import { em, sans, serif, T } from '@/tortie/ui/text';
@@ -50,45 +51,40 @@ const bare = (u: string) => u.replace(/^https?:\/\/(www\.)?/, '');
 const withScheme = (u: string) =>
   /^https?:\/\//i.test(u) ? u : 'https://' + u;
 
-/** 0 idle · 1 importing · 2 done. */
-type Imp = 0 | 1 | 2;
-
 export function AddRecipeSheet() {
   const f = useFrame();
   const open = useNav((s) => s.addSheet);
   const cam = useNav((s) => s.cam);
-  const create = useCreateExtraction();
+  const focusId = useImports((s) => s.focusId);
+  const job = useImports((s) => s.jobs.find((j) => j.id === focusId));
+  const running = useImports((s) => runningJobs(s.jobs).length);
+  const setFocus = useImports((s) => s.setFocus);
 
   const [url, setUrl] = useState('');
   const [clip, setClip] = useState<string | null>(null);
-  const [imp, setImp] = useState<Imp>(0);
-  const [impP, setImpP] = useState(0);
-  const [jobId, setJobId] = useState<string | undefined>(undefined);
-  const [recipeId, setRecipeId] = useState<string | null>(null);
-  const t0 = useRef(0);
-  const jobRef = useRef<string | null>(null);
-  const polled = useRef({
-    id: null as string | null,
-    progress: 0,
-    status: '',
-    recipeId: null as string | null,
-    error: false,
-    errorCode: undefined as string | undefined,
-  });
-  const srcName = useRef<string | undefined>(undefined);
   const wasCam = useRef(false);
 
-  const job = useExtractionJob(jobId);
-  const { r } = useTRecipe(recipeId);
+  /** 0 idle · 1 importing · 2 done · 3 failed — all derived from the focused job. */
+  const imp = !job
+    ? 0
+    : job.status === 'running'
+      ? 1
+      : job.status === 'done'
+        ? 2
+        : 3;
+  const impP = job?.pct ?? 0;
 
-  const [wasOpen, setWasOpen] = useState(open);
-  if (open !== wasOpen) {
-    setWasOpen(open);
-    if (open && imp === 2) {
-      setImp(0);
-      setImpP(0);
-    }
-  }
+  const { r } = useTRecipe(job?.status === 'done' ? job.recipeId : null);
+  const preview = useLinkPreview(imp === 1 ? job?.url : undefined);
+  const previewThumb = preview.data?.thumbnails.find((t) =>
+    /^https?:\/\//i.test(t.url),
+  )?.url;
+
+  // Opening again starts from a clean sheet. Running imports carry on in the
+  // background (Imports badge, floating pill), so another can start right away.
+  useEffect(() => {
+    if (open) useImports.getState().setFocus(null);
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -108,126 +104,44 @@ export function AddRecipeSheet() {
     };
   }, [open, cam]);
 
-  const fail = (msg: string) => {
-    jobRef.current = null;
-    setImp(0);
-    setImpP(0);
-    setJobId(undefined);
-    toast(msg);
-  };
-
-  useEffect(() => {
-    polled.current = {
-      id: job.job?.id ?? null,
-      progress: job.job?.progress ?? 0,
-      status: job.job?.status ?? '',
-      recipeId: job.job?.recipeId ?? null,
-      error: job.isError,
-      errorCode: errorCodeOf(job.job?.error),
-    };
-  }, [job.job, job.isError]);
-
-  // Real progress arrives every few seconds; the bar keeps the prototype's +2.4 / 50ms pace and never goes back.
-  useEffect(() => {
-    if (imp !== 1) return;
-    let doneT: ReturnType<typeof setTimeout> | null = null;
-    let finished = false;
-    const iv = setInterval(() => {
-      const L = polled.current;
-      const mine = !!jobRef.current && L.id === jobRef.current;
-      if (mine || (jobRef.current && L.error)) {
-        if (
-          L.error ||
-          L.status === 'FAILED' ||
-          L.status === 'CANCELLED' ||
-          (L.status === 'COMPLETED' && !L.recipeId)
-        ) {
-          clearInterval(iv);
-          fail(
-            L.error
-              ? 'Lost track of that import — try again'
-              : L.status === 'CANCELLED'
-                ? 'Import cancelled'
-                : importFailureToast(L.errorCode, srcName.current),
-          );
-          return;
-        }
-        if (L.status === 'COMPLETED' && L.recipeId && !finished) {
-          finished = true;
-          setRecipeId(L.recipeId);
-        }
-      }
-      const t = Date.now() - t0.current;
-      const creep = 94 * (1 - Math.exp(-t / 9000));
-      const target = finished
-        ? 100
-        : Math.min(94, Math.max(mine ? L.progress : 0, creep));
-      setImpP((p) => {
-        const n = Math.min(Math.max(p, target), p + 2.4, 100);
-        if (n >= 100 && !doneT) {
-          clearInterval(iv);
-          doneT = setTimeout(() => setImp(2), 300);
-        }
-        return n;
-      });
-    }, 50);
-    return () => {
-      clearInterval(iv);
-      if (doneT) clearTimeout(doneT);
-    };
-  }, [imp]);
-
-  const startImport = (raw?: string) => {
+  const startImportFor = (raw?: string) => {
     const u = (raw ?? url).trim();
-    const found = platOf(u);
-    if (!found) return;
-    srcName.current = found.k === 'web' ? undefined : found.n;
+    if (!platOf(u)) return;
     if (raw != null) setUrl(raw);
-    t0.current = Date.now();
-    jobRef.current = null;
-    setImp(1);
-    setImpP(0);
-    setRecipeId(null);
-    setJobId(undefined);
-    create.mutate(
-      { url: withScheme(u) },
-      {
-        onSuccess: (res) => {
-          if (
-            res.recipeId &&
-            (res.deduplicated || res.status === 'completed')
-          ) {
-            setRecipeId(res.recipeId);
-            setImpP(100);
-            setImp(2);
-            return;
-          }
-          jobRef.current = res.jobId;
-          setJobId(res.jobId);
-        },
-        onError: (e) =>
-          fail(
-            importFailureToast(
-              errorCodeOf(e),
-              srcName.current,
-              'Couldn’t start that import — check the link and try again',
-            ),
-          ),
-      },
-    );
+    setFocus(startImport(withScheme(u)));
   };
 
   const close = () => useNav.getState().closeAdd();
   const openImported = () => {
-    const id = recipeId;
+    const id = job?.recipeId;
     useNav.getState().closeAdd();
-    setImp(0);
-    setImpP(0);
     setUrl('');
     setClip(null);
-    setJobId(undefined);
-    jobRef.current = null;
+    setFocus(null);
     if (id) afterMotion(260, () => useNav.getState().openRecipe(id));
+  };
+
+  const onErrorAction = (action: ImportErrorAction) => {
+    if (!job) return;
+    switch (action) {
+      case 'retry':
+        setFocus(retryImport(job.id));
+        break;
+      case 'another':
+        setUrl('');
+        setFocus(null);
+        break;
+      case 'edit':
+        setUrl(job.url);
+        setFocus(null);
+        break;
+      case 'write':
+        useNav.getState().openNewRecipe();
+        break;
+      case 'scan':
+        useNav.getState().openCam();
+        break;
+    }
   };
 
   const pl = platOf(url);
@@ -241,12 +155,6 @@ export function AddRecipeSheet() {
       : pl.n + ' detected'
     : 'Works with recipe sites and';
   const cta = brand ? 'Import from ' + pl!.n : 'Import recipe';
-  const srcTxt = pl
-    ? pl.k === 'web'
-      ? 'From ' + bare(url).split('/')[0]
-      : 'From ' + pl.n
-    : 'Scanned from a page';
-
   const field = useAnimatedStyle(() => ({
     borderColor: tw(bd, 250, CSS_EASE),
   }));
@@ -263,13 +171,16 @@ export function AddRecipeSheet() {
       style={{ paddingBottom: Math.max(36, f.sheetBottom) }}
     >
       <Grabber />
-      <View>
-        <T style={[serif(26, 500), { letterSpacing: em(26, -0.01) }]}>
-          Add a recipe
-        </T>
-        <T style={[sans(14, 400, C.ink2), { marginTop: 2 }]}>
-          From a link, a photo, or from scratch.
-        </T>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <T style={[serif(26, 500), { letterSpacing: em(26, -0.01) }]}>
+            Add a recipe
+          </T>
+          <T style={[sans(14, 400, C.ink2), { marginTop: 2 }]}>
+            From a link, a photo, or from scratch.
+          </T>
+        </View>
+        <ImportsButton running={running} />
       </View>
 
       {imp === 0 ? (
@@ -302,7 +213,7 @@ export function AddRecipeSheet() {
               <Input
                 value={url}
                 onChangeText={setUrl}
-                onSubmitEditing={() => startImport()}
+                onSubmitEditing={() => startImportFor()}
                 placeholder="Paste a recipe link"
                 placeholderTextColor={C.ink3}
                 inputMode="url"
@@ -333,7 +244,7 @@ export function AddRecipeSheet() {
                 </Press>
               ) : null}
               <Press
-                onPress={() => startImport()}
+                onPress={() => startImportFor()}
                 disabled={!pl}
                 scale={0.92}
                 easing={CSS_EASE}
@@ -441,7 +352,7 @@ export function AddRecipeSheet() {
                 </T>
               </View>
               <Press
-                onPress={() => clip && startImport(clip)}
+                onPress={() => clip && startImportFor(clip)}
                 scale={0.94}
                 easing={CSS_EASE}
                 style={{
@@ -460,84 +371,73 @@ export function AddRecipeSheet() {
         </>
       ) : null}
 
-      {imp === 1 ? <ImportProgress pct={impP} recipe={r} /> : null}
+      {imp === 1 && job ? (
+        <ImportProgress
+          pct={impP}
+          recipe={null}
+          src={job.src}
+          url={job.url}
+          title={preview.data?.title?.trim() || null}
+          thumb={previewThumb}
+          hint="Keep browsing — it’ll finish in the background"
+        />
+      ) : null}
 
-      {imp === 2 ? (
-        <>
-          <View
-            style={{
-              flexDirection: 'row',
-              gap: 14,
-              alignItems: 'center',
-              marginTop: 20,
-              backgroundColor: C.white,
-              borderWidth: 1,
-              borderColor: C.line,
-              borderRadius: 16,
-              padding: 12,
-            }}
-          >
-            <Photo
-              hue={r?.hue ?? hueOf(recipeId ?? 'import')}
-              uri={r?.uri}
-              radius={18}
-              style={{ width: 72, height: 72 }}
-            />
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <View
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
-              >
-                <Glyph name="check_circle" size={16} color={C.green} fill />
-                <T style={sans(12, 700, C.green)}>Saved to Cookbook</T>
-              </View>
-              <T numberOfLines={2} style={[serif(19, 600), { marginTop: 3 }]}>
-                {r?.title ?? ''}
-              </T>
-              <T style={[sans(12, 400, C.ink2), { marginTop: 2 }]}>
-                {r
-                  ? [
-                      r.time ? fmtT(r.time) : '',
-                      plz(r.ingCount, 'ingredient'),
-                      plz(r.stepCount, 'step'),
-                    ]
-                      .filter(Boolean)
-                      .join(' · ')
-                  : ''}
-              </T>
-              <View
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 5,
-                  marginTop: 4,
-                }}
-              >
-                {brand ? <BrandLogo brand={brand} size={13} /> : null}
-                <T
-                  numberOfLines={1}
-                  style={[sans(12, 400, C.ink2), { flexShrink: 1 }]}
-                >
-                  {srcTxt}
-                </T>
-              </View>
-            </View>
-          </View>
-          <Press
-            onPress={openImported}
-            scale={0.97}
-            easing={CSS_EASE}
-            style={{
-              height: 54,
-              marginTop: 16,
-              borderRadius: 99,
-              backgroundColor: C.green,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <T style={sans(15, 700, C.bg)}>Open recipe</T>
-          </Press>
-        </>
+      {imp === 1 ? (
+        <Press
+          onPress={() => {
+            setUrl('');
+            setFocus(null);
+          }}
+          scale={0.97}
+          easing={CSS_EASE}
+          accessibilityLabel="Import another recipe"
+          style={{
+            height: 50,
+            marginTop: 14,
+            borderRadius: 99,
+            borderWidth: 1.5,
+            borderColor: C.line,
+            backgroundColor: C.white,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          <Glyph name="add_link" size={20} color={C.green} />
+          <T style={sans(15, 600)}>Import another recipe</T>
+        </Press>
+      ) : null}
+
+      {imp === 2 && job ? (
+        <ImportDone
+          recipe={
+            r
+              ? { ...r }
+              : job.title
+                ? {
+                    title: job.title,
+                    uri: job.thumb,
+                    time: 0,
+                    ingCount: 0,
+                    stepCount: 0,
+                  }
+                : null
+          }
+          recipeId={job.recipeId ?? null}
+          src={job.src}
+          onOpen={openImported}
+        />
+      ) : null}
+
+      {imp === 3 && job ? (
+        <ImportErrorCard
+          group={job.group ?? 'generic'}
+          source={brandNameOf(job.src)}
+          retryAt={job.retryAt}
+          onAction={onErrorAction}
+        />
       ) : null}
     </Sheet>
   );
@@ -596,6 +496,51 @@ function OptionRow({
         <T style={[sans(12, 400, C.ink2), { marginTop: 1 }]}>{sub}</T>
       </View>
       <Glyph name="chevron_right" size={20} color="#727971" />
+    </Press>
+  );
+}
+
+/** Header button: opens the Imports screen; the badge counts running imports. */
+function ImportsButton({ running }: { running: number }) {
+  return (
+    <Press
+      onPress={() => useNav.getState().openImports()}
+      scale={0.95}
+      easing={CSS_EASE}
+      accessibilityLabel={
+        running ? `Imports, ${running} in progress` : 'Imports'
+      }
+      style={{
+        flexShrink: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        height: 36,
+        paddingLeft: 10,
+        paddingRight: running ? 6 : 12,
+        borderRadius: 99,
+        borderWidth: 1,
+        borderColor: C.line,
+        backgroundColor: C.white,
+      }}
+    >
+      <Glyph name="history" size={18} color={C.ink2} />
+      <T style={sans(13, 600)}>Imports</T>
+      {running ? (
+        <View
+          style={{
+            minWidth: 20,
+            height: 20,
+            paddingHorizontal: 5,
+            borderRadius: 10,
+            backgroundColor: C.terra,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <T style={sans(11, 700, C.white)}>{running}</T>
+        </View>
+      ) : null}
     </Press>
   );
 }

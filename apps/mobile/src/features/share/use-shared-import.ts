@@ -47,7 +47,7 @@ export function useSharedImport(nonce: number) {
   const job = useExtractionJob(phase === 1 ? jobId : undefined);
   const { r } = useTRecipe(recipeId);
 
-  const fail = useCallback((msg: string) => {
+  const fail = useCallback((msg: string, kind?: 'error') => {
     phaseRef.current = 0;
     run.current += 1;
     abortRef.current?.abort();
@@ -56,7 +56,7 @@ export function useSharedImport(nonce: number) {
     setPhase(0);
     setPct(0);
     setJobId(undefined);
-    toast(msg);
+    toast(msg, kind);
   }, []);
 
   const cancel = useCallback(() => {
@@ -128,6 +128,7 @@ export function useSharedImport(nonce: number) {
               : L.status === 'CANCELLED'
                 ? 'Import cancelled'
                 : importFailureToast(L.errorCode, srcName.current),
+            L.status === 'CANCELLED' ? undefined : 'error',
           );
           return;
         }
@@ -215,6 +216,7 @@ export function useSharedImport(nonce: number) {
                 srcName.current,
                 'Couldn’t start that import — check the link and try again',
               ),
+              'error',
             );
           },
         },

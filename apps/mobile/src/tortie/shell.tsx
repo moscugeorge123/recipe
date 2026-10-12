@@ -36,6 +36,7 @@ import {
   GroceryBasketBar,
 } from '@/tortie/screens/groceries';
 import { MonthPickerSheet, PlanScreen } from '@/tortie/screens/plan';
+import { ImportsScreen } from '@/tortie/screens/imports';
 import { ProfileScreen } from '@/tortie/screens/profile';
 import { RecipeDetail, RecipeMenuSheet } from '@/tortie/screens/recipe-detail';
 import { ScanCamera } from '@/tortie/screens/scan-camera';
@@ -49,6 +50,7 @@ import { useGroceriesLeft } from '@/tortie/data/groceries';
 import { C, EASE, SH } from '@/tortie/theme';
 import { tw, useOpenProgress } from '@/tortie/ui/anim';
 import { reportAppFrame } from '@/tortie/ui/keyboard';
+import { ImportPill } from '@/tortie/ui/import-pill';
 import { ToastView } from '@/tortie/ui/toast';
 
 SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
@@ -63,9 +65,10 @@ export function TortieShell() {
   const { D } = useMotion();
   const { width } = useWindowDimensions();
   const set = useNav((s) => s.set);
-  const pushed = useNav((s) => s.detailOpen || s.prof);
+  const pushed = useNav((s) => s.detailOpen || s.prof || s.imports);
   const detailOpen = useNav((s) => s.detailOpen);
   const prof = useNav((s) => s.prof);
+  const imports = useNav((s) => s.imports);
   const cam = useNav((s) => s.cam);
   const shareOpen = useNav((s) => s.shareOpen);
   const openAdd = useNav((s) => s.openAdd);
@@ -107,6 +110,7 @@ export function TortieShell() {
   const pushP = useOpenProgress(pushed, pushMs);
   const detP = useOpenProgress(detailOpen, pushMs);
   const pfP = useOpenProgress(prof, pushMs);
+  const impP = useOpenProgress(imports, pushMs);
   const layer = useAnimatedStyle(() => ({
     transform: [{ translateX: -0.26 * width * pushP.value }],
   }));
@@ -117,6 +121,9 @@ export function TortieShell() {
   }));
   const pf = useAnimatedStyle(() => ({
     transform: [{ translateX: (1 - pfP.value) * (width + 40) }],
+  }));
+  const imp = useAnimatedStyle(() => ({
+    transform: [{ translateX: (1 - impP.value) * (width + 40) }],
   }));
   const share = useAnimatedStyle(() => ({
     transform: [{ translateX: (1 - shareP.value) * (width + 40) }],
@@ -146,6 +153,7 @@ export function TortieShell() {
           <GroceriesScreen />
         </TabLayer>
         <TabBar onPlus={openAdd} groceriesLeft={left} />
+        <ImportPill />
         <CookbookSelectionBars />
         <PlanSelectionBars />
         <GroceryBasketBar />
@@ -178,6 +186,18 @@ export function TortieShell() {
         ]}
       >
         <ProfileScreen />
+      </Animated.View>
+      <Animated.View
+        pointerEvents={imports ? 'auto' : 'none'}
+        accessibilityElementsHidden={!imports}
+        importantForAccessibility={imports ? 'auto' : 'no-hide-descendants'}
+        style={[
+          StyleSheet.absoluteFill,
+          { zIndex: 37, backgroundColor: C.bg, boxShadow: SH.pushed },
+          imp,
+        ]}
+      >
+        <ImportsScreen />
       </Animated.View>
 
       <AddRecipeSheet />
@@ -253,6 +273,7 @@ function popTopLayer(): boolean {
   if (s.sel != null && (s.tab === 'cookbook' || s.tab === 'plan'))
     return (s.clearSel(), true);
   if (s.addSheet) return (s.closeAdd(), true);
+  if (s.imports) return (s.closeImports(), true);
   if (s.prof) return (s.closeProfile(), true);
   if (s.detailOpen) return (s.closeRecipe(), true);
   if (usePlan.getState().pick) {

@@ -2,6 +2,8 @@
 
 Group A: Import experience
 
+**Status: done.** New card in `tortie/ui/import-progress.tsx` (orb, five stages, scan beam, chips, step rows, strip) and `tortie/ui/import-done.tsx`. Chips and step rows are placeholders that fill by progress, because the API sends no partial recipe.
+
 ## Design source
 - Spec: [DESIGN.md](DESIGN.md), Group A › A1. New import loading component. Read it first. It is the design this task implements.
 - Prototype: `Tortie App v2.dc.html`, screen: Add a recipe sheet (importing and done states). Search the file for `data-screen-label="..."`.

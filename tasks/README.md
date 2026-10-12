@@ -16,10 +16,10 @@ Design source is `Tortie App v2.dc.html` (phone). Search its screen labels, for 
 ## Index
 
 ### Group A: Import experience
-- [A1. Import loading component](A1-import-loading-component.md)
-- [A2. Background import and floating pill](A2-background-import-pill.md)
-- [A3. Imports history screen](A3-imports-history-screen.md)
-- [A4. Import error states and error toast](A4-import-error-states.md)
+- [x] [A1. Import loading component](A1-import-loading-component.md)
+- [x] [A2. Background import and floating pill](A2-background-import-pill.md)
+- [x] [A3. Imports history screen](A3-imports-history-screen.md)
+- [x] [A4. Import error states and error toast](A4-import-error-states.md)
 - [A5. Add-sheet changes](A5-add-sheet-changes.md)
 
 ### Group B: Recipe page layout

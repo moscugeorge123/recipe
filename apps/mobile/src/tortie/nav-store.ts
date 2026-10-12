@@ -35,6 +35,8 @@ type Nav = {
   shareUrl: string | null;
   shareTitle: string | null;
   shareNonce: number;
+  /** Imports history screen. */
+  imports: boolean;
   /** Camera scan. */
   cam: boolean;
   /** Set when the camera hands a photo back to the add sheet. */
@@ -95,6 +97,8 @@ type Nav = {
 
   toast: string;
   toastOn: boolean;
+  /** Red error icon, shown longer. */
+  toastErr: boolean;
   toastNonce: number;
 };
 
@@ -109,6 +113,8 @@ type Actions = {
   closeAdd: () => void;
   openShare: (url: string, title?: string | null) => void;
   closeShare: () => void;
+  openImports: () => void;
+  closeImports: () => void;
   openCam: () => void;
   closeCam: (reopenSheet: boolean) => void;
   openMenu: () => void;
@@ -128,8 +134,10 @@ type Actions = {
   closeGroceryPick: () => void;
   openAuth: (mode: 'signup' | 'login', prov?: AuthProvider) => void;
   closeAuth: () => void;
-  toastShow: (msg: string) => void;
+  toastShow: (msg: string, kind?: ToastKind) => void;
 };
+
+export type ToastKind = 'ok' | 'error';
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let bulkExit: ReturnType<typeof setTimeout> | null = null;
@@ -153,6 +161,7 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   shareUrl: null,
   shareTitle: null,
   shareNonce: 0,
+  imports: false,
   cam: false,
   scanUri: null,
   menu: false,
@@ -186,6 +195,7 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   grocSec: 'groc',
   toast: '',
   toastOn: false,
+  toastErr: false,
   toastNonce: 0,
 
   set: (p) => set(p),
@@ -220,6 +230,8 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
       shareNonce: s.shareNonce + 1,
     })),
   closeShare: () => set({ shareOpen: false }),
+  openImports: () => set({ addSheet: false, imports: true }),
+  closeImports: () => set({ imports: false }),
   openCam: () => set({ addSheet: false, cam: true }),
   closeCam: (reopen) => set({ cam: false, addSheet: reopen }),
   openMenu: () => set({ menu: true, menuV: 'main', menuBulk: false }),
@@ -294,14 +306,21 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
       auProv: prov ?? get().auProv,
     }),
   closeAuth: () => set({ au: false }),
-  toastShow: (msg) => {
+  toastShow: (msg, kind = 'ok') => {
     if (toastTimer) clearTimeout(toastTimer);
-    set((s) => ({ toast: msg, toastOn: true, toastNonce: s.toastNonce + 1 }));
-    toastTimer = setTimeout(() => set({ toastOn: false }), 2400);
+    const err = kind === 'error';
+    set((s) => ({
+      toast: msg,
+      toastOn: true,
+      toastErr: err,
+      toastNonce: s.toastNonce + 1,
+    }));
+    toastTimer = setTimeout(() => set({ toastOn: false }), err ? 3800 : 2400);
   },
 }));
 
-export const toast = (msg: string) => useNav.getState().toastShow(msg);
+export const toast = (msg: string, kind?: ToastKind) =>
+  useNav.getState().toastShow(msg, kind);
 
 /** `setTimeout` scaled by the motion multiplier (sheet → sheet hand-offs). */
 export function afterMotion(ms: number, fn: () => void) {

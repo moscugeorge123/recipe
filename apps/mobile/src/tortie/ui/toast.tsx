@@ -10,11 +10,12 @@ import { C, EASE, SH } from '@/tortie/theme';
 import { Glyph } from '@/tortie/ui/icon';
 import { sans, T } from '@/tortie/ui/text';
 
-/** Top toast: translateY −90 → 0 (520ms EASE), opacity 300ms. Visible 2400ms. */
+/** Top toast: translateY −90 → 0 (520ms EASE), opacity 300ms. Visible 2400ms (3800ms for errors). */
 export function ToastView() {
   const f = useFrame();
   const msg = useNav((s) => s.toast);
   const on = useNav((s) => s.toastOn);
+  const err = useNav((s) => s.toastErr);
   const a = useAnimatedStyle(() => ({
     opacity: withTiming(on ? 1 : 0, { duration: 300 }),
     transform: [
@@ -49,7 +50,12 @@ export function ToastView() {
           maxWidth: '92%',
         }}
       >
-        <Glyph name="check_circle" size={19} color={C.greenSoft2} fill />
+        <Glyph
+          name={err ? 'error' : 'check_circle'}
+          size={19}
+          color={err ? C.errorSoft : C.greenSoft2}
+          fill
+        />
         <T numberOfLines={1} style={[sans(14, 600, C.bg), { flexShrink: 1 }]}>
           {msg}
         </T>

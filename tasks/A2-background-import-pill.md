@@ -2,6 +2,8 @@
 
 Group A: Import experience
 
+**Status: done.** `tortie/data/import-engine.ts` runs imports outside the sheet, `tortie/import-store.ts` holds them, and `tortie/ui/import-pill.tsx` is the floating pill. Not done: persisting running jobs across app restarts, push notification on finish, tablet placement.
+
 ## Design source
 - Spec: [DESIGN.md](DESIGN.md), Group A › A2. Background import and the floating "Importing…" pill. Read it first. It is the design this task implements.
 - Prototype: `Tortie App v2.dc.html`, screen: Add a recipe sheet (importing state, "Keep browsing"); the floating pill over the app shell. Search the file for `data-screen-label="..."`.
