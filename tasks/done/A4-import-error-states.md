@@ -5,7 +5,7 @@ Group A: Import experience
 **Status: done.** `features/extraction/error-groups.ts` maps codes to the five groups, `tortie/ui/import-error.tsx` is the card, and the toast has an error variant (3.8 s). The 15 s rate-limit lock is fixed because the API sends no retry-after.
 
 ## Design source
-- Spec: [DESIGN.md](DESIGN.md), Group A › A4. Import error states and error toast. Read it first. It is the design this task implements.
+- Spec: [DESIGN.md](../DESIGN.md), Group A › A4. Import error states and error toast. Read it first. It is the design this task implements.
 - Prototype: `Tortie App v2.dc.html`, screen: "Import error" (also the failed rows in "Imports"). Search the file for `data-screen-label="..."`.
 
 ## Design (`data-screen-label="Import error"`)

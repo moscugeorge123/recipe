@@ -20,17 +20,22 @@ type DoneRecipe = {
   stepCount: number;
 };
 
-/** Done state of an import: pop-in tile with sparkles, the saved recipe, Open recipe. */
+/**
+ * Done state of an import: the saved recipe as one tappable card (a check badge
+ * pops in on its photo), and a button to start the next import.
+ */
 export function ImportDone({
   recipe,
   recipeId,
   src,
   onOpen,
+  onAnother,
 }: {
   recipe: DoneRecipe | null;
   recipeId: string | null;
   src?: ImportSrc;
   onOpen: () => void;
+  onAnother: () => void;
 }) {
   const source = !src
     ? 'Scanned from a page'
@@ -41,45 +46,16 @@ export function ImportDone({
         : 'From ' + src.name;
   return (
     <>
-      <View style={{ alignItems: 'center', marginTop: 20 }}>
-        <View style={{ width: 120, height: 84, alignItems: 'center' }}>
-          <Pop>
-            <View
-              style={{
-                width: 72,
-                height: 72,
-                borderRadius: 24,
-                backgroundColor: C.greenSoft,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Glyph name="check" size={40} color={C.green} />
-            </View>
-          </Pop>
-          <Twinkle style={{ position: 'absolute', left: 6, top: 2 }}>
-            <Glyph name="auto_awesome" size={18} color={C.terraBright} fill />
-          </Twinkle>
-          <Twinkle
-            delay={500}
-            style={{ position: 'absolute', right: 8, top: 14 }}
-          >
-            <Glyph name="auto_awesome" size={14} color={C.greenMid} fill />
-          </Twinkle>
-          <Twinkle
-            delay={900}
-            style={{ position: 'absolute', right: 20, bottom: 0 }}
-          >
-            <Glyph name="auto_awesome" size={12} color={C.terra} fill />
-          </Twinkle>
-        </View>
-      </View>
-      <View
+      <Press
+        onPress={onOpen}
+        scale={0.98}
+        easing={CSS_EASE}
+        accessibilityLabel={`Open ${recipe?.title ?? 'recipe'}`}
         style={{
           flexDirection: 'row',
           gap: 14,
           alignItems: 'center',
-          marginTop: 12,
+          marginTop: 20,
           backgroundColor: C.white,
           borderWidth: 1,
           borderColor: C.line,
@@ -87,17 +63,41 @@ export function ImportDone({
           padding: 12,
         }}
       >
-        <Photo
-          hue={recipe?.hue ?? hueOf(recipeId ?? 'import')}
-          uri={recipe?.uri}
-          radius={18}
-          style={{ width: 72, height: 72 }}
-        />
+        <View style={{ width: 84, height: 84 }}>
+          <Photo
+            hue={recipe?.hue ?? hueOf(recipeId ?? 'import')}
+            uri={recipe?.uri}
+            radius={18}
+            style={{ width: 84, height: 84 }}
+          />
+          <Pop style={{ position: 'absolute', right: -8, bottom: -8 }}>
+            <View
+              style={{
+                width: 28,
+                height: 28,
+                borderRadius: 14,
+                backgroundColor: C.green,
+                borderWidth: 2.5,
+                borderColor: C.white,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Glyph name="check" size={16} color={C.white} />
+            </View>
+          </Pop>
+          <Twinkle style={{ position: 'absolute', right: -14, top: -8 }}>
+            <Glyph name="auto_awesome" size={16} color={C.terraBright} fill />
+          </Twinkle>
+          <Twinkle
+            delay={600}
+            style={{ position: 'absolute', left: -8, bottom: 14 }}
+          >
+            <Glyph name="auto_awesome" size={12} color={C.greenMid} fill />
+          </Twinkle>
+        </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <Glyph name="check_circle" size={16} color={C.green} fill />
-            <T style={sans(12, 700, C.green)}>Added to Cookbook</T>
-          </View>
+          <T style={sans(12, 700, C.green)}>Added to Cookbook</T>
           <T numberOfLines={2} style={[serif(19, 600), { marginTop: 3 }]}>
             {recipe?.title ?? ''}
           </T>
@@ -129,9 +129,10 @@ export function ImportDone({
             </T>
           </View>
         </View>
-      </View>
+        <Glyph name="chevron_right" size={20} color={C.ink3} />
+      </Press>
       <Press
-        onPress={onOpen}
+        onPress={onAnother}
         scale={0.97}
         easing={CSS_EASE}
         style={{
@@ -139,11 +140,14 @@ export function ImportDone({
           marginTop: 16,
           borderRadius: 99,
           backgroundColor: C.green,
+          flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
+          gap: 8,
         }}
       >
-        <T style={sans(15, 700, C.bg)}>Open recipe</T>
+        <Glyph name="add_link" size={20} color={C.bg} />
+        <T style={sans(15, 700, C.bg)}>Import another recipe</T>
       </Press>
     </>
   );

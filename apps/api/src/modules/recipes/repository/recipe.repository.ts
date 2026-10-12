@@ -121,6 +121,7 @@ export type RecipeNoteRecord = {
   recipeId: string;
   body: string;
   cookSessionId: string | null;
+  stepIndex: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -294,13 +295,13 @@ export interface IRecipeRepository {
   createNote(
     id: string,
     userId: string,
-    input: { body: string; cookSessionId?: string | null },
+    input: { body: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord | 'invalid-session' | null>;
   updateNote(
     id: string,
     noteId: string,
     userId: string,
-    input: { body?: string; cookSessionId?: string | null },
+    input: { body?: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord | 'invalid-session' | null>;
   deleteNote(id: string, noteId: string, userId: string): Promise<boolean>;
   appendRevision(

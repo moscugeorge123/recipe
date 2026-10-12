@@ -3,7 +3,7 @@
 Group B: Recipe page layout
 
 ## Design source
-- Spec: [DESIGN.md](DESIGN.md), Group B › B2. Header block: tag, title, byline and source link. Read it first. It is the design this task implements.
+- Spec: [DESIGN.md](../DESIGN.md), Group B › B2. Header block: tag, title, byline and source link. Read it first. It is the design this task implements.
 - Prototype: `Tortie App v2.dc.html`, screen: "Recipe". Search the file for `data-screen-label="..."`.
 
 ## Design
@@ -19,3 +19,6 @@ Group B: Recipe page layout
 ## Enrich later
 - Where the author name comes from (creator handle from the unfurler, or a field on `RecipeSource`).
 - The fallback when the author is unknown.
+
+## Status
+Done in `screens/recipe-detail.tsx`. The tag is an uppercase green label. The byline reads "by {author}" for imported recipes, with the source host as a link that opens the original, and "by You" when the recipe has no web source. An unknown author falls back to the platform name. The API has no field that marks a recipe as user-written, so "has a web source URL" stands in for imported.

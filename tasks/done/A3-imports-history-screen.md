@@ -5,7 +5,7 @@ Group A: Import experience
 **Status: done.** `tortie/screens/imports.tsx`, opened from the Add sheet button or the pill. History is local-only (newest 30, persisted). Not done: scanned-page imports (no scan import exists yet) and share-preview imports do not appear here.
 
 ## Design source
-- Spec: [DESIGN.md](DESIGN.md), Group A › A3. Imports history screen (new). Read it first. It is the design this task implements.
+- Spec: [DESIGN.md](../DESIGN.md), Group A › A3. Imports history screen (new). Read it first. It is the design this task implements.
 - Prototype: `Tortie App v2.dc.html`, screen: "Imports". Search the file for `data-screen-label="..."`.
 
 ## Design (`data-screen-label="Imports"`, pushed from the Add sheet)

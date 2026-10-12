@@ -15,26 +15,28 @@ Design source is `Tortie App v2.dc.html` (phone). Search its screen labels, for 
 
 ## Index
 
+Finished tasks (checked `[x]`) live in [done/](done/).
+
 ### Group A: Import experience
-- [x] [A1. Import loading component](A1-import-loading-component.md)
-- [x] [A2. Background import and floating pill](A2-background-import-pill.md)
-- [x] [A3. Imports history screen](A3-imports-history-screen.md)
-- [x] [A4. Import error states and error toast](A4-import-error-states.md)
-- [A5. Add-sheet changes](A5-add-sheet-changes.md)
+- [x] [A1. Import loading component](done/A1-import-loading-component.md)
+- [x] [A2. Background import and floating pill](done/A2-background-import-pill.md)
+- [x] [A3. Imports history screen](done/A3-imports-history-screen.md)
+- [x] [A4. Import error states and error toast](done/A4-import-error-states.md)
+- [x] [A5. Add-sheet changes](done/A5-add-sheet-changes.md)
 
 ### Group B: Recipe page layout
-- [B1. Hero overlay chips](B1-hero-overlay-chips.md)
-- [B2. Header block: tag, title, byline, source link](B2-header-block-byline.md)
-- [B3. Notes row on the recipe page](B3-notes-row.md)
-- [B4. Method steps: extra rows](B4-method-step-rows.md)
-- [B5. Bottom bar and header buttons (check)](B5-bottom-bar-header-buttons.md)
+- [x] [B1. Hero overlay chips](done/B1-hero-overlay-chips.md)
+- [x] [B2. Header block: tag, title, byline, source link](done/B2-header-block-byline.md)
+- [x] [B3. Notes row on the recipe page](done/B3-notes-row.md)
+- [x] [B4. Method steps: extra rows](done/B4-method-step-rows.md)
+- [x] [B5. Bottom bar and header buttons (check)](done/B5-bottom-bar-header-buttons.md)
 
 ### Group C: Cookbook and Today cards
-- [C1. Time chip over the card photo](C1-card-time-chip.md)
-- [C2. Byline under the title](C2-card-byline.md)
+- [x] [C1. Time chip over the card photo](done/C1-card-time-chip.md)
+- [x] [C2. Byline under the title](done/C2-card-byline.md)
 
 ### Group D: Other new features
-- [D1. Recipe notes (general and per step)](D1-recipe-notes.md)
+- [x] [D1. Recipe notes (general and per step)](done/D1-recipe-notes.md)
 - [D2. Step video clips ("Watch step")](D2-step-video-clips.md)
 - [D3. Cook timer settings](D3-cook-timer-settings.md)
 - [D4. Skeleton / loading state](D4-skeleton-loading-state.md)

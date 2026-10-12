@@ -227,6 +227,42 @@ describe.skipIf(!dbAvailable)('recipe favorites, ratings, notes, and home rankin
     ).toEqual([]);
   });
 
+  it('notes can be pinned to a method step and moved back to general', async () => {
+    const recipeId = await importRecipe(app, 'https://example.com/fake-recipe');
+
+    const general = await app.inject({
+      method: 'POST',
+      url: `/api/v1/recipes/${recipeId}/notes`,
+      payload: { body: 'family favourite' },
+    });
+    expect(general.statusCode).toBe(201);
+    expect(general.json().data.stepIndex).toBeNull();
+
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/v1/recipes/${recipeId}/notes`,
+      payload: { body: 'sear hard here', stepIndex: 2 },
+    });
+    expect(created.statusCode).toBe(201);
+    expect(created.json().data.stepIndex).toBe(2);
+
+    const noteId = created.json().data.id as string;
+    const moved = await app.inject({
+      method: 'PATCH',
+      url: `/api/v1/recipes/${recipeId}/notes/${noteId}`,
+      payload: { stepIndex: null },
+    });
+    expect(moved.statusCode).toBe(200);
+    expect(moved.json().data.stepIndex).toBeNull();
+
+    const invalid = await app.inject({
+      method: 'POST',
+      url: `/api/v1/recipes/${recipeId}/notes`,
+      payload: { body: 'bad step', stepIndex: -1 },
+    });
+    expect(invalid.statusCode).toBe(400);
+  });
+
   it('only COMPLETED cooks increment cookCount; STOPPED sessions stay history', async () => {
     const recipeId = await importRecipe(app, 'https://example.com/fake-recipe');
     const stopped = await app.inject({

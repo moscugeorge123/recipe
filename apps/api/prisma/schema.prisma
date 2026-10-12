@@ -525,6 +525,8 @@ model RecipeNote {
   id            String   @id @default(uuid()) @db.Uuid
   userRecipeId  String   @db.Uuid
   cookSessionId String?  @db.Uuid
+  /// Zero-based index into the recipe's method steps; null for a general note.
+  stepIndex     Int?
   body          String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

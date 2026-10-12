@@ -31,6 +31,7 @@ export const ErrorCode = {
   MEDIA_PROCESSING_FAILED: "MEDIA_PROCESSING_FAILED",
   PROVIDER_RATE_LIMITED: "PROVIDER_RATE_LIMITED",
   NOT_A_RECIPE: "NOT_A_RECIPE",
+  RECIPE_ASSIST_REJECTED: "RECIPE_ASSIST_REJECTED",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

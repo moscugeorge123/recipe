@@ -94,6 +94,7 @@ import {
   type ClassificationCache,
 } from '../../modules/pantry/application/classification-cache.js';
 import { IngredientOrganizer } from '../../modules/pantry/application/ingredient-organizer.js';
+import { RecipeAssistant } from '../../modules/recipes/application/recipe-assistant.js';
 import { PantryService } from '../../modules/pantry/application/pantry-service.js';
 import type { IPantryRepository } from '../../modules/pantry/repository/pantry.repository.js';
 import { MealPlanService } from '../../modules/meal-plan/application/meal-plan-service.js';
@@ -135,6 +136,7 @@ export interface AppContainer {
   mediaProcessing: MediaProcessingService;
   extractionJobService: ExtractionJobService;
   recipeService: RecipeService;
+  recipeAssistant: RecipeAssistant;
   categoryService: CategoryService;
   cookSessionService: CookSessionService;
   profileBootstrap: ProfileBootstrapService;
@@ -155,6 +157,7 @@ export interface CreateContainerOptions {
   logger?: AppLogger;
   profileResolver?: ProfileResolver;
   pantryLlm?: LLMProvider | null;
+  assistLlm?: LLMProvider | null;
   pantryCache?: ClassificationCache;
 }
 
@@ -322,6 +325,16 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     repositories.pantry,
     new IngredientOrganizer(appConfig, pantryCache, pantryLlm, pantryUsage, ingredientLog),
   );
+  const assistLog = log.child({ component: 'recipe-assistant' });
+  const recipeAssistant = new RecipeAssistant(
+    appConfig,
+    options.assistLlm !== undefined
+      ? options.assistLlm
+      : appConfig.ai.openaiApiKey
+        ? new OpenAIProvider(appConfig, null, undefined, assistLog)
+        : null,
+    assistLog,
+  );
   const shoppingListService = new ShoppingListService(
     repositories.shoppingList,
     repositories.pantry,
@@ -351,6 +364,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     mediaProcessing,
     extractionJobService,
     recipeService,
+    recipeAssistant,
     categoryService,
     cookSessionService,
     profileBootstrap,

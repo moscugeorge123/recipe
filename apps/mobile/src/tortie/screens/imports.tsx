@@ -1,4 +1,13 @@
-import { ScrollView, View } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { useState } from 'react';
+import {
+  ScrollView,
+  StyleSheet,
+  View,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+} from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { importErrorCopy } from '@/features/extraction/error-groups';
 import { importStageLabel } from '@/features/extraction/import-stages';
@@ -13,7 +22,8 @@ import { cancelImport, retryImport } from '@/tortie/data/import-engine';
 import { useFrame } from '@/tortie/frame';
 import { useImports } from '@/tortie/import-store';
 import { afterMotion, toast, useNav } from '@/tortie/nav-store';
-import { BASE_D, C, CSS_EASE } from '@/tortie/theme';
+import { BASE_D, C, CSS_EASE, SH } from '@/tortie/theme';
+import { tw } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
 import { ErrorTile } from '@/tortie/ui/import-error';
 import { SourceGlyph } from '@/tortie/ui/import-progress';
@@ -29,6 +39,11 @@ export function ImportsScreen() {
   const clearHistory = useImports((s) => s.clearHistory);
   const running = runningJobs(jobs);
   const history = historyJobs(jobs);
+  const [scr, setScr] = useState(false);
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const v = e.nativeEvent.contentOffset.y > 40;
+    if (v !== scr) setScr(v);
+  };
 
   const back = () => useNav.getState().closeImports();
   const pasteLink = () => {
@@ -40,55 +55,23 @@ export function ImportsScreen() {
     toast('History cleared');
   };
 
+  const hdrBg = useAnimatedStyle(() => ({
+    opacity: tw(scr ? 1 : 0, 240, CSS_EASE),
+  }));
+  const ttl = useAnimatedStyle(() => ({
+    opacity: tw(scr ? 1 : 0, 220, CSS_EASE),
+    transform: [{ translateY: tw(scr ? 0 : 8, 320) }],
+  }));
+
   return (
     <View style={{ flex: 1 }}>
-      <View
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          height: 44,
-          marginTop: f.pushTop,
-          paddingHorizontal: 20,
-        }}
-      >
-        <Press
-          onPress={back}
-          scale={0.9}
-          accessibilityLabel="Back"
-          style={{
-            width: 42,
-            height: 42,
-            borderRadius: 21,
-            borderWidth: 1,
-            borderColor: C.line,
-            backgroundColor: C.white,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          <Glyph name="arrow_back" size={22} color={C.ink} />
-        </Press>
-        {history.length ? (
-          <Press
-            onPress={clear}
-            scale={0.95}
-            easing={CSS_EASE}
-            style={{
-              height: 36,
-              paddingHorizontal: 8,
-              justifyContent: 'center',
-            }}
-          >
-            <T style={sans(14, 600, C.terra)}>Clear history</T>
-          </Press>
-        ) : null}
-      </View>
       <ScrollView
         style={{ flex: 1 }}
         showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        onScroll={onScroll}
         contentContainerStyle={{
-          paddingTop: 16,
+          paddingTop: f.pushTop + 44 + 8,
           paddingHorizontal: 20,
           paddingBottom: 44 + f.bottom,
         }}
@@ -155,6 +138,90 @@ export function ImportsScreen() {
           </View>
         )}
       </ScrollView>
+      <View
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 5,
+          paddingTop: f.pushTop,
+          paddingHorizontal: 20,
+          paddingBottom: 8,
+        }}
+      >
+        <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+          <Animated.View
+            style={[
+              { flex: 1, boxShadow: SH.header, overflow: 'hidden' },
+              hdrBg,
+            ]}
+          >
+            <BlurView
+              intensity={40}
+              tint="light"
+              style={StyleSheet.absoluteFill}
+            />
+            <View
+              style={[
+                StyleSheet.absoluteFill,
+                { backgroundColor: 'rgba(248,250,245)' },
+              ]}
+            />
+          </Animated.View>
+        </View>
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 12,
+            height: 44,
+            zIndex: 1,
+          }}
+        >
+          <View style={{ width: 104 }}>
+            <Press
+              onPress={back}
+              scale={0.9}
+              accessibilityLabel="Back"
+              style={{
+                width: 42,
+                height: 42,
+                borderRadius: 21,
+                borderWidth: 1,
+                borderColor: C.line,
+                backgroundColor: C.white,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Glyph name="arrow_back" size={22} color={C.ink} />
+            </Press>
+          </View>
+          <Animated.View
+            pointerEvents="none"
+            style={[{ flex: 1, minWidth: 0, alignItems: 'center' }, ttl]}
+          >
+            <T style={[sans(15, 700), { lineHeight: 22 }]}>Imports</T>
+          </Animated.View>
+          <View style={{ width: 104, alignItems: 'flex-end' }}>
+            {history.length ? (
+              <Press
+                onPress={clear}
+                scale={0.95}
+                easing={CSS_EASE}
+                style={{
+                  height: 36,
+                  paddingHorizontal: 8,
+                  justifyContent: 'center',
+                }}
+              >
+                <T style={sans(14, 600, C.terra)}>Clear history</T>
+              </Press>
+            ) : null}
+          </View>
+        </View>
+      </View>
     </View>
   );
 }
@@ -199,8 +266,20 @@ function SourceTile({ job }: { job: ImportJob }) {
 }
 
 function RunningRow({ job }: { job: ImportJob }) {
+  const open = () => {
+    useNav.getState().closeImports();
+    afterMotion(Math.round(BASE_D * 0.6), () =>
+      useNav.getState().openAddJob(job.id),
+    );
+  };
   return (
-    <View style={card()}>
+    <Press
+      onPress={open}
+      scale={0.98}
+      easing={CSS_EASE}
+      accessibilityLabel={`Show progress for ${job.src.host}`}
+      style={card()}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <SourceTile job={job} />
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -246,7 +325,7 @@ function RunningRow({ job }: { job: ImportJob }) {
           }}
         />
       </View>
-    </View>
+    </Press>
   );
 }
 

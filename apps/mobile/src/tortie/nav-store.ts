@@ -30,6 +30,8 @@ type Nav = {
 
   /** Add-a-recipe sheet. */
   addSheet: boolean;
+  /** Import job the Add sheet should show on its next open (one-shot). */
+  addJobId: string | null;
   /** Link shared in from another app. */
   shareOpen: boolean;
   shareUrl: string | null;
@@ -77,6 +79,14 @@ type Nav = {
   grocPick: GroceryPickRequest | null;
   grocPickNonce: number;
 
+  /** Recipe notes sheet. `notesStep` preselects a method step in the composer. */
+  notesOn: boolean;
+  notesId: string | null;
+  notesStep: number | null;
+  /** Opened over cook mode, so it must layer above it. */
+  notesOverCook: boolean;
+  notesNonce: number;
+
   edit: boolean;
   editMode: 'edit' | 'new';
   editId: string | null;
@@ -110,6 +120,8 @@ type Actions = {
   openProfile: () => void;
   closeProfile: () => void;
   openAdd: () => void;
+  /** Opens the Add sheet on a running import's progress. */
+  openAddJob: (jobId: string) => void;
   closeAdd: () => void;
   openShare: (url: string, title?: string | null) => void;
   closeShare: () => void;
@@ -125,6 +137,8 @@ type Actions = {
   selectIds: (ids: string[]) => void;
   openBulkCollections: () => void;
   openNewCollection: (forRecipe?: string | string[] | null) => void;
+  openNotes: (id: string, opts?: { step?: number | null; overCook?: boolean }) => void;
+  closeNotes: () => void;
   openEditor: (id: string) => void;
   openNewRecipe: () => void;
   closeEditor: () => void;
@@ -157,6 +171,7 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   profNonce: 0,
   pfOut: false,
   addSheet: false,
+  addJobId: null,
   shareOpen: false,
   shareUrl: null,
   shareTitle: null,
@@ -180,6 +195,11 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   grocPickOn: false,
   grocPick: null,
   grocPickNonce: 0,
+  notesOn: false,
+  notesId: null,
+  notesStep: null,
+  notesOverCook: false,
+  notesNonce: 0,
   edit: false,
   editMode: 'edit',
   editId: null,
@@ -220,7 +240,8 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   closeRecipe: () => set({ detailOpen: false, menu: false, menuBulk: false }),
   openProfile: () => set((s) => ({ prof: true, profNonce: s.profNonce + 1 })),
   closeProfile: () => set({ prof: false }),
-  openAdd: () => set({ addSheet: true }),
+  openAdd: () => set({ addSheet: true, addJobId: null }),
+  openAddJob: (jobId) => set({ addSheet: true, addJobId: jobId }),
   closeAdd: () => set({ addSheet: false }),
   openShare: (url, title = null) =>
     set((s) => ({
@@ -272,6 +293,15 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
             ? [...forRecipe]
             : [forRecipe],
     }),
+  openNotes: (id, opts) =>
+    set((s) => ({
+      notesOn: true,
+      notesId: id,
+      notesStep: opts?.step ?? null,
+      notesOverCook: opts?.overCook ?? false,
+      notesNonce: s.notesNonce + 1,
+    })),
+  closeNotes: () => set({ notesOn: false }),
   openEditor: (id) =>
     set((s) => ({
       edit: true,

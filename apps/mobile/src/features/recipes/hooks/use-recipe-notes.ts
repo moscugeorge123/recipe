@@ -29,8 +29,11 @@ export function useRecipeNotes(recipeId: string | undefined, enabled: boolean) {
   });
 
   const create = useMutation({
-    mutationFn: (input: { body: string; cookSessionId?: string | null }) =>
-      createRecipeNote(recipeId as string, input),
+    mutationFn: (input: {
+      body: string;
+      cookSessionId?: string | null;
+      stepIndex?: number | null;
+    }) => createRecipeNote(recipeId as string, input),
     onSuccess: (note) => {
       client.setQueryData<RecipeNoteDto[]>(
         recipeKeys.notes(recipeId as string),
@@ -44,11 +47,15 @@ export function useRecipeNotes(recipeId: string | undefined, enabled: boolean) {
       noteId: string;
       body?: string;
       cookSessionId?: string | null;
+      stepIndex?: number | null;
     }) =>
       patchRecipeNote(recipeId as string, input.noteId, {
         ...(input.body !== undefined ? { body: input.body } : {}),
         ...(input.cookSessionId !== undefined
           ? { cookSessionId: input.cookSessionId }
+          : {}),
+        ...(input.stepIndex !== undefined
+          ? { stepIndex: input.stepIndex }
           : {}),
       }),
     onSuccess: (note) => {

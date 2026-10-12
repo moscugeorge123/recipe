@@ -55,3 +55,15 @@ export class CategoryNotFoundError extends AppError {
     });
   }
 }
+
+/** Ask Tortie declined the request (off-topic, a question, unsafe). The message is user-facing. */
+export class RecipeAssistRejectedError extends AppError {
+  constructor(options: AppErrorOptions = {}) {
+    super({
+      code: ErrorCode.RECIPE_ASSIST_REJECTED,
+      statusCode: 422,
+      message: options.message ?? 'Tortie can only make changes to this recipe',
+      ...options,
+    });
+  }
+}

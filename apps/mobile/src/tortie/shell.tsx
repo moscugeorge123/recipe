@@ -37,6 +37,7 @@ import {
 } from '@/tortie/screens/groceries';
 import { MonthPickerSheet, PlanScreen } from '@/tortie/screens/plan';
 import { ImportsScreen } from '@/tortie/screens/imports';
+import { RecipeNotesSheet } from '@/tortie/screens/recipe-notes';
 import { ProfileScreen } from '@/tortie/screens/profile';
 import { RecipeDetail, RecipeMenuSheet } from '@/tortie/screens/recipe-detail';
 import { ScanCamera } from '@/tortie/screens/scan-camera';
@@ -202,6 +203,7 @@ export function TortieShell() {
 
       <AddRecipeSheet />
       <RecipeMenuSheet />
+      <RecipeNotesSheet />
       <GroceryPickSheet />
       <NewCollectionSheet />
       <EditGrocerySheet />
@@ -260,6 +262,7 @@ function popTopLayer(): boolean {
   if (s.shareOpen) return (s.closeShare(), true);
   if (s.cam) return (s.closeCam(true), true);
   if (s.au) return (s.closeAuth(), true);
+  if (s.notesOn) return (s.closeNotes(), true);
   if (s.cookOpen) return (s.closeCook(), true);
   if (s.edit) return (requestEditorClose(), true);
   if (s.grocPickOn) return (s.closeGroceryPick(), true);

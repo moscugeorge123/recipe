@@ -3,7 +3,7 @@
 Group B: Recipe page layout
 
 ## Design source
-- Spec: [DESIGN.md](DESIGN.md), Group B › B1. Hero overlay chips replace the 3-stat tiles. Read it first. It is the design this task implements.
+- Spec: [DESIGN.md](../DESIGN.md), Group B › B1. Hero overlay chips replace the 3-stat tiles. Read it first. It is the design this task implements.
 - Prototype: `Tortie App v2.dc.html`, screen: "Recipe". Search the file for `data-screen-label="..."`.
 
 ## Design
@@ -23,3 +23,6 @@ Group B: Recipe page layout
 - Where kcal, kcal per 100 g and portion weight go now (README says a nutrition block).
 - Behaviour when kcal is missing.
 - Hero when there is no photo.
+
+## Status
+Done. The three tiles are removed. `HeroChips` in `screens/recipe-detail.tsx` draws the pills on the hero. The time, level and steps pills show when known, and the kcal pill shows when the recipe has calories. The nutrition block stays below the description, with its per-portion label and macros.

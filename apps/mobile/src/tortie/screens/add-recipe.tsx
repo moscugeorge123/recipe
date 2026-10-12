@@ -51,6 +51,14 @@ const bare = (u: string) => u.replace(/^https?:\/\/(www\.)?/, '');
 const withScheme = (u: string) =>
   /^https?:\/\//i.test(u) ? u : 'https://' + u;
 
+/** Sheet title and subtitle per step: idle · importing · done · failed. */
+const HEADER: Record<0 | 1 | 2 | 3, readonly [string, string]> = {
+  0: ['Add a recipe', 'From a link, a photo, or from scratch.'],
+  1: ['Add a recipe', 'From a link, a photo, or from scratch.'],
+  2: ['Recipe imported', 'Tap it to open, or import another.'],
+  3: ['Import failed', 'Nothing was added to your Cookbook.'],
+};
+
 export function AddRecipeSheet() {
   const f = useFrame();
   const open = useNav((s) => s.addSheet);
@@ -80,10 +88,14 @@ export function AddRecipeSheet() {
     /^https?:\/\//i.test(t.url),
   )?.url;
 
-  // Opening again starts from a clean sheet. Running imports carry on in the
-  // background (Imports badge, floating pill), so another can start right away.
+  // Opening again starts from a clean sheet, unless it was opened on a running
+  // import (from Imports). Running imports carry on in the background
+  // (Imports badge, floating pill), so another can start right away.
   useEffect(() => {
-    if (open) useImports.getState().setFocus(null);
+    if (!open) return;
+    const { addJobId } = useNav.getState();
+    useImports.getState().setFocus(addJobId);
+    if (addJobId) useNav.setState({ addJobId: null });
   }, [open]);
 
   useEffect(() => {
@@ -112,6 +124,10 @@ export function AddRecipeSheet() {
   };
 
   const close = () => useNav.getState().closeAdd();
+  const importAnother = () => {
+    setUrl('');
+    setFocus(null);
+  };
   const openImported = () => {
     const id = job?.recipeId;
     useNav.getState().closeAdd();
@@ -174,10 +190,10 @@ export function AddRecipeSheet() {
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <T style={[serif(26, 500), { letterSpacing: em(26, -0.01) }]}>
-            Add a recipe
+            {HEADER[imp][0]}
           </T>
           <T style={[sans(14, 400, C.ink2), { marginTop: 2 }]}>
-            From a link, a photo, or from scratch.
+            {HEADER[imp][1]}
           </T>
         </View>
         <ImportsButton running={running} />
@@ -195,7 +211,7 @@ export function AddRecipeSheet() {
                   gap: 10,
                   height: 56,
                   paddingLeft: 16,
-                  paddingRight: 6,
+                  paddingRight: 8,
                   backgroundColor: C.white,
                   borderWidth: 1.5,
                   borderRadius: 99,
@@ -243,24 +259,6 @@ export function AddRecipeSheet() {
                   <Glyph name="close" size={18} color="#727971" />
                 </Press>
               ) : null}
-              <Press
-                onPress={() => startImportFor()}
-                disabled={!pl}
-                scale={0.92}
-                easing={CSS_EASE}
-                accessibilityLabel={cta}
-                animatedStyle={go}
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 22,
-                  backgroundColor: C.green,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <Glyph name="arrow_forward" size={22} color={C.bg} />
-              </Press>
             </Animated.View>
             <View
               style={{
@@ -280,6 +278,28 @@ export function AddRecipeSheet() {
                 ))}
               </View>
             </View>
+            <Press
+              onPress={() => startImportFor()}
+              disabled={!pl}
+              scale={0.97}
+              easing={CSS_EASE}
+              accessibilityLabel={cta}
+              accessibilityState={{ disabled: !pl }}
+              animatedStyle={go}
+              style={{
+                height: 52,
+                marginTop: 14,
+                borderRadius: 99,
+                backgroundColor: C.green,
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+              }}
+            >
+              <T style={sans(15, 700, C.bg)}>{cta}</T>
+              <Glyph name="arrow_forward" size={20} color={C.bg} />
+            </Press>
           </RevealBox>
           <View
             style={{
@@ -385,10 +405,7 @@ export function AddRecipeSheet() {
 
       {imp === 1 ? (
         <Press
-          onPress={() => {
-            setUrl('');
-            setFocus(null);
-          }}
+          onPress={importAnother}
           scale={0.97}
           easing={CSS_EASE}
           accessibilityLabel="Import another recipe"
@@ -428,6 +445,7 @@ export function AddRecipeSheet() {
           recipeId={job.recipeId ?? null}
           src={job.src}
           onOpen={openImported}
+          onAnother={importAnother}
         />
       ) : null}
 
