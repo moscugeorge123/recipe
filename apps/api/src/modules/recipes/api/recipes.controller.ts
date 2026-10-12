@@ -188,6 +188,7 @@ function serializeNote(
     recipeId: note.recipeId,
     body: note.body,
     cookSessionId: note.cookSessionId,
+    stepIndex: note.stepIndex,
     createdAt: note.createdAt.toISOString(),
     updatedAt: note.updatedAt.toISOString(),
   };
@@ -408,6 +409,7 @@ export function createRecipesController(service: RecipeService): {
         ...(request.body.cookSessionId !== undefined
           ? { cookSessionId: request.body.cookSessionId }
           : {}),
+        ...(request.body.stepIndex !== undefined ? { stepIndex: request.body.stepIndex } : {}),
       });
       reply.code(201).send(dataResponse(serializeNote(note)));
     },
@@ -422,6 +424,7 @@ export function createRecipesController(service: RecipeService): {
           ...(request.body.cookSessionId !== undefined
             ? { cookSessionId: request.body.cookSessionId }
             : {}),
+          ...(request.body.stepIndex !== undefined ? { stepIndex: request.body.stepIndex } : {}),
         },
       );
       reply.send(dataResponse(serializeNote(note)));

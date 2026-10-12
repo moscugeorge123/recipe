@@ -12,6 +12,7 @@ import {
   Pressable,
   StyleSheet,
   useWindowDimensions,
+  View,
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
@@ -113,6 +114,11 @@ type SheetProps = {
    * caps it below the status bar and scrolls the focused field into view.
    */
   avoidKeyboard?: boolean;
+  /**
+   * Docked under the scroller so it stays put while the content scrolls and rides on
+   * the keyboard with the sheet. Only rendered with `avoidKeyboard`.
+   */
+  footer?: ReactNode;
 };
 
 /**
@@ -129,8 +135,10 @@ export function Sheet({
   style,
   keepMounted = true,
   avoidKeyboard = false,
+  footer,
 }: SheetProps) {
   const { m } = useMotion();
+  const [footH, setFootH] = useState(0);
   const dur = ms ?? Math.round(520 * m);
   const { height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -376,8 +384,11 @@ export function Sheet({
     typeof flat?.paddingBottom === 'number' ? flat.paddingBottom : 34;
   const sheetMax =
     cap != null && kbCap != null ? Math.min(cap, kbCap) : (cap ?? kbCap);
+  const docked = avoidKeyboard && footer ? footH : 0;
   const scrollMax =
-    sheetMax != null ? Math.max(0, sheetMax - padTop - padBottom) : undefined;
+    sheetMax != null
+      ? Math.max(0, sheetMax - padTop - padBottom - docked)
+      : undefined;
   return (
     <>
       <Animated.View
@@ -425,21 +436,32 @@ export function Sheet({
           <SheetDrag.Provider value={drag}>
             <SheetPressCtx.Provider value={commitsPress}>
               <SheetScrollCtx.Provider value={scrollApi}>
-              <BlurWhenClosed open={open}>
-                {avoidKeyboard ? (
-                  <KeyboardScroll
-                    lifted
-                    bounces={false}
-                    nestedScrollEnabled
-                    showsVerticalScrollIndicator={false}
-                    style={{ flexGrow: 0, maxHeight: scrollMax }}
-                  >
-                    {children}
-                  </KeyboardScroll>
-                ) : (
-                  children
-                )}
-              </BlurWhenClosed>
+                <BlurWhenClosed open={open}>
+                  {avoidKeyboard ? (
+                    <>
+                      <KeyboardScroll
+                        lifted
+                        bounces={false}
+                        nestedScrollEnabled
+                        showsVerticalScrollIndicator={false}
+                        style={{ flexGrow: 0, maxHeight: scrollMax }}
+                      >
+                        {children}
+                      </KeyboardScroll>
+                      {footer ? (
+                        <View
+                          onLayout={(e) =>
+                            setFootH(e.nativeEvent.layout.height)
+                          }
+                        >
+                          {footer}
+                        </View>
+                      ) : null}
+                    </>
+                  ) : (
+                    children
+                  )}
+                </BlurWhenClosed>
               </SheetScrollCtx.Provider>
             </SheetPressCtx.Provider>
           </SheetDrag.Provider>

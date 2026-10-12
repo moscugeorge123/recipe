@@ -11,12 +11,14 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  Linking,
   ScrollView,
   View,
   useWindowDimensions,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 import Animated, {
   FadeIn,
   useAnimatedStyle,
@@ -41,7 +43,6 @@ import {
   recipeKeys,
 } from '@/features/query-keys';
 import { deleteRecipe } from '@/features/recipes/api';
-import type { RecipeView } from '@/features/recipes/types';
 import { useShoppingList } from '@/features/shopping-list/hooks';
 import { useCook } from '@/tortie/cook-store';
 import { collName } from '@/tortie/data/cookbook';
@@ -56,10 +57,16 @@ import {
   weekRange,
   type MealKey,
 } from '@/tortie/data/plan';
+import { stepNotes } from '@/tortie/data/recipe-notes';
 import { collectionMembership } from '@/tortie/data/selection';
 import { useMotion } from '@/tortie/motion';
 import { useServings } from '@/tortie/data/recipe-ui';
-import { ingQty, useTRecipe, useTRecipes } from '@/tortie/data/recipes';
+import {
+  ingQty,
+  sourceHost,
+  useTRecipe,
+  useTRecipes,
+} from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { DAYNAMES, fmtT, plz } from '@/tortie/lib/fmt';
 import { afterMotion, toast, useNav } from '@/tortie/nav-store';
@@ -69,34 +76,15 @@ import { Grabber, Segmented } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
+import {
+  NotesRow,
+  StepNotes,
+  useNotesFor,
+} from '@/tortie/screens/recipe-notes';
 import { Sheet, SheetScroll } from '@/tortie/ui/sheet';
 import { em, sans, serif, T } from '@/tortie/ui/text';
 
 const FROST = 'rgba(248,250,245,.92)';
-
-/**
- * Nutrition row from the extractor (per serving). Per-portion values don't change with the
- * servings stepper, which scales ingredients and portions together.
- */
-function nutritionLine(v: RecipeView | undefined) {
-  const kcal = v?.calories;
-  const m = v?.macros;
-  const g = (x: number | null | undefined) =>
-    x != null ? String(Math.round(x)) : '—';
-  return {
-    label:
-      v?.nutritionSource === 'estimated' ? 'Per portion · est.' : 'Per portion',
-    kcal: kcal != null ? Math.round(kcal) + ' kcal' : '—',
-    macros: m
-      ? g(m.proteinGrams) +
-        ' · ' +
-        g(m.carbsGrams) +
-        ' · ' +
-        g(m.fatGrams) +
-        ' g'
-      : null,
-  };
-}
 
 export function RecipeDetail() {
   const id = useNav((s) => s.detailId);
@@ -104,7 +92,8 @@ export function RecipeDetail() {
   const f = useFrame();
   const { width } = useWindowDimensions();
   const { r } = useTRecipe(id);
-  const nutr = nutritionLine(r?.view);
+  const { syncable: canNote, notes } = useNotesFor(id);
+  const host = sourceHost(r?.originalUrl);
   const [serv, setServ] = useServings(id, r?.base ?? 2);
   const resuming = useCook(
     (s) => s.activeOn && !!s.active && s.active.id === id,
@@ -149,6 +138,20 @@ export function RecipeDetail() {
   const scale = serv / (r?.base ?? serv);
   const barPad = Math.max(30, f.bottom);
   const topBarH = f.pushTop + 54;
+  const stepCount = r?.steps.length || r?.stepCount || 0;
+  const heroChips: HeroChip[] = [];
+  if (r && r.time > 0) heroChips.push({ icon: 'schedule', text: fmtT(r.time) });
+  if (r?.level) heroChips.push({ icon: 'skillet', text: r.level });
+  if (stepCount > 0)
+    heroChips.push({
+      icon: 'format_list_numbered',
+      text: plz(stepCount, 'step'),
+    });
+  if (r?.view?.calories != null)
+    heroChips.push({
+      icon: 'local_fire_department',
+      text: Math.round(r.view.calories) + ' kcal',
+    });
 
   const cook = () => {
     useCook.getState().begin(id);
@@ -170,9 +173,11 @@ export function RecipeDetail() {
           uri={r?.uri}
           caption={r ? 'photo · ' + r.photo : undefined}
           captionSize={11}
-          captionStyle={{ left: 20, bottom: 46 }}
+          captionStyle={{ left: 20, top: topBarH + 12 }}
           style={{ height: 370 }}
-        />
+        >
+          <HeroChips chips={heroChips} />
+        </Photo>
         <View
           style={{
             marginTop: -30,
@@ -184,27 +189,64 @@ export function RecipeDetail() {
           }}
         >
           {r?.tag ? (
-            <View
-              style={{
-                alignSelf: 'flex-start',
-                backgroundColor: C.greenSoft,
-                paddingVertical: 5,
-                paddingHorizontal: 12,
-                borderRadius: 99,
-              }}
+            <T
+              style={sans(12, 700, C.green, {
+                letterSpacing: em(12, 0.08),
+                textTransform: 'uppercase',
+              })}
             >
-              <T style={sans(12, 700, C.green)}>{r.tag}</T>
-            </View>
+              {r.tag}
+            </T>
           ) : null}
           <T
             style={serif(31, 500, C.ink, {
               lineHeight: 34.72,
               letterSpacing: em(31, -0.02),
-              marginTop: 12,
+              marginTop: 8,
             })}
           >
             {r?.title ?? ''}
           </T>
+          {r ? (
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: 6,
+                marginTop: 8,
+              }}
+            >
+              <T style={sans(14, 400, C.ink2)}>
+                by{' '}
+                <T style={sans(14, 700, C.ink)}>
+                  {host ? r.view.creator : 'You'}
+                </T>
+              </T>
+              {host && r.originalUrl ? (
+                <>
+                  <T style={sans(14, 400, C.ink3)}>·</T>
+                  <Press
+                    onPress={() => {
+                      Linking.openURL(r.originalUrl!).catch(() =>
+                        toast('Couldn’t open that link.'),
+                      );
+                    }}
+                    accessibilityRole="link"
+                    accessibilityLabel={'Open original on ' + host}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      gap: 3,
+                    }}
+                  >
+                    <T style={sans(14, 600, C.green)}>{host}</T>
+                    <OpenInNew size={14} color={C.green} />
+                  </Press>
+                </>
+              ) : null}
+            </View>
+          ) : null}
           {r?.desc ? (
             <T
               style={{
@@ -218,69 +260,12 @@ export function RecipeDetail() {
               {r.desc}
             </T>
           ) : null}
-          <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-            <MetaTile
-              icon="schedule"
-              color={C.green}
-              label="Total time"
-              value={r && r.time > 0 ? fmtT(r.time) : '—'}
+          {canNote ? (
+            <NotesRow
+              notes={notes}
+              onPress={() => useNav.getState().openNotes(id)}
             />
-            <MetaTile
-              icon="skillet"
-              color={C.terra}
-              label="Level"
-              value={r?.level ?? '—'}
-            />
-            <MetaTile
-              icon="format_list_numbered"
-              color={C.green}
-              label="Steps"
-              value={String(r?.steps.length || r?.stepCount || 0)}
-            />
-          </View>
-          <View
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 12,
-              marginTop: 10,
-              paddingVertical: 12,
-              paddingHorizontal: 16,
-              backgroundColor: C.surface2,
-              borderRadius: 16,
-              boxShadow: SH.hairline,
-            }}
-          >
-            <Glyph name="local_fire_department" size={20} color={C.terra} />
-            <View
-              style={{ flex: 1, minWidth: 0, flexDirection: 'row', gap: 12 }}
-            >
-              <View style={{ flex: 1, gap: 2 }}>
-                <T style={sans(11, 400, C.ink2)} numberOfLines={1}>
-                  {nutr.label}
-                </T>
-                <T style={sans(16, 700)}>{nutr.kcal}</T>
-              </View>
-              {nutr.macros ? (
-                <View
-                  style={{
-                    flex: 1,
-                    gap: 2,
-                    borderLeftWidth: 1,
-                    borderLeftColor: C.line,
-                    paddingLeft: 12,
-                  }}
-                >
-                  <T style={sans(11, 400, C.ink2)} numberOfLines={1}>
-                    Protein · Carbs · Fat
-                  </T>
-                  <T style={sans(16, 700)} numberOfLines={1}>
-                    {nutr.macros}
-                  </T>
-                </View>
-              ) : null}
-            </View>
-          </View>
+          ) : null}
           <Segmented
             style={{ marginTop: 24 }}
             height={40}
@@ -441,6 +426,14 @@ export function RecipeDetail() {
                           {st.d}
                         </T>
                       ) : null}
+                      {canNote ? (
+                        <StepNotes
+                          notes={stepNotes(notes, i)}
+                          onAdd={() =>
+                            useNav.getState().openNotes(id, { step: i })
+                          }
+                        />
+                      ) : null}
                     </View>
                   </View>
                 ))}
@@ -598,35 +591,75 @@ export function RecipeDetail() {
   );
 }
 
-function MetaTile({
-  icon,
-  color,
-  label,
-  value,
-}: {
-  icon: string;
-  color: string;
-  label: string;
-  value: string;
-}) {
+/** Material "open_in_new" drawn as SVG: the app's icon font is a subset without it. */
+function OpenInNew({ size, color }: { size: number; color: string }) {
   return (
-    <View
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      <Path
+        fill={color}
+        d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"
+      />
+    </Svg>
+  );
+}
+
+type HeroChip = { icon: string; text: string };
+
+/** Frosted facts pills at the bottom-left of the hero (above the sheet's 30px overlap), scrolling sideways. */
+function HeroChips({ chips }: { chips: HeroChip[] }) {
+  if (!chips.length) return null;
+  return (
+    <ScrollView
+      horizontal
+      showsHorizontalScrollIndicator={false}
       style={{
-        flex: 1,
-        minWidth: 0,
-        alignItems: 'center',
-        gap: 2,
-        paddingVertical: 10,
-        paddingHorizontal: 6,
-        backgroundColor: C.surface2,
-        borderRadius: 16,
-        boxShadow: SH.hairline,
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 46,
+        height: 30,
       }}
+      contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
     >
-      <Glyph name={icon} size={20} color={color} />
-      <T style={sans(11, 400, C.ink2, { textAlign: 'center' })}>{label}</T>
-      <T style={sans(16, 700, C.ink, { textAlign: 'center' })}>{value}</T>
-    </View>
+      {chips.map((c) => (
+        <View
+          key={c.icon}
+          style={{
+            height: 30,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 6,
+            paddingHorizontal: 11,
+            borderRadius: 99,
+            overflow: 'hidden',
+          }}
+        >
+          <BlurView
+            intensity={30}
+            tint="dark"
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              right: 0,
+              bottom: 0,
+            }}
+          />
+          <View
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(25,28,25,.58)',
+            }}
+          />
+          <Glyph name={c.icon} size={16} color="#f8faf5" />
+          <T style={sans(13, 700, '#f8faf5')}>{c.text}</T>
+        </View>
+      ))}
+    </ScrollView>
   );
 }
 

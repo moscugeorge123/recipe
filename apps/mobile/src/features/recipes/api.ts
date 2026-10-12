@@ -1,10 +1,13 @@
 import {
+  assistRecipeResultSchema,
   deleteRecipeResponseSchema,
   assignRecipeCategoriesBodySchema,
   assignRecipeCategoriesResponseSchema,
   categorySchema,
   paginationMetaSchema,
   type AssignRecipeCategoriesResponse,
+  type AssistRecipeDraft,
+  type AssistRecipeResult,
   type PatchRecipeBody,
   patchRecipeBodySchema,
   recipeDetailSchema,
@@ -243,7 +246,11 @@ export async function listRecipeNotes(
 
 export async function createRecipeNote(
   recipeId: string,
-  body: { body: string; cookSessionId?: string | null },
+  body: {
+    body: string;
+    cookSessionId?: string | null;
+    stepIndex?: number | null;
+  },
 ): Promise<RecipeNoteDto> {
   const parsed = await apiClient.post<unknown>(
     `/recipes/${recipeId}/notes`,
@@ -252,10 +259,29 @@ export async function createRecipeNote(
   return recipeNoteSchema.parse(unwrapData(parsed));
 }
 
+/**
+ * Ask Tortie: applies `instruction` to an unsaved draft and returns the updated draft. Nothing
+ * is saved. Off-topic requests fail with `ApiError` code `RECIPE_ASSIST_REJECTED`, whose
+ * message is written for the user.
+ */
+export async function assistRecipe(
+  body: { instruction: string; recipe: AssistRecipeDraft },
+  signal?: AbortSignal,
+): Promise<AssistRecipeResult> {
+  const parsed = await apiClient.post<unknown>('/recipes/assist', body, {
+    signal,
+  });
+  return assistRecipeResultSchema.parse(unwrapData(parsed));
+}
+
 export async function patchRecipeNote(
   recipeId: string,
   noteId: string,
-  body: { body?: string; cookSessionId?: string | null },
+  body: {
+    body?: string;
+    cookSessionId?: string | null;
+    stepIndex?: number | null;
+  },
 ): Promise<RecipeNoteDto> {
   const parsed = await apiClient.patch<unknown>(
     `/recipes/${recipeId}/notes/${noteId}`,

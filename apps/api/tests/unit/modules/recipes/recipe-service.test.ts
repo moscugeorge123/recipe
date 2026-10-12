@@ -387,6 +387,7 @@ describe('RecipeService engagement', () => {
       recipeId: current.id,
       body: 'less salt',
       cookSessionId: null,
+      stepIndex: null,
       createdAt: current.createdAt,
       updatedAt: current.updatedAt,
     });

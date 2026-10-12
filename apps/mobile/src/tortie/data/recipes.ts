@@ -44,6 +44,8 @@ export type TRecipe = {
   cuisine: string;
   sourceLabel: string;
   originalUrl: string | null;
+  /** Card byline: "by {creator}" for imported recipes, "by you" otherwise. */
+  byline: string;
 };
 
 export type TIng = {
@@ -76,6 +78,19 @@ export type TDetail = TRecipe & {
 };
 
 type AnyRecipe = RecipeView | RecipeListItemView;
+
+/** Host of a source link without "www.", or null when it isn't a web URL. */
+export function sourceHost(url: string | null | undefined): string | null {
+  const m = url?.trim().match(/^https?:\/\/([^/?#\s]+)/i);
+  return m ? m[1]!.replace(/^www\./i, '').toLowerCase() : null;
+}
+
+/** The API has no "user-written" flag, so a web source URL stands in for "imported". */
+export function bylineOf(
+  r: Pick<AnyRecipe, 'creator' | 'originalUrl'>,
+): string {
+  return sourceHost(r.originalUrl) ? `by ${r.creator}` : 'by you';
+}
 
 /** Real total time only; the detail mapper's `minutes` defaults to 30 when the API has none. 0 = unknown. */
 function minutesOf(r: AnyRecipe): number {
@@ -121,6 +136,7 @@ export function toTRecipe(r: AnyRecipe): TRecipe {
     cuisine,
     sourceLabel: r.sourceLabel ?? '',
     originalUrl: r.originalUrl ?? null,
+    byline: bylineOf(r),
   };
 }
 
@@ -150,7 +166,10 @@ function stripLeadingTitle(instruction: string, title: string): string {
 
 function stepCopy(step: RecipeStepView, units: Units): [string, string] {
   const instruction = preferUnits(step.instruction, units);
-  const title = step.title?.trim().replace(/[.!?]+$/g, '').trim();
+  const title = step.title
+    ?.trim()
+    .replace(/[.!?]+$/g, '')
+    .trim();
   if (!title) return splitStep(instruction);
   return [title, stripLeadingTitle(instruction, title)];
 }

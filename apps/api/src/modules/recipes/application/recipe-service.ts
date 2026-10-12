@@ -315,7 +315,7 @@ export class RecipeService {
   async createNote(
     id: string,
     userId: string,
-    input: { body: string; cookSessionId?: string | null },
+    input: { body: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord> {
     const result = await this.recipeRepo.createNote(id, userId, input);
     if (result === 'invalid-session') {
@@ -332,7 +332,7 @@ export class RecipeService {
     id: string,
     noteId: string,
     userId: string,
-    input: { body?: string; cookSessionId?: string | null },
+    input: { body?: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord> {
     const result = await this.recipeRepo.updateNote(id, noteId, userId, input);
     if (result === 'invalid-session') {

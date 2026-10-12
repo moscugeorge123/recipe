@@ -170,6 +170,8 @@ export const recipeNoteSchema = z.object({
   recipeId: z.string(),
   body: z.string(),
   cookSessionId: z.string().nullable(),
+  /** Zero-based method step; null for a general note. Older cached payloads omit it. */
+  stepIndex: z.number().int().nonnegative().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -227,7 +229,8 @@ export const patchRecipeBodySchema = z.object({
           ahead: z.boolean().optional(),
         })
         .refine(
-          (step) => step.instruction.trim().length > 0 || Boolean(step.title?.trim()),
+          (step) =>
+            step.instruction.trim().length > 0 || Boolean(step.title?.trim()),
           { message: 'Add step text', path: ['instruction'] },
         ),
     )
@@ -302,3 +305,29 @@ export type AssignRecipeCategoriesBody = z.infer<
 export type AssignRecipeCategoriesResponse = z.infer<
   typeof assignRecipeCategoriesResponseSchema
 >;
+
+/** `POST /recipes/assist` result: the whole updated draft. New rows have `id: null`. */
+export const assistRecipeResultSchema = z.object({
+  message: z.string(),
+  recipe: z.object({
+    title: z.string(),
+    description: z.string(),
+    servings: z.number().int(),
+    totalMinutes: z.number().int(),
+    difficulty: z.string(),
+    ingredients: z.array(
+      z.object({ id: z.string().nullable(), text: z.string() }),
+    ),
+    steps: z.array(
+      z.object({
+        id: z.string().nullable(),
+        title: z.string(),
+        body: z.string(),
+        minutes: z.number().int(),
+        ahead: z.boolean(),
+      }),
+    ),
+  }),
+});
+export type AssistRecipeResult = z.infer<typeof assistRecipeResultSchema>;
+export type AssistRecipeDraft = AssistRecipeResult['recipe'];

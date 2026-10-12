@@ -92,6 +92,7 @@ function toNoteRecord(
     id: string;
     body: string;
     cookSessionId: string | null;
+    stepIndex: number | null;
     createdAt: Date;
     updatedAt: Date;
   },
@@ -102,6 +103,7 @@ function toNoteRecord(
     recipeId,
     body: note.body,
     cookSessionId: note.cookSessionId,
+    stepIndex: note.stepIndex,
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
   };
@@ -385,7 +387,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
   async createNote(
     id: string,
     userId: string,
-    input: { body: string; cookSessionId?: string | null },
+    input: { body: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord | 'invalid-session' | null> {
     const owned = await this.db.userRecipe.findUnique({
       where: { userId_recipeId: { userId, recipeId: id } },
@@ -398,6 +400,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         userRecipeId: owned.id,
         body: input.body,
         ...(input.cookSessionId !== undefined ? { cookSessionId: input.cookSessionId } : {}),
+        ...(input.stepIndex !== undefined ? { stepIndex: input.stepIndex } : {}),
       },
     });
     return toNoteRecord(note, id);
@@ -407,7 +410,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
     id: string,
     noteId: string,
     userId: string,
-    input: { body?: string; cookSessionId?: string | null },
+    input: { body?: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord | 'invalid-session' | null> {
     const existing = await this.db.recipeNote.findFirst({
       where: { id: noteId, userRecipe: { userId, recipeId: id } },
@@ -420,6 +423,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
       data: {
         ...(input.body !== undefined ? { body: input.body } : {}),
         ...(input.cookSessionId !== undefined ? { cookSessionId: input.cookSessionId } : {}),
+        ...(input.stepIndex !== undefined ? { stepIndex: input.stepIndex } : {}),
       },
     });
     return toNoteRecord(note, id);

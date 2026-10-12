@@ -215,6 +215,7 @@ export const recipeNoteSchema = z.object({
   recipeId: dbUuid(),
   body: z.string(),
   cookSessionId: dbUuid().nullable(),
+  stepIndex: z.number().int().nonnegative().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -227,6 +228,7 @@ export const createRecipeNoteBodySchema = z
   .object({
     body: z.string().trim().min(1).max(4000),
     cookSessionId: dbUuid().nullable().optional(),
+    stepIndex: z.number().int().nonnegative().max(500).nullable().optional(),
   })
   .strict();
 
@@ -234,6 +236,7 @@ export const patchRecipeNoteBodySchema = z
   .object({
     body: z.string().trim().min(1).max(4000).optional(),
     cookSessionId: dbUuid().nullable().optional(),
+    stepIndex: z.number().int().nonnegative().max(500).nullable().optional(),
   })
   .strict();
 

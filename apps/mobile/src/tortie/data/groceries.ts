@@ -44,7 +44,7 @@ import {
 } from '@/tortie/data/pantry-extras';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
-import { lexOf, parseLocal } from '@/tortie/lib/fmt';
+import { lexOf, parseLocal, plz } from '@/tortie/lib/fmt';
 import { motionMultiplier } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
 
@@ -541,6 +541,9 @@ function addedLine(
   return `${before} + ${extra} = ${total}`;
 }
 
+/** One basket action at a time — Clear and Add to pantry share the checked rows. */
+let basketBusy = false;
+
 /**
  * Grocery & pantry actions. Smart add keeps the prototype choreography:
  * pending row → resolves after BOTH the API classification and the minimum wait →
@@ -1008,10 +1011,33 @@ export function useGroceryActions() {
     [client, patchItem],
   );
 
-  /** "Clear basket": checked rows move into the pantry, then the API clears them. */
-  const clearBasket = useCallback(async () => {
+  /** Drop checked rows from the list. They are not stocked in the pantry. */
+  const clearChecked = useCallback(async () => {
+    if (basketBusy) return;
     const dn = shopNow(client).filter((g) => g.done);
     if (!dn.length) return;
+    basketBusy = true;
+    client.cancelQueries({ queryKey: SHOP_KEY }).catch(() => undefined);
+    editShop(client, (items) => items.filter((x) => !x.done));
+    toast(plz(dn.length, 'item') + ' removed');
+    try {
+      await clearDone.mutateAsync();
+    } catch {
+      client
+        .invalidateQueries({ queryKey: shoppingListKeys.all })
+        .catch(() => undefined);
+      toast('Couldn’t remove those items. Try again.');
+    } finally {
+      basketBusy = false;
+    }
+  }, [client, clearDone]);
+
+  /** Checked rows move into the pantry, then the API clears them. */
+  const addCheckedToPantry = useCallback(async () => {
+    if (basketBusy) return;
+    const dn = shopNow(client).filter((g) => g.done);
+    if (!dn.length) return;
+    basketBusy = true;
     const pan = pantryNow(client);
     const ex = usePantryExtras.getState();
     const toSave: PantryWrite[] = [];
@@ -1035,8 +1061,9 @@ export function useGroceryActions() {
         storageLocation: storageFor(shelfFor(g.name, g.category)),
       });
     }
+    client.cancelQueries({ queryKey: SHOP_KEY }).catch(() => undefined);
     editShop(client, (items) => items.filter((x) => !x.done));
-    toast(`${dn.length} items moved to your pantry`);
+    toast(plz(dn.length, 'item') + ' moved to your pantry');
     try {
       for (let i = 0; i < toSave.length; i += 50)
         await savePantry.mutateAsync(toSave.slice(i, i + 50));
@@ -1045,7 +1072,9 @@ export function useGroceryActions() {
       client
         .invalidateQueries({ queryKey: shoppingListKeys.all })
         .catch(() => undefined);
-      toast('Couldn’t clear the basket. Try again.');
+      toast('Couldn’t add those to your pantry. Try again.');
+    } finally {
+      basketBusy = false;
     }
   }, [client, savePantry, clearDone]);
 
@@ -1151,7 +1180,8 @@ export function useGroceryActions() {
     dismissProposal,
     dismissAll,
     toggle,
-    clearBasket,
+    clearChecked,
+    addCheckedToPantry,
     restock,
     fillFromPlan,
   };

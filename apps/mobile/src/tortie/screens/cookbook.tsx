@@ -26,7 +26,7 @@ import {
   type CollTile,
 } from '@/tortie/data/cookbook';
 import { mealSlot, usePlan, type MealPick } from '@/tortie/data/plan';
-import { DAYNAMES } from '@/tortie/lib/fmt';
+import { DAYNAMES, fmtT } from '@/tortie/lib/fmt';
 import { toast, useNav } from '@/tortie/nav-store';
 import {
   cardWebStyle,
@@ -44,6 +44,7 @@ import { Input, RevealBox } from '@/tortie/ui/input';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { Stagger } from '@/tortie/ui/stagger';
+import { Byline, TimeChip } from '@/tortie/ui/time-chip';
 import { TabList, TabScroll } from '@/tortie/ui/tab-scroll';
 import { iconText } from '@/tortie/ui/icon-text';
 import { ctl, sans, serif, T } from '@/tortie/ui/text';
@@ -593,6 +594,7 @@ const RecipeCard = memo(function RecipeCard({
           size={w}
           style={{ width: w, height: w }}
         />
+        <TimeChip minutes={r.time} />
         {selOn ? (
           <View
             pointerEvents="none"
@@ -607,6 +609,7 @@ const RecipeCard = memo(function RecipeCard({
       <T style={serif(17, 600, C.ink, { lineHeight: 20.4, marginTop: 9 })}>
         {r.title}
       </T>
+      <Byline text={r.byline} />
       <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>{meta}</T>
     </Press>
   );
@@ -659,7 +662,10 @@ const RecipeRow = memo(function RecipeRow({
       />
       <View style={{ flex: 1, minWidth: 0 }}>
         <T style={serif(17, 600, C.ink, { lineHeight: 20.4 })}>{r.title}</T>
-        <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>{meta}</T>
+        <Byline text={r.byline} />
+        <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>
+          {fmtT(r.time) + ' · ' + meta}
+        </T>
       </View>
       {selOn ? (
         <View

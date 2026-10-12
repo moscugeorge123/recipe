@@ -43,6 +43,8 @@ export interface RecipeNote {
   recipeId: string;
   body: string;
   cookSessionId: string | null;
+  /** Zero-based method step the note belongs to; null for a general note. */
+  stepIndex: number | null;
   createdAt: string;
   updatedAt: string;
 }

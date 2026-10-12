@@ -41,6 +41,7 @@ import { PulseDot } from '@/tortie/ui/keyframes';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { Stagger } from '@/tortie/ui/stagger';
+import { Byline, TimeChip } from '@/tortie/ui/time-chip';
 import { TabScroll } from '@/tortie/ui/tab-scroll';
 import { em, kicker, mono, sans, serif, T } from '@/tortie/ui/text';
 
@@ -291,9 +292,7 @@ function CookingNow({ on }: { on: boolean }) {
                   { letterSpacing: em(11, 0.05), textTransform: 'uppercase' },
                 ]}
               >
-                {st.ahead
-                  ? 'Before you start'
-                  : `Step ${ast + 1} of ${an}`}
+                {st.ahead ? 'Before you start' : `Step ${ast + 1} of ${an}`}
               </T>
               <T
                 numberOfLines={1}
@@ -751,8 +750,8 @@ function FirstRecipe({ on }: { on: boolean }) {
             },
           ]}
         >
-          Add your first recipe from a link, a photo of a page, or one you
-          write yourself.
+          Add your first recipe from a link, a photo of a page, or one you write
+          yourself.
         </T>
         <Press
           onPress={openAdd}
@@ -1193,13 +1192,13 @@ function CookAgain({ on }: { on: boolean }) {
                 radius={16}
                 size={150}
                 style={{ height: 150 }}
-              />
+              >
+                {r ? <TimeChip minutes={r.time} /> : null}
+              </Photo>
               <T style={[serif(16, 600), { lineHeight: 19.2, marginTop: 8 }]}>
                 {r?.title ?? ''}
               </T>
-              <T style={[sans(12, 400, C.ink2), { marginTop: 3 }]}>
-                {r ? fmtT(r.time) : ''}
-              </T>
+              {r ? <Byline text={r.byline} /> : null}
             </Press>
           );
         })}

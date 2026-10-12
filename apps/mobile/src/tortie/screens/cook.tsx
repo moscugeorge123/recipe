@@ -20,6 +20,7 @@ import Svg, { Circle } from 'react-native-svg';
 
 import { timerKey, useCook, type StepTimer } from '@/tortie/cook-store';
 import { useCookSessionSync } from '@/tortie/data/cook-session';
+import { generalNotes, stepNotes } from '@/tortie/data/recipe-notes';
 import { useServings } from '@/tortie/data/recipe-ui';
 import {
   ingQty,
@@ -39,6 +40,8 @@ import { TORTIE_LOGO } from '@/tortie/ui/art';
 import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
+import { StepNotes, useNotesFor } from '@/tortie/screens/recipe-notes';
+import type { RecipeNoteDto } from '@/features/recipes/schemas';
 import { em, sans, serif, T } from '@/tortie/ui/text';
 
 const RING = 326.73;
@@ -76,6 +79,13 @@ export function CookMode() {
   const sessionId = useCook((s) => s.sessionId);
   const keepAwake = useTortiePrefs((s) => s.keepAwake);
   const sync = useCookSessionSync();
+  const { syncable: canNote, notes } = useNotesFor(cookId);
+  const addNote = (stepIndex: number | null) => {
+    if (cookId)
+      useNav
+        .getState()
+        .openNotes(cookId, { step: stepIndex, overCook: true });
+  };
 
   const [step, setStep] = useState(0);
   const [intro, setIntro] = useState(false);
@@ -286,6 +296,8 @@ export function CookMode() {
               ms={ms}
               scale={scale}
               timer={timerOf(timers, timerKey(r.id, i), st.m)}
+              notes={canNote ? stepNotes(notes, i) : null}
+              onAddNote={() => addNote(i)}
             />
           ))}
         </Animated.View>
@@ -304,7 +316,12 @@ export function CookMode() {
             introA,
           ]}
         >
-          <Intro r={r} scale={scale} />
+          <Intro
+            r={r}
+            scale={scale}
+            notes={canNote ? generalNotes(notes) : null}
+            onAddNote={() => addNote(null)}
+          />
         </Animated.View>
 
         <Animated.View
@@ -510,6 +527,8 @@ function StepPage({
   ms,
   scale,
   timer,
+  notes,
+  onAddNote,
 }: {
   r: TDetail;
   st: TStep;
@@ -519,6 +538,9 @@ function StepPage({
   ms: number;
   scale: number;
   timer: StepTimer;
+  /** This step's notes; null when the recipe can't carry notes. */
+  notes: RecipeNoteDto[] | null;
+  onAddNote: () => void;
 }) {
   const a = useAnimatedStyle(() => ({
     opacity: tw(on ? 1 : 0.2, ms, CSS_EASE),
@@ -611,6 +633,9 @@ function StepPage({
             recipeTitle={r.title}
             T0={timer}
           />
+        ) : null}
+        {notes ? (
+          <StepNotes notes={notes} onAdd={onAddNote} large />
         ) : null}
       </ScrollView>
     </Animated.View>
@@ -776,7 +801,18 @@ function BigRing({ dash }: { dash: number }) {
   );
 }
 
-function Intro({ r, scale }: { r: TDetail | null; scale: number }) {
+function Intro({
+  r,
+  scale,
+  notes,
+  onAddNote,
+}: {
+  r: TDetail | null;
+  scale: number;
+  /** General notes; null when the recipe can't carry notes. */
+  notes: RecipeNoteDto[] | null;
+  onAddNote: () => void;
+}) {
   const label = sans(11, 700, C.ink2, {
     letterSpacing: em(11, 0.06),
     textTransform: 'uppercase',
@@ -825,6 +861,7 @@ function Intro({ r, scale }: { r: TDetail | null; scale: number }) {
           ),
         )}
       </View>
+      {notes ? <StepNotes notes={notes} onAdd={onAddNote} label="Recipe notes" /> : null}
       <T style={[label, { marginTop: 24 }]}>Ingredients</T>
       <View style={{ marginTop: 6 }}>
         {r?.ings.map((x, i) => (

@@ -12,7 +12,7 @@ import { useRecipeSearch } from '@/features/recipes/hooks/use-recipes';
 import type { RecipeView } from '@/features/recipes/types';
 import { hueOf } from '@/tortie/color';
 import { useTRecipes, type TRecipe } from '@/tortie/data/recipes';
-import { fmtT, plz, splitEmoji } from '@/tortie/lib/fmt';
+import { plz, splitEmoji } from '@/tortie/lib/fmt';
 import { useNav } from '@/tortie/nav-store';
 
 export type QuickFilter = 'all' | 'quick' | 'veg' | 'sea' | 'slow' | 'bake';
@@ -239,6 +239,7 @@ function daysAgo(iso: string): number {
   return Math.max(0, Math.round((b - a) / 864e5));
 }
 
+/** `meta` is the line under the byline (level, times cooked, pantry count); the time is shown separately. */
 export type BookItem = { r: TRecipe; meta: string };
 export type CollTile = { hue: number; uri: string | null } | null;
 export type CollItem = {
@@ -303,14 +304,11 @@ export function useCookbookView() {
     else if (rf.sort === 'cooked') out.sort((x, y) => y.cooked - x.cooked);
     return out.map((r) => ({
       r,
-      meta:
-        fmtT(r.time) +
-        ' · ' +
-        (rf.pantry
-          ? `${home(r)} of ${ingIndex.get(r.id)?.length ?? r.ingCount} at home`
-          : rf.sort === 'cooked'
-            ? `Cooked ${r.cooked}×`
-            : r.level),
+      meta: rf.pantry
+        ? `${home(r)} of ${ingIndex.get(r.id)?.length ?? r.ingCount} at home`
+        : rf.sort === 'cooked'
+          ? `Cooked ${r.cooked}×`
+          : r.level,
     }));
   }, [recipes.list, filter, q, server.data, collO, rf, ingIndex, pn]);
 
