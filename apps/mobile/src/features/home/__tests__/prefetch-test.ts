@@ -11,7 +11,7 @@ function mockJsonResponse(body: unknown, status = 200): Response {
 
 const emptyListBody = {
   data: [],
-  meta: { page: 1, pageSize: 50, total: 0, totalPages: 0 },
+  meta: { page: 1, pageSize: 100, total: 0, totalPages: 0 },
 };
 
 describe('prefetchHomeQueries', () => {

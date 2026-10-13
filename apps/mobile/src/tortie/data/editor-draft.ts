@@ -1,5 +1,8 @@
 import { editorDefaults, toPatchBody } from '@/features/recipes/editor-form';
-import type { PatchRecipeBody } from '@/features/recipes/schemas';
+import type {
+  AssistRecipeDraft,
+  PatchRecipeBody,
+} from '@/features/recipes/schemas';
 import type { Difficulty, RecipeView } from '@/features/recipes/types';
 import type { TDetail } from '@/tortie/data/recipes';
 import { detectMin, emoOf, parseIng, qTxt } from '@/tortie/lib/fmt';
@@ -14,6 +17,8 @@ export type EdStep = {
   m: number;
   auto: boolean;
   det: number | null;
+  /** Work that happens before the cooking session. */
+  ahead: boolean;
   src?: number;
 };
 export type Draft = {
@@ -84,6 +89,7 @@ export function makeDraft(r: TDetail): Draft {
       m: x.m,
       auto: false,
       det: detectMin(x.t + ' ' + x.d),
+      ahead: x.ahead,
       src: i,
     })),
   };
@@ -100,7 +106,9 @@ export function blankDraft(): Draft {
     base: 4,
     time: 30,
     ings: [{ k: k(), txt: '' }],
-    steps: [{ k: k(), t: '', d: '', m: 0, auto: false, det: null }],
+    steps: [
+      { k: k(), t: '', d: '', m: 0, auto: false, det: null, ahead: false },
+    ],
   };
 }
 
@@ -157,15 +165,6 @@ export function diffCount(ed: Draft, e0: Draft): number {
   return n;
 }
 
-/** Title + text back into one instruction that `splitStep` reads apart again. */
-function joinStep(t: string, d: string): string {
-  const a = t.trim();
-  const b = d.trim();
-  if (!a) return b;
-  if (!b) return a;
-  return (/[.!?]$/.test(a) ? a : a + '.') + ' ' + b;
-}
-
 /**
  * Draft → `PATCH /recipes/:id`. Rows the user didn't touch keep their exact API
  * values; edited rows are parsed from free text (`parseIng`). Returns null with a
@@ -218,7 +217,7 @@ export function toRecipePatch(
       const o = step0.get(x.k);
       const src = x.src != null ? base.steps[x.src] : undefined;
       const minutes = x.m > 0 ? Math.round(x.m) : null;
-      if (src && o && o.t === x.t && o.d === x.d) {
+      if (src && o && o.t === x.t && o.d === x.d && o.ahead === x.ahead) {
         return {
           ...src,
           stepOrder: i + 1,
@@ -227,10 +226,12 @@ export function toRecipePatch(
       }
       return {
         stepOrder: i + 1,
-        instruction: joinStep(x.t, x.d),
+        title: x.t.trim() || null,
+        instruction: x.d.trim() || x.t.trim(),
         durationMinutes: minutes,
         temperature: src?.temperature ?? null,
         stage: src?.stage ?? 'COOK',
+        ahead: x.ahead,
       };
     });
 
@@ -276,4 +277,95 @@ export function registerEditorClose(fn: (() => void) | null) {
 export function requestEditorClose() {
   if (closeHandler) closeHandler();
   else useNav.getState().closeEditor();
+}
+
+/** Highlight keys for the draft's scalar fields; rows use their own `k`. */
+export const FIELD_MARK = {
+  title: 'f:title',
+  desc: 'f:desc',
+  base: 'f:base',
+  time: 'f:time',
+  level: 'f:level',
+} as const;
+
+/** Draft → `POST /recipes/assist` recipe. Row keys are the ids Tortie echoes back. */
+export function toAssistDraft(ed: Draft): AssistRecipeDraft {
+  return {
+    title: ed.title.trim(),
+    description: ed.desc.trim(),
+    servings: ed.base,
+    totalMinutes: ed.time,
+    difficulty: ed.level,
+    ingredients: ed.ings
+      .filter((x) => x.txt.trim())
+      .map((x) => ({ id: x.k, text: x.txt.trim() })),
+    steps: ed.steps
+      .filter((x) => (x.t + x.d).trim())
+      .map((x) => ({
+        id: x.k,
+        title: x.t,
+        body: x.d,
+        minutes: x.m,
+        ahead: x.ahead,
+      })),
+  };
+}
+
+/**
+ * Tortie's draft → editor draft. Rows Tortie kept reuse their key (and `src`, so untouched
+ * rows still save their exact API values); new rows get fresh keys. `changed` lists every
+ * field and row key that differs, for highlighting.
+ */
+export function fromAssistDraft(
+  base: Draft,
+  out: AssistRecipeDraft,
+): { next: Draft; changed: string[] } {
+  const changed: string[] = [];
+  const ingBy = new Map(base.ings.map((x) => [x.k, x]));
+  const stepBy = new Map(base.steps.map((x) => [x.k, x]));
+  const level = LEVELS.includes(out.difficulty) ? out.difficulty : base.level;
+  const next: Draft = {
+    ...base,
+    title: out.title === base.title.trim() ? base.title : out.title,
+    desc: out.description === base.desc.trim() ? base.desc : out.description,
+    base: out.servings,
+    time: out.totalMinutes,
+    level,
+    ings: out.ingredients.map((x) => {
+      const o = x.id ? ingBy.get(x.id) : undefined;
+      if (o && o.txt.trim() === x.text) return o;
+      const row = o ? { ...o, txt: x.text } : { k: 'n' + uid(), txt: x.text };
+      changed.push(row.k);
+      return row;
+    }),
+    steps: out.steps.map((x) => {
+      const o = x.id ? stepBy.get(x.id) : undefined;
+      if (
+        o &&
+        o.t === x.title &&
+        o.d === x.body &&
+        o.m === x.minutes &&
+        o.ahead === x.ahead
+      )
+        return o;
+      const row: EdStep = {
+        k: o?.k ?? 'n' + uid(),
+        t: x.title,
+        d: x.body,
+        m: x.minutes,
+        auto: false,
+        det: detectMin(x.title + ' ' + x.body),
+        ahead: x.ahead,
+        ...(o?.src != null ? { src: o.src } : {}),
+      };
+      changed.push(row.k);
+      return row;
+    }),
+  };
+  if (next.title !== base.title) changed.unshift(FIELD_MARK.title);
+  if (next.desc !== base.desc) changed.unshift(FIELD_MARK.desc);
+  if (next.base !== base.base) changed.unshift(FIELD_MARK.base);
+  if (next.time !== base.time) changed.unshift(FIELD_MARK.time);
+  if (next.level !== base.level) changed.unshift(FIELD_MARK.level);
+  return { next, changed };
 }

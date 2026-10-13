@@ -90,7 +90,7 @@ describe('loadConfig', () => {
     expect(config.ai.ingredientReasoningEffort).toBe('none');
     expect(config.ai.ingredientMaxOutputTokens).toBe(1024);
     expect(config.ai.ingredientMaxItems).toBe(40);
-    expect(config.ai.ingredientPromptVersion).toBe('ingredient-enrichment-v1');
+    expect(config.ai.ingredientPromptVersion).toBe('ingredient-enrichment-v2');
   });
 
   it('rejects GPT-5.6 as a pantry ingredient model', () => {

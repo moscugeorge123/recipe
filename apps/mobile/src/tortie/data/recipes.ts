@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
+import { COOKBOOK_PAGE_SIZE } from '@/features/query-keys';
 import { useRecipes } from '@/features/recipes/hooks/use-recipes';
 import { difficultyFromMinutes } from '@/features/recipes/mapper';
 import type {
@@ -43,6 +44,8 @@ export type TRecipe = {
   cuisine: string;
   sourceLabel: string;
   originalUrl: string | null;
+  /** Card byline: "by {creator}" for imported recipes, "by you" otherwise. */
+  byline: string;
 };
 
 export type TIng = {
@@ -53,12 +56,14 @@ export type TIng = {
   tint: string;
 };
 export type TStep = {
-  /** Short title (first sentence of the instruction). */
+  /** Short title from extraction, or the first sentence when a recipe has none. */
   t: string;
   /** Remaining instruction text. */
   d: string;
-  /** Timer minutes (0 = no timer). */
+  /** Timer minutes (0 = no timer). Set only when the step waits. */
   m: number;
+  /** Work that happens before the cooking session. */
+  ahead: boolean;
   /** Phase label from the step stage. */
   ph: string;
   heat: string;
@@ -73,6 +78,19 @@ export type TDetail = TRecipe & {
 };
 
 type AnyRecipe = RecipeView | RecipeListItemView;
+
+/** Host of a source link without "www.", or null when it isn't a web URL. */
+export function sourceHost(url: string | null | undefined): string | null {
+  const m = url?.trim().match(/^https?:\/\/([^/?#\s]+)/i);
+  return m ? m[1]!.replace(/^www\./i, '').toLowerCase() : null;
+}
+
+/** The API has no "user-written" flag, so a web source URL stands in for "imported". */
+export function bylineOf(
+  r: Pick<AnyRecipe, 'creator' | 'originalUrl'>,
+): string {
+  return sourceHost(r.originalUrl) ? `by ${r.creator}` : 'by you';
+}
 
 /** Real total time only; the detail mapper's `minutes` defaults to 30 when the API has none. 0 = unknown. */
 function minutesOf(r: AnyRecipe): number {
@@ -118,6 +136,7 @@ export function toTRecipe(r: AnyRecipe): TRecipe {
     cuisine,
     sourceLabel: r.sourceLabel ?? '',
     originalUrl: r.originalUrl ?? null,
+    byline: bylineOf(r),
   };
 }
 
@@ -133,6 +152,26 @@ function splitStep(text: string): [string, string] {
   const m = s.match(/^(.{6,80}?[.!?])\s+(.+)$/s);
   if (m) return [m[1]!.replace(/[.!?]$/, ''), m[2]!];
   return [s.replace(/[.!?]$/, ''), ''];
+}
+
+function stripLeadingTitle(instruction: string, title: string): string {
+  const heading = title.trim();
+  if (!heading) return instruction.trim();
+  const pattern = new RegExp(
+    `^${heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[\\s.:;—\\-–]*`,
+    'i',
+  );
+  return instruction.trim().replace(pattern, '').trim();
+}
+
+function stepCopy(step: RecipeStepView, units: Units): [string, string] {
+  const instruction = preferUnits(step.instruction, units);
+  const title = step.title
+    ?.trim()
+    .replace(/[.!?]+$/g, '')
+    .trim();
+  if (!title) return splitStep(instruction);
+  return [title, stripLeadingTitle(instruction, title)];
 }
 
 /** Amounts, heat and in-text measurements follow `units` (Profile → Units). */
@@ -152,7 +191,7 @@ export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
   const steps: TStep[] = [...v.steps]
     .sort((a, b) => a.stepOrder - b.stepOrder)
     .map((s: RecipeStepView) => {
-      const [t, d] = splitStep(preferUnits(s.instruction, units));
+      const [t, d] = stepCopy(s, units);
       const tx = s.instruction.toLowerCase();
       const refs = (s.ingredientRefs ?? []).filter((i) => i < ings.length);
       const need = refs.length
@@ -166,6 +205,7 @@ export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
         m: s.durationSeconds
           ? Math.max(1, Math.round(s.durationSeconds / 60))
           : 0,
+        ahead: s.ahead,
         ph: STAGE[s.stage] ?? '',
         heat: stepHeat(s, units),
         tip: '',
@@ -184,7 +224,7 @@ export type RecipeSort = 'latest' | 'engagement';
 
 /** All recipes in the cookbook (API list, newest first). */
 export function useTRecipes(sort: RecipeSort = 'latest') {
-  const q = useRecipes(1, 100, { sort });
+  const q = useRecipes(1, COOKBOOK_PAGE_SIZE, { sort });
   const list = useMemo(() => (q.data?.items ?? []).map(toTRecipe), [q.data]);
   return {
     list,

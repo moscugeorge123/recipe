@@ -6,7 +6,12 @@ import { ShoppingListItemNotFoundError } from '../../../shared/errors/shopping-l
 import { buildPaginationMeta } from '../../../shared/pagination/pagination.js';
 import { toSentenceCase } from '../../normalization/domain/casing.js';
 import { resolveIngredientPresentation } from '../../normalization/domain/presentation.js';
-import { normalizeIngredientName, normalizeUnit } from '../../normalization/domain/units.js';
+import {
+  canonicalNameKeys,
+  normalizeIngredientName,
+  normalizeUnit,
+  singularizePhrase,
+} from '../../normalization/domain/units.js';
 import type { IPantryRepository } from '../../pantry/repository/pantry.repository.js';
 import type { IRecipeRepository } from '../../recipes/repository/recipe.repository.js';
 import type {
@@ -262,6 +267,7 @@ export class ShoppingListService {
       emoji: item.emoji,
     });
     const canonicalName = normalizeIngredientName(item.name);
+    const displayName = toSentenceCase(singularizePhrase(item.name));
     const quantity =
       item.quantity === undefined || item.quantity === null
         ? null
@@ -270,7 +276,7 @@ export class ShoppingListService {
     const fromRecipeCount = item.incrementFromRecipe ? 1 : 0;
     const payload: CreateShoppingListItemInput = {
       userId,
-      name: toSentenceCase(item.name),
+      name: displayName,
       canonicalName,
       quantity,
       unit,
@@ -284,7 +290,11 @@ export class ShoppingListService {
         : {}),
     };
 
-    const existing = await this.repo.findByCanonicalName(userId, canonicalName);
+    let existing: ShoppingListItemRecord | null = null;
+    for (const key of canonicalNameKeys(item.name)) {
+      existing = await this.repo.findByCanonicalName(userId, key);
+      if (existing) break;
+    }
     if (existing) {
       const incomingUnit = item.unit === undefined ? existing.unit : item.unit;
       const nextQuantity = unitsMatch(existing.unit, incomingUnit)
@@ -292,6 +302,7 @@ export class ShoppingListService {
         : existing.quantity;
       const updated = await this.repo.update(existing.id, userId, {
         name: payload.name,
+        canonicalName,
         quantity: nextQuantity,
         fromRecipeCount: existing.fromRecipeCount + 1,
         ...(existing.source === ShoppingListSource.MANUAL && item.source !== ShoppingListSource.MANUAL

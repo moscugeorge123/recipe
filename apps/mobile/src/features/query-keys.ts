@@ -20,7 +20,7 @@
  * | Collections     | `collectionKeys.list`               | `['collections', 'list']`                       | 30s, Agent 9   |
  * | Profile         | `profileKeys.current`               | `['profile', 'current']`                        | 5m             |
  *
- * Invalidation: favorite/rating/review/cook completion → `recipeKeys.all`.
+ * Invalidation: favorite/rating/review/cook completion, and a saved import → `recipeKeys.all`.
  * Pantry writes → `pantryKeys.all`. Shopping-list writes → `shoppingListKeys.all`.
  * Meal-plan writes → `mealPlanKeys.all` and `shoppingListKeys.all`.
  * Do not add a second `kitchen.*` tree.
@@ -110,3 +110,6 @@ export const QUERY_FRESHNESS = {
   collections: 30_000,
   profile: 5 * 60_000,
 } as const;
+
+/** Page size of the Cookbook list query; the home prefetch must use the same key. */
+export const COOKBOOK_PAGE_SIZE = 100;

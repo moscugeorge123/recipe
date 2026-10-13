@@ -8,26 +8,41 @@ import {
   View,
   useWindowDimensions,
 } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 
 import { useAuthLifecycle } from '@/auth/hooks/useAuth';
 import { startCookTicker } from '@/tortie/cook-store';
+import { startTimerAlarms } from '@/tortie/timer-alarm';
 import { useMotion } from '@/tortie/motion';
 import { TAB_ORDER, useNav, type TabKey } from '@/tortie/nav-store';
 import { AddRecipeSheet } from '@/tortie/screens/add-recipe';
 import { CookMode } from '@/tortie/screens/cook';
 import { CookbookScreen } from '@/tortie/screens/cookbook';
 import { CookbookSelectionBars } from '@/tortie/screens/cookbook-select';
+import { PlanSelectionBars } from '@/tortie/screens/plan-select';
 import {
   CookbookFilterSheet,
   NewCollectionSheet,
 } from '@/tortie/screens/cookbook-sheets';
 import { RecipeEditor } from '@/tortie/screens/editor';
-import { EditPantrySheet, GroceriesScreen } from '@/tortie/screens/groceries';
+import { GroceryPickSheet } from '@/tortie/screens/grocery-pick';
+import {
+  EditGrocerySheet,
+  EditPantrySheet,
+  GroceriesScreen,
+  GroceryBasketBar,
+} from '@/tortie/screens/groceries';
 import { MonthPickerSheet, PlanScreen } from '@/tortie/screens/plan';
+import { ImportsScreen } from '@/tortie/screens/imports';
+import { RecipeNotesSheet } from '@/tortie/screens/recipe-notes';
 import { ProfileScreen } from '@/tortie/screens/profile';
 import { RecipeDetail, RecipeMenuSheet } from '@/tortie/screens/recipe-detail';
 import { ScanCamera } from '@/tortie/screens/scan-camera';
+import { SharePreview } from '@/tortie/screens/share-preview';
 import { SignInFlow } from '@/tortie/screens/sign-in';
 import { TodayScreen } from '@/tortie/screens/today';
 import { TabBar } from '@/tortie/tab-bar';
@@ -37,6 +52,7 @@ import { useGroceriesLeft } from '@/tortie/data/groceries';
 import { C, EASE, SH } from '@/tortie/theme';
 import { tw, useOpenProgress } from '@/tortie/ui/anim';
 import { reportAppFrame } from '@/tortie/ui/keyboard';
+import { ImportPill } from '@/tortie/ui/import-pill';
 import { ToastView } from '@/tortie/ui/toast';
 
 SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
@@ -44,7 +60,7 @@ SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
 /**
  * One viewport, layered like the prototype (NAVIGATION.md §1):
  * tabs 1–2 · tab bar 20 · dim 30 · recipe 35 · profile 36 · sheets 40–43 ·
- * editor 45 · cook 50 · sign in 56 · camera 60 · toast 70.
+ * editor 45 · cook 50 · sign in 56 · camera 60 · share 65 · toast 70.
  */
 export function TortieShell() {
   useAuthLifecycle();
@@ -52,24 +68,36 @@ export function TortieShell() {
   const { D } = useMotion();
   const { width } = useWindowDimensions();
   const set = useNav((s) => s.set);
-  const pushed = useNav((s) => s.detailOpen || s.prof);
+  const pushed = useNav((s) => s.detailOpen || s.prof || s.imports);
   const detailOpen = useNav((s) => s.detailOpen);
   const prof = useNav((s) => s.prof);
+  const imports = useNav((s) => s.imports);
   const cam = useNav((s) => s.cam);
+  const shareOpen = useNav((s) => s.shareOpen);
   const openAdd = useNav((s) => s.openAdd);
   const left = useGroceriesLeft();
+  const shareP = useSharedValue(0);
 
   useEffect(() => {
-    const bg = cam ? C.camera : C.bg;
+    const bg = cam && !shareOpen ? C.camera : C.bg;
     SystemUI.setBackgroundColorAsync(bg).catch(() => undefined);
-  }, [cam]);
+  }, [cam, shareOpen]);
+
+  useEffect(() => {
+    shareP.value = withTiming(shareOpen ? 1 : 0, {
+      duration: Math.round(D * 1.1),
+      easing: EASE,
+    });
+  }, [shareOpen, D, shareP]);
 
   useEffect(() => {
     const t = setTimeout(() => set({ mounted: true }), 60);
-    const stop = startCookTicker();
+    const stopTick = startCookTicker();
+    const stopAlarm = startTimerAlarms();
     return () => {
       clearTimeout(t);
-      stop();
+      stopTick();
+      stopAlarm();
     };
   }, [set]);
 
@@ -85,6 +113,7 @@ export function TortieShell() {
   const pushP = useOpenProgress(pushed, pushMs);
   const detP = useOpenProgress(detailOpen, pushMs);
   const pfP = useOpenProgress(prof, pushMs);
+  const impP = useOpenProgress(imports, pushMs);
   const layer = useAnimatedStyle(() => ({
     transform: [{ translateX: -0.26 * width * pushP.value }],
   }));
@@ -95,6 +124,12 @@ export function TortieShell() {
   }));
   const pf = useAnimatedStyle(() => ({
     transform: [{ translateX: (1 - pfP.value) * (width + 40) }],
+  }));
+  const imp = useAnimatedStyle(() => ({
+    transform: [{ translateX: (1 - impP.value) * (width + 40) }],
+  }));
+  const share = useAnimatedStyle(() => ({
+    transform: [{ translateX: (1 - shareP.value) * (width + 40) }],
   }));
 
   return (
@@ -121,7 +156,10 @@ export function TortieShell() {
           <GroceriesScreen />
         </TabLayer>
         <TabBar onPlus={openAdd} groceriesLeft={left} />
+        <ImportPill />
         <CookbookSelectionBars />
+        <PlanSelectionBars />
+        <GroceryBasketBar />
         <Animated.View
           pointerEvents="none"
           style={[
@@ -152,10 +190,25 @@ export function TortieShell() {
       >
         <ProfileScreen />
       </Animated.View>
+      <Animated.View
+        pointerEvents={imports ? 'auto' : 'none'}
+        accessibilityElementsHidden={!imports}
+        importantForAccessibility={imports ? 'auto' : 'no-hide-descendants'}
+        style={[
+          StyleSheet.absoluteFill,
+          { zIndex: 37, backgroundColor: C.bg, boxShadow: SH.pushed },
+          imp,
+        ]}
+      >
+        <ImportsScreen />
+      </Animated.View>
 
       <AddRecipeSheet />
       <RecipeMenuSheet />
+      <RecipeNotesSheet />
+      <GroceryPickSheet />
       <NewCollectionSheet />
+      <EditGrocerySheet />
       <EditPantrySheet />
       <CookbookFilterSheet />
       <MonthPickerSheet />
@@ -165,8 +218,21 @@ export function TortieShell() {
       <SignInFlow />
       <ScanCamera />
 
+      <Animated.View
+        pointerEvents={shareOpen ? 'auto' : 'none'}
+        accessibilityElementsHidden={!shareOpen}
+        importantForAccessibility={shareOpen ? 'auto' : 'no-hide-descendants'}
+        style={[
+          StyleSheet.absoluteFill,
+          { zIndex: 65, backgroundColor: C.bg, boxShadow: SH.pushed },
+          share,
+        ]}
+      >
+        <SharePreview />
+      </Animated.View>
+
       <ToastView />
-      <StatusBar style={cam ? 'light' : 'dark'} />
+      <StatusBar style={cam && !shareOpen ? 'light' : 'dark'} />
     </View>
   );
 }
@@ -195,17 +261,24 @@ function TabLayer({ tab, children }: { tab: TabKey; children: ReactNode }) {
 /** Android back: close the topmost layer. Returns true when something closed. */
 function popTopLayer(): boolean {
   const s = useNav.getState();
+  if (s.shareOpen) return (s.closeShare(), true);
   if (s.cam) return (s.closeCam(true), true);
   if (s.au) return (s.closeAuth(), true);
+  if (s.notesOn) return (s.closeNotes(), true);
   if (s.cookOpen) return (s.closeCook(), true);
   if (s.edit) return (requestEditorClose(), true);
+  if (s.grocPickOn) return (s.closeGroceryPick(), true);
   if (s.cal) return (s.set({ cal: false }), true);
   if (s.fs) return (s.set({ fs: false }), true);
   if (s.nc) return (s.set({ nc: false }), true);
+  if (s.gedOn) return (s.set({ gedOn: false }), true);
+  if (s.grocEdit) return (s.set({ grocEdit: false }), true);
   if (s.pedOn) return (s.set({ pedOn: false }), true);
   if (s.menu) return (s.closeMenu(), true);
-  if (s.sel != null && s.tab === 'cookbook') return (s.clearSel(), true);
+  if (s.sel != null && (s.tab === 'cookbook' || s.tab === 'plan'))
+    return (s.clearSel(), true);
   if (s.addSheet) return (s.closeAdd(), true);
+  if (s.imports) return (s.closeImports(), true);
   if (s.prof) return (s.closeProfile(), true);
   if (s.detailOpen) return (s.closeRecipe(), true);
   if (usePlan.getState().pick) {

@@ -31,6 +31,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 
+import { assistRecipe } from '@/features/recipes/api';
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
 import {
   useCategories,
@@ -40,13 +41,16 @@ import { ApiError } from '@/services/api-client';
 import { tint } from '@/tortie/color';
 import {
   AI_CHIPS,
+  FIELD_MARK,
   LEVELS,
   SUGG,
   blankDraft,
   diffCount,
+  fromAssistDraft,
   isBlank,
   makeDraft,
   registerEditorClose,
+  toAssistDraft,
   toRecipePatch,
   uid,
   type Draft,
@@ -92,6 +96,12 @@ type St = {
   aiBusy: boolean;
   aiFocus: boolean;
   fresh: Record<string, true>;
+  /** Regions Tortie changed; highlighted until dismissed. */
+  aiMarks: Record<string, true>;
+  aiMsg: string;
+  aiErr: string;
+  /** The draft Tortie produced, so undoing it also clears its highlights. */
+  aiEd: Draft | null;
   starterOff: boolean;
 };
 
@@ -104,6 +114,10 @@ const initSt = (ed: Draft): St => ({
   aiBusy: false,
   aiFocus: false,
   fresh: {},
+  aiMarks: {},
+  aiMsg: '',
+  aiErr: '',
+  aiEd: null,
   starterOff: false,
 });
 
@@ -123,8 +137,6 @@ type DragApi = {
 };
 const LIST_ID: Record<ListKey, number> = { ings: 1, steps: 2 };
 
-const wait = (ms: number) => new Promise<void>((res) => setTimeout(res, ms));
-
 export function RecipeEditor() {
   const open = useNav((s) => s.edit);
   const mode = useNav((s) => s.editMode);
@@ -139,7 +151,7 @@ export function RecipeEditor() {
     (editId.startsWith('seed:')
       ? !!q.data
       : q.isSuccess && !q.isPlaceholderData);
-  const { m, reduced } = useMotion();
+  const { m } = useMotion();
   const f = useFrame();
   const saveM = useSaveRecipe(editId ?? '');
   const cats = useCategories({ enabled: open && mode === 'edit' });
@@ -206,7 +218,9 @@ export function RecipeEditor() {
           break;
         }
       }
-      return { ...st, ed: next, hist: h };
+      return st.aiEd === st.ed
+        ? { ...st, ed: next, hist: h, aiMarks: {}, aiMsg: '', aiEd: null }
+        : { ...st, ed: next, hist: h };
     });
   const fresh = (keys: string[]) => {
     if (!keys.length) return;
@@ -417,7 +431,10 @@ export function RecipeEditor() {
     upEd(
       (d) => ({
         ...d,
-        steps: [...d.steps, { k, t: '', d: '', m: 0, auto: false, det: null }],
+        steps: [
+          ...d.steps,
+          { k, t: '', d: '', m: 0, auto: false, det: null, ahead: false },
+        ],
       }),
       true,
     );
@@ -579,78 +596,52 @@ export function RecipeEditor() {
   }, []);
   const native = useMemo(() => Gesture.Native(), []);
 
-  // Ask Tortie (no AI endpoint: deterministic scaling only)
+  // Ask Tortie: the API applies the request to the draft, or rejects it as off-topic.
   const runAI = async (q0?: string) => {
     const q = String(q0 ?? s.aiQ).trim();
     if (!q || s.aiBusy) return;
     const my = runId.current;
     const base = ed;
-    setS((st) => ({ ...st, aiBusy: true, aiQ: q }));
-    const fct = /\b(halve|half)\b/i.test(q)
-      ? 0.5
-      : /\b(double|twice)\b/i.test(q)
-        ? 2
-        : /\btriple\b/i.test(q)
-          ? 3
-          : 0;
-    const draft = base.isNew && isBlank(base);
-    let next: Draft | null = null;
-    if (draft) await wait(1400);
-    else if (fct) {
-      await wait(reduced ? 200 : 1100);
-      next = {
-        ...base,
-        base: Math.max(1, Math.round(base.base * fct)),
-        ings: base.ings.map((x) => {
-          const p = parseIng(x.txt);
-          return p.q
-            ? {
-                ...x,
-                txt: [qTxt(Math.round(p.q * fct * 100) / 100), p.u, p.n]
-                  .filter(Boolean)
-                  .join(' '),
-              }
-            : x;
-        }),
-      };
-    }
-    if (my !== runId.current) return;
-    if (!next) {
-      setS((st) => ({ ...st, aiBusy: false, aiFocus: false }));
-      toast('Tortie couldn’t make that change');
+    setS((st) => ({ ...st, aiBusy: true, aiQ: q, aiErr: '' }));
+    let res: Awaited<ReturnType<typeof assistRecipe>>;
+    try {
+      res = await assistRecipe({ instruction: q, recipe: toAssistDraft(base) });
+    } catch (e) {
+      if (my !== runId.current) return;
+      const err =
+        e instanceof ApiError && e.code === 'RECIPE_ASSIST_REJECTED'
+          ? e.message
+          : e instanceof ApiError && e.status === 429
+            ? 'Tortie needs a moment. Try again shortly.'
+            : 'Tortie couldn’t make that change. Try again.';
+      setS((st) => ({ ...st, aiBusy: false, aiFocus: false, aiErr: err }));
       return;
     }
-    const nx = next;
-    const ch = [
-      ...nx.ings
-        .filter((x) => base.ings.find((y) => y.k === x.k)?.txt !== x.txt)
-        .map((x) => x.k),
-      ...nx.steps
-        .filter((x) => {
-          const o = base.steps.find((y) => y.k === x.k);
-          return !o || o.t !== x.t || o.d !== x.d;
-        })
-        .map((x) => x.k),
-    ];
-    setS((st) => ({
-      ...st,
-      ed: nx,
-      hist: [...st.hist.slice(-40), st.ed],
-      aiBusy: false,
-      aiFocus: false,
-      aiQ: '',
-    }));
-    fresh(ch);
-    toast(
-      ch.length
-        ? 'Tortie changed ' +
-            ch.length +
-            ' line' +
-            (ch.length > 1 ? 's' : '') +
-            ' · undo anytime'
-        : 'Nothing needed changing',
-    );
+    if (my !== runId.current) return;
+    const { next, changed } = fromAssistDraft(base, res.recipe);
+    if (!changed.length) {
+      setS((st) => ({ ...st, aiBusy: false, aiFocus: false, aiQ: '' }));
+      toast('Nothing needed changing');
+      return;
+    }
+    setS((st) => {
+      const marks = { ...st.aiMarks };
+      changed.forEach((k) => (marks[k] = true));
+      return {
+        ...st,
+        ed: next,
+        hist: [...st.hist.slice(-40), st.ed],
+        aiBusy: false,
+        aiFocus: false,
+        aiQ: '',
+        aiMarks: marks,
+        aiMsg: res.message || 'Tortie updated your recipe',
+        aiEd: next,
+      };
+    });
   };
+  const dismissAI = () =>
+    setS((st) => ({ ...st, aiMarks: {}, aiMsg: '', aiErr: '', aiEd: null }));
 
   // Derived rows
   const ip = ed.ings.map((x) => ({ ...x, p: parseIng(x.txt) }));
@@ -875,6 +866,7 @@ export function RecipeEditor() {
               upEd((d) => ({ ...d, title: t }));
             }}
             onFocus={snap}
+            marked={!!s.aiMarks[FIELD_MARK.title]}
             placeholder="Recipe name"
             submitBehavior="blurAndSubmit"
             returnKeyType="done"
@@ -890,6 +882,7 @@ export function RecipeEditor() {
             value={ed.desc}
             onChangeText={(v) => upEd((d) => ({ ...d, desc: v }))}
             onFocus={snap}
+            marked={!!s.aiMarks[FIELD_MARK.desc]}
             placeholder="A line about why it’s good"
             style={{
               fontFamily: F.serif400i,
@@ -905,6 +898,7 @@ export function RecipeEditor() {
             <StepperCell
               label="Serves"
               value={String(ed.base)}
+              marked={!!s.aiMarks[FIELD_MARK.base]}
               size={16}
               onDown={() =>
                 upEd((d) => ({ ...d, base: Math.max(1, d.base - 1) }), true)
@@ -918,6 +912,7 @@ export function RecipeEditor() {
             <StepperCell
               label="Total time"
               value={fmtT(ed.time)}
+              marked={!!s.aiMarks[FIELD_MARK.time]}
               size={14}
               onDown={() =>
                 upEd(
@@ -951,7 +946,9 @@ export function RecipeEditor() {
               style={{
                 flex: 1,
                 minWidth: 0,
-                backgroundColor: C.surface2,
+                backgroundColor: s.aiMarks[FIELD_MARK.level]
+                  ? C.greenWash
+                  : C.surface2,
                 borderRadius: 16,
                 paddingVertical: 8,
                 paddingHorizontal: 6,
@@ -1059,7 +1056,7 @@ export function RecipeEditor() {
                         : 'Not in any step'
                   }
                   useCol={used.length ? C.green : C.terra}
-                  isFresh={!!s.fresh[x.k]}
+                  isFresh={!!s.fresh[x.k] || !!s.aiMarks[x.k]}
                   lifted={drag?.list === 'ings' && drag.from === i}
                   sv={sv}
                   api={dragApi}
@@ -1106,7 +1103,7 @@ export function RecipeEditor() {
                 j={i}
                 links={links}
                 sugg={sugg}
-                isFresh={!!s.fresh[x.k]}
+                isFresh={!!s.fresh[x.k] || !!s.aiMarks[x.k]}
                 lifted={drag?.list === 'steps' && drag.from === i}
                 sv={sv}
                 api={dragApi}
@@ -1143,15 +1140,20 @@ export function RecipeEditor() {
           style={{
             paddingTop: 28,
             paddingHorizontal: 16,
-            paddingBottom: bottomPad,
+            paddingBottom: bottomPad + (s.aiFocus ? 24 : 0),
           }}
         >
+          {s.aiBusy ? null : s.aiErr ? (
+            <AINote tone="error" text={s.aiErr} onDismiss={dismissAI} />
+          ) : s.aiMsg && !s.aiFocus ? (
+            <AINote tone="done" text={s.aiMsg} onDismiss={dismissAI} />
+          ) : null}
           <AskBar
             q={s.aiQ}
             busy={s.aiBusy}
             focus={s.aiFocus}
             blank={bl}
-            onQ={(v) => setS((st) => ({ ...st, aiQ: v }))}
+            onQ={(v) => setS((st) => ({ ...st, aiQ: v, aiErr: '' }))}
             onFocus={(v) => setS((st) => ({ ...st, aiFocus: v }))}
             onRun={(q) => {
               runAI(q).catch(() => undefined);
@@ -1254,9 +1256,11 @@ function Starter({ onClose }: { onClose: () => void }) {
 function UnderlineInput({
   style,
   onFocus,
+  marked,
   ...rest
 }: Omit<ComponentProps<typeof Input>, 'style'> & {
   style: ComponentProps<typeof Input>['style'];
+  marked?: boolean;
 }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -1280,6 +1284,14 @@ function UnderlineInput({
         },
         NO_OUTLINE,
         style,
+        marked
+          ? {
+              backgroundColor: C.greenWash,
+              borderRadius: 10,
+              marginHorizontal: -8,
+              paddingHorizontal: 8,
+            }
+          : null,
       ]}
     />
   );
@@ -1293,9 +1305,11 @@ function StepperCell({
   onUp,
   downLabel,
   upLabel,
+  marked,
 }: {
   label: string;
   value: string;
+  marked?: boolean;
   size: number;
   onDown: () => void;
   onUp: () => void;
@@ -1315,7 +1329,7 @@ function StepperCell({
       style={{
         flex: 1,
         minWidth: 0,
-        backgroundColor: C.surface2,
+        backgroundColor: marked ? C.greenWash : C.surface2,
         borderRadius: 16,
         paddingVertical: 8,
         paddingHorizontal: 6,
@@ -1888,6 +1902,69 @@ function StepRow({
   );
 }
 
+/** Tortie's result above the ask bar: what changed (highlights stay until dismissed) or why not. */
+function AINote({
+  tone,
+  text,
+  onDismiss,
+}: {
+  tone: 'done' | 'error';
+  text: string;
+  onDismiss: () => void;
+}) {
+  const err = tone === 'error';
+  return (
+    <View
+      accessibilityLiveRegion="polite"
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 10,
+        paddingVertical: 10,
+        paddingLeft: 14,
+        paddingRight: 8,
+        borderRadius: 18,
+        borderWidth: 1,
+        borderColor: err ? C.terraSoft : C.greenSoft2,
+        backgroundColor: err ? C.terraWash : C.greenWash,
+      }}
+    >
+      <Glyph
+        name={err ? 'error' : 'auto_awesome'}
+        size={18}
+        color={err ? C.terra : C.green}
+        fill
+      />
+      <T
+        numberOfLines={3}
+        style={sans(13, 600, err ? C.terraInk : C.green, {
+          flex: 1,
+          minWidth: 0,
+          lineHeight: 18,
+        })}
+      >
+        {text}
+      </T>
+      <Press
+        onPress={onDismiss}
+        accessibilityLabel={err ? 'Dismiss' : 'Dismiss highlights'}
+        style={{
+          height: 32,
+          paddingHorizontal: 12,
+          borderRadius: 99,
+          backgroundColor: C.white,
+          justifyContent: 'center',
+        }}
+      >
+        <T style={sans(12, 700, err ? C.terra : C.green)}>
+          {err ? 'OK' : 'Done'}
+        </T>
+      </Press>
+    </View>
+  );
+}
+
 function AskBar({
   q,
   busy,
@@ -1992,13 +2069,12 @@ function AskBar({
             <AInput
               value={q}
               onChangeText={onQ}
-              onSubmitEditing={() => onRun()}
-              submitBehavior="submit"
+              submitBehavior="newline"
               onFocus={() => onFocus(true)}
               onBlur={() => onFocus(false)}
               multiline
               allowFontScaling={false}
-              textAlignVertical={focus ? 'top' : 'center'}
+              textAlignVertical="top"
               placeholder={
                 blank
                   ? 'Describe a dish or paste notes…'
@@ -2006,7 +2082,10 @@ function AskBar({
               }
               placeholderTextColor={PH}
               style={[
-                sans(15, 400, C.ink, { lineHeight: 21.75 }),
+                sans(15, 400, C.ink, {
+                  lineHeight: 21.75,
+                  textAlignVertical: 'top',
+                }),
                 {
                   flex: 1,
                   minWidth: 0,

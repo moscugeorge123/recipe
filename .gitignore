@@ -43,6 +43,7 @@ yarn-error.*
 .env.*
 !.env.example
 !**/.env.example
+!**/.env.fixtures
 
 # typescript
 *.tsbuildinfo
@@ -50,8 +51,8 @@ yarn-error.*
 # tests
 coverage/
 
-# Local media storage (API dev)
-storage/
+# Local media storage (API dev). Anchored so source under infrastructure/storage stays tracked.
+/storage/
 apps/api/storage/
 
 # Logs

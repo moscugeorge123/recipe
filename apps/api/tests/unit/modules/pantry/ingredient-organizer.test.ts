@@ -1,3 +1,6 @@
+import { Writable } from 'node:stream';
+
+import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 
 import { loadConfig, type AppConfig } from '../../../../src/config/env.js';
@@ -66,11 +69,189 @@ function compactFromPrompt(
 
 const userId = '00000000-0000-4000-8000-000000000001';
 
+function captureLog(): { log: ReturnType<typeof pino>; text: () => string } {
+  const chunks: string[] = [];
+  const stream = new Writable({
+    write(chunk, _encoding, callback) {
+      chunks.push(String(chunk));
+      callback();
+    },
+  });
+  return { log: pino({ level: 'info' }, stream), text: () => chunks.join('') };
+}
+
 describe('IngredientOrganizer', () => {
-  it('resolves dictionary items without calling the model', async () => {
-    const llm = new ScriptedLLM(() => {
-      throw new Error('should not be called');
+  it('sends a known staple to the model, including its amount', async () => {
+    const llm = new ScriptedLLM(() => ({
+      items: [
+        {
+          i: 0,
+          n: 'Salt',
+          c: 'Spices',
+          e: '🧂',
+          t: 'chili50',
+          q: 2,
+          u: null,
+          k: 0.95,
+        },
+      ],
+    }));
+    const organizer = new IngredientOrganizer(
+      config(),
+      new MemoryClassificationCache(),
+      llm,
+      null,
+    );
+
+    const result = await organizer.organize({ userId, text: '2 sare' });
+
+    expect(llm.calls).toHaveLength(1);
+    expect(result.meta.dictionaryHits).toBe(0);
+    expect(result.items[0]).toMatchObject({
+      name: 'Salt',
+      canonicalName: 'salt',
+      emoji: '🧂',
+      quantity: 2,
+      source: 'ai',
     });
+  });
+
+  it('stores Lemon whether the model says Lemon or Lemons', async () => {
+    const llm = new ScriptedLLM(() => ({
+      items: [
+        {
+          i: 0,
+          n: 'Lemons',
+          c: 'Produce',
+          e: '🍋',
+          t: 'honey50',
+          q: 3,
+          u: null,
+          k: 0.9,
+        },
+      ],
+    }));
+    const organizer = new IngredientOrganizer(
+      config(),
+      new MemoryClassificationCache(),
+      llm,
+      null,
+    );
+
+    const result = await organizer.organize({ userId, text: '5 lamai' });
+
+    expect(result.items[0]).toMatchObject({
+      name: 'Lemon',
+      canonicalName: 'lemon',
+      quantity: 5,
+    });
+  });
+
+  it('keeps 3kg when the model rescales it to grams', async () => {
+    const llm = new ScriptedLLM(() => ({
+      items: [
+        {
+          i: 0,
+          n: 'Flour',
+          c: 'Pantry',
+          e: '🌾',
+          t: 'peach',
+          q: 3000,
+          u: 'g',
+          k: 0.9,
+        },
+      ],
+    }));
+    const organizer = new IngredientOrganizer(
+      config(),
+      new MemoryClassificationCache(),
+      llm,
+      null,
+    );
+
+    const result = await organizer.organize({ userId, text: '3kg flour' });
+
+    expect(result.items[0]).toMatchObject({
+      name: 'Flour',
+      quantity: 3,
+      unit: 'kg',
+    });
+  });
+
+  it('asks the model for the ingredient, emoji, and amount in any language', async () => {
+    const llm = new ScriptedLLM(() => ({
+      items: [
+        {
+          i: 0,
+          n: 'Lemon',
+          c: 'Produce',
+          e: '🍋',
+          t: 'honey50',
+          q: 2,
+          u: null,
+          k: 0.93,
+        },
+      ],
+    }));
+    const organizer = new IngredientOrganizer(
+      config(),
+      new MemoryClassificationCache(),
+      llm,
+      null,
+    );
+
+    const result = await organizer.organize({ userId, text: 'două lămâi' });
+
+    const user = llm.calls[0]?.messages.find((message) => message.role === 'user')?.content ?? '';
+    const system =
+      llm.calls[0]?.messages.find((message) => message.role === 'system')?.content ?? '';
+    expect(user).toContain('două lămâi');
+    expect(system).toContain('any language');
+    expect(result.items[0]).toMatchObject({
+      name: 'Lemon',
+      emoji: '🍋',
+      quantity: 2,
+      unit: null,
+      source: 'ai',
+    });
+  });
+
+  it('keeps an amount the model found when the same phrase is organized again', async () => {
+    const llm = new ScriptedLLM(() => ({
+      items: [
+        {
+          i: 0,
+          n: 'Lemon',
+          c: 'Produce',
+          e: '🍋',
+          t: 'honey50',
+          q: 2,
+          u: null,
+          k: 0.93,
+        },
+      ],
+    }));
+    const organizer = new IngredientOrganizer(
+      config(),
+      new MemoryClassificationCache(),
+      llm,
+      null,
+    );
+
+    await organizer.organize({ userId, text: 'două lămâi' });
+    const second = await organizer.organize({ userId, text: 'două lămâi' });
+
+    expect(llm.calls).toHaveLength(1);
+    expect(second.items[0]).toMatchObject({
+      name: 'Lemon',
+      emoji: '🍋',
+      quantity: 2,
+      source: 'cache',
+    });
+  });
+
+  it('sends every line to the model in one batch', async () => {
+    const llm = new ScriptedLLM((input) => compactFromPrompt(input));
     const { tracker, records } = usage();
     const organizer = new IngredientOrganizer(
       config(),
@@ -84,18 +265,15 @@ describe('IngredientOrganizer', () => {
       text: 'olive oil\nsare, ajo, beurre',
     });
 
-    expect(llm.calls).toHaveLength(0);
-    expect(result.items.map((item) => item.canonicalName).sort()).toEqual([
-      'butter',
-      'garlic',
-      'olive oil',
-      'salt',
-    ]);
-    expect(result.items.every((item) => item.source === 'dictionary')).toBe(true);
+    expect(llm.calls).toHaveLength(1);
+    const user = llm.calls[0]?.messages.find((message) => message.role === 'user')?.content ?? '';
+    expect(user).toContain('sare');
+    expect(user).toContain('ajo');
+    expect(user).toContain('beurre');
+    expect(result.meta.dictionaryHits).toBe(0);
+    expect(result.items.every((item) => item.source === 'ai')).toBe(true);
     expect(result.unresolved).toHaveLength(0);
-    expect(records.filter((row) => row.operation.startsWith('pantry_organize_batch'))).toHaveLength(
-      0,
-    );
+    expect(records.some((row) => row.operation === 'pantry_organize_batch')).toBe(true);
   });
 
   it('preserves raw text and dedupes by canonical name', async () => {
@@ -261,5 +439,60 @@ describe('IngredientOrganizer', () => {
     await organizer.organize({ userId, text: 'gochujang' });
     expect(llm.calls[0]?.model).toBe('gpt-4.1-nano');
     expect(llm.calls.filter((call) => call.model === 'gpt-4o-mini')).toHaveLength(0);
+  });
+
+  it('logs the model input, output, and token use', async () => {
+    const captured = captureLog();
+    const llm = new ScriptedLLM(() => ({
+      items: [
+        {
+          i: 0,
+          n: 'Bell pepper',
+          c: 'Produce',
+          e: '🫑',
+          t: 'honey50',
+          q: 4,
+          u: 'piece',
+          k: 0.91,
+        },
+      ],
+    }));
+    const organizer = new IngredientOrganizer(
+      config(),
+      new MemoryClassificationCache(),
+      llm,
+      null,
+      captured.log,
+    );
+
+    await organizer.organize({ userId, text: 'Ardei gras 4 bucăți' });
+
+    const logged = captured.text();
+    expect(logged).toContain('Ardei gras 4 bucăți');
+    expect(logged).toContain('Bell pepper');
+    expect(logged).toContain('"inputTokens":16');
+    expect(logged).toContain('"outputTokens":9');
+    expect(logged).toContain('pantry.organize model completed');
+  });
+
+  it('logs the model error with the ingredient that was sent', async () => {
+    const captured = captureLog();
+    const llm = new ScriptedLLM(() => {
+      throw new Error('openai 429');
+    });
+    const organizer = new IngredientOrganizer(
+      config(),
+      new MemoryClassificationCache(),
+      llm,
+      null,
+      captured.log,
+    );
+
+    await organizer.organize({ userId, text: 'Ardei gras 4 bucăți' });
+
+    const logged = captured.text();
+    expect(logged).toContain('openai 429');
+    expect(logged).toContain('Ardei gras 4 bucăți');
+    expect(logged).toContain('pantry.organize model failed');
   });
 });

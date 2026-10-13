@@ -31,6 +31,7 @@ export interface CreateRecipeIngredientInput {
 
 export interface CreateRecipeStepInput {
   stepOrder: number;
+  title?: string | null;
   instruction: string;
   durationMinutes?: number | null;
   temperature?: string | null;
@@ -38,6 +39,7 @@ export interface CreateRecipeStepInput {
   temperatureFahrenheit?: number | null;
   ingredientRefs?: number[];
   stage?: string;
+  ahead?: boolean;
   confidence?: number;
   provenance?: Prisma.InputJsonValue;
   warnings?: Prisma.InputJsonValue;
@@ -119,6 +121,7 @@ export type RecipeNoteRecord = {
   recipeId: string;
   body: string;
   cookSessionId: string | null;
+  stepIndex: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -178,6 +181,7 @@ export interface EffectiveRecipeRecord {
   steps: Array<{
     id: string;
     stepOrder: number;
+    title: string | null;
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;
@@ -185,6 +189,7 @@ export interface EffectiveRecipeRecord {
     temperatureFahrenheit: number | null;
     ingredientRefs: number[];
     stage: string;
+    ahead: boolean;
     confidence: number;
     provenance: Prisma.JsonValue;
     warnings: Prisma.JsonValue;
@@ -236,6 +241,7 @@ export interface RevisionSnapshotInput {
   }>;
   steps: Array<{
     stepOrder: number;
+    title?: string | null;
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;
@@ -243,6 +249,7 @@ export interface RevisionSnapshotInput {
     temperatureFahrenheit?: number | null;
     ingredientRefs?: number[];
     stage: string;
+    ahead?: boolean;
   }>;
 }
 
@@ -288,13 +295,13 @@ export interface IRecipeRepository {
   createNote(
     id: string,
     userId: string,
-    input: { body: string; cookSessionId?: string | null },
+    input: { body: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord | 'invalid-session' | null>;
   updateNote(
     id: string,
     noteId: string,
     userId: string,
-    input: { body?: string; cookSessionId?: string | null },
+    input: { body?: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord | 'invalid-session' | null>;
   deleteNote(id: string, noteId: string, userId: string): Promise<boolean>;
   appendRevision(

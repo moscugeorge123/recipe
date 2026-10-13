@@ -64,6 +64,11 @@ function toQuantityDecimal(
       : new Prisma.Decimal(quantity);
 }
 
+function blankToNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
 function resolveTotalTimeMinutes(
   existing: Pick<EffectiveRecipeRecord, 'prepTimeMinutes' | 'cookTimeMinutes'>,
   patch: PatchRecipeBody,
@@ -156,9 +161,15 @@ export class RecipeService {
     const orderedIngredients = [...ingredients].sort((a, b) => a.sortOrder - b.sortOrder);
     const steps = (patch.steps ?? existing.steps).map((step) => {
       const temperature = step.temperature ?? null;
+      const previous =
+        existing.steps.find((item) => item.instruction.trim() === step.instruction.trim()) ??
+        existing.steps.find((item) => item.stepOrder === step.stepOrder);
+      const title = blankToNull(step.title !== undefined ? step.title : (previous?.title ?? null));
       return {
         stepOrder: step.stepOrder,
+        title,
         instruction: step.instruction,
+        ahead: step.ahead !== undefined ? step.ahead : (previous?.ahead ?? false),
         durationMinutes: step.durationMinutes ?? null,
         temperature,
         ...stepExtrasForEdit(
@@ -306,7 +317,7 @@ export class RecipeService {
   async createNote(
     id: string,
     userId: string,
-    input: { body: string; cookSessionId?: string | null },
+    input: { body: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord> {
     const result = await this.recipeRepo.createNote(id, userId, input);
     if (result === 'invalid-session') {
@@ -323,7 +334,7 @@ export class RecipeService {
     id: string,
     noteId: string,
     userId: string,
-    input: { body?: string; cookSessionId?: string | null },
+    input: { body?: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord> {
     const result = await this.recipeRepo.updateNote(id, noteId, userId, input);
     if (result === 'invalid-session') {

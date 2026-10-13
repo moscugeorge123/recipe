@@ -6,6 +6,7 @@ Nx monorepo for the Recipe (Mise) mobile app and extraction API.
 | --- | --- | --- |
 | **mobile** | `apps/mobile` | Expo SDK 57, React Native, TypeScript |
 | **api** | `apps/api` | Fastify, TypeScript, PostgreSQL, BullMQ |
+| **dashboard** | `apps/dashboard` | Vite, React, TypeScript |
 
 ## What users get
 
@@ -46,6 +47,9 @@ npx nx web mobile
 
 npx nx dev api           # Fastify API with reload
 npx nx run api:dev:worker
+
+npx nx run dashboard:dev:fixtures   # Import ledger with sample data
+npx nx dev dashboard                # Import ledger against the API
 ```
 
 The worker process consumes the **extraction** queue. Preview/import HTTP stays on the API; media/AI jobs run on the worker.
@@ -129,9 +133,11 @@ npm run e2e -w mobile
 ```text
 apps/mobile     Expo app
 apps/api        Extraction API + worker
+apps/dashboard  Import ledger (cost, tokens, steps, logs)
 packages/contracts  Shared Zod/OpenAPI contracts
 ```
 
 - [apps/mobile/README.md](apps/mobile/README.md)
 - [apps/api/README.md](apps/api/README.md)
 - [apps/api/architecture.md](apps/api/architecture.md)
+- [apps/dashboard/README.md](apps/dashboard/README.md)

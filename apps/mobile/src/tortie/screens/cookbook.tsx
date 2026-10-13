@@ -1,5 +1,18 @@
-import { memo, useEffect, useRef, useState, type ReactNode } from 'react';
-import { ScrollView, View, useWindowDimensions } from 'react-native';
+import {
+  memo,
+  type ComponentProps,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  ScrollView,
+  View,
+  useWindowDimensions,
+  type ViewStyle,
+} from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import { useCreateMealPlanEntry } from '@/features/meal-plan/hooks';
@@ -13,7 +26,7 @@ import {
   type CollTile,
 } from '@/tortie/data/cookbook';
 import { mealSlot, usePlan, type MealPick } from '@/tortie/data/plan';
-import { DAYNAMES } from '@/tortie/lib/fmt';
+import { DAYNAMES, fmtT } from '@/tortie/lib/fmt';
 import { toast, useNav } from '@/tortie/nav-store';
 import {
   cardWebStyle,
@@ -31,7 +44,8 @@ import { Input, RevealBox } from '@/tortie/ui/input';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { Stagger } from '@/tortie/ui/stagger';
-import { TabScroll } from '@/tortie/ui/tab-scroll';
+import { Byline, TimeChip } from '@/tortie/ui/time-chip';
+import { TabList, TabScroll } from '@/tortie/ui/tab-scroll';
 import { iconText } from '@/tortie/ui/icon-text';
 import { ctl, sans, serif, T } from '@/tortie/ui/text';
 
@@ -53,17 +67,52 @@ export function CookbookScreen() {
     if (tab !== 'cookbook') usePlan.getState().clearPick();
   }, [tab]);
 
-  const fx = useAnimatedStyle(() => ({
+  const fx = useAnimatedStyle<ViewStyle>(() => ({
     opacity: tw(cbFade ? 0 : 1, 160, CSS_EASE),
     transform: [{ translateY: tw(cbFade ? 8 : 0, 220, EASE) }],
   }));
 
+  const head = (compact: boolean) => (
+    <CookbookHeader compact={compact} on={on} sub={sub} />
+  );
+
+  if (!isC) {
+    return (
+      <RecipesList
+        header={head}
+        top={<Top on={on} isC={isC} v={v} pick={pick} />}
+        book={v.book}
+        on={on}
+        collName={v.collO ? collName(v.collO).n : null}
+        loading={v.recipesLoading}
+        fade={fx}
+      />
+    );
+  }
+
   return (
-    <TabScroll
-      header={(compact) => (
-        <CookbookHeader compact={compact} on={on} sub={sub} />
-      )}
-    >
+    <TabScroll header={head}>
+      <Top on={on} isC={isC} v={v} pick={pick} />
+      <Animated.View style={fx}>
+        <CollectionsView colls={v.colls} on={on} loading={v.collsLoading} />
+      </Animated.View>
+    </TabScroll>
+  );
+}
+
+function Top({
+  on,
+  isC,
+  v,
+  pick,
+}: {
+  on: boolean;
+  isC: boolean;
+  v: ReturnType<typeof useCookbookView>;
+  pick: MealPick | null;
+}) {
+  return (
+    <>
       <Stagger i={1} on={on}>
         <Segmented
           style={{ marginBottom: 12 }}
@@ -86,19 +135,7 @@ export function CookbookScreen() {
         <SearchBar isC={isC} count={v.aCnt} />
       </Stagger>
       {pick ? <PickBar pick={pick} /> : null}
-      <Animated.View style={fx}>
-        {isC ? (
-          <CollectionsView colls={v.colls} on={on} loading={v.collsLoading} />
-        ) : (
-          <RecipesView
-            book={v.book}
-            on={on}
-            collName={v.collO ? collName(v.collO).n : null}
-            loading={v.recipesLoading}
-          />
-        )}
-      </Animated.View>
-    </TabScroll>
+    </>
   );
 }
 
@@ -235,62 +272,74 @@ function SearchBar({ isC, count }: { isC: boolean; count: number }) {
   );
 }
 
-function RecipesView({
+function RecipesList({
+  header,
+  top,
   book,
   on,
   collName,
   loading,
+  fade,
 }: {
+  header: (compact: boolean) => ReactNode;
+  top: ReactNode;
   book: BookItem[];
   on: boolean;
   collName: string | null;
   loading: boolean;
+  fade: ComponentProps<typeof Animated.View>['style'];
 }) {
   const filter = useCookbook((s) => s.filter);
-  const gridOut = useCookbook((s) => s.gridOut);
   const view = useCookbook((s) => s.rf.view);
   const open = useNav((s) => s.openRecipe);
   const createEntry = useCreateMealPlanEntry();
   const busy = useRef(false);
-  const onOpen = (id: string) => {
-    const target = usePlan.getState().pick;
-    if (!target) {
-      open(id);
-      return;
-    }
-    if (busy.current) return;
-    busy.current = true;
-    usePlan.getState().clearPick();
-    useNav.getState().goTab('plan');
-    toast(
-      'Planned for ' + DAYNAMES[target.day] + ' ' + target.label.toLowerCase(),
-    );
-    createEntry.mutate(
-      {
-        date: target.date,
-        slot: mealSlot(target.meal),
-        kind: 'RECIPE',
-        recipeId: id,
-      },
-      {
-        onError: () => toast('Couldn’t add it to your plan. Try again.'),
-        onSettled: () => {
-          busy.current = false;
+  const mutate = useRef(createEntry.mutate);
+  mutate.current = createEntry.mutate;
+  const onOpen = useCallback(
+    (id: string) => {
+      const target = usePlan.getState().pick;
+      if (!target) {
+        open(id);
+        return;
+      }
+      if (busy.current) return;
+      busy.current = true;
+      usePlan.getState().clearPick();
+      useNav.getState().goTab('plan');
+      toast(
+        'Planned for ' +
+          DAYNAMES[target.day] +
+          ' ' +
+          target.label.toLowerCase(),
+      );
+      mutate.current(
+        {
+          date: target.date,
+          slot: mealSlot(target.meal),
+          kind: 'RECIPE',
+          recipeId: id,
         },
-      },
-    );
-  };
-  const grid = useAnimatedStyle(() => ({
-    opacity: tw(gridOut ? 0 : 1, 160, CSS_EASE),
-    transform: [{ translateY: tw(gridOut ? 8 : 0, 220, EASE) }],
-  }));
+        {
+          onError: () => toast('Couldn�t add it to your plan. Try again.'),
+          onSettled: () => {
+            busy.current = false;
+          },
+        },
+      );
+    },
+    [open],
+  );
+  const grid = view === 'grid';
 
-  return (
+  const listHeader = (
     <>
+      {top}
       <Stagger i={3} on={on}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           style={{ marginTop: 14, marginBottom: 18, marginHorizontal: -20 }}
           contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
         >
@@ -319,39 +368,86 @@ function RecipesView({
           ))}
         </ScrollView>
       </Stagger>
-      <Animated.View style={grid}>
-        {loading ? (
-          <Grid>
-            {[0, 1, 2, 3].map((i) => (
-              <PlaceholderCard key={i} i={i} />
-            ))}
-          </Grid>
-        ) : view === 'grid' ? (
-          <Grid>
-            {book.map((b, i) => (
-              <Stagger key={b.r.id} i={3 + Math.min(i, 6)} on={on}>
-                <RecipeCard item={b} onOpen={onOpen} />
-              </Stagger>
-            ))}
-          </Grid>
-        ) : (
-          <View style={{ gap: 10 }}>
-            {book.map((b, i) => (
-              <Stagger key={b.r.id} i={3 + Math.min(i, 6)} on={on}>
-                <RecipeRow item={b} onOpen={onOpen} />
-              </Stagger>
-            ))}
-          </View>
-        )}
-      </Animated.View>
-      {!loading && book.length === 0 ? (
-        <Empty
-          title="Nothing matches yet"
-          body="Loosen a filter, try another word, or import it with the + button."
-          pad={[48, 20, 48]}
-        />
+      {loading ? (
+        <Grid>
+          {[0, 1, 2, 3].map((i) => (
+            <PlaceholderCard key={i} i={i} />
+          ))}
+        </Grid>
       ) : null}
     </>
+  );
+
+  return (
+    <TabList
+      header={header}
+      listKey={view}
+      bodyStyle={fade}
+      data={loading ? [] : book}
+      numColumns={grid ? 2 : 1}
+      keyExtractor={(b: BookItem) => b.r.id}
+      ListHeaderComponent={listHeader}
+      ListEmptyComponent={
+        loading ? null : (
+          <Empty
+            title="Nothing matches yet"
+            body="Loosen a filter, try another word, or import it with the + button."
+            pad={[48, 20, 48]}
+          />
+        )
+      }
+      renderItem={({ item, index }: { item: BookItem; index: number }) => {
+        const cell = grid ? (
+          <RecipeCard item={item} onOpen={onOpen} />
+        ) : (
+          <RecipeRow item={item} onOpen={onOpen} />
+        );
+        return (
+          <GridCell grid={grid} index={index}>
+            {index < 6 ? (
+              <Stagger i={3 + index} on={on}>
+                {cell}
+              </Stagger>
+            ) : (
+              cell
+            )}
+          </GridCell>
+        );
+      }}
+    />
+  );
+}
+
+/** Cell spacing (padding, not gaps, so recycled cells keep their size) and the filter cross-fade. */
+function GridCell({
+  grid,
+  index,
+  children,
+}: {
+  grid: boolean;
+  index: number;
+  children: ReactNode;
+}) {
+  const gridOut = useCookbook((s) => s.gridOut);
+  const fx = useAnimatedStyle(() => ({
+    opacity: tw(gridOut ? 0 : 1, 160, CSS_EASE),
+    transform: [{ translateY: tw(gridOut ? 8 : 0, 220, EASE) }],
+  }));
+  return (
+    <Animated.View
+      style={[
+        grid
+          ? {
+              paddingBottom: 18,
+              paddingLeft: index % 2 ? 6 : 0,
+              paddingRight: index % 2 ? 0 : 6,
+            }
+          : { paddingBottom: 10 },
+        fx,
+      ]}
+    >
+      {children}
+    </Animated.View>
   );
 }
 
@@ -495,8 +591,10 @@ const RecipeCard = memo(function RecipeCard({
           caption="photo"
           captionSize={10}
           radius={16}
+          size={w}
           style={{ width: w, height: w }}
         />
+        <TimeChip minutes={r.time} />
         {selOn ? (
           <View
             pointerEvents="none"
@@ -511,6 +609,7 @@ const RecipeCard = memo(function RecipeCard({
       <T style={serif(17, 600, C.ink, { lineHeight: 20.4, marginTop: 9 })}>
         {r.title}
       </T>
+      <Byline text={r.byline} />
       <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>{meta}</T>
     </Press>
   );
@@ -558,11 +657,15 @@ const RecipeRow = memo(function RecipeRow({
         hue={r.hue}
         uri={r.uri}
         radius={13}
+        size={72}
         style={{ width: 72, height: 72 }}
       />
       <View style={{ flex: 1, minWidth: 0 }}>
         <T style={serif(17, 600, C.ink, { lineHeight: 20.4 })}>{r.title}</T>
-        <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>{meta}</T>
+        <Byline text={r.byline} />
+        <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>
+          {fmtT(r.time) + ' · ' + meta}
+        </T>
       </View>
       {selOn ? (
         <View

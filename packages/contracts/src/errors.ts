@@ -55,6 +55,7 @@ export const ErrorCode = {
   AUTH_TOKEN_EXPIRED: "AUTH_TOKEN_EXPIRED",
   AUTH_TOKEN_INVALID: "AUTH_TOKEN_INVALID",
   AUTH_NOT_CONFIGURED: "AUTH_NOT_CONFIGURED",
+  RECIPE_ASSIST_REJECTED: "RECIPE_ASSIST_REJECTED",
 } as const;
 
 export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode];

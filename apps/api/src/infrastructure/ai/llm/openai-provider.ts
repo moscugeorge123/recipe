@@ -3,7 +3,7 @@ import OpenAI from 'openai';
 import type { AppConfig } from '../../../config/env.js';
 import { silentLogger, type AppLogger } from '../../logging/logger.js';
 import type { AIUsageTracker } from '../usage/ai-usage-tracker.js';
-import type { LLMInput, LLMProvider, LLMResult } from './llm-provider.js';
+import type { LLMInput, LLMProvider, LLMResult, ReasoningEffort } from './llm-provider.js';
 
 const RESPONSE_SNIPPET_CHARS = 500;
 
@@ -35,6 +35,7 @@ export class OpenAIProvider implements LLMProvider {
       operation: input.operation ?? 'structured_generation',
       model,
       promptChars: input.messages.reduce((sum, m) => sum + m.content.length, 0),
+      ...ingredientPrompt(input),
     };
     this.log.info(fields, 'ai.llm started');
 
@@ -51,9 +52,7 @@ export class OpenAIProvider implements LLMProvider {
             schema,
           },
         },
-        ...(input.reasoningEffort !== undefined
-          ? { reasoning_effort: input.reasoningEffort }
-          : { temperature: input.temperature ?? 0.2 }),
+        ...chatSampling(model, input),
         ...(input.maxTokens !== undefined
           ? { max_completion_tokens: input.maxTokens }
           : { max_tokens: 4096 }),
@@ -116,7 +115,10 @@ export class OpenAIProvider implements LLMProvider {
       throw error;
     }
 
-    this.log.info(resultFields, 'ai.llm completed');
+    this.log.info(
+      { ...resultFields, ...ingredientOutput(input, content) },
+      'ai.llm completed',
+    );
 
     return {
       data,
@@ -125,6 +127,39 @@ export class OpenAIProvider implements LLMProvider {
       durationMs,
     };
   }
+}
+
+/**
+ * gpt-5 accepts reasoning_effort, but not `none` (lowest is `minimal`).
+ * gpt-4.1 and gpt-4o reject the argument, so those calls use temperature.
+ */
+export function chatSampling(
+  model: string,
+  input: Pick<LLMInput, 'reasoningEffort' | 'temperature'>,
+): { reasoning_effort: Exclude<ReasoningEffort, 'none'> } | { temperature: number } {
+  if (input.reasoningEffort !== undefined && /gpt-5/i.test(model)) {
+    return {
+      reasoning_effort: input.reasoningEffort === 'none' ? 'minimal' : input.reasoningEffort,
+    };
+  }
+  return { temperature: input.temperature ?? 0.2 };
+}
+
+/** Ingredient calls log the raw line and the model text. Other operations stay summarized. */
+function ingredientPrompt(input: LLMInput): Record<string, unknown> {
+  if (!input.operation?.startsWith('pantry_organize')) {
+    return {};
+  }
+  return {
+    input: input.messages.find((message) => message.role === 'user')?.content ?? '',
+  };
+}
+
+function ingredientOutput(input: LLMInput, content: string): Record<string, unknown> {
+  if (!input.operation?.startsWith('pantry_organize')) {
+    return {};
+  }
+  return { output: content };
 }
 
 /** Status / code / request id from an OpenAI SDK error, for logs. */

@@ -12,7 +12,7 @@ import { useRecipeSearch } from '@/features/recipes/hooks/use-recipes';
 import type { RecipeView } from '@/features/recipes/types';
 import { hueOf } from '@/tortie/color';
 import { useTRecipes, type TRecipe } from '@/tortie/data/recipes';
-import { fmtT, plz, splitEmoji } from '@/tortie/lib/fmt';
+import { plz, splitEmoji } from '@/tortie/lib/fmt';
 import { useNav } from '@/tortie/nav-store';
 
 export type QuickFilter = 'all' | 'quick' | 'veg' | 'sea' | 'slow' | 'bake';
@@ -172,9 +172,9 @@ const combineDetails = (
 ): DetailData[] => rs.map((r) => r.data);
 
 /**
- * Ingredient names per recipe for ingredient search and "Cook from my pantry".
- * The list endpoint has no ingredients, so this loads the details only while one of
- * those features is in use; it shares `recipeKeys.detail` with the detail screen.
+ * Ingredient names per recipe for "Cook from my pantry". The list endpoint has no
+ * ingredients, so this loads the details only while that filter is on (ingredient
+ * search runs on the server); it shares `recipeKeys.detail` with the detail screen.
  */
 export function useIngredientIndex(
   ids: string[],
@@ -239,6 +239,7 @@ function daysAgo(iso: string): number {
   return Math.max(0, Math.round((b - a) / 864e5));
 }
 
+/** `meta` is the line under the byline (level, times cooked, pantry count); the time is shown separately. */
 export type BookItem = { r: TRecipe; meta: string };
 export type CollTile = { hue: number; uri: string | null } | null;
 export type CollItem = {
@@ -270,7 +271,7 @@ export function useCookbookView() {
   const server = useRecipeSearch(q);
   const pn = usePantryWords();
   const ids = useMemo(() => recipes.list.map((r) => r.id), [recipes.list]);
-  const ingIndex = useIngredientIndex(ids, q.length > 0 || rf.pantry);
+  const ingIndex = useIngredientIndex(ids, rf.pantry);
 
   const allColls = useMemo(
     () => collections.data?.items ?? [],
@@ -286,14 +287,7 @@ export function useCookbookView() {
     const home = (r: TRecipe) => homeCount(ingIndex.get(r.id) ?? [], pn);
     const out = recipes.list.filter((r) => {
       if (!matchesQuick(r, filter)) return false;
-      if (
-        q &&
-        !(
-          r.title.toLowerCase().includes(q) ||
-          serverIds?.has(r.id) ||
-          (ingIndex.get(r.id) ?? []).some((n) => n.includes(q))
-        )
-      )
+      if (q && !(r.title.toLowerCase().includes(q) || serverIds?.has(r.id)))
         return false;
       if (collO && !collO.recipeIds.includes(r.id)) return false;
       if (rf.time !== 'any' && r.time > rf.time) return false;
@@ -310,14 +304,11 @@ export function useCookbookView() {
     else if (rf.sort === 'cooked') out.sort((x, y) => y.cooked - x.cooked);
     return out.map((r) => ({
       r,
-      meta:
-        fmtT(r.time) +
-        ' · ' +
-        (rf.pantry
-          ? `${home(r)} of ${ingIndex.get(r.id)?.length ?? r.ingCount} at home`
-          : rf.sort === 'cooked'
-            ? `Cooked ${r.cooked}×`
-            : r.level),
+      meta: rf.pantry
+        ? `${home(r)} of ${ingIndex.get(r.id)?.length ?? r.ingCount} at home`
+        : rf.sort === 'cooked'
+          ? `Cooked ${r.cooked}×`
+          : r.level,
     }));
   }, [recipes.list, filter, q, server.data, collO, rf, ingIndex, pn]);
 

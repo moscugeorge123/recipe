@@ -35,6 +35,8 @@ export type RecipeIngredientView = {
 export type RecipeStepView = {
   id: string;
   stepOrder: number;
+  /** Short label from extraction. Null on recipes saved before titles existed. */
+  title: string | null;
   instruction: string;
   durationSeconds: number | null;
   temperature: string | null;
@@ -43,6 +45,8 @@ export type RecipeStepView = {
   /** Extracted 0-based indexes into `ingredients` used by this step. */
   ingredientRefs?: number[];
   stage: StepStage;
+  /** Work that happens before the cooking session. */
+  ahead: boolean;
   ingredientHint: string | null;
   confidence: number;
 };

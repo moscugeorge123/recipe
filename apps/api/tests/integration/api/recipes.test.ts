@@ -226,6 +226,37 @@ describe.skipIf(!dbAvailable)('recipe API endpoints', () => {
       expect(response.json().data[0].title).toBe('Fake pasta recipe');
     });
 
+    it('returns recipes whose ingredient matches q', async () => {
+      const created = await app.inject({
+        method: 'POST',
+        url: '/api/v1/recipes/extract',
+        payload: { url: 'https://example.com/fake-recipe' },
+      });
+      const jobId = created.json().data.jobId as string;
+      const jobStatus = await app.inject({
+        method: 'GET',
+        url: `/api/v1/recipes/extract/jobs/${jobId}`,
+      });
+      const recipeId = jobStatus.json().data.recipeId as string;
+      const detail = await app.inject({
+        method: 'GET',
+        url: `/api/v1/recipes/${recipeId}`,
+      });
+      const names = (detail.json().data.ingredients as { name: string }[]).map(
+        (i) => i.name,
+      );
+      const name = names.find((n) => !/pasta/i.test(n)) ?? names[0]!;
+
+      const response = await app.inject({
+        method: 'GET',
+        url: `/api/v1/recipes?q=${encodeURIComponent(name)}`,
+      });
+
+      expect(response.statusCode).toBe(200);
+      const ids = (response.json().data as { id: string }[]).map((r) => r.id);
+      expect(ids).toContain(recipeId);
+    });
+
     it('returns an empty list when q matches nothing', async () => {
       await app.inject({
         method: 'POST',

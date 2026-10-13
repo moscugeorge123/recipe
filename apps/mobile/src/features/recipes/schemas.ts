@@ -35,6 +35,7 @@ export const recipeIngredientSchema = z.object({
 export const recipeStepSchema = z.object({
   id: z.string(),
   stepOrder: z.number().int(),
+  title: z.string().nullable().optional(),
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),
@@ -42,6 +43,7 @@ export const recipeStepSchema = z.object({
   temperatureFahrenheit: z.number().int().nullable().optional(),
   ingredientRefs: z.array(z.number().int().nonnegative()).optional(),
   stage: z.string(),
+  ahead: z.boolean().optional(),
   ingredientHint: z.string().nullable(),
   confidence: z.number(),
   provenance: z.unknown(),
@@ -168,6 +170,8 @@ export const recipeNoteSchema = z.object({
   recipeId: z.string(),
   body: z.string(),
   cookSessionId: z.string().nullable(),
+  /** Zero-based method step; null for a general note. Older cached payloads omit it. */
+  stepIndex: z.number().int().nonnegative().nullable().default(null),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -214,13 +218,21 @@ export const patchRecipeBodySchema = z.object({
     .min(1),
   steps: z
     .array(
-      z.object({
-        stepOrder: z.number().int().positive(),
-        instruction: z.string().trim().min(1),
-        durationMinutes: z.number().int().nonnegative().nullable(),
-        temperature: z.string().nullable(),
-        stage: z.string(),
-      }),
+      z
+        .object({
+          stepOrder: z.number().int().positive(),
+          title: z.string().nullable().optional(),
+          instruction: z.string(),
+          durationMinutes: z.number().int().nonnegative().nullable(),
+          temperature: z.string().nullable(),
+          stage: z.string(),
+          ahead: z.boolean().optional(),
+        })
+        .refine(
+          (step) =>
+            step.instruction.trim().length > 0 || Boolean(step.title?.trim()),
+          { message: 'Add step text', path: ['instruction'] },
+        ),
     )
     .min(1),
 });
@@ -293,3 +305,29 @@ export type AssignRecipeCategoriesBody = z.infer<
 export type AssignRecipeCategoriesResponse = z.infer<
   typeof assignRecipeCategoriesResponseSchema
 >;
+
+/** `POST /recipes/assist` result: the whole updated draft. New rows have `id: null`. */
+export const assistRecipeResultSchema = z.object({
+  message: z.string(),
+  recipe: z.object({
+    title: z.string(),
+    description: z.string(),
+    servings: z.number().int(),
+    totalMinutes: z.number().int(),
+    difficulty: z.string(),
+    ingredients: z.array(
+      z.object({ id: z.string().nullable(), text: z.string() }),
+    ),
+    steps: z.array(
+      z.object({
+        id: z.string().nullable(),
+        title: z.string(),
+        body: z.string(),
+        minutes: z.number().int(),
+        ahead: z.boolean(),
+      }),
+    ),
+  }),
+});
+export type AssistRecipeResult = z.infer<typeof assistRecipeResultSchema>;
+export type AssistRecipeDraft = AssistRecipeResult['recipe'];

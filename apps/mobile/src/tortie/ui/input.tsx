@@ -20,9 +20,11 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
+import { GestureDetector } from 'react-native-gesture-handler';
 
 import { revealFocusedField } from '@/lib/keyboard';
 import { onKeyboardHide, useKeyboard } from '@/tortie/ui/keyboard';
+import { useSheetScrollReporter } from '@/tortie/ui/sheet-scroll';
 
 type Measurable = Pick<View, 'measureInWindow'>;
 type Target = () => Measurable | null;
@@ -79,11 +81,13 @@ export function KeyboardScroll({
   children,
   onScroll,
   onLayout,
+  onContentSizeChange,
   scrollEventThrottle = 16,
   keyboardShouldPersistTaps = 'handled',
   ...rest
 }: KeyboardScrollProps) {
   const { h } = useKeyboard();
+  const sheet = useSheetScrollReporter();
   const self = useRef<ScrollView | null>(null);
   const y = useRef(0);
   const live = useRef({ h, lifted, bottomObscured });
@@ -139,25 +143,43 @@ export function KeyboardScroll({
     host.run();
   }, [h, lifted, bottomObscured, host]);
 
+  const scroller = (
+    <ScrollView
+      {...rest}
+      ref={self}
+      scrollEventThrottle={scrollEventThrottle}
+      keyboardShouldPersistTaps={keyboardShouldPersistTaps}
+      bounces={sheet ? false : rest.bounces}
+      overScrollMode={sheet ? 'never' : rest.overScrollMode}
+      alwaysBounceVertical={sheet ? false : rest.alwaysBounceVertical}
+      onScroll={(e) => {
+        y.current = e.nativeEvent.contentOffset.y;
+        if (sheet) sheet.scrollY.value = y.current;
+        onScroll?.(e);
+      }}
+      onContentSizeChange={(w, contentHeight) => {
+        if (sheet) sheet.contentH.value = contentHeight;
+        onContentSizeChange?.(w, contentHeight);
+      }}
+      onLayout={(e) => {
+        if (sheet) sheet.viewH.value = e.nativeEvent.layout.height;
+        host.run();
+        onLayout?.(e);
+      }}
+    >
+      {children}
+      {!lifted && h > 0 ? <View style={{ height: h }} /> : null}
+    </ScrollView>
+  );
   return (
     <HostCtx.Provider value={host}>
-      <ScrollView
-        {...rest}
-        ref={self}
-        scrollEventThrottle={scrollEventThrottle}
-        keyboardShouldPersistTaps={keyboardShouldPersistTaps}
-        onScroll={(e) => {
-          y.current = e.nativeEvent.contentOffset.y;
-          onScroll?.(e);
-        }}
-        onLayout={(e) => {
-          host.run();
-          onLayout?.(e);
-        }}
-      >
-        {children}
-        {!lifted && h > 0 ? <View style={{ height: h }} /> : null}
-      </ScrollView>
+      {sheet ? (
+        <GestureDetector gesture={sheet.native} touchAction="pan-y">
+          {scroller}
+        </GestureDetector>
+      ) : (
+        scroller
+      )}
     </HostCtx.Provider>
   );
 }

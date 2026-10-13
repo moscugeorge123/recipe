@@ -5,10 +5,14 @@ import {
   fetchInProgressCookSession,
 } from '@/features/cook-sessions/hooks';
 import { listRecipes } from '@/features/recipes/api';
-import { QUERY_FRESHNESS, recipeKeys } from '@/features/query-keys';
+import {
+  COOKBOOK_PAGE_SIZE,
+  QUERY_FRESHNESS,
+  recipeKeys,
+} from '@/features/query-keys';
 import { queryClient } from '@/lib/query-client';
 
-const RECIPES_PAGE_SIZE = 50;
+const RECIPES_PAGE_SIZE = COOKBOOK_PAGE_SIZE;
 
 /** Starts Recipes-tab queries without waiting for fonts or the tab tree. */
 export function prefetchHomeQueries(

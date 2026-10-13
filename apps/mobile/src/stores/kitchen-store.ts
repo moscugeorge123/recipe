@@ -8,7 +8,6 @@ import {
   upsertPendingOp,
   type PendingSyncOp,
 } from '@/features/kitchen/pending-sync';
-import { DEFAULT_PANTRY_STAPLES } from '@/stores/contracts';
 import type { KitchenState } from '@/stores/contracts';
 
 export const useKitchenStore = create<KitchenState>()(
@@ -20,11 +19,12 @@ export const useKitchenStore = create<KitchenState>()(
       cookedCounts: {},
       recipeNotes: {},
       collections: [],
-      pantryStaples: [...DEFAULT_PANTRY_STAPLES],
+      pantryStaples: [],
       servingsByRecipe: {},
       recentSearches: ['harissa', 'galette', 'congee', 'one-pan'],
       pendingSync: [],
       kitchenMigration: null,
+      pantrySeedCleared: false,
       markInbox: (id, status) =>
         set((state) => ({
           inboxStatus: { ...state.inboxStatus, [id]: status },
@@ -147,6 +147,7 @@ export const useKitchenStore = create<KitchenState>()(
         })),
       applyMigrationLeftovers: (patch) => set(patch),
       setKitchenMigration: (doc) => set({ kitchenMigration: doc }),
+      markPantrySeedCleared: () => set({ pantrySeedCleared: true }),
     }),
     {
       name: 'mise.kitchen.v1',

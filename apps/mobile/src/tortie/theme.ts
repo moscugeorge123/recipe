@@ -32,6 +32,11 @@ export const C = {
   flashOn: '#f3c969',
   white: '#ffffff',
   scrim: 'rgba(28,30,28,.4)',
+  /** Error icon on the dark toast. */
+  errorSoft: '#ff8a80',
+  /** Rate-limited import state. */
+  amber: '#9a5b00',
+  amberWash: '#fff1d6',
 } as const;
 
 export const F = {

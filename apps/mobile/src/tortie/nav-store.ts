@@ -2,7 +2,10 @@ import { create } from 'zustand';
 
 import { BASE_D } from '@/tortie/theme';
 import { motionMultiplier } from '@/tortie/motion';
-import { toggleSelection } from '@/tortie/data/selection';
+import {
+  toggleSelection,
+  type GroceryPickRequest,
+} from '@/tortie/data/selection';
 
 export type TabKey = 'today' | 'cookbook' | 'plan' | 'groceries';
 export const TAB_ORDER: TabKey[] = ['today', 'cookbook', 'plan', 'groceries'];
@@ -27,17 +30,27 @@ type Nav = {
 
   /** Add-a-recipe sheet. */
   addSheet: boolean;
+  /** Import job the Add sheet should show on its next open (one-shot). */
+  addJobId: string | null;
+  /** Link shared in from another app. */
+  shareOpen: boolean;
+  shareUrl: string | null;
+  shareTitle: string | null;
+  shareNonce: number;
+  /** Imports history screen. */
+  imports: boolean;
   /** Camera scan. */
   cam: boolean;
   /** Set when the camera hands a photo back to the add sheet. */
   scanUri: string | null;
 
   menu: boolean;
-  menuV: 'main' | 'coll';
+  menuV: 'main' | 'coll' | 'plan';
   /** Add-to-collection sheet opened from cookbook multi-select. */
   menuBulk: boolean;
   /**
-   * Selected cookbook recipe ids. `null` is the mode off.
+   * Multi-select ids. `null` is the mode off.
+   * Cookbook stores recipe ids; the plan stores meal-plan entry ids.
    * Never an empty array — dropping the last id sets `null`.
    */
   sel: string[] | null;
@@ -54,6 +67,25 @@ type Nav = {
   /** Edit pantry item sheet. */
   pedOn: boolean;
   pedId: string | null;
+
+  /** Shopping list edit mode. Tapping a row opens the item sheet. */
+  grocEdit: boolean;
+  /** Edit shopping-list item sheet. */
+  gedOn: boolean;
+  gedId: string | null;
+
+  /** Add-to-groceries ingredient picker. Content stays while the sheet closes. */
+  grocPickOn: boolean;
+  grocPick: GroceryPickRequest | null;
+  grocPickNonce: number;
+
+  /** Recipe notes sheet. `notesStep` preselects a method step in the composer. */
+  notesOn: boolean;
+  notesId: string | null;
+  notesStep: number | null;
+  /** Opened over cook mode, so it must layer above it. */
+  notesOverCook: boolean;
+  notesNonce: number;
 
   edit: boolean;
   editMode: 'edit' | 'new';
@@ -75,6 +107,8 @@ type Nav = {
 
   toast: string;
   toastOn: boolean;
+  /** Red error icon, shown longer. */
+  toastErr: boolean;
   toastNonce: number;
 };
 
@@ -86,7 +120,13 @@ type Actions = {
   openProfile: () => void;
   closeProfile: () => void;
   openAdd: () => void;
+  /** Opens the Add sheet on a running import's progress. */
+  openAddJob: (jobId: string) => void;
   closeAdd: () => void;
+  openShare: (url: string, title?: string | null) => void;
+  closeShare: () => void;
+  openImports: () => void;
+  closeImports: () => void;
   openCam: () => void;
   closeCam: (reopenSheet: boolean) => void;
   openMenu: () => void;
@@ -97,15 +137,21 @@ type Actions = {
   selectIds: (ids: string[]) => void;
   openBulkCollections: () => void;
   openNewCollection: (forRecipe?: string | string[] | null) => void;
+  openNotes: (id: string, opts?: { step?: number | null; overCook?: boolean }) => void;
+  closeNotes: () => void;
   openEditor: (id: string) => void;
   openNewRecipe: () => void;
   closeEditor: () => void;
   openCook: (id: string) => void;
   closeCook: () => void;
+  openGroceryPick: (pick: GroceryPickRequest) => void;
+  closeGroceryPick: () => void;
   openAuth: (mode: 'signup' | 'login', prov?: AuthProvider) => void;
   closeAuth: () => void;
-  toastShow: (msg: string) => void;
+  toastShow: (msg: string, kind?: ToastKind) => void;
 };
+
+export type ToastKind = 'ok' | 'error';
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let bulkExit: ReturnType<typeof setTimeout> | null = null;
@@ -125,6 +171,12 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   profNonce: 0,
   pfOut: false,
   addSheet: false,
+  addJobId: null,
+  shareOpen: false,
+  shareUrl: null,
+  shareTitle: null,
+  shareNonce: 0,
+  imports: false,
   cam: false,
   scanUri: null,
   menu: false,
@@ -137,6 +189,17 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   cal: false,
   pedOn: false,
   pedId: null,
+  grocEdit: false,
+  gedOn: false,
+  gedId: null,
+  grocPickOn: false,
+  grocPick: null,
+  grocPickNonce: 0,
+  notesOn: false,
+  notesId: null,
+  notesStep: null,
+  notesOverCook: false,
+  notesNonce: 0,
   edit: false,
   editMode: 'edit',
   editId: null,
@@ -152,6 +215,7 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   grocSec: 'groc',
   toast: '',
   toastOn: false,
+  toastErr: false,
   toastNonce: 0,
 
   set: (p) => set(p),
@@ -162,6 +226,8 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
     set({
       tab: t,
       sel: null,
+      grocEdit: false,
+      gedOn: false,
       ...(bulk ? { menu: false, menuBulk: false } : {}),
     });
   },
@@ -174,8 +240,19 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   closeRecipe: () => set({ detailOpen: false, menu: false, menuBulk: false }),
   openProfile: () => set((s) => ({ prof: true, profNonce: s.profNonce + 1 })),
   closeProfile: () => set({ prof: false }),
-  openAdd: () => set({ addSheet: true }),
+  openAdd: () => set({ addSheet: true, addJobId: null }),
+  openAddJob: (jobId) => set({ addSheet: true, addJobId: jobId }),
   closeAdd: () => set({ addSheet: false }),
+  openShare: (url, title = null) =>
+    set((s) => ({
+      shareOpen: true,
+      shareUrl: url,
+      shareTitle: title,
+      shareNonce: s.shareNonce + 1,
+    })),
+  closeShare: () => set({ shareOpen: false }),
+  openImports: () => set({ addSheet: false, imports: true }),
+  closeImports: () => set({ imports: false }),
   openCam: () => set({ addSheet: false, cam: true }),
   closeCam: (reopen) => set({ cam: false, addSheet: reopen }),
   openMenu: () => set({ menu: true, menuV: 'main', menuBulk: false }),
@@ -216,6 +293,15 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
             ? [...forRecipe]
             : [forRecipe],
     }),
+  openNotes: (id, opts) =>
+    set((s) => ({
+      notesOn: true,
+      notesId: id,
+      notesStep: opts?.step ?? null,
+      notesOverCook: opts?.overCook ?? false,
+      notesNonce: s.notesNonce + 1,
+    })),
+  closeNotes: () => set({ notesOn: false }),
   openEditor: (id) =>
     set((s) => ({
       edit: true,
@@ -235,6 +321,13 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   openCook: (id) =>
     set((s) => ({ cookOpen: true, cookId: id, cookNonce: s.cookNonce + 1 })),
   closeCook: () => set({ cookOpen: false }),
+  openGroceryPick: (pick) =>
+    set((s) => ({
+      grocPickOn: true,
+      grocPick: pick,
+      grocPickNonce: s.grocPickNonce + 1,
+    })),
+  closeGroceryPick: () => set({ grocPickOn: false }),
   openAuth: (mode, prov) =>
     set({
       au: true,
@@ -243,14 +336,21 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
       auProv: prov ?? get().auProv,
     }),
   closeAuth: () => set({ au: false }),
-  toastShow: (msg) => {
+  toastShow: (msg, kind = 'ok') => {
     if (toastTimer) clearTimeout(toastTimer);
-    set((s) => ({ toast: msg, toastOn: true, toastNonce: s.toastNonce + 1 }));
-    toastTimer = setTimeout(() => set({ toastOn: false }), 2400);
+    const err = kind === 'error';
+    set((s) => ({
+      toast: msg,
+      toastOn: true,
+      toastErr: err,
+      toastNonce: s.toastNonce + 1,
+    }));
+    toastTimer = setTimeout(() => set({ toastOn: false }), err ? 3800 : 2400);
   },
 }));
 
-export const toast = (msg: string) => useNav.getState().toastShow(msg);
+export const toast = (msg: string, kind?: ToastKind) =>
+  useNav.getState().toastShow(msg, kind);
 
 /** `setTimeout` scaled by the motion multiplier (sheet → sheet hand-offs). */
 export function afterMotion(ms: number, fn: () => void) {

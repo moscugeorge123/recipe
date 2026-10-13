@@ -325,6 +325,7 @@ model ExtractionJob {
   mediaAssets  MediaAsset[]
   evidence     ExtractionEvidence[]
   aiUsage      AIUsage[]
+  providerUsage ProviderUsage[]
 
   @@index([status])
   @@index([createdAt])
@@ -463,6 +464,8 @@ model RecipeStep {
   id                    String  @id @default(uuid()) @db.Uuid
   recipeId              String  @db.Uuid
   stepOrder             Int
+  /// Short imperative label. Null on recipes extracted before step titles existed.
+  title                 String?
   instruction           String
   durationMinutes       Int?
   temperature           String?
@@ -472,6 +475,8 @@ model RecipeStep {
   ingredientRefs        Int[]   @default([])
   /// Cooking stage: PREP | COOK | FINISH | SERVE
   stage                 String  @default("COOK")
+  /// Work that happens before the cooking session (soak, rest meat, marinate overnight).
+  ahead                 Boolean @default(false)
   confidence            Float   @default(0)
   provenance            Json    @default("{}")
   warnings              Json    @default("[]")
@@ -569,6 +574,7 @@ model RecipeRevisionStep {
   revisionId            String  @db.Uuid
   sourceId              String? @db.Uuid
   stepOrder             Int
+  title                 String?
   instruction           String
   durationMinutes       Int?
   temperature           String?
@@ -576,6 +582,7 @@ model RecipeRevisionStep {
   temperatureFahrenheit Int?
   ingredientRefs        Int[]   @default([])
   stage                 String  @default("COOK")
+  ahead                 Boolean @default(false)
   confidence            Float   @default(0)
   provenance            Json    @default("{}")
   warnings              Json    @default("[]")
@@ -592,6 +599,8 @@ model RecipeNote {
   id            String   @id @default(uuid()) @db.Uuid
   userRecipeId  String   @db.Uuid
   cookSessionId String?  @db.Uuid
+  /// Zero-based index into the recipe's method steps; null for a general note.
+  stepIndex     Int?
   body          String
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
@@ -824,4 +833,21 @@ model AIUsage {
   @@index([recipeRevisionId])
   @@index([pantryItemId])
   @@map("ai_usage")
+}
+
+model ProviderUsage {
+  id               String   @id @default(uuid()) @db.Uuid
+  jobId            String   @db.Uuid
+  provider         String
+  operation        String
+  sourceType       String
+  units            Int      @default(1)
+  estimatedCostUsd Decimal  @default(0) @db.Decimal(10, 6)
+  durationMs       Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  job ExtractionJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId])
+  @@map("provider_usage")
 }

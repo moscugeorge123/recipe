@@ -17,11 +17,13 @@ import {
   MEAL_KEYS,
   todayIndex,
   usePlan,
+  usePlanToday,
   usePlanWeek,
   useRecipeSlot,
   type MealKey,
   type TDay,
 } from '@/tortie/data/plan';
+import { cookAgainList } from '@/tortie/data/cook-again';
 import { useTRecipe, useTRecipes, type TRecipe } from '@/tortie/data/recipes';
 import {
   clock,
@@ -32,13 +34,14 @@ import {
   todayLine,
 } from '@/tortie/lib/fmt';
 import { toast, useNav } from '@/tortie/nav-store';
-import { C, CSS_EASE, EASE, SH, SPRING } from '@/tortie/theme';
+import { C, CSS_EASE, EASE, F, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
 import { PulseDot } from '@/tortie/ui/keyframes';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { Stagger } from '@/tortie/ui/stagger';
+import { Byline, TimeChip } from '@/tortie/ui/time-chip';
 import { TabScroll } from '@/tortie/ui/tab-scroll';
 import { em, kicker, mono, sans, serif, T } from '@/tortie/ui/text';
 
@@ -70,12 +73,22 @@ function startCook(id: string) {
 
 export function TodayScreen() {
   const on = useTodayOn();
+  const { list, isLoading, isError } = useTRecipes();
+  const noRecipes = !isError && list.length === 0;
   return (
     <TabScroll header={(compact) => <TodayHeader compact={compact} on={on} />}>
-      <CookingNow on={on} />
-      <Tonight on={on} />
-      <ThisWeek on={on} />
-      <CookAgain on={on} />
+      {noRecipes ? (
+        isLoading ? null : (
+          <FirstRecipe on={on} />
+        )
+      ) : (
+        <>
+          <CookingNow on={on} />
+          <Tonight on={on} />
+          <ThisWeek on={on} />
+          <CookAgain on={on} />
+        </>
+      )}
     </TabScroll>
   );
 }
@@ -278,7 +291,9 @@ function CookingNow({ on }: { on: boolean }) {
                   sans(11, 700, C.ink3),
                   { letterSpacing: em(11, 0.05), textTransform: 'uppercase' },
                 ]}
-              >{`Step ${ast + 1} of ${an}`}</T>
+              >
+                {st.ahead ? 'Before you start' : `Step ${ast + 1} of ${an}`}
+              </T>
               <T
                 numberOfLines={1}
                 style={[serif(17, 600), { lineHeight: 20.4, marginTop: 2 }]}
@@ -684,7 +699,149 @@ function Meta({ icon, text }: { icon: string; text: string }) {
   );
 }
 
+function FirstRecipe({ on }: { on: boolean }) {
+  const openAdd = useNav((s) => s.openAdd);
+  return (
+    <Stagger i={1} on={on} style={{ marginTop: 12 }}>
+      <View
+        style={{
+          backgroundColor: C.greenWash,
+          borderWidth: 1,
+          borderColor: C.greenSoft,
+          borderRadius: 28,
+          paddingTop: 28,
+          paddingHorizontal: 22,
+          paddingBottom: 24,
+          alignItems: 'center',
+        }}
+      >
+        <KitchenMark />
+        <T
+          style={{
+            fontFamily: F.serif400i,
+            fontSize: 16,
+            lineHeight: 23,
+            color: C.greenMid,
+            marginTop: 18,
+          }}
+        >
+          Fresh start
+        </T>
+        <T
+          style={[
+            serif(28, 500),
+            {
+              letterSpacing: em(28, -0.02),
+              marginTop: 4,
+              textAlign: 'center',
+            },
+          ]}
+        >
+          Your kitchen starts here
+        </T>
+        <T
+          style={[
+            sans(15, 400, C.ink2),
+            {
+              lineHeight: 22,
+              marginTop: 8,
+              maxWidth: 280,
+              textAlign: 'center',
+            },
+          ]}
+        >
+          Add your first recipe from a link, a photo of a page, or one you write
+          yourself.
+        </T>
+        <Press
+          onPress={openAdd}
+          scale={0.96}
+          easing={CSS_EASE}
+          accessibilityLabel="Add your first recipe"
+          style={{
+            marginTop: 22,
+            height: 48,
+            paddingHorizontal: 22,
+            borderRadius: 99,
+            backgroundColor: C.green,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            boxShadow: SH.greenCta,
+          }}
+        >
+          <Glyph name="add" size={20} color={C.bg} />
+          <T style={sans(14, 700, C.bg)}>Add your first recipe</T>
+        </Press>
+      </View>
+    </Stagger>
+  );
+}
+
+function KitchenMark() {
+  return (
+    <View
+      style={{
+        height: 108,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <View
+        style={{
+          width: 72,
+          height: 84,
+          borderRadius: 20,
+          backgroundColor: C.white,
+          borderWidth: 1,
+          borderColor: C.line,
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: [{ rotate: '-9deg' }, { translateX: 8 }],
+          zIndex: 0,
+          boxShadow: SH.cardSubtle,
+        }}
+      >
+        <Glyph name="photo_camera" size={28} color={C.green} />
+      </View>
+      <View
+        style={{
+          width: 80,
+          height: 94,
+          borderRadius: 22,
+          backgroundColor: C.green,
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginHorizontal: -16,
+          zIndex: 1,
+          boxShadow: SH.greenCta,
+        }}
+      >
+        <Glyph name="skillet" size={34} color={C.bg} fill />
+      </View>
+      <View
+        style={{
+          width: 72,
+          height: 84,
+          borderRadius: 20,
+          backgroundColor: C.terraWash,
+          borderWidth: 1,
+          borderColor: C.terraSoft,
+          alignItems: 'center',
+          justifyContent: 'center',
+          transform: [{ rotate: '9deg' }, { translateX: -8 }],
+          zIndex: 0,
+        }}
+      >
+        <Glyph name="link" size={28} color={C.terra} />
+      </View>
+    </View>
+  );
+}
+
 function ThisWeek({ on }: { on: boolean }) {
+  const stamp = usePlanToday();
   const { week, isLoading } = usePlanWeek(currentMonday());
   const goTab = useNav((s) => s.goTab);
   const mounted = useNav((s) => s.mounted);
@@ -693,13 +850,19 @@ function ThisWeek({ on }: { on: boolean }) {
   const [fade, setFade] = useState(false);
   const t = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (t.current && clearTimeout(t.current)), []);
+  useEffect(() => {
+    const i = todayIndex();
+    setHi(i);
+    setSel(i);
+    setFade(false);
+  }, [stamp]);
 
   const dates = useMemo(() => {
     const m = new Date(`${currentMonday()}T00:00:00.000Z`);
     return Array.from({ length: 7 }, (_, i) =>
       new Date(m.getTime() + i * 864e5).getUTCDate(),
     );
-  }, []);
+  }, [stamp]);
 
   const select = (i: number) => {
     if (i === hi) return;
@@ -981,13 +1144,7 @@ function CookAgain({ on }: { on: boolean }) {
   const { list, isLoading } = useTRecipes();
   const goTab = useNav((s) => s.goTab);
   const openRecipe = useNav((s) => s.openRecipe);
-  const again = useMemo(() => {
-    const cooked = list
-      .filter((r) => r.cooked > 0)
-      .sort((a, b) => b.cooked - a.cooked);
-    const ids = new Set(cooked.map((r) => r.id));
-    return [...cooked, ...list.filter((r) => !ids.has(r.id))].slice(0, 4);
-  }, [list]);
+  const again = useMemo(() => cookAgainList(list), [list]);
 
   if (!again.length && !isLoading) return null;
   const cards: (TRecipe | null)[] = again.length
@@ -1033,14 +1190,15 @@ function CookAgain({ on }: { on: boolean }) {
                 caption="photo"
                 captionSize={10}
                 radius={16}
+                size={150}
                 style={{ height: 150 }}
-              />
+              >
+                {r ? <TimeChip minutes={r.time} /> : null}
+              </Photo>
               <T style={[serif(16, 600), { lineHeight: 19.2, marginTop: 8 }]}>
                 {r?.title ?? ''}
               </T>
-              <T style={[sans(12, 400, C.ink2), { marginTop: 3 }]}>
-                {r ? fmtT(r.time) : ''}
-              </T>
+              {r ? <Byline text={r.byline} /> : null}
             </Press>
           );
         })}

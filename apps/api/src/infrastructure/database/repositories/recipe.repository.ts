@@ -92,6 +92,7 @@ function toNoteRecord(
     id: string;
     body: string;
     cookSessionId: string | null;
+    stepIndex: number | null;
     createdAt: Date;
     updatedAt: Date;
   },
@@ -102,6 +103,7 @@ function toNoteRecord(
     recipeId,
     body: note.body,
     cookSessionId: note.cookSessionId,
+    stepIndex: note.stepIndex,
     createdAt: note.createdAt,
     updatedAt: note.updatedAt,
   };
@@ -121,6 +123,20 @@ function buildListWhere(params: {
         { revisions: { some: { title: { contains: params.q, mode: 'insensitive' } } } },
         { revisions: { some: { description: { contains: params.q, mode: 'insensitive' } } } },
         { revisions: { some: { cuisine: { contains: params.q, mode: 'insensitive' } } } },
+        {
+          revisions: {
+            some: {
+              ingredients: {
+                some: {
+                  OR: [
+                    { name: { contains: params.q, mode: 'insensitive' } },
+                    { canonicalName: { contains: params.q, mode: 'insensitive' } },
+                  ],
+                },
+              },
+            },
+          },
+        },
       ],
     });
   }
@@ -371,7 +387,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
   async createNote(
     id: string,
     userId: string,
-    input: { body: string; cookSessionId?: string | null },
+    input: { body: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord | 'invalid-session' | null> {
     const owned = await this.db.userRecipe.findUnique({
       where: { userId_recipeId: { userId, recipeId: id } },
@@ -384,6 +400,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         userRecipeId: owned.id,
         body: input.body,
         ...(input.cookSessionId !== undefined ? { cookSessionId: input.cookSessionId } : {}),
+        ...(input.stepIndex !== undefined ? { stepIndex: input.stepIndex } : {}),
       },
     });
     return toNoteRecord(note, id);
@@ -393,7 +410,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
     id: string,
     noteId: string,
     userId: string,
-    input: { body?: string; cookSessionId?: string | null },
+    input: { body?: string; cookSessionId?: string | null; stepIndex?: number | null },
   ): Promise<RecipeNoteRecord | 'invalid-session' | null> {
     const existing = await this.db.recipeNote.findFirst({
       where: { id: noteId, userRecipe: { userId, recipeId: id } },
@@ -406,6 +423,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
       data: {
         ...(input.body !== undefined ? { body: input.body } : {}),
         ...(input.cookSessionId !== undefined ? { cookSessionId: input.cookSessionId } : {}),
+        ...(input.stepIndex !== undefined ? { stepIndex: input.stepIndex } : {}),
       },
     });
     return toNoteRecord(note, id);
@@ -728,6 +746,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
               steps: {
                 create: target.steps.map((item) => ({
                   stepOrder: item.stepOrder,
+                  title: item.title,
                   instruction: item.instruction,
                   durationMinutes: item.durationMinutes,
                   temperature: item.temperature,
@@ -735,6 +754,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
                   temperatureFahrenheit: item.temperatureFahrenheit,
                   ingredientRefs: item.ingredientRefs,
                   stage: item.stage,
+                  ahead: item.ahead,
                   confidence: item.confidence,
                   provenance: item.provenance as Prisma.InputJsonValue,
                   warnings: item.warnings as Prisma.InputJsonValue,
@@ -955,6 +975,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
       steps: revision.steps.map((step) => ({
         id: step.id,
         stepOrder: step.stepOrder,
+        title: step.title,
         instruction: step.instruction,
         durationMinutes: step.durationMinutes,
         temperature: step.temperature,
@@ -962,6 +983,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         temperatureFahrenheit: step.temperatureFahrenheit,
         ingredientRefs: step.ingredientRefs,
         stage: step.stage,
+        ahead: step.ahead,
         confidence: step.confidence,
         provenance: step.provenance,
         warnings: step.warnings,

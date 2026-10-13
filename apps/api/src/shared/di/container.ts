@@ -11,6 +11,10 @@ import { PrismaRecipeRepository } from '../../infrastructure/database/repositori
 import { PrismaRecipeSourceRepository } from '../../infrastructure/database/repositories/recipe-source.repository.js';
 import { PrismaTranscriptRepository } from '../../infrastructure/database/repositories/transcript.repository.js';
 import { PrismaVisionRepository } from '../../infrastructure/database/repositories/vision.repository.js';
+import {
+  PrismaProviderUsageRepository,
+  type CreateProviderUsageInput,
+} from '../../infrastructure/database/repositories/provider-usage.repository.js';
 import { prisma } from '../../infrastructure/database/prisma/client.js';
 import pino from 'pino';
 
@@ -19,6 +23,7 @@ import {
   silentLogger,
   type AppLogger,
 } from '../../infrastructure/logging/logger.js';
+import { FileLogReader } from '../../infrastructure/logging/log-reader.js';
 import {
   BullMQQueueProvider,
   InMemoryQueueProvider,
@@ -32,6 +37,8 @@ import { createStorageProvider } from '../../infrastructure/storage/create-stora
 import type { StorageProvider } from '../../infrastructure/storage/storage-provider.js';
 import { CategoryService } from '../../modules/categories/application/category-service.js';
 import { ContentAcquisitionService } from '../../modules/content/application/content-acquisition.service.js';
+import type { ProviderChargeRecorder } from '../../modules/content/application/content-acquisition.service.js';
+import { DashboardService } from '../../modules/dashboard/application/dashboard.service.js';
 import { FakeContentProvider } from '../../modules/content/providers/fake/fake-content-provider.js';
 import { FacebookContentProvider } from '../../modules/content/providers/facebook/facebook-content-provider.js';
 import { ApifyPageFetcher } from '../../modules/content/providers/generic/apify-page-fetcher.js';
@@ -98,6 +105,7 @@ import {
   type ClassificationCache,
 } from '../../modules/pantry/application/classification-cache.js';
 import { IngredientOrganizer } from '../../modules/pantry/application/ingredient-organizer.js';
+import { RecipeAssistant } from '../../modules/recipes/application/recipe-assistant.js';
 import { PantryService } from '../../modules/pantry/application/pantry-service.js';
 import type { IPantryRepository } from '../../modules/pantry/repository/pantry.repository.js';
 import { MealPlanService } from '../../modules/meal-plan/application/meal-plan-service.js';
@@ -131,6 +139,7 @@ export interface AppContainer {
     shoppingList: IShoppingListRepository;
     mealPlan: IMealPlanRepository;
     collection: ICollectionRepository;
+    providerUsage: PrismaProviderUsageRepository;
   };
   contentRegistry: ContentProviderRegistry;
   contentAcquisition: ContentAcquisitionService;
@@ -138,12 +147,14 @@ export interface AppContainer {
   mediaProcessing: MediaProcessingService;
   extractionJobService: ExtractionJobService;
   recipeService: RecipeService;
+  recipeAssistant: RecipeAssistant;
   categoryService: CategoryService;
   cookSessionService: CookSessionService;
   profileBootstrap: ProfileBootstrapService;
   profileResolver: ProfileResolver;
   authService: AuthService;
   tokenVerifier: TokenVerifier;
+  dashboardService: DashboardService;
   pipeline: RecipeExtractionPipeline;
   pantryService: PantryService;
   shoppingListService: ShoppingListService;
@@ -159,6 +170,7 @@ export interface CreateContainerOptions {
   logger?: AppLogger;
   profileResolver?: ProfileResolver;
   pantryLlm?: LLMProvider | null;
+  assistLlm?: LLMProvider | null;
   pantryCache?: ClassificationCache;
 }
 
@@ -245,11 +257,23 @@ export function createAuthStack(appConfig: AppConfig): AuthStack {
   return { authService, tokenVerifier, profileResolver };
 }
 
+function withChargeRecording(
+  repository: PrismaProviderUsageRepository,
+): PrismaProviderUsageRepository & ProviderChargeRecorder {
+  return Object.assign(repository, {
+    async record(input: CreateProviderUsageInput): Promise<void> {
+      await repository.create(input);
+    },
+  });
+}
+
 export function createContainer(options: CreateContainerOptions = {}): AppContainer {
   const appConfig = config;
   const log =
     options.logger ?? (appConfig.isTest ? silentLogger() : pino(buildLoggerOptions(appConfig)));
   const storage = options.storage ?? createStorageProvider(appConfig);
+
+  const providerUsageRepository = withChargeRecording(new PrismaProviderUsageRepository(prisma));
 
   const repositories = {
     extractionJob: new PrismaExtractionJobRepository(prisma),
@@ -268,10 +292,15 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     shoppingList: new PrismaShoppingListRepository(prisma),
     mealPlan: new PrismaMealPlanRepository(prisma),
     collection: new PrismaCollectionRepository(prisma),
+    providerUsage: providerUsageRepository,
   };
 
   const contentRegistry = createContentRegistry(appConfig);
-  const contentAcquisition = new ContentAcquisitionService(contentRegistry, log);
+  const contentAcquisition = new ContentAcquisitionService(
+    contentRegistry,
+    log,
+    providerUsageRepository,
+  );
   const linkPreviewService = createLinkPreviewService(appConfig, { log });
 
   const mediaProcessing = new MediaProcessingService(
@@ -356,16 +385,27 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     (appConfig.isTest
       ? new MemoryClassificationCache()
       : new RedisBackedClassificationCache(getRedisClient()));
+  const ingredientLog = log.child({ component: 'ingredient-organizer' });
   const pantryLlm =
     options.pantryLlm !== undefined
       ? options.pantryLlm
       : appConfig.ai.openaiApiKey
-        ? new OpenAIProvider(appConfig, null)
+        ? new OpenAIProvider(appConfig, null, undefined, ingredientLog)
         : null;
   const pantryUsage = new AIUsageTracker(repositories.aiUsage, DEFAULT_PRICING);
   const pantryService = new PantryService(
     repositories.pantry,
-    new IngredientOrganizer(appConfig, pantryCache, pantryLlm, pantryUsage),
+    new IngredientOrganizer(appConfig, pantryCache, pantryLlm, pantryUsage, ingredientLog),
+  );
+  const assistLog = log.child({ component: 'recipe-assistant' });
+  const recipeAssistant = new RecipeAssistant(
+    appConfig,
+    options.assistLlm !== undefined
+      ? options.assistLlm
+      : appConfig.ai.openaiApiKey
+        ? new OpenAIProvider(appConfig, null, undefined, assistLog)
+        : null,
+    assistLog,
   );
   const shoppingListService = new ShoppingListService(
     repositories.shoppingList,
@@ -378,6 +418,10 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     shoppingListService,
   );
   const collectionService = new CollectionService(repositories.collection);
+  const dashboardService = new DashboardService(
+    prisma,
+    new FileLogReader(appConfig.logging.directory),
+  );
 
   return {
     config: appConfig,
@@ -392,12 +436,14 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     mediaProcessing,
     extractionJobService,
     recipeService,
+    recipeAssistant,
     categoryService,
     cookSessionService,
     profileBootstrap,
     profileResolver,
     authService: authStack.authService,
     tokenVerifier: authStack.tokenVerifier,
+    dashboardService,
     pipeline,
     pantryService,
     shoppingListService,

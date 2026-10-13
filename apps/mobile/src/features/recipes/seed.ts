@@ -31,10 +31,12 @@ function step(
   return {
     id: `${recipeId}:step:${order}`,
     stepOrder: order,
+    title: null,
     instruction,
     durationSeconds: durationSeconds || null,
     temperature: null,
     stage,
+    ahead: false,
     ingredientHint: ingredientHint || null,
     confidence: 1,
   };

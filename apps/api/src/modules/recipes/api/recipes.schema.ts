@@ -77,6 +77,7 @@ export const recipeIngredientSchema = z.object({
 export const recipeStepSchema = z.object({
   id: dbUuid(),
   stepOrder: z.number().int(),
+  title: z.string().nullable(),
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),
@@ -84,6 +85,7 @@ export const recipeStepSchema = z.object({
   temperatureFahrenheit: z.number().int().nullable(),
   ingredientRefs: z.array(z.number().int().nonnegative()),
   stage: z.string(),
+  ahead: z.boolean(),
   ingredientHint: z.string().nullable(),
   confidence: z.number(),
   provenance: z.unknown(),
@@ -213,6 +215,7 @@ export const recipeNoteSchema = z.object({
   recipeId: dbUuid(),
   body: z.string(),
   cookSessionId: dbUuid().nullable(),
+  stepIndex: z.number().int().nonnegative().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
@@ -225,6 +228,7 @@ export const createRecipeNoteBodySchema = z
   .object({
     body: z.string().trim().min(1).max(4000),
     cookSessionId: dbUuid().nullable().optional(),
+    stepIndex: z.number().int().nonnegative().max(500).nullable().optional(),
   })
   .strict();
 
@@ -232,6 +236,7 @@ export const patchRecipeNoteBodySchema = z
   .object({
     body: z.string().trim().min(1).max(4000).optional(),
     cookSessionId: dbUuid().nullable().optional(),
+    stepIndex: z.number().int().nonnegative().max(500).nullable().optional(),
   })
   .strict();
 
@@ -269,10 +274,12 @@ const patchRecipeIngredientSchema = z.object({
 
 const patchRecipeStepSchema = z.object({
   stepOrder: z.number(),
+  title: z.string().nullable().optional(),
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),
   stage: z.string().optional(),
+  ahead: z.boolean().optional(),
   confidence: z.number().optional(),
   provenance: z.unknown().optional(),
   warnings: z.unknown().optional(),

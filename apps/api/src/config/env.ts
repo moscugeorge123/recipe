@@ -117,7 +117,7 @@ const rawEnvSchema = z.object({
   AI_INGREDIENT_MAX_ITEMS: z.coerce.number().int().positive().max(100).default(40),
   AI_INGREDIENT_MAX_ESCALATIONS: z.coerce.number().int().nonnegative().max(20).default(5),
   AI_INGREDIENT_LOW_CONFIDENCE: z.coerce.number().min(0).max(1).default(0.55),
-  AI_INGREDIENT_PROMPT_VERSION: z.string().min(1).default('ingredient-enrichment-v1'),
+  AI_INGREDIENT_PROMPT_VERSION: z.string().min(1).default('ingredient-enrichment-v2'),
 
   // --- Sentry (optional) -------------------------------------------------------
   SENTRY_DSN: z.string().optional(),

@@ -3,16 +3,14 @@ import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
 import { toast } from '@/tortie/nav-store';
+import {
+  addMinute,
+  projectTimers,
+  withRun,
+  type StepTimer,
+} from '@/tortie/timer-clock';
 
-/** A step timer, keyed `${recipeId}:${stepIndex}` (prototype `timers`). */
-export type StepTimer = {
-  rem: number;
-  total: number;
-  run: boolean;
-  /** Step title, for the "Timer done — …" toast and the dock. */
-  title: string;
-  recipeTitle: string;
-};
+export type { StepTimer };
 
 /** The cooking session shown on Today (prototype `active` + `activeOn`). */
 export type ActiveCook = { id: string; step: number; at: number };
@@ -101,87 +99,73 @@ export const useCook = create<CookState & CookActions>()(
       discard: () =>
         set((s) => {
           const id = s.active?.id;
+          const now = Date.now();
           const T: Record<string, StepTimer> = {};
-          for (const k in s.timers)
+          for (const k in s.timers) {
+            const timer = s.timers[k]!;
             T[k] =
-              id && k.startsWith(id + ':')
-                ? { ...s.timers[k]!, run: false }
-                : s.timers[k]!;
+              id && k.startsWith(id + ':') ? withRun(timer, false, now) : timer;
+          }
           return { activeOn: false, timers: T };
         }),
       setSessionId: (sessionId) => set({ sessionId }),
 
-      ensure: (key, minutes, title, recipeTitle) => {
-        const t = get().timers[key];
-        return (
-          t ?? {
-            rem: minutes * 60,
-            total: minutes * 60,
-            run: false,
-            title,
-            recipeTitle,
-          }
-        );
-      },
+      ensure: (key, minutes, title, recipeTitle) =>
+        get().timers[key] ?? blank(minutes, title, recipeTitle),
       toggle: (key, minutes, title, recipeTitle) =>
         set((s) => {
-          const t = s.timers[key] ?? {
-            rem: minutes * 60,
-            total: minutes * 60,
-            run: false,
-            title,
-            recipeTitle,
-          };
-          const next =
-            t.rem === 0
-              ? { ...t, rem: t.total, run: true }
-              : { ...t, run: !t.run };
-          return { timers: { ...s.timers, [key]: next } };
-        }),
-      plus: (key) =>
-        set((s) => {
-          const t = s.timers[key];
-          if (!t) return {};
+          const now = Date.now();
+          const current = s.timers[key] ?? blank(minutes, title, recipeTitle);
+          const base =
+            current.rem === 0
+              ? { ...current, rem: current.total, title, recipeTitle }
+              : { ...current, title, recipeTitle };
           return {
             timers: {
               ...s.timers,
-              [key]: {
-                ...t,
-                rem: t.rem + 60,
-                total: t.total + 60,
-                run: t.rem === 0 ? true : t.run,
-              },
+              [key]: withRun(base, current.rem === 0 || !current.run, now),
+            },
+          };
+        }),
+      plus: (key) =>
+        set((s) => {
+          const timer = s.timers[key];
+          if (!timer) return {};
+          return {
+            timers: {
+              ...s.timers,
+              [key]: addMinute(timer, Date.now(), true),
             },
           };
         }),
       bump: (key, minutes, title, recipeTitle) =>
         set((s) => {
-          const t = s.timers[key] ?? {
-            rem: minutes * 60,
-            total: minutes * 60,
-            run: false,
-            title,
-            recipeTitle,
-          };
+          const current = s.timers[key] ?? blank(minutes, title, recipeTitle);
           return {
             timers: {
               ...s.timers,
-              [key]: { ...t, rem: t.rem + 60, total: t.total + 60 },
+              [key]: addMinute(
+                { ...current, title, recipeTitle },
+                Date.now(),
+                false,
+              ),
             },
           };
         }),
       reset: (key, minutes) =>
         set((s) => {
-          const t = s.timers[key];
-          if (!t) return {};
+          const timer = s.timers[key];
+          if (!timer) return {};
+          const sec = minutes * 60;
           return {
             timers: {
               ...s.timers,
               [key]: {
-                ...t,
-                rem: minutes * 60,
-                total: minutes * 60,
+                ...timer,
+                rem: sec,
+                total: sec,
                 run: false,
+                endsAt: null,
               },
             },
           };
@@ -193,22 +177,11 @@ export const useCook = create<CookState & CookActions>()(
           return { timers: T };
         }),
       tick: () => {
-        let fin: StepTimer | null = null;
-        set((s) => {
-          let ch = false;
-          const T = { ...s.timers };
-          for (const k in T) {
-            const t = T[k]!;
-            if (!t.run) continue;
-            ch = true;
-            const r = t.rem - 1;
-            T[k] = { ...t, rem: Math.max(0, r), run: r > 0 };
-            if (r <= 0) fin = T[k]!;
-          }
-          return ch ? { timers: T } : {};
-        });
-        const done = fin as StepTimer | null;
-        if (done) toast('Timer done — ' + done.title.toLowerCase());
+        const { timers, finished } = projectTimers(get().timers, Date.now());
+        if (timers !== get().timers) set({ timers });
+        for (const done of finished) {
+          toast('Timer done — ' + done.title.toLowerCase());
+        }
       },
     }),
     {
@@ -224,10 +197,23 @@ export const useCook = create<CookState & CookActions>()(
   ),
 );
 
-/** Global 1s ticker (the prototype's `setInterval` in componentDidMount). */
+function blank(minutes: number, title: string, recipeTitle: string): StepTimer {
+  const sec = minutes * 60;
+  return {
+    rem: sec,
+    total: sec,
+    run: false,
+    title,
+    recipeTitle,
+    endsAt: null,
+  };
+}
+
+/** Keeps the on-screen countdown aligned with each timer's `endsAt`. */
 let ticker: ReturnType<typeof setInterval> | null = null;
 export function startCookTicker() {
   if (ticker) return () => undefined;
+  useCook.getState().tick();
   ticker = setInterval(() => useCook.getState().tick(), 1000);
   return () => {
     if (ticker) clearInterval(ticker);

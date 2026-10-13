@@ -6,7 +6,9 @@ import { healthRoutes } from '../features/health/health.routes.js';
 import type { DependencyCheck } from '../features/health/health.types.js';
 import { cookSessionsRoutes } from '../modules/cook-sessions/api/cook-sessions.routes.js';
 import { categoriesRoutes } from '../modules/categories/api/categories.routes.js';
+import { dashboardRoutes } from '../modules/dashboard/api/dashboard.routes.js';
 import { jobsRoutes } from '../modules/jobs/api/jobs.routes.js';
+import { recipeAssistRoutes } from '../modules/recipes/api/recipe-assist.routes.js';
 import { recipesRoutes } from '../modules/recipes/api/recipes.routes.js';
 import { collectionsRoutes } from '../modules/collections/api/collections.routes.js';
 import { pantryRoutes } from '../modules/pantry/api/pantry.routes.js';
@@ -123,6 +125,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         await resources.register(recipesRoutes, {
           recipeService: container.recipeService,
         });
+        await resources.register(recipeAssistRoutes, {
+          recipeAssistant: container.recipeAssistant,
+        });
         await resources.register(categoriesRoutes, {
           categoryService: container.categoryService,
           recipeService: container.recipeService,
@@ -146,6 +151,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
           prisma: container.prisma,
           adminOnly: config.auth.required,
         });
+      });
+      await versioned.register(dashboardRoutes, {
+        dashboardService: container.dashboardService,
       });
     },
     { prefix: config.api.prefix },

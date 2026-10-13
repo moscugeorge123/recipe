@@ -19,17 +19,18 @@ import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect, useState } from 'react';
 import { LogBox, StyleSheet } from 'react-native';
-
-if (__DEV__) LogBox.ignoreAllLogs();
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { prefetchHomeQueries } from '@/features/home/prefetch';
 import { useKitchenMigration } from '@/features/kitchen/use-kitchen-migration';
 import { usePendingSyncFlush } from '@/features/kitchen/use-pending-sync';
+import { ShareRoot } from '@/features/share/share-provider';
 import { QueryProvider } from '@/lib/query-provider';
 import { useUiStore } from '@/stores/ui-store';
 import { useNav } from '@/tortie/nav-store';
 import { C } from '@/tortie/theme';
+
+if (__DEV__) LogBox.ignoreAllLogs();
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
 void prefetchHomeQueries();
@@ -84,15 +85,17 @@ export default function RootLayout() {
   }, [ready]);
 
   return (
-    <GestureHandlerRootView style={styles.root}>
-      <QueryProvider>
-        <KitchenDataHost />
-        <ToastBridge />
-        {ready ? (
-          <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
-        ) : null}
-      </QueryProvider>
-    </GestureHandlerRootView>
+    <ShareRoot>
+      <GestureHandlerRootView style={styles.root}>
+        <QueryProvider>
+          <KitchenDataHost />
+          <ToastBridge />
+          {ready ? (
+            <Stack screenOptions={{ headerShown: false, animation: 'none' }} />
+          ) : null}
+        </QueryProvider>
+      </GestureHandlerRootView>
+    </ShareRoot>
   );
 }
 
