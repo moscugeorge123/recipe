@@ -249,6 +249,46 @@ describe.skipIf(!dbAvailable)('dashboard API endpoints', () => {
     expect(logs.json().meta).toMatchObject({ page: 1, pageSize: 5, total: 0, totalPages: 0 });
   });
 
+  it('counts ingredient generation and recipe edits in the summary and usage', async () => {
+    const user = await prisma.user.create({ data: {} });
+    await prisma.aIUsage.createMany({
+      data: [
+        {
+          userId: user.id,
+          provider: 'openai',
+          model: 'gpt-4o',
+          operation: 'pantry_organize_batch',
+          inputTokens: 50,
+          outputTokens: 10,
+          estimatedCostUsd: '0.003000',
+          durationMs: 100,
+        },
+        {
+          userId: user.id,
+          provider: 'openai',
+          model: 'gpt-4o',
+          operation: 'recipe_assist',
+          inputTokens: 900,
+          outputTokens: 300,
+          estimatedCostUsd: '0.007000',
+          durationMs: 900,
+        },
+      ],
+    });
+
+    const summary = await app.inject({ method: 'GET', url: '/api/v1/dashboard/summary' });
+    expect(summary.json().data.costs).toEqual({ aiUsd: 0.01, thirdPartyUsd: 0, totalUsd: 0.01 });
+    expect(summary.json().data.tokens).toEqual({ input: 950, output: 310 });
+
+    const usage = await app.inject({ method: 'GET', url: '/api/v1/dashboard/usage' });
+    expect(usage.json().data.totals).toMatchObject({ estimatedCostUsd: 0.01, calls: 2 });
+    expect(
+      (usage.json().data.byModel[0].operations as Array<{ operation: string }>).map(
+        (operation) => operation.operation,
+      ).sort(),
+    ).toEqual(['pantry_organize_batch', 'recipe_assist']);
+  });
+
   it('returns 404 when the import job does not exist', async () => {
     const response = await app.inject({
       method: 'GET',

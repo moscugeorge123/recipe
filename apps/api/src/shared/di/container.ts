@@ -334,6 +334,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
         ? new OpenAIProvider(appConfig, null, undefined, assistLog)
         : null,
     assistLog,
+    pantryUsage,
   );
   const shoppingListService = new ShoppingListService(
     repositories.shoppingList,
