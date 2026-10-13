@@ -5,6 +5,7 @@ import type {
   RecipeReviewState,
   RecipeSource,
   RecipeStep,
+  RecipeTranslationStatus,
   RevisionSource,
   SourceType,
 } from '@prisma/client';
@@ -158,6 +159,8 @@ export interface EffectiveRecipeRecord {
   confidence: number;
   warnings: Prisma.JsonValue;
   promptVersion: string | null;
+  /** Language the recipe text is written in (the import's output language); null when unknown. */
+  contentLanguage: string | null;
   ingredients: Array<{
     id: string;
     name: string;
@@ -253,7 +256,29 @@ export interface RevisionSnapshotInput {
   }>;
 }
 
+export interface RecipeTranslationRecord {
+  id: string;
+  userRecipeId: string;
+  language: string;
+  sourceRevisionId: string;
+  status: RecipeTranslationStatus;
+  content: Prisma.JsonValue | null;
+  error: string | null;
+  updatedAt: Date;
+}
+
 export interface IRecipeRepository {
+  findTranslation(userRecipeId: string, language: string): Promise<RecipeTranslationRecord | null>;
+  saveTranslation(input: {
+    userRecipeId: string;
+    language: string;
+    sourceRevisionId: string;
+    status: RecipeTranslationStatus;
+    content?: Prisma.InputJsonValue | null;
+    error?: string | null;
+    promptVersion?: string | null;
+  }): Promise<RecipeTranslationRecord>;
+
   create(input: CreateRecipeInput): Promise<RecipeWithDetails>;
   findById(id: string): Promise<RecipeWithDetails | null>;
   findBySourceId(recipeSourceId: string): Promise<RecipeWithDetails | null>;

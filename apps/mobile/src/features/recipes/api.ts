@@ -16,10 +16,12 @@ import {
   recipeNoteSchema,
   recipeRevisionDetailSchema,
   recipeRevisionSummarySchema,
+  recipeTranslationSchema,
   type CategoryDto,
   type RecipeEngagementDto,
   type RecipeNoteDto,
   type RecipeRevisionSummaryDto,
+  type RecipeTranslationDto,
 } from '@/features/recipes/schemas';
 import { mapRecipeDetail } from '@/features/recipes/mapper';
 import type { RecipeListItemView, RecipeView } from '@/features/recipes/types';
@@ -69,11 +71,19 @@ export async function listRecipes(
   return { items, meta };
 }
 
+/**
+ * Pass `language` to read the recipe in that language. When it has no version in it yet the API
+ * starts an AI translation and answers with the original text and `translation.status` PENDING.
+ */
 export async function getRecipe(
   id: string,
   signal?: AbortSignal,
+  language?: string,
 ): Promise<RecipeView> {
-  const parsed = await apiClient.get<unknown>(`/recipes/${id}`, { signal });
+  const query = language ? `?language=${encodeURIComponent(language)}` : '';
+  const parsed = await apiClient.get<unknown>(`/recipes/${id}${query}`, {
+    signal,
+  });
   const dto = recipeDetailSchema.parse(unwrapData(parsed));
   return mapRecipeDetail(dto);
 }
@@ -100,6 +110,17 @@ export async function patchRecipe(
   );
   const dto = recipeDetailSchema.parse(unwrapData(parsed));
   return mapRecipeDetail(dto);
+}
+
+/** (Re)starts the AI translation of a recipe, e.g. after a failed attempt. */
+export async function requestRecipeTranslation(
+  id: string,
+  language: string,
+): Promise<RecipeTranslationDto> {
+  const parsed = await apiClient.post<unknown>(`/recipes/${id}/translations`, {
+    language,
+  });
+  return recipeTranslationSchema.parse(unwrapData(parsed));
 }
 
 export async function listCategories(

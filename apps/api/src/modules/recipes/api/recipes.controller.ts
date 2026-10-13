@@ -114,6 +114,7 @@ export function serializeRecipeDetail(
       sourceLabel: sourceLabelFromType(recipe.source.sourceType),
       createdAt: recipe.source.createdAt.toISOString(),
     },
+    translation: recipe.translation,
     createdAt: recipe.createdAt.toISOString(),
     updatedAt: recipe.updatedAt.toISOString(),
   };
@@ -200,7 +201,11 @@ function parseExpectedUpdatedAt(value: string | undefined): Date | undefined {
 
 export function createRecipesController(service: RecipeService): {
   getById: (
-    request: FastifyRequest<{ Params: { id: string } }>,
+    request: FastifyRequest<{ Params: { id: string }; Querystring: { language?: string } }>,
+    reply: FastifyReply,
+  ) => Promise<void>;
+  requestTranslation: (
+    request: FastifyRequest<{ Params: { id: string }; Body: { language: string } }>,
     reply: FastifyReply,
   ) => Promise<void>;
   list: (
@@ -278,11 +283,27 @@ export function createRecipesController(service: RecipeService): {
 } {
   return {
     getById: async (
-      request: FastifyRequest<{ Params: { id: string } }>,
+      request: FastifyRequest<{ Params: { id: string }; Querystring: { language?: string } }>,
       reply: FastifyReply,
     ): Promise<void> => {
-      const recipe = await service.getByIdForProfile(request.params.id, request.profile.userId);
+      const recipe = await service.getByIdForProfile(
+        request.params.id,
+        request.profile.userId,
+        request.query.language,
+      );
       reply.send(dataResponse(serializeRecipeDetail(recipe)));
+    },
+
+    requestTranslation: async (
+      request: FastifyRequest<{ Params: { id: string }; Body: { language: string } }>,
+      reply: FastifyReply,
+    ): Promise<void> => {
+      const translation = await service.requestTranslation(
+        request.params.id,
+        request.profile.userId,
+        request.body.language,
+      );
+      reply.code(202).send(dataResponse(translation));
     },
 
     list: async (

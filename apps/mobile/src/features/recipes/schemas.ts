@@ -62,6 +62,11 @@ export const recipeSourceSchema = z.object({
   createdAt: z.string(),
 });
 
+export const recipeTranslationSchema = z.object({
+  language: z.string(),
+  status: z.enum(['ORIGINAL', 'READY', 'PENDING', 'FAILED', 'UNAVAILABLE']),
+});
+
 export const recipeDetailSchema = z.object({
   id: z.string(),
   title: z.string(),
@@ -105,6 +110,8 @@ export const recipeDetailSchema = z.object({
   ingredients: z.array(recipeIngredientSchema),
   steps: z.array(recipeStepSchema),
   source: recipeSourceSchema.nullable(),
+  // Only present when the detail was requested in a language.
+  translation: recipeTranslationSchema.nullable().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -268,6 +275,7 @@ export const recipeRevisionDetailSchema = recipeDetailSchema.extend({
   changes: z.array(z.string()),
 });
 
+export type RecipeTranslationDto = z.infer<typeof recipeTranslationSchema>;
 export type RecipeEngagementDto = z.infer<typeof recipeEngagementSchema>;
 export type RecipeNoteDto = z.infer<typeof recipeNoteSchema>;
 export type RecipeDetailDto = z.infer<typeof recipeDetailSchema>;

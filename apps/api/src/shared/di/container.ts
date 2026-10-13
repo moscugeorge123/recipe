@@ -94,6 +94,8 @@ import {
   type ClassificationCache,
 } from '../../modules/pantry/application/classification-cache.js';
 import { IngredientOrganizer } from '../../modules/pantry/application/ingredient-organizer.js';
+import { RecipeTranslationService } from '../../modules/recipes/application/recipe-translation-service.js';
+import { RecipeTranslator } from '../../modules/recipes/application/recipe-translator.js';
 import { RecipeAssistant } from '../../modules/recipes/application/recipe-assistant.js';
 import { PantryService } from '../../modules/pantry/application/pantry-service.js';
 import type { IPantryRepository } from '../../modules/pantry/repository/pantry.repository.js';
@@ -158,6 +160,7 @@ export interface CreateContainerOptions {
   profileResolver?: ProfileResolver;
   pantryLlm?: LLMProvider | null;
   assistLlm?: LLMProvider | null;
+  translationLlm?: LLMProvider | null;
   pantryCache?: ClassificationCache;
 }
 
@@ -302,7 +305,6 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     log,
   );
 
-  const recipeService = new RecipeService(repositories.recipe);
   const categoryService = new CategoryService(prisma);
   const cookSessionService = new CookSessionService(repositories.cookSession, repositories.recipe);
   const profileBootstrap = new ProfileBootstrapService(repositories.profileBootstrap);
@@ -334,6 +336,20 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
         ? new OpenAIProvider(appConfig, null, undefined, assistLog)
         : null,
     assistLog,
+  );
+  const translationLog = log.child({ component: 'recipe-translator' });
+  const recipeTranslator = new RecipeTranslator(
+    appConfig,
+    options.translationLlm !== undefined
+      ? options.translationLlm
+      : appConfig.ai.openaiApiKey
+        ? new OpenAIProvider(appConfig, null, undefined, translationLog)
+        : null,
+    translationLog,
+  );
+  const recipeService = new RecipeService(
+    repositories.recipe,
+    new RecipeTranslationService(repositories.recipe, recipeTranslator, translationLog),
   );
   const shoppingListService = new ShoppingListService(
     repositories.shoppingList,

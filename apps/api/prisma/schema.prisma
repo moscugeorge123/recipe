@@ -92,6 +92,12 @@ enum RevisionSource {
   MIGRATION
 }
 
+enum RecipeTranslationStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
 enum RecipeReviewState {
   NEEDS_REVIEW
   READY
@@ -166,6 +172,7 @@ model UserRecipe {
   revisions         RecipeRevision[]
   notes             RecipeNote[]
   collectionEntries CollectionRecipe[]
+  translations      RecipeTranslation[]
 
   @@unique([userId, recipeId])
   @@unique([id, userId])
@@ -519,6 +526,27 @@ model RecipeRevisionStep {
   @@unique([revisionId, sourceId])
   @@index([revisionId])
   @@map("recipe_revision_steps")
+}
+
+/// AI translation of a user's recipe into another language. `content` holds the translated text
+/// fields aligned by index with the ingredients/steps of `sourceRevisionId`; everything numeric
+/// stays on the revision. A translation of an older revision is stale and gets redone.
+model RecipeTranslation {
+  id               String                  @id @default(uuid()) @db.Uuid
+  userRecipeId     String                  @db.Uuid
+  language         String
+  sourceRevisionId String                  @db.Uuid
+  status           RecipeTranslationStatus @default(PENDING)
+  content          Json?
+  error            String?
+  promptVersion    String?
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+
+  userRecipe UserRecipe @relation(fields: [userRecipeId], references: [id], onDelete: Cascade)
+
+  @@unique([userRecipeId, language])
+  @@map("recipe_translations")
 }
 
 model RecipeNote {

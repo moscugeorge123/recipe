@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
+import { useT, type MessageKey } from '@/i18n';
 import { useFrame } from '@/tortie/frame';
 import { useNav, type TabKey } from '@/tortie/nav-store';
 import { C, SPRING } from '@/tortie/theme';
@@ -10,13 +11,13 @@ import { Glyph, Icon } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { sans, T } from '@/tortie/ui/text';
 
-const LEFT: [TabKey, string, string][] = [
-  ['today', 'Today', 'home'],
-  ['cookbook', 'Cookbook', 'menu_book'],
+const LEFT: [TabKey, MessageKey, string][] = [
+  ['today', 'tab.today', 'home'],
+  ['cookbook', 'tab.cookbook', 'menu_book'],
 ];
-const RIGHT: [TabKey, string, string][] = [
-  ['plan', 'Plan', 'calendar_month'],
-  ['groceries', 'Groceries', 'shopping_basket'],
+const RIGHT: [TabKey, MessageKey, string][] = [
+  ['plan', 'tab.plan', 'calendar_month'],
+  ['groceries', 'tab.groceries', 'shopping_basket'],
 ];
 const IND: Record<TabKey, number> = {
   today: 0,
@@ -37,6 +38,7 @@ export function TabBar({
   groceriesLeft: number;
 }) {
   const f = useFrame();
+  const t = useT();
   const tab = useNav((s) => s.tab);
   const goTab = useNav((s) => s.goTab);
   const [w, setW] = useState(0);
@@ -45,10 +47,10 @@ export function TabBar({
     transform: [{ translateX: tw(10 + col * IND[tab] + col / 2 - 30, 460) }],
   }));
 
-  const item = ([k, label, icon]: [TabKey, string, string]) => (
+  const item = ([k, label, icon]: [TabKey, MessageKey, string]) => (
     <TabItem
       key={k}
-      label={label}
+      label={t(label)}
       icon={icon}
       active={tab === k}
       onPress={() => goTab(k)}

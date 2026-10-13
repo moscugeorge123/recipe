@@ -86,6 +86,7 @@ function detail(overrides: Partial<RecipeDetailView> = {}): RecipeDetailView {
     categories: [
       { id: '77777777-7777-4777-8777-777777777777', slug: 'sweet', name: 'Sweet', sortOrder: 3 },
     ],
+    translation: null,
     source: {
       id: '11111111-1111-4111-8111-111111111111',
       sourceType: 'GENERIC_WEB',
