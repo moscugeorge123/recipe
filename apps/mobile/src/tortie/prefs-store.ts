@@ -2,6 +2,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import type { AppLanguagePref, RecipeLanguagePref } from '@/i18n/languages';
+
 export type Units = 'metric' | 'imperial';
 export type DietKey = 'veg' | 'pesc' | 'gf' | 'df' | 'nut';
 
@@ -14,6 +16,10 @@ type TortiePrefs = {
   /** Ingredient amounts, step heat, in-step measurements and grocery amounts. */
   units: Units;
   diet: Partial<Record<DietKey, boolean>>;
+  /** Language of the app's own menus and messages; 'system' follows the device. */
+  appLanguage: AppLanguagePref;
+  /** Language recipes are shown in; 'original' keeps each recipe as saved. */
+  recipeLanguage: RecipeLanguagePref;
   voice: boolean;
   timerAlerts: boolean;
   keepAwake: boolean;
@@ -27,6 +33,8 @@ export const useTortiePrefs = create<TortiePrefs>()(
       defaultServings: 2,
       units: 'metric',
       diet: { veg: true },
+      appLanguage: 'system',
+      recipeLanguage: 'original',
       voice: true,
       timerAlerts: true,
       keepAwake: true,

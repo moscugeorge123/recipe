@@ -6,6 +6,13 @@ import {
   type JobStatusDto,
 } from '@/features/extraction/schemas';
 import { apiClient, unwrapData } from '@/services/api-client';
+import { useTortiePrefs } from '@/tortie/prefs-store';
+
+/** New recipes are written in the user's recipe language; 'original' keeps English. */
+function importLanguage(): string {
+  const pref = useTortiePrefs.getState().recipeLanguage;
+  return pref === 'original' ? 'en' : pref;
+}
 
 export async function createExtraction(
   input: {
@@ -20,7 +27,7 @@ export async function createExtraction(
     {
       url: input.url,
       forceRefresh: input.forceRefresh ?? false,
-      outputLanguage: 'en',
+      outputLanguage: importLanguage(),
       options: {
         extractImages: true,
         ...(input.selectedThumbnailUrl

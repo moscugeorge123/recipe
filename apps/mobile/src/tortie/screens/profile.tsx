@@ -9,6 +9,13 @@ import {
 } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
+import { useT } from '@/i18n';
+import {
+  APP_LANGUAGES,
+  RECIPE_LANGUAGES,
+  type AppLanguagePref,
+  type RecipeLanguagePref,
+} from '@/i18n/languages';
 import { useCollections } from '@/features/collections/hooks';
 import { useCookSessions } from '@/features/cook-sessions/hooks';
 import { useTortieAuth, type TortieUser } from '@/tortie/auth-store';
@@ -282,6 +289,85 @@ export function ProfileScreen() {
   );
 }
 
+/** App language and recipe language pickers, stored on the device. */
+function LanguageSection() {
+  const t = useT();
+  const appLanguage = useTortiePrefs((s) => s.appLanguage);
+  const recipeLanguage = useTortiePrefs((s) => s.recipeLanguage);
+  const set = useTortiePrefs((s) => s.set);
+  const wrap = {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    paddingTop: 10,
+  } as const;
+  const pill = (label: string, on: boolean, onPress: () => void) => (
+    <Pill
+      key={label}
+      label={label}
+      on={on}
+      onPress={onPress}
+      height={32}
+      paddingH={12}
+      size={12}
+      weight={700}
+    />
+  );
+  return (
+    <>
+      <SectionLabel>{t('profile.language')}</SectionLabel>
+      <View style={CARD}>
+        <View style={{ paddingTop: 12, paddingBottom: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Glyph name="language" size={22} color={C.green} />
+            <RowText
+              l={t('profile.appLanguage')}
+              sub={t('profile.appLanguageSub')}
+            />
+          </View>
+          <View style={wrap}>
+            {pill(
+              t('profile.appLanguageSystem'),
+              appLanguage === 'system',
+              () => set({ appLanguage: 'system' satisfies AppLanguagePref }),
+            )}
+            {APP_LANGUAGES.map((l) =>
+              pill(l.name, appLanguage === l.code, () =>
+                set({ appLanguage: l.code }),
+              ),
+            )}
+          </View>
+        </View>
+        <View style={DIVIDER} />
+        <View style={{ paddingTop: 12, paddingBottom: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Glyph name="translate" size={22} color={C.green} />
+            <RowText
+              l={t('profile.recipeLanguage')}
+              sub={t('profile.recipeLanguageSub')}
+            />
+          </View>
+          <View style={wrap}>
+            {pill(
+              t('profile.recipeLanguageOriginal'),
+              recipeLanguage === 'original',
+              () =>
+                set({
+                  recipeLanguage: 'original' satisfies RecipeLanguagePref,
+                }),
+            )}
+            {RECIPE_LANGUAGES.map((l) =>
+              pill(l.name, recipeLanguage === l.code, () =>
+                set({ recipeLanguage: l.code }),
+              ),
+            )}
+          </View>
+        </View>
+      </View>
+    </>
+  );
+}
+
 function SectionLabel({ children }: { children: string }) {
   return (
     <T
@@ -327,6 +413,7 @@ function SignedIn({
   user: TortieUser | null;
   name: string;
 }) {
+  const t = useT();
   const prefs = useTortiePrefs();
   const linked = useTortieAuth((s) => s.linked);
   const link = useTortieAuth((s) => s.link);
@@ -503,7 +590,7 @@ function SignedIn({
       </Stagger>
 
       <Stagger i={2} on={on}>
-        <SectionLabel>Kitchen</SectionLabel>
+        <SectionLabel>{t('profile.kitchen')}</SectionLabel>
         <View style={CARD}>
           <View
             style={{
@@ -561,11 +648,11 @@ function SignedIn({
           >
             <Glyph name="straighten" size={22} color={C.green} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <T style={sans(15, 600)}>Units</T>
+              <T style={sans(15, 600)}>{t('profile.units')}</T>
             </View>
             <View style={{ flexDirection: 'row', gap: 6 }}>
               <Pill
-                label="Metric"
+                label={t('profile.metric')}
                 on={prefs.units === 'metric'}
                 onPress={() => prefs.set({ units: 'metric' })}
                 height={32}
@@ -574,7 +661,7 @@ function SignedIn({
                 weight={700}
               />
               <Pill
-                label="Imperial"
+                label={t('profile.imperial')}
                 on={prefs.units === 'imperial'}
                 onPress={() => prefs.set({ units: 'imperial' })}
                 height={32}
@@ -624,6 +711,10 @@ function SignedIn({
             </View>
           </View>
         </View>
+      </Stagger>
+
+      <Stagger i={3} on={on}>
+        <LanguageSection />
       </Stagger>
 
       <Stagger i={3} on={on}>
@@ -954,6 +1045,9 @@ function Guest({ on }: { on: boolean }) {
         <T style={[sans(12, 400, C.ink2), { lineHeight: 17.4, flex: 1 }]}>
           {`Your ${recipes.total} recipes and ${colls.data?.items.length ?? 0} collections live on this phone for now. Sign in and they move into your account.`}
         </T>
+      </Stagger>
+      <Stagger i={5} on={on}>
+        <LanguageSection />
       </Stagger>
     </>
   );

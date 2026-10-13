@@ -236,8 +236,11 @@ export function useTRecipes(sort: RecipeSort = 'latest') {
 }
 
 /** One recipe with ingredients and steps (falls back to the list preview while loading). */
-export function useTRecipe(id: string | null | undefined) {
-  const q = useRecipe(id ?? undefined);
+export function useTRecipe(
+  id: string | null | undefined,
+  options?: { original?: boolean },
+) {
+  const q = useRecipe(id ?? undefined, options);
   const units = useTortiePrefs((s) => s.units);
   const r = useMemo(
     () => (q.data ? toTDetail(q.data as RecipeView, units) : null),

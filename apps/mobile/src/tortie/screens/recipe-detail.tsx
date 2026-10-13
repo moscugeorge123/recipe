@@ -83,6 +83,7 @@ import {
 } from '@/tortie/screens/recipe-notes';
 import { Sheet, SheetScroll } from '@/tortie/ui/sheet';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { TranslationBanner } from '@/tortie/ui/translation-banner';
 
 const FROST = 'rgba(248,250,245,.92)';
 
@@ -260,6 +261,7 @@ export function RecipeDetail() {
               {r.desc}
             </T>
           ) : null}
+          <TranslationBanner recipeId={id} translation={r?.view?.translation} />
           {canNote ? (
             <NotesRow
               notes={notes}

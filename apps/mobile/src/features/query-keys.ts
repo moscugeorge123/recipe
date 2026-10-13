@@ -42,6 +42,9 @@ export const recipeKeys = {
   detail: (id: string) => [...recipeKeys.all, 'detail', id] as const,
   list: (page: number, pageSize: number, filters?: RecipeListFilters) =>
     [...recipeKeys.all, page, pageSize, filters] as const,
+  /** The recipe read in `language`; nested under `detail` so detail invalidations refetch it. */
+  localized: (id: string, language: string) =>
+    [...recipeKeys.detail(id), 'lang', language] as const,
   categories: ['recipe-categories'] as const,
   revisions: (id: string) => [...recipeKeys.detail(id), 'revisions'] as const,
   revision: (id: string, revisionId: string) =>

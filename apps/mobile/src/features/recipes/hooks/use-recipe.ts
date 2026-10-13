@@ -9,7 +9,11 @@ import { networkFirst, persistKeyFor } from '@/features/query-persist';
 import { getRecipe } from '@/features/recipes/api';
 import { mapRecipeListItem } from '@/features/recipes/mapper';
 import { getSeedRecipe } from '@/features/recipes/seed';
-import type { RecipeListItemView } from '@/features/recipes/types';
+import type { RecipeListItemView, RecipeView } from '@/features/recipes/types';
+import { useTortiePrefs } from '@/tortie/prefs-store';
+
+/** How often to ask again while the API is translating a recipe. */
+const TRANSLATION_POLL_MS = 3_000;
 
 function peekListItem(
   client: QueryClient,
@@ -29,18 +33,52 @@ function peekListItem(
   return undefined;
 }
 
-export function useRecipe(id: string | undefined) {
+type UseRecipeOptions = {
+  /**
+   * Read the recipe exactly as saved, ignoring the user's recipe language. The editor needs this:
+   * saving a translated copy would overwrite the original text.
+   */
+  original?: boolean;
+};
+
+/** Engagement the user changes live; kept fresh from the original detail cache. */
+function withLiveEngagement(
+  translated: RecipeView,
+  original: RecipeView | undefined,
+): RecipeView {
+  if (!original) {
+    return translated;
+  }
+  return {
+    ...translated,
+    isFavorite: original.isFavorite,
+    rating: original.rating,
+    ratingAverage: original.ratingAverage,
+    ratingCount: original.ratingCount,
+    cookCount: original.cookCount,
+    reviewState: original.reviewState,
+  };
+}
+
+export function useRecipe(id: string | undefined, options?: UseRecipeOptions) {
   const client = useQueryClient();
+  const recipeLanguage = useTortiePrefs((s) => s.recipeLanguage);
+  const language =
+    options?.original || recipeLanguage === 'original'
+      ? undefined
+      : recipeLanguage;
   const seed = id ? getSeedRecipe(id) : undefined;
   const isApi = !!id && !id.startsWith('seed:');
   const listPreview = !seed && id ? peekListItem(client, id) : undefined;
+  const queryKey = language
+    ? recipeKeys.localized(id ?? '', language)
+    : recipeKeys.detail(id ?? '');
 
   const query = useQuery({
-    queryKey: recipeKeys.detail(id ?? ''),
+    queryKey,
     queryFn: async ({ signal }) => {
-      const result = await networkFirst(
-        persistKeyFor(recipeKeys.detail(id as string)),
-        () => getRecipe(id as string, signal),
+      const result = await networkFirst(persistKeyFor(queryKey), () =>
+        getRecipe(id as string, signal, language),
       );
       return { ...result.data, fromCache: result.fromCache };
     },
@@ -48,7 +86,19 @@ export function useRecipe(id: string | undefined) {
     staleTime: QUERY_FRESHNESS.recipeDetail,
     retry: 1,
     placeholderData: (previous) => previous,
+    refetchInterval: (q) =>
+      q.state.data?.translation?.status === 'PENDING'
+        ? TRANSLATION_POLL_MS
+        : false,
   });
+
+  // Reactive view of the original detail cache, where favorite/rating edits land first.
+  const original = useQuery<RecipeView>({
+    queryKey: recipeKeys.detail(id ?? ''),
+    enabled: false,
+  });
+  const originalIsNewer =
+    !!language && original.dataUpdatedAt > query.dataUpdatedAt;
 
   const fromList = listPreview ? mapRecipeListItem(listPreview) : undefined;
 
@@ -56,9 +106,16 @@ export function useRecipe(id: string | undefined) {
     (!!query.data && query.data.fromCache === true) ||
     (!query.data && !!fromList && query.isError);
 
+  const data =
+    seed ??
+    (query.data && originalIsNewer
+      ? withLiveEngagement(query.data, original.data)
+      : query.data) ??
+    fromList;
+
   return {
     ...query,
-    data: seed ?? query.data ?? fromList,
+    data,
     isLoading: isApi ? query.isLoading && !fromList : false,
     fromCache,
   };

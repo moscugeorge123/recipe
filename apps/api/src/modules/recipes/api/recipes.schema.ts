@@ -8,6 +8,24 @@ export const recipeIdParamsSchema = z.object({
   id: dbUuid('id must be a UUID'),
 });
 
+/** BCP 47-ish language code, e.g. `ro` or `pt-BR`. */
+export const languageCodeSchema = z
+  .string()
+  .trim()
+  .regex(/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/, 'language must be a language code such as "ro"')
+  .max(16);
+
+export const recipeDetailQuerySchema = z.object({
+  language: languageCodeSchema.optional(),
+});
+
+export const requestTranslationBodySchema = z.object({ language: languageCodeSchema }).strict();
+
+export const recipeTranslationSchema = z.object({
+  language: z.string(),
+  status: z.enum(['ORIGINAL', 'READY', 'PENDING', 'FAILED', 'UNAVAILABLE']),
+});
+
 export const recipeRevisionParamsSchema = recipeIdParamsSchema.extend({
   revisionId: dbUuid('revisionId must be a UUID'),
 });
@@ -136,6 +154,7 @@ export const recipeDetailSchema = z.object({
   ingredients: z.array(recipeIngredientSchema),
   steps: z.array(recipeStepSchema),
   source: recipeSourceSchema.nullable(),
+  translation: recipeTranslationSchema.nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });

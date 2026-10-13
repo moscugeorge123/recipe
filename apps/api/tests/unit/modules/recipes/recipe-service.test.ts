@@ -48,6 +48,7 @@ function effective(overrides: Partial<EffectiveRecipeRecord> = {}): EffectiveRec
     confidence: 0.8,
     warnings: [],
     promptVersion: 'recipe-extraction-v9',
+    contentLanguage: 'en',
     ingredients: [
       {
         id: '55555555-5555-4555-8555-555555555555',
@@ -124,6 +125,8 @@ function repo(overrides: Partial<IRecipeRepository> = {}): IRecipeRepository {
     listRevisions: vi.fn(),
     findRevision: vi.fn(),
     restoreRevision: vi.fn(),
+    findTranslation: vi.fn(),
+    saveTranslation: vi.fn(),
     ...overrides,
   };
 }

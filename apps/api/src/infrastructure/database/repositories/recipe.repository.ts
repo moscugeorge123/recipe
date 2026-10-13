@@ -1,4 +1,10 @@
-import { Prisma, type Category, type PrismaClient, type SourceType } from '@prisma/client';
+import {
+  Prisma,
+  type Category,
+  type PrismaClient,
+  type RecipeTranslationStatus,
+  type SourceType,
+} from '@prisma/client';
 
 import type {
   EffectiveRecipeRecord,
@@ -7,6 +13,7 @@ import type {
   RecipeEngagementRecord,
   RecipeNoteRecord,
   RecipeRevisionSummary,
+  RecipeTranslationRecord,
   RevisionSnapshotInput,
   RecipeListRecord,
   RecipeListSort,
@@ -27,7 +34,7 @@ const revisionInclude = {
 type RevisionWithSnapshot = Prisma.RecipeRevisionGetPayload<{ include: typeof revisionInclude }>;
 type OwnedRecipe = Prisma.UserRecipeGetPayload<{
   include: { recipe: { include: { recipeSource: true } } };
-}>;
+}> & { recipe: { job?: { outputLanguage: string } | null } };
 
 function changeSummary(
   revision: RevisionWithSnapshot,
@@ -318,13 +325,46 @@ export class PrismaRecipeRepository implements IRecipeRepository {
     const owned = await this.db.userRecipe.findUnique({
       where: { userId_recipeId: { userId, recipeId: id } },
       include: {
-        recipe: { include: { recipeSource: true } },
+        recipe: {
+          include: { recipeSource: true, job: { select: { outputLanguage: true } } },
+        },
         revisions: { orderBy: { revisionNumber: 'desc' }, take: 1, include: revisionInclude },
       },
     });
     const revision = owned?.revisions[0];
     if (!owned || !revision) return null;
     return this.toEffective(owned, revision);
+  }
+
+  findTranslation(userRecipeId: string, language: string): Promise<RecipeTranslationRecord | null> {
+    return this.db.recipeTranslation.findUnique({
+      where: { userRecipeId_language: { userRecipeId, language } },
+    });
+  }
+
+  saveTranslation(input: {
+    userRecipeId: string;
+    language: string;
+    sourceRevisionId: string;
+    status: RecipeTranslationStatus;
+    content?: Prisma.InputJsonValue | null;
+    error?: string | null;
+    promptVersion?: string | null;
+  }): Promise<RecipeTranslationRecord> {
+    const data = {
+      sourceRevisionId: input.sourceRevisionId,
+      status: input.status,
+      content: input.content ?? Prisma.DbNull,
+      error: input.error ?? null,
+      promptVersion: input.promptVersion ?? null,
+    };
+    return this.db.recipeTranslation.upsert({
+      where: {
+        userRecipeId_language: { userRecipeId: input.userRecipeId, language: input.language },
+      },
+      create: { userRecipeId: input.userRecipeId, language: input.language, ...data },
+      update: data,
+    });
   }
 
   async setFavorite(
@@ -952,6 +992,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
       confidence: revision.confidence,
       warnings: revision.warnings,
       promptVersion: revision.promptVersion,
+      contentLanguage: owned.recipe.job?.outputLanguage ?? null,
       ingredients: revision.ingredients.map((ingredient) => ({
         id: ingredient.id,
         name: ingredient.name,

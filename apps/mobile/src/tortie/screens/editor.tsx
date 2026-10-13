@@ -142,8 +142,12 @@ export function RecipeEditor() {
   const mode = useNav((s) => s.editMode);
   const editId = useNav((s) => s.editId);
   const nonce = useNav((s) => s.editNonce);
-  const { r, view } = useTRecipe(mode === 'edit' ? editId : null);
-  const q = useRecipe(mode === 'edit' ? (editId ?? undefined) : undefined);
+  const { r, view } = useTRecipe(mode === 'edit' ? editId : null, {
+    original: true,
+  });
+  const q = useRecipe(mode === 'edit' ? (editId ?? undefined) : undefined, {
+    original: true,
+  });
   // Never draft from the list preview (no ingredients/steps) or a previous recipe's placeholder.
   const detailOk =
     !!editId &&

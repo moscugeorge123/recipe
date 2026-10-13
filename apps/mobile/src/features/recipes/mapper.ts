@@ -369,6 +369,7 @@ export function mapRecipeDetail(dto: RecipeDetailDto): RecipeView {
     ratingAverage: dto.ratingAverage ?? dto.rating ?? null,
     ratingCount: dto.ratingCount ?? (dto.rating == null ? 0 : 1),
     cookCount: dto.cookCount ?? 0,
+    translation: dto.translation ?? null,
   };
 }
 

@@ -18,6 +18,7 @@ import {
   patchRecipeNoteBodySchema,
   putRatingBodySchema,
   putReviewStateBodySchema,
+  recipeDetailQuerySchema,
   recipeDetailSchema,
   recipeEngagementSchema,
   recipeIdParamsSchema,
@@ -27,6 +28,8 @@ import {
   recipeRevisionDetailSchema,
   recipeRevisionParamsSchema,
   recipeRevisionSummarySchema,
+  recipeTranslationSchema,
+  requestTranslationBodySchema,
   restoreRevisionBodySchema,
 } from './recipes.schema.js';
 
@@ -59,7 +62,12 @@ export const recipesRoutes: FastifyPluginAsyncZod<RecipesRoutesOptions> = async 
       schema: {
         tags: ['recipes'],
         summary: 'Get recipe by id',
+        description:
+          'Pass `language` to read the recipe in that language. If the recipe is not written in ' +
+          'it and has no translation yet, one is started with AI and the original text is ' +
+          'returned with `translation.status` PENDING — poll until READY.',
         params: recipeIdParamsSchema,
+        querystring: recipeDetailQuerySchema,
         response: {
           200: dataResponseSchema(recipeDetailSchema),
           404: errorResponseSchema,
@@ -68,6 +76,24 @@ export const recipesRoutes: FastifyPluginAsyncZod<RecipesRoutesOptions> = async 
       },
     },
     controller.getById,
+  );
+
+  app.post(
+    '/recipes/:id/translations',
+    {
+      schema: {
+        tags: ['recipes'],
+        summary: 'Start (or retry) an AI translation of a recipe',
+        params: recipeIdParamsSchema,
+        body: requestTranslationBodySchema,
+        response: {
+          202: dataResponseSchema(recipeTranslationSchema),
+          404: errorResponseSchema,
+          ...standardErrorResponses,
+        },
+      },
+    },
+    controller.requestTranslation,
   );
 
   app.patch(

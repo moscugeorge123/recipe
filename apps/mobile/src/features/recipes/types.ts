@@ -97,6 +97,13 @@ export type RecipeView = {
   ratingCount?: number;
   cookCount?: number;
   fromCache?: boolean;
+  /** Set when the recipe was requested in a language; says whether the text was translated. */
+  translation?: RecipeTranslation | null;
+};
+
+export type RecipeTranslation = {
+  language: string;
+  status: 'ORIGINAL' | 'READY' | 'PENDING' | 'FAILED' | 'UNAVAILABLE';
 };
 
 export type RecipeCategoryView = {

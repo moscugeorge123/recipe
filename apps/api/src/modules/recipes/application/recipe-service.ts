@@ -17,6 +17,10 @@ import type {
   RecipeNoteRecord,
   RecipeRevisionSummary,
 } from '../repository/recipe.repository.js';
+import type {
+  RecipeTranslationInfo,
+  RecipeTranslationService,
+} from './recipe-translation-service.js';
 import { measurementsForEdit, stepExtrasForEdit } from './revision-measurements.js';
 
 export interface RecipeDetailView {
@@ -40,6 +44,8 @@ export interface RecipeDetailView {
   steps: EffectiveRecipeRecord['steps'];
   categories: EffectiveRecipeRecord['categories'];
   source: EffectiveRecipeRecord['source'];
+  /** Set when the detail was requested in a language; says whether the text was translated. */
+  translation: RecipeTranslationInfo | null;
   userRecipeId: string;
   revisionId: string;
   revisionNumber: number;
@@ -92,18 +98,45 @@ function resolveTotalTimeMinutes(
 }
 
 export class RecipeService {
-  constructor(private readonly recipeRepo: IRecipeRepository) {}
+  constructor(
+    private readonly recipeRepo: IRecipeRepository,
+    private readonly translations: RecipeTranslationService | null = null,
+  ) {}
 
   async getById(id: string): Promise<RecipeDetailView> {
     return this.getByIdForProfile(id, '00000000-0000-4000-8000-000000000001');
   }
 
-  async getByIdForProfile(id: string, userId: string): Promise<RecipeDetailView> {
+  async getByIdForProfile(
+    id: string,
+    userId: string,
+    language?: string,
+  ): Promise<RecipeDetailView> {
     const recipe = await this.recipeRepo.findEffectiveById(id, userId);
     if (!recipe) {
       throw new RecipeNotFoundError();
     }
+    if (language && this.translations) {
+      const { recipe: localized, translation } = await this.translations.resolve(recipe, language);
+      return { ...this.toDetailView(localized), translation };
+    }
     return this.toDetailView(recipe);
+  }
+
+  /** Starts a translation of the recipe, e.g. to retry a failed one. */
+  async requestTranslation(
+    id: string,
+    userId: string,
+    language: string,
+  ): Promise<RecipeTranslationInfo> {
+    const recipe = await this.recipeRepo.findEffectiveById(id, userId);
+    if (!recipe) {
+      throw new RecipeNotFoundError();
+    }
+    if (!this.translations) return { language, status: 'UNAVAILABLE' };
+    const { translation } = await this.translations.resolve(recipe, language);
+    if (translation.status !== 'FAILED') return translation;
+    return { language: translation.language, status: await this.translations.start(recipe, language) };
   }
 
   async list(
@@ -374,6 +407,7 @@ export class RecipeService {
       steps: recipe.steps,
       categories: recipe.categories,
       source: recipe.source,
+      translation: null,
       userRecipeId: recipe.userRecipeId,
       revisionId: recipe.revisionId,
       revisionNumber: recipe.revisionNumber,
