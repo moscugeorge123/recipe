@@ -16,6 +16,7 @@ import {
   summarizeRevision,
   toRevisionSummarySnapshot,
 } from '../../../modules/recipes/application/revision-summary.js';
+import { parseClipRanges } from '../../../modules/recipes/application/step-clips.js';
 import { DEFAULT_PROFILE_ID } from '../../../modules/profiles/domain/profile.js';
 
 const revisionInclude = {
@@ -565,8 +566,9 @@ export class PrismaRecipeRepository implements IRecipeRepository {
                 })),
               },
               steps: {
-                create: input.steps.map((step) => ({
+                create: input.steps.map(({ clipSegments, ...step }) => ({
                   ...step,
+                  clipSegments: (clipSegments ?? []) as unknown as Prisma.InputJsonValue,
                   confidence: 1,
                   provenance: { source: 'user' },
                   warnings: [],
@@ -755,6 +757,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
                   ingredientRefs: item.ingredientRefs,
                   stage: item.stage,
                   ahead: item.ahead,
+                  clipSegments: item.clipSegments as Prisma.InputJsonValue,
                   confidence: item.confidence,
                   provenance: item.provenance as Prisma.InputJsonValue,
                   warnings: item.warnings as Prisma.InputJsonValue,
@@ -984,6 +987,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         ingredientRefs: step.ingredientRefs,
         stage: step.stage,
         ahead: step.ahead,
+        clipSegments: parseClipRanges(step.clipSegments),
         confidence: step.confidence,
         provenance: step.provenance,
         warnings: step.warnings,

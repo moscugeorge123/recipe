@@ -5,8 +5,9 @@ import {
   standardErrorResponses,
 } from '../../../shared/errors/error-response.js';
 import { collectionResponseSchema, dataResponseSchema } from '../../../shared/http/response.js';
+import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
 import type { RecipeService } from '../application/recipe-service.js';
-import { createRecipesController } from './recipes.controller.js';
+import { createRecipesController, createRecipeVideoHandler } from './recipes.controller.js';
 import {
   createRecipeNoteBodySchema,
   deleteNoteResponseSchema,
@@ -32,6 +33,7 @@ import {
 
 export interface RecipesRoutesOptions {
   recipeService: RecipeService;
+  storage: StorageProvider;
 }
 
 export const recipesRoutes: FastifyPluginAsyncZod<RecipesRoutesOptions> = async (app, opts) => {
@@ -68,6 +70,24 @@ export const recipesRoutes: FastifyPluginAsyncZod<RecipesRoutesOptions> = async 
       },
     },
     controller.getById,
+  );
+
+  app.get(
+    '/recipes/:id/video',
+    {
+      // A player fetches many byte ranges while it plays and seeks.
+      config: { rateLimit: false },
+      schema: {
+        tags: ['recipes'],
+        summary: 'Stream the imported video the step clips play from (supports byte ranges)',
+        params: recipeIdParamsSchema,
+        response: {
+          404: errorResponseSchema,
+          ...standardErrorResponses,
+        },
+      },
+    },
+    createRecipeVideoHandler(opts.recipeService, opts.storage),
   );
 
   app.patch(

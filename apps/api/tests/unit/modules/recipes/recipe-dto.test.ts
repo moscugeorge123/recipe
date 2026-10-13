@@ -78,6 +78,7 @@ function detail(overrides: Partial<RecipeDetailView> = {}): RecipeDetailView {
         ingredientRefs: [0, 1],
         stage: 'COOK',
         ahead: false,
+        clipSegments: [],
         confidence: 0.9,
         provenance: {},
         warnings: [],
@@ -114,6 +115,32 @@ function detail(overrides: Partial<RecipeDetailView> = {}): RecipeDetailView {
 describe('serializeRecipeDetail', () => {
   it('matches the response schema', () => {
     expect(recipeDetailSchema.safeParse(serializeRecipeDetail(detail())).success).toBe(true);
+  });
+
+  it('points to the video stream only when the import kept a video', () => {
+    expect((serializeRecipeDetail(detail()).source as { video: unknown }).video).toBeNull();
+
+    const base = detail();
+    const withVideo = detail({
+      steps: [{ ...base.steps[0]!, clipSegments: [{ start: 12.5, end: 30 }] }],
+      source: {
+        ...base.source,
+        metadata: {
+          author: 'Chef',
+          video: { storageKey: 'jobs/j1/video.mp4', mimeType: 'video/mp4', durationSeconds: 95 },
+        },
+      },
+    });
+    const body = serializeRecipeDetail(withVideo);
+    expect(recipeDetailSchema.safeParse(body).success).toBe(true);
+    expect((body.source as { video: unknown }).video).toEqual({
+      path: `/recipes/${base.id}/video`,
+      mimeType: 'video/mp4',
+      durationSeconds: 95,
+    });
+    expect((body.steps as Array<{ clipSegments: unknown }>)[0]!.clipSegments).toEqual([
+      { start: 12.5, end: 30 },
+    ]);
   });
 
   it('exposes stored metric/imperial amounts without the raw columns', () => {

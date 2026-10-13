@@ -87,6 +87,17 @@ type Nav = {
   notesOverCook: boolean;
   notesNonce: number;
 
+  /**
+   * Step clip viewer ("Watch step"). Opens above cook mode too. `clipStep` is the step to start
+   * on. `clipId` can be set before the viewer opens (`primeClip`) so the video is already loaded.
+   */
+  clipOn: boolean;
+  clipId: string | null;
+  clipStep: number;
+  clipNonce: number;
+  /** The step the viewer was on when it closed; cook mode follows it. */
+  clipBack: { id: string; step: number; nonce: number } | null;
+
   edit: boolean;
   editMode: 'edit' | 'new';
   editId: string | null;
@@ -137,8 +148,17 @@ type Actions = {
   selectIds: (ids: string[]) => void;
   openBulkCollections: () => void;
   openNewCollection: (forRecipe?: string | string[] | null) => void;
-  openNotes: (id: string, opts?: { step?: number | null; overCook?: boolean }) => void;
+  openNotes: (
+    id: string,
+    opts?: { step?: number | null; overCook?: boolean },
+  ) => void;
   closeNotes: () => void;
+  openClip: (id: string, step: number) => void;
+  /** Load a recipe's video ahead of time without opening the viewer. */
+  primeClip: (id: string) => void;
+  closeClip: () => void;
+  /** The viewer closed on `step`; cook mode follows it. */
+  clipReturned: (step: number) => void;
   openEditor: (id: string) => void;
   openNewRecipe: () => void;
   closeEditor: () => void;
@@ -200,6 +220,11 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   notesStep: null,
   notesOverCook: false,
   notesNonce: 0,
+  clipOn: false,
+  clipId: null,
+  clipStep: 0,
+  clipNonce: 0,
+  clipBack: null,
   edit: false,
   editMode: 'edit',
   editId: null,
@@ -302,6 +327,28 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
       notesNonce: s.notesNonce + 1,
     })),
   closeNotes: () => set({ notesOn: false }),
+  openClip: (id, step) =>
+    set((s) => ({
+      clipOn: true,
+      clipId: id,
+      clipStep: step,
+      clipNonce: s.clipNonce + 1,
+    })),
+  primeClip: (id) =>
+    set((s) => (s.clipOn || s.clipId === id ? s : { clipId: id })),
+  closeClip: () => set({ clipOn: false }),
+  clipReturned: (step) =>
+    set((s) =>
+      s.clipId
+        ? {
+            clipBack: {
+              id: s.clipId,
+              step,
+              nonce: (s.clipBack?.nonce ?? 0) + 1,
+            },
+          }
+        : s,
+    ),
   openEditor: (id) =>
     set((s) => ({
       edit: true,

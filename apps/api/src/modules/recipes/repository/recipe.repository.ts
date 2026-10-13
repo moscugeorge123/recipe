@@ -9,6 +9,8 @@ import type {
   SourceType,
 } from '@prisma/client';
 
+import type { StepClipRange } from '../application/step-clips.js';
+
 export interface CreateRecipeIngredientInput {
   name: string;
   canonicalName?: string | null;
@@ -40,6 +42,8 @@ export interface CreateRecipeStepInput {
   ingredientRefs?: number[];
   stage?: string;
   ahead?: boolean;
+  /** Ranges of the source video showing this step; empty/absent = no clip. */
+  clipSegments?: Prisma.InputJsonValue;
   confidence?: number;
   provenance?: Prisma.InputJsonValue;
   warnings?: Prisma.InputJsonValue;
@@ -190,6 +194,7 @@ export interface EffectiveRecipeRecord {
     ingredientRefs: number[];
     stage: string;
     ahead: boolean;
+    clipSegments: StepClipRange[];
     confidence: number;
     provenance: Prisma.JsonValue;
     warnings: Prisma.JsonValue;
@@ -250,6 +255,7 @@ export interface RevisionSnapshotInput {
     ingredientRefs?: number[];
     stage: string;
     ahead?: boolean;
+    clipSegments?: StepClipRange[];
   }>;
 }
 

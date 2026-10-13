@@ -37,11 +37,14 @@ Finished tasks (checked `[x]`) live in [done/](done/).
 
 ### Group D: Other new features
 - [x] [D1. Recipe notes (general and per step)](done/D1-recipe-notes.md)
-- [D2. Step video clips ("Watch step")](D2-step-video-clips.md)
-- [D3. Cook timer settings](D3-cook-timer-settings.md)
+- [x] [D2. Step video clips ("Watch step")](done/D2-step-video-clips.md)
+- [x] [D3. Cook timer settings](done/D3-cook-timer-settings.md)
 - [D4. Skeleton / loading state](D4-skeleton-loading-state.md)
 - [D5. Add to meal plan from the recipe menu](D5-add-to-meal-plan-menu.md)
 - [D6. Tablet layout (iPad)](D6-tablet-layout.md)
+
+### Group E: Dashboard ledger
+- [x] [E1. Count ingredient generation and recipe edits in dashboard spend](done/E1-dashboard-ingredient-and-edit-costs.md)
 
 ## Already in the repo (excluded)
 Each has a matching file. Their behaviour was not compared with the design in detail.

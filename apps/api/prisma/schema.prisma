@@ -403,6 +403,9 @@ model RecipeStep {
   stage                 String  @default("COOK")
   /// Work that happens before the cooking session (soak, rest meat, marinate overnight).
   ahead                 Boolean @default(false)
+  /// Where the step happens in the source video: [{ start, end }] in seconds, in video order.
+  /// A step can have several ranges when the video comes back to it. Empty = no clip.
+  clipSegments          Json    @default("[]")
   confidence            Float   @default(0)
   provenance            Json    @default("{}")
   warnings              Json    @default("[]")
@@ -509,6 +512,9 @@ model RecipeRevisionStep {
   ingredientRefs        Int[]   @default([])
   stage                 String  @default("COOK")
   ahead                 Boolean @default(false)
+  /// Where the step happens in the source video: [{ start, end }] in seconds, in video order.
+  /// A step can have several ranges when the video comes back to it. Empty = no clip.
+  clipSegments          Json    @default("[]")
   confidence            Float   @default(0)
   provenance            Json    @default("{}")
   warnings              Json    @default("[]")

@@ -22,6 +22,9 @@ import {
   createRecipeClassifier,
 } from '../../recipes/application/recipe-classifier.js';
 import { RecipeExtractor } from '../../recipes/application/recipe-extractor.js';
+import { createStepClipAligner } from '../../recipes/application/step-clip-aligner.js';
+import { transcriptDurationSeconds } from '../../recipes/application/step-clips.js';
+import { SOURCE_VIDEO_METADATA_KEY, type SourceVideo } from '../../recipes/application/source-video.js';
 import { primaryLanguage } from '../../recipes/prompts/recipe-extraction-v1.js';
 import type { MediaProcessingService } from '../../media/application/media-processing.service.js';
 import { createMediaStageHandlers } from './media-stage-handlers.js';
@@ -263,6 +266,47 @@ export function createDefaultStageHandlers(
   const recipeValidator = new RecipeValidator();
   const log = deps.log ?? silentLogger();
 
+  /**
+   * The downloaded video the step clips point into, when the import kept exactly one. Merged
+   * carousels have several timelines, so their clips never get this far.
+   */
+  const findSourceVideo = async (jobId: string): Promise<SourceVideo | null> => {
+    const videos = await deps.mediaAssetRepo.findByJobAndType(jobId, 'VIDEO');
+    const video = videos.length === 1 ? videos[0] : undefined;
+    if (!video) return null;
+    return {
+      storageKey: video.storageKey,
+      mimeType: video.mimeType,
+      durationSeconds: video.durationSeconds ?? null,
+    };
+  };
+
+  /**
+   * Stores the playable video on the source, and the video's length for the last clip when
+   * the source didn't report one.
+   */
+  const recordSourceVideo = async (
+    recipeSourceId: string,
+    video: SourceVideo | null,
+    transcriptSeconds: number | null,
+  ): Promise<void> => {
+    const source = await deps.sourceRepo.findById(recipeSourceId);
+    if (!source) return;
+    const metadata =
+      source.metadata && typeof source.metadata === 'object' && !Array.isArray(source.metadata)
+        ? (source.metadata as Record<string, unknown>)
+        : {};
+    const reported = typeof metadata.durationSeconds === 'number' && metadata.durationSeconds > 0;
+    const durationSeconds = reported
+      ? (metadata.durationSeconds as number)
+      : (video?.durationSeconds ?? transcriptSeconds);
+    await deps.sourceRepo.updateMetadata(source.id, {
+      ...metadata,
+      ...(durationSeconds !== null ? { durationSeconds } : {}),
+      ...(video ? { [SOURCE_VIDEO_METADATA_KEY]: { ...video } } : {}),
+    });
+  };
+
   return {
     ACQUIRING_CONTENT: async (ctx): Promise<void> => {
       const job = await deps.jobRepo.findById(ctx.jobId);
@@ -485,6 +529,37 @@ export function createDefaultStageHandlers(
         }) === 0 &&
         primaryLanguage(ctx.outputLanguage) !== primaryLanguage(normalized.sourceLanguage);
 
+      const transcriptSegments = ctx.transcript?.segments ?? [];
+      const sourceVideo = transcriptSegments.length > 0 ? await findSourceVideo(ctx.jobId) : null;
+      const clipAligner = createStepClipAligner(ai.llm, {
+        useLlm: Boolean(deps.config.ai.openaiApiKey),
+        log: jobLog,
+      });
+      const clipAlignment = await logStep(
+        jobLog,
+        'ai.align-step-clips',
+        { steps: normalized.steps.length, transcriptSegments: transcriptSegments.length },
+        () =>
+          clipAligner.align({
+            steps: normalized.steps,
+            segments: transcriptSegments,
+            durationSeconds:
+              sourceVideo?.durationSeconds ?? transcriptDurationSeconds(transcriptSegments),
+          }),
+      );
+      const stepClips = clipAlignment.clips;
+      const hasClips = stepClips.some((ranges) => ranges.length > 0);
+      jobLog.info(
+        {
+          step: 'ai.align-step-clips',
+          method: clipAlignment.method,
+          stepsWithClips: stepClips.filter((ranges) => ranges.length > 0).length,
+          ranges: stepClips.reduce((sum, ranges) => sum + ranges.length, 0),
+          hasVideo: sourceVideo !== null,
+        },
+        'ai.align-step-clips result',
+      );
+
       const recipeFields = {
         title: normalized.title,
         description: copiedSourceCaption ? null : extractedDescription,
@@ -526,7 +601,7 @@ export function createDefaultStageHandlers(
           warnings: ing.warnings,
           sortOrder: ing.sortOrder,
         })),
-        steps: normalized.steps.map((step) => ({
+        steps: normalized.steps.map((step, index) => ({
           stepOrder: step.stepOrder,
           title: step.title,
           instruction: step.instruction,
@@ -537,6 +612,7 @@ export function createDefaultStageHandlers(
           ingredientRefs: step.ingredientRefs ?? [],
           stage: step.stage,
           ahead: step.ahead,
+          clipSegments: (stepClips[index] ?? []) as unknown as Prisma.InputJsonValue,
           confidence: step.confidence,
           provenance: step.provenance,
           warnings: step.warnings,
@@ -556,6 +632,13 @@ export function createDefaultStageHandlers(
             );
             await deps.jobRepo.clearRecipeIdExcept(existing.id, ctx.jobId);
             return existing;
+          }
+          if (hasClips) {
+            await recordSourceVideo(
+              job.recipeSourceId,
+              sourceVideo,
+              transcriptDurationSeconds(transcriptSegments),
+            );
           }
           return deps.recipeRepo.create({
             recipeSourceId: job.recipeSourceId,

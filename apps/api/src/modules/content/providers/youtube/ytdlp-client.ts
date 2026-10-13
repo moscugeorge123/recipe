@@ -73,8 +73,12 @@ const YTDLP_COMMON_ARGS = [
   'node',
 ] as const;
 
-/** 720p is plenty for on-screen text OCR; falls back to any quality when no ≤720p stream exists. */
-export const YTDLP_FORMAT = 'bv*[height<=720]+ba/b[height<=720]/bv*+ba/b';
+/**
+ * 720p is plenty for on-screen text OCR and for the step clips. H.264 + AAC first, because the
+ * app plays the stored file and iOS cannot play VP9/Opus; then any codec, then any quality.
+ */
+export const YTDLP_FORMAT =
+  'bv*[height<=720][vcodec^=avc1]+ba[acodec^=mp4a]/b[height<=720][ext=mp4]/bv*[height<=720]+ba/b[height<=720]/bv*+ba/b';
 
 const STDERR_LIMIT = 500;
 
@@ -154,6 +158,8 @@ export class YtDlpClient implements VideoDownloadClient {
           '--dump-single-json',
           '-f',
           YTDLP_FORMAT,
+          '--merge-output-format',
+          'mp4',
           '-o',
           outputTemplate,
           url,

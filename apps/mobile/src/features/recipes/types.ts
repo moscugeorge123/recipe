@@ -47,6 +47,8 @@ export type RecipeStepView = {
   stage: StepStage;
   /** Work that happens before the cooking session. */
   ahead: boolean;
+  /** Ranges of the source video showing this step, in video order; empty = no clip. */
+  clipSegments?: ClipRange[];
   ingredientHint: string | null;
   confidence: number;
 };
@@ -57,6 +59,9 @@ export type RecipeMacros = {
   carbsGrams: number | null;
   fatGrams: number | null;
 };
+
+/** A stretch of the source video, in seconds. */
+export type ClipRange = { start: number; end: number };
 
 export type RecipeView = {
   id: RecipeId;
@@ -84,6 +89,10 @@ export type RecipeView = {
   warnings: unknown;
   ingredients: RecipeIngredientView[];
   steps: RecipeStepView[];
+  /** Length of the source video, when the import reported it. */
+  sourceDurationSeconds?: number | null;
+  /** API path of the imported video the step clips play from; null when none was kept. */
+  sourceVideoPath?: string | null;
   ingredientCount?: number;
   stepCount?: number;
   createdAt?: string;

@@ -44,6 +44,10 @@ export const recipeStepSchema = z.object({
   ingredientRefs: z.array(z.number().int().nonnegative()).optional(),
   stage: z.string(),
   ahead: z.boolean().optional(),
+  /** Ranges of the source video showing this step, in seconds; absent or empty = no clip. */
+  clipSegments: z
+    .array(z.object({ start: z.number(), end: z.number() }))
+    .optional(),
   ingredientHint: z.string().nullable(),
   confidence: z.number(),
   provenance: z.unknown(),
@@ -59,6 +63,15 @@ export const recipeSourceSchema = z.object({
   author: z.string().nullable(),
   thumbnailUrl: z.string().nullable(),
   sourceLabel: z.string(),
+  /** The imported video the step clips play from; `path` is relative to the API root. */
+  video: z
+    .object({
+      path: z.string(),
+      mimeType: z.string(),
+      durationSeconds: z.number().nullable(),
+    })
+    .nullable()
+    .optional(),
   createdAt: z.string(),
 });
 

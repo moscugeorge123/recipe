@@ -14,7 +14,9 @@ import {
   preferUnits,
   stepHeat,
 } from '@/features/recipes/units';
+import { getApiBaseUrl } from '@/constants/env';
 import { hueOf } from '@/tortie/color';
+import { buildClips, type StepClip } from '@/tortie/data/step-clips';
 import { emoOf, fmtIngQty, hasKey, ingKeys, lexOf } from '@/tortie/lib/fmt';
 import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
 
@@ -74,6 +76,10 @@ export type TStep = {
 export type TDetail = TRecipe & {
   ings: TIng[];
   steps: TStep[];
+  /** Source-video clips for the steps that have ranges (see `step-clips.ts`). */
+  clips: StepClip[];
+  /** Full URL of the imported video the clips play from; null plays a simulation. */
+  video: string | null;
   view: RecipeView;
 };
 
@@ -212,7 +218,24 @@ export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
         need,
       };
     });
-  return { ...base, ings, steps, view: v };
+  const clips = buildClips(
+    [...v.steps]
+      .sort((a, b) => a.stepOrder - b.stepOrder)
+      .map((s) => s.clipSegments),
+    v.sourceDurationSeconds,
+  );
+  const video = clips.length ? videoUrl(v.sourceVideoPath) : null;
+  return { ...base, ings, steps, clips, video, view: v };
+}
+
+/** The API serves the source video next to the recipe; null without a path or an API URL. */
+function videoUrl(path: string | null | undefined): string | null {
+  if (!path) return null;
+  try {
+    return `${getApiBaseUrl()}${path.startsWith('/') ? path : `/${path}`}`;
+  } catch {
+    return null;
+  }
 }
 
 /** "115 g" / "¼ cup" for an ingredient row, scaled for servings. */

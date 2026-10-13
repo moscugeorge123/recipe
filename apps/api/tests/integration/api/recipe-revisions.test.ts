@@ -162,6 +162,79 @@ describe.skipIf(!dbAvailable)('recipe revisions and categories', () => {
     expect(after).toEqual(before);
   });
 
+  it('stores step clip ranges and keeps them across edits and restores', async () => {
+    type Range = { start: number; end: number };
+    const recipeId = await importRecipe();
+    const baseline = (
+      await app.inject({ method: 'GET', url: `/api/v1/recipes/${recipeId}` })
+    ).json<{ data: { steps: Array<StepJson & { clipSegments: Range[] }> } }>().data;
+    expect(baseline.steps.every((step) => step.clipSegments.length === 0)).toBe(true);
+
+    const twoRanges: Range[] = [
+      { start: 29, end: 41 },
+      { start: 88.5, end: 95 },
+    ];
+    const clipSteps = (starts: Array<Range[] | undefined>) =>
+      baseline.steps.map((step, index) => ({
+        stepOrder: index + 1,
+        instruction: step.instruction,
+        durationMinutes: step.durationMinutes,
+        temperature: step.temperature,
+        stage: step.stage,
+        ...(starts[index] !== undefined ? { clipSegments: starts[index] } : {}),
+      }));
+    const patch = (expectedRevisionNumber: number, body: Record<string, unknown>) =>
+      app.inject({
+        method: 'PATCH',
+        url: `/api/v1/recipes/${recipeId}`,
+        payload: { expectedRevisionNumber, ...body },
+      });
+    const clipsOf = (response: { json: () => unknown }) =>
+      (response.json() as { data: { steps: Array<{ clipSegments: Range[] }> } }).data.steps.map(
+        (step) => step.clipSegments,
+      );
+
+    // Explicit ranges are stored on the new revision.
+    const withClip = await patch(0, { steps: clipSteps([twoRanges]) });
+    expect(withClip.statusCode).toBe(200);
+    expect(clipsOf(withClip)[0]).toEqual(twoRanges);
+
+    // An edit that leaves the step text alone carries the clip forward.
+    const retitled = await patch(1, { title: 'Clip keeper' });
+    expect(clipsOf(retitled)[0]).toEqual(twoRanges);
+
+    // Rewriting a step drops its clip; an explicit value still wins.
+    const rewritten = await patch(2, {
+      steps: [
+        { stepOrder: 1, instruction: 'A brand new first step', durationMinutes: null, temperature: null },
+        {
+          stepOrder: 2,
+          instruction: 'A brand new second step',
+          durationMinutes: null,
+          temperature: null,
+          clipSegments: [{ start: 51, end: 60 }],
+        },
+      ],
+    });
+    expect(clipsOf(rewritten)).toEqual([[], [{ start: 51, end: 60 }]]);
+
+    // Restoring an earlier revision brings its clips back.
+    const history = await app.inject({
+      method: 'GET',
+      url: `/api/v1/recipes/${recipeId}/revisions`,
+    });
+    const target = history
+      .json<{ data: Array<RevisionJson & { revisionNumber: number }> }>()
+      .data.find((revision) => revision.revisionNumber === 1);
+    const restored = await app.inject({
+      method: 'POST',
+      url: `/api/v1/recipes/${recipeId}/revisions/${target?.id ?? ''}/restore`,
+      payload: { expectedRevisionNumber: 3 },
+    });
+    expect(restored.statusCode).toBe(200);
+    expect(clipsOf(restored)[0]).toEqual(twoRanges);
+  });
+
   it('lists readable history and restores original as a new head', async () => {
     const recipeId = await importRecipe();
     const original = (

@@ -97,6 +97,57 @@ export function addMinute(
   };
 }
 
+export const MIN_TIMER_MINUTES = 1;
+export const MAX_TIMER_MINUTES = 600;
+
+export function clampMinutes(minutes: number): number {
+  if (!Number.isFinite(minutes)) return MIN_TIMER_MINUTES;
+  return Math.min(
+    MAX_TIMER_MINUTES,
+    Math.max(MIN_TIMER_MINUTES, Math.round(minutes)),
+  );
+}
+
+/** Stepper: 1 min steps below 10, 5 min steps from 10 up, clamped to 1–600. */
+export function stepMinutes(minutes: number, dir: 1 | -1): number {
+  const step = dir === 1 ? (minutes < 10 ? 1 : 5) : minutes <= 10 ? 1 : 5;
+  return clampMinutes(minutes + dir * step);
+}
+
+/**
+ * Moves the deadline by whole minutes. Shortening never goes below one minute
+ * left, so −1 can't finish a timer by accident. Adding follows `addMinute`.
+ */
+export function shiftMinutes(
+  timer: StepTimer,
+  now: number,
+  minutes: number,
+  startIfDone = false,
+): StepTimer {
+  if (minutes >= 0) {
+    let next = timer;
+    for (let i = 0; i < minutes; i++) {
+      next = addMinute(next, now, i === 0 && startIfDone);
+    }
+    return next;
+  }
+  const left = remainingSec(timer, now);
+  const rem = Math.max(60, left + minutes * 60);
+  if (rem >= left) return timer;
+  return {
+    ...timer,
+    rem,
+    total: Math.max(rem, timer.total + minutes * 60),
+    endsAt: timer.run && timer.endsAt != null ? now + rem * 1000 : null,
+  };
+}
+
+/** Apply from the settings panel: a fresh, paused timer of that length. */
+export function withDuration(timer: StepTimer, minutes: number): StepTimer {
+  const sec = clampMinutes(minutes) * 60;
+  return { ...timer, rem: sec, total: sec, run: false, endsAt: null };
+}
+
 export function projectTimers(
   timers: Record<string, StepTimer>,
   now: number,
