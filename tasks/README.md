@@ -37,8 +37,8 @@ Finished tasks (checked `[x]`) live in [done/](done/).
 
 ### Group D: Other new features
 - [x] [D1. Recipe notes (general and per step)](done/D1-recipe-notes.md)
-- [D2. Step video clips ("Watch step")](D2-step-video-clips.md)
-- [D3. Cook timer settings](D3-cook-timer-settings.md)
+- [x] [D2. Step video clips ("Watch step")](done/D2-step-video-clips.md)
+- [x] [D3. Cook timer settings](done/D3-cook-timer-settings.md)
 - [D4. Skeleton / loading state](D4-skeleton-loading-state.md)
 - [x] [D5. Add to meal plan from the recipe menu](done/D5-add-to-meal-plan-menu.md)
 - [D6. Tablet layout (iPad)](D6-tablet-layout.md)
@@ -50,6 +50,9 @@ Finished tasks (checked `[x]`) live in [done/](done/).
 These two are not from the Tortie prototype. F2 depends on F1.
 - [F1. Paginate list endpoints](F1-list-pagination.md)
 - [F2. Infinite loading for list screens](F2-infinite-loading.md)
+
+### Group G: Dashboard ledger
+- [x] [G1. Count ingredient generation and recipe edits in dashboard spend](done/E1-dashboard-ingredient-and-edit-costs.md)
 
 ## Already in the repo (excluded)
 Each has a matching file. Their behaviour was not compared with the design in detail.

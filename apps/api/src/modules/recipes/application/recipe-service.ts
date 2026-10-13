@@ -22,6 +22,8 @@ import type {
   RecipeTranslationService,
 } from './recipe-translation-service.js';
 import { measurementsForEdit, stepExtrasForEdit } from './revision-measurements.js';
+import { sourceVideoFromMetadata, type SourceVideo } from './source-video.js';
+import { normalizeClipRanges } from './step-clips.js';
 
 export interface RecipeDetailView {
   id: string;
@@ -135,6 +137,16 @@ export class RecipeService {
     return { language: translation.language, status: await this.translations.start(recipe, language) };
   }
 
+  /** The stored source video behind the recipe's step clips. */
+  async getSourceVideoForProfile(id: string, userId: string): Promise<SourceVideo> {
+    const recipe = await this.recipeRepo.findEffectiveById(id, userId);
+    const video = recipe ? sourceVideoFromMetadata(recipe.source.metadata) : null;
+    if (!video) {
+      throw new RecipeNotFoundError();
+    }
+    return video;
+  }
+
   async list(
     query: ListRecipesQuery,
     userId: string,
@@ -188,11 +200,17 @@ export class RecipeService {
         existing.steps.find((item) => item.instruction.trim() === step.instruction.trim()) ??
         existing.steps.find((item) => item.stepOrder === step.stepOrder);
       const title = blankToNull(step.title !== undefined ? step.title : (previous?.title ?? null));
+      // A clip belongs to the words of the step, so it only follows an unchanged instruction.
+      const sameText = existing.steps.find((item) => item.instruction.trim() === step.instruction.trim());
       return {
         stepOrder: step.stepOrder,
         title,
         instruction: step.instruction,
         ahead: step.ahead !== undefined ? step.ahead : (previous?.ahead ?? false),
+        clipSegments:
+          'clipSegments' in step && step.clipSegments !== undefined
+            ? normalizeClipRanges(step.clipSegments, null)
+            : (sameText?.clipSegments ?? []),
         durationMinutes: step.durationMinutes ?? null,
         temperature,
         ...stepExtrasForEdit(

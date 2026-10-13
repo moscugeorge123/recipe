@@ -19,3 +19,11 @@ Group D: Other new features. Called "F3" in the prototype.
 
 ## Enrich later
 - Persistence per recipe or step, and the relation to timer alarms.
+
+## Done
+Matches `Tortie App v2.dc.html` ("Cook mode" timer card), with the changes the user asked for on top.
+- Card: 56px ring with the play/pause button inside, clock (no text line under it), reset and tune buttons, then a −1 / +1 / +5 min row.
+- Tune opens a panel with only the duration: − / + (1 below 10, 5 from 10 up, 1–600 min) and a minutes field you can tap and type into. The button reads "Set timer to X" and sets a paused timer.
+- Left out on purpose: presets and Auto-start (both are in the prototype).
+- Code: `timer-clock.ts` (`stepMinutes`, `clampMinutes`, `shiftMinutes`, `withDuration`), `cook-store.ts` (`shift`, `setDuration`), `screens/cook.tsx`. Tests: `apps/mobile/src/tortie/__tests__/timer-settings-test.ts`.
+- −1 min stops at one minute left. Reset still returns to the recipe's duration, not the one set in the panel (the prototype keeps the set one).

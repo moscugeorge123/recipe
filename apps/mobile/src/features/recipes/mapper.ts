@@ -165,6 +165,16 @@ function stringField(
   return null;
 }
 
+function numberField(
+  record: Record<string, unknown>,
+  key: string,
+): number | null {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? Math.floor(value)
+    : null;
+}
+
 function gramsField(
   record: Record<string, unknown>,
   key: string,
@@ -289,6 +299,10 @@ function mapStep(
     ),
     stage: asStepStage(step.stage) ?? stageForIndex(index, total),
     ahead: step.ahead === true,
+    clipSegments: (step.clipSegments ?? []).filter(
+      (r) =>
+        Number.isFinite(r.start) && Number.isFinite(r.end) && r.end > r.start,
+    ),
     ingredientHint:
       step.ingredientHint ?? hintFromIngredients(step.instruction, ingredients),
     confidence: step.confidence,
@@ -359,6 +373,11 @@ export function mapRecipeDetail(dto: RecipeDetailDto): RecipeView {
     steps: sortedSteps.map((step, index) =>
       mapStep(step, index, sortedSteps.length, ingredients),
     ),
+    sourceDurationSeconds:
+      numberField(meta, 'durationSeconds') ??
+      dto.source?.video?.durationSeconds ??
+      null,
+    sourceVideoPath: dto.source?.video?.path ?? null,
     createdAt: dto.createdAt,
     revisionId: dto.revisionId,
     revisionNumber: dto.revisionNumber ?? 0,

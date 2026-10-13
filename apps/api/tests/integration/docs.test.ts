@@ -85,6 +85,7 @@ describe('API documentation', () => {
       '/api/v1/recipes/{id}/revisions/{revisionId}',
       '/api/v1/recipes/{id}/revisions/{revisionId}/restore',
       '/api/v1/recipes/{id}/translations',
+      '/api/v1/recipes/{id}/video',
       '/api/v1/shopping-list',
       '/api/v1/shopping-list/clear-done',
       '/api/v1/shopping-list/from-recipe',

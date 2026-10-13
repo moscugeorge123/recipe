@@ -112,6 +112,7 @@ async function writeOriginalRevision(
           temperature: step.temperature,
           stage: step.stage,
           ahead: step.ahead,
+          clipSegments: requiredJson(step.clipSegments),
           confidence: step.confidence,
           provenance: requiredJson(step.provenance),
           warnings: requiredJson(step.warnings),

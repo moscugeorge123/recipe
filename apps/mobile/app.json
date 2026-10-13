@@ -55,7 +55,9 @@
             "NSExtensionActivationSupportsText": true
           },
           "iosShareExtensionName": "Tortie",
-          "androidIntentFilters": ["text/*"],
+          "androidIntentFilters": [
+            "text/*"
+          ],
           "androidMainActivityAttributes": {
             "android:launchMode": "singleTask"
           }
@@ -87,12 +89,15 @@
       [
         "expo-notifications",
         {
-          "sounds": ["./assets/sounds/cook_alarm.wav"],
+          "sounds": [
+            "./assets/sounds/cook_alarm.wav"
+          ],
           "color": "#a23e18"
         }
       ],
       "./plugins/with-exact-alarm",
-      "./plugins/with-internet-access"
+      "./plugins/with-internet-access",
+      "expo-video"
     ],
     "experiments": {
       "typedRoutes": true,

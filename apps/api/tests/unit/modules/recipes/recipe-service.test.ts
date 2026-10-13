@@ -84,6 +84,7 @@ function effective(overrides: Partial<EffectiveRecipeRecord> = {}): EffectiveRec
         ingredientRefs: [0],
         stage: 'COOK',
         ahead: false,
+        clipSegments: [],
         confidence: 0.8,
         provenance: {},
         warnings: [],
@@ -187,6 +188,60 @@ describe('RecipeService revisions', () => {
         ],
       }),
     );
+  });
+
+  it('keeps a step clip only while the step text is unchanged', async () => {
+    const base = effective();
+    const first = base.steps[0]!;
+    const current = effective({
+      steps: [{ ...first, clipSegments: [{ start: 29, end: 41.5 }, { start: 80, end: 92 }] }],
+    });
+    const appendRevision = vi.fn().mockResolvedValue(current);
+    const service = new RecipeService(
+      repo({ findEffectiveById: vi.fn().mockResolvedValue(current), appendRevision }),
+    );
+    const patchStep = (instruction: string) => ({
+      stepOrder: 1,
+      instruction,
+      durationMinutes: null,
+      temperature: null,
+    });
+
+    await service.updateForProfile(current.id, USER_ID, {
+      expectedRevisionNumber: 0,
+      steps: [patchStep(first.instruction)],
+    });
+    await service.updateForProfile(current.id, USER_ID, {
+      expectedRevisionNumber: 0,
+      steps: [patchStep('Something else entirely')],
+    });
+    await service.updateForProfile(current.id, USER_ID, {
+      expectedRevisionNumber: 0,
+      steps: [
+        {
+          ...patchStep('Something else entirely'),
+          clipSegments: [{ start: 70, end: 75 }, { start: 51, end: 60 }],
+        },
+      ],
+    });
+
+    const clips = appendRevision.mock.calls.map(
+      (call) =>
+        (call[3] as { steps: Array<{ clipSegments: Array<{ start: number; end: number }> }> }).steps[0]!
+          .clipSegments,
+    );
+    expect(clips).toEqual([
+      [
+        { start: 29, end: 41.5 },
+        { start: 80, end: 92 },
+      ],
+      [],
+      // Edited ranges are cleaned up: sorted into video order.
+      [
+        { start: 51, end: 60 },
+        { start: 70, end: 75 },
+      ],
+    ]);
   });
 
   it('keeps imported metric/imperial values for unchanged rows and converts edited rows', async () => {
