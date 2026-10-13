@@ -96,7 +96,10 @@ export const recipeAssistRoutes: FastifyPluginAsyncZod<RecipeAssistRoutesOptions
         },
         'http.recipe.assist started',
       );
-      const result = await opts.recipeAssistant.assist(request.body);
+      const result = await opts.recipeAssistant.assist({
+        ...request.body,
+        userId: request.profile.userId,
+      });
       reply.send(dataResponse(result));
     },
   );

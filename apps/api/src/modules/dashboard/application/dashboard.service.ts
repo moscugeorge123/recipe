@@ -84,11 +84,14 @@ export class DashboardService {
   ) {}
 
   async summary(): Promise<DashboardSummary> {
-    const jobs = await this.prisma.extractionJob.findMany({
-      orderBy: { createdAt: 'desc' },
-      include: jobInclude,
-    });
-    return assembleSummary(jobs.map(toJobInput));
+    const [jobs, standalone] = await Promise.all([
+      this.prisma.extractionJob.findMany({
+        orderBy: { createdAt: 'desc' },
+        include: jobInclude,
+      }),
+      this.prisma.aIUsage.findMany({ where: { jobId: null }, orderBy: { createdAt: 'asc' } }),
+    ]);
+    return assembleSummary(jobs.map(toJobInput), standalone.map(toAiInput));
   }
 
   async listImports(

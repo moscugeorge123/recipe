@@ -403,6 +403,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
         ? new OpenAIProvider(appConfig, null, undefined, assistLog)
         : null,
     assistLog,
+    pantryUsage,
   );
   const translationLog = log.child({ component: 'recipe-translator' });
   const recipeTranslator = new RecipeTranslator(

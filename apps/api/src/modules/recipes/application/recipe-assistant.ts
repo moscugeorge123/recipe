@@ -2,7 +2,8 @@ import { RECIPE_DIFFICULTIES } from '@recipe/contracts';
 import { z } from 'zod';
 
 import type { AppConfig } from '../../../config/env.js';
-import type { LLMProvider } from '../../../infrastructure/ai/llm/llm-provider.js';
+import type { LLMProvider, LLMResult } from '../../../infrastructure/ai/llm/llm-provider.js';
+import type { AIUsageTracker } from '../../../infrastructure/ai/usage/ai-usage-tracker.js';
 import { silentLogger, type AppLogger } from '../../../infrastructure/logging/logger.js';
 import { ServiceUnavailableError } from '../../../shared/errors/app-error.js';
 import { RecipeAssistRejectedError } from '../../../shared/errors/recipe-errors.js';
@@ -19,6 +20,8 @@ const MAX_SERVINGS = 24;
 const MAX_OUTPUT_TOKENS = 8000;
 
 export interface RecipeAssistInput {
+  /** The signed-in user the AI spend is recorded against. */
+  userId?: string;
   instruction: string;
   recipe: RecipeAssistRecipe;
 }
@@ -62,6 +65,7 @@ export class RecipeAssistant {
     private readonly config: AppConfig,
     private readonly llm: LLMProvider | null,
     private readonly log: AppLogger = silentLogger(),
+    private readonly usageTracker: AIUsageTracker | null = null,
   ) {}
 
   async assist(input: RecipeAssistInput): Promise<RecipeAssistResult> {
@@ -87,6 +91,8 @@ export class RecipeAssistant {
       },
       RECIPE_ASSIST_SCHEMA,
     );
+    // Tokens are spent even when the model rejects or returns junk, so record before parsing.
+    await this.trackUsage(input.userId, result);
 
     const parsed = outputSchema.safeParse(result.data);
     if (!parsed.success) {
@@ -132,6 +138,26 @@ export class RecipeAssistant {
       recipe,
       promptVersion: RECIPE_ASSIST_PROMPT_VERSION,
     };
+  }
+
+  /** Bookkeeping must not fail an edit the user already paid for. */
+  private async trackUsage(userId: string | undefined, result: LLMResult<unknown>): Promise<void> {
+    if (!this.usageTracker || !userId) {
+      return;
+    }
+    try {
+      await this.usageTracker.track({
+        userId,
+        provider: 'openai',
+        model: result.model,
+        operation: 'recipe_assist',
+        inputTokens: result.usage.inputTokens,
+        outputTokens: result.usage.outputTokens,
+        durationMs: result.durationMs,
+      });
+    } catch (error: unknown) {
+      this.log.warn({ step: 'recipe.assist', err: error }, 'recipe.assist usage was not recorded');
+    }
   }
 }
 
