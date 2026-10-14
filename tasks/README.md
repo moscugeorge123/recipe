@@ -40,8 +40,11 @@ Finished tasks (checked `[x]`) live in [done/](done/).
 - [D2. Step video clips ("Watch step")](D2-step-video-clips.md)
 - [D3. Cook timer settings](D3-cook-timer-settings.md)
 - [D4. Skeleton / loading state](D4-skeleton-loading-state.md)
-- [D5. Add to meal plan from the recipe menu](D5-add-to-meal-plan-menu.md)
+- [x] [D5. Add to meal plan from the recipe menu](done/D5-add-to-meal-plan-menu.md)
 - [D6. Tablet layout (iPad)](D6-tablet-layout.md)
+
+### Group E: Recipe assistant
+- [E1. Ask Tortie step numbers](E1-assist-step-numbering.md)
 
 ## Already in the repo (excluded)
 Each has a matching file. Their behaviour was not compared with the design in detail.

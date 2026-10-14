@@ -8,7 +8,10 @@ const apiProxy = {
   },
 };
 
+const base = process.env.DASHBOARD_BASE?.trim() || '/';
+
 export default defineConfig({
+  base,
   plugins: [react()],
   server: {
     proxy: apiProxy,
