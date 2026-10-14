@@ -49,10 +49,16 @@ async function errorMessage(response: Response): Promise<string> {
   }
 }
 
+function resolvePath(path: string): string {
+  const base = (import.meta.env.VITE_API_BASE ?? '').trim().replace(/\/$/, '');
+  if (!base) return path;
+  return `${base}${path.startsWith('/') ? path : `/${path}`}`;
+}
+
 async function request<T>(path: string): Promise<T> {
   let response: Response;
   try {
-    response = await fetch(path);
+    response = await fetch(resolvePath(path));
   } catch (error: unknown) {
     const message = error instanceof Error && error.message ? error.message : 'Network request failed';
     throw new Error(message);

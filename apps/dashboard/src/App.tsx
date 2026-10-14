@@ -7,9 +7,11 @@ import { LogsPage } from './pages/LogsPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { UsagePage } from './pages/UsagePage';
 
+const routerBasename = import.meta.env.BASE_URL.replace(/\/$/, '');
+
 export function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={routerBasename === '' ? undefined : routerBasename}>
       <Routes>
         <Route element={<Layout />}>
           <Route index element={<OverviewPage />} />

@@ -8,8 +8,16 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY apps/api/package.json ./apps/api/
 COPY apps/mobile/package.json ./apps/mobile/
+COPY apps/dashboard/package.json ./apps/dashboard/
+COPY packages/contracts/package.json packages/contracts/tsconfig.json packages/contracts/tsconfig.build.json ./packages/contracts/
+COPY packages/contracts/src ./packages/contracts/src
 COPY apps/api/prisma ./apps/api/prisma
-RUN npm ci
+# prisma generate reads DATABASE_URL from the schema. No database is contacted at build time.
+ENV DATABASE_URL=postgresql://postgres:postgres@localhost:5432/recipe_api
+# Install the API and its workspace dependency only. The root lockfile also
+# contains the Expo app, which is not needed in this image.
+RUN npm ci -w api -w @recipe/contracts
+RUN npm run build -w @recipe/contracts
 
 COPY apps/api/tsconfig.json apps/api/tsconfig.build.json ./apps/api/
 COPY apps/api/src ./apps/api/src
@@ -22,7 +30,7 @@ WORKDIR /app
 # ffmpeg for media processing + yt-dlp for YouTube extraction.
 # Keep the yt-dlp install in sync with apps/api/Dockerfile (API has no ffmpeg).
 # Do not use `apk add yt-dlp` — Alpine's package is too stale for YouTube.
-RUN apk add --no-cache ca-certificates ffmpeg python3 py3-pip \
+RUN apk add --no-cache ca-certificates openssl ffmpeg python3 py3-pip \
   && pip3 install --no-cache-dir --break-system-packages yt-dlp \
   && yt-dlp --version \
   && ffmpeg -version \
@@ -37,8 +45,10 @@ COPY --from=build --chown=node:node /app/package.json ./package.json
 COPY --from=build --chown=node:node /app/apps/api/package.json ./apps/api/package.json
 COPY --from=build --chown=node:node /app/apps/api/dist ./apps/api/dist
 COPY --from=build --chown=node:node /app/apps/api/prisma ./apps/api/prisma
+COPY --from=build --chown=node:node /app/packages/contracts/package.json ./packages/contracts/package.json
+COPY --from=build --chown=node:node /app/packages/contracts/dist ./packages/contracts/dist
 
-RUN mkdir -p /app/apps/api/logs && chown node:node /app/apps/api/logs
+RUN mkdir -p /app/apps/api/logs /app/apps/api/storage && chown -R node:node /app/apps/api/logs /app/apps/api/storage
 
 WORKDIR /app/apps/api
 USER node
