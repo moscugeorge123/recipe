@@ -14,10 +14,14 @@ import {
   isJobLogLine,
 } from './logger.js';
 
+/** Non-test environments default to Firebase auth, which needs a project id. */
+const load = (env: NodeJS.ProcessEnv) =>
+  loadConfig({ FIREBASE_PROJECT_ID: 'test-project', ...env });
+
 describe('buildLoggerOptions', () => {
   it('uses the configured level and tags every line with the service identity', () => {
     const options = buildLoggerOptions(
-      loadConfig({ NODE_ENV: 'production', LOG_LEVEL: 'warn', SERVICE_NAME: 'recipes-api' }),
+      load({ NODE_ENV: 'production', LOG_LEVEL: 'warn', SERVICE_NAME: 'recipes-api' }),
     );
 
     expect(options.level).toBe('warn');
@@ -25,13 +29,13 @@ describe('buildLoggerOptions', () => {
   });
 
   it('emits level names rather than numbers, for CloudWatch queries', () => {
-    const options = buildLoggerOptions(loadConfig({ NODE_ENV: 'production' }));
+    const options = buildLoggerOptions(load({ NODE_ENV: 'production' }));
 
     expect(options.formatters?.level?.('warn', 40)).toEqual({ level: 'warn' });
   });
 
   it('redacts credentials and tokens wherever they appear', () => {
-    const options = buildLoggerOptions(loadConfig({ NODE_ENV: 'production' }));
+    const options = buildLoggerOptions(load({ NODE_ENV: 'production' }));
     const redact = options.redact;
 
     expect(redact).toMatchObject({ censor: '[REDACTED]' });
@@ -43,7 +47,7 @@ describe('buildLoggerOptions', () => {
   });
 
   it('logs only the method, URL and route for a request, never headers', () => {
-    const options = buildLoggerOptions(loadConfig({ NODE_ENV: 'production' }));
+    const options = buildLoggerOptions(load({ NODE_ENV: 'production' }));
 
     const request = {
       method: 'POST',
@@ -65,13 +69,13 @@ describe('buildLoggerOptions', () => {
   });
 
   it('reduces a reply to its status code', () => {
-    const options = buildLoggerOptions(loadConfig({ NODE_ENV: 'production' }));
+    const options = buildLoggerOptions(load({ NODE_ENV: 'production' }));
 
     expect(options.serializers?.['res']?.({ statusCode: 201 })).toEqual({ statusCode: 201 });
   });
 
   it('uses ISO timestamps', () => {
-    const options = buildLoggerOptions(loadConfig({ NODE_ENV: 'production' }));
+    const options = buildLoggerOptions(load({ NODE_ENV: 'production' }));
 
     expect(typeof options.timestamp).toBe('function');
     const timestamp = (options.timestamp as () => string)();
@@ -79,14 +83,14 @@ describe('buildLoggerOptions', () => {
   });
 
   it('does not attach a transport (streams are wired in createLogger)', () => {
-    expect(buildLoggerOptions(loadConfig({ NODE_ENV: 'development' })).transport).toBeUndefined();
-    expect(buildLoggerOptions(loadConfig({ NODE_ENV: 'production' })).transport).toBeUndefined();
+    expect(buildLoggerOptions(load({ NODE_ENV: 'development' })).transport).toBeUndefined();
+    expect(buildLoggerOptions(load({ NODE_ENV: 'production' })).transport).toBeUndefined();
   });
 });
 
 describe('buildFileRollOptions', () => {
   it('points at a daily file named after the service', () => {
-    expect(buildFileRollOptions(loadConfig({ NODE_ENV: 'development', SERVICE_NAME: 'api' }))).toEqual(
+    expect(buildFileRollOptions(load({ NODE_ENV: 'development', SERVICE_NAME: 'api' }))).toEqual(
       expect.objectContaining({
         file: expect.stringContaining(`${path.sep}api`),
         frequency: 'daily',
@@ -95,9 +99,7 @@ describe('buildFileRollOptions', () => {
         sync: true,
       }),
     );
-    expect(
-      buildFileRollOptions(loadConfig({ NODE_ENV: 'production', SERVICE_NAME: 'worker' })),
-    ).toEqual(
+    expect(buildFileRollOptions(load({ NODE_ENV: 'production', SERVICE_NAME: 'worker' }))).toEqual(
       expect.objectContaining({
         file: expect.stringContaining(`${path.sep}worker`),
         frequency: 'daily',
@@ -106,8 +108,8 @@ describe('buildFileRollOptions', () => {
   });
 
   it('is off in tests and when LOG_DIR is empty', () => {
-    expect(buildFileRollOptions(loadConfig({ NODE_ENV: 'test' }))).toBeUndefined();
-    expect(buildFileRollOptions(loadConfig({ NODE_ENV: 'production', LOG_DIR: '' }))).toBeUndefined();
+    expect(buildFileRollOptions(load({ NODE_ENV: 'test' }))).toBeUndefined();
+    expect(buildFileRollOptions(load({ NODE_ENV: 'production', LOG_DIR: '' }))).toBeUndefined();
   });
 });
 
@@ -123,7 +125,7 @@ describe('createLogger', () => {
     dirs.push(dir);
 
     const log = await createLogger(
-      loadConfig({
+      load({
         NODE_ENV: 'production',
         LOG_DIR: dir,
         LOG_LEVEL: 'info',
@@ -153,7 +155,7 @@ describe('createLogger', () => {
     dirs.push(dir);
 
     const log = await createLogger(
-      loadConfig({ NODE_ENV: 'production', LOG_DIR: dir, LOG_LEVEL: 'info', SERVICE_NAME: 'api' }),
+      load({ NODE_ENV: 'production', LOG_DIR: dir, LOG_LEVEL: 'info', SERVICE_NAME: 'api' }),
       { processName: 'worker' },
     );
     log.info({ step: 'http' }, 'poll request');

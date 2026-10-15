@@ -2,6 +2,8 @@ import type { ExtractionJob, JobStatus, Prisma } from '@prisma/client';
 
 export interface CreateExtractionJobInput {
   recipeSourceId: string;
+  /** Account that submitted the import; null for system-created jobs. */
+  requestedByUserId?: string | null;
   outputLanguage: string;
   options?: Prisma.InputJsonValue;
 }
@@ -24,4 +26,10 @@ export interface IExtractionJobRepository {
   update(id: string, input: UpdateExtractionJobInput): Promise<ExtractionJob>;
   findLatestCompletedBySourceId(recipeSourceId: string): Promise<ExtractionJob | null>;
   clearRecipeIdExcept(recipeId: string, jobId: string): Promise<void>;
+  /**
+   * Gives the user their own copy of an existing recipe (UserRecipe + original revision +
+   * categories). Idempotent: does nothing when the user already has it.
+   */
+  linkRecipeToUser(userId: string, recipeId: string): Promise<void>;
+  userHasRecipe(userId: string, recipeId: string): Promise<boolean>;
 }

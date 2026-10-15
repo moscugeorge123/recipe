@@ -23,6 +23,14 @@ const commaSeparatedList = z
   )
   .pipe(z.array(z.string().min(1)));
 
+/** Treats an empty string (for example `KEY=` passed through docker compose) as unset. */
+const optionalString = z
+  .string()
+  .optional()
+  .transform((value) => (value === undefined || value.trim() === '' ? undefined : value.trim()));
+
+const AUTH_MODES = ['implicit', 'firebase'] as const;
+
 const rawEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 
@@ -72,6 +80,23 @@ const rawEnvSchema = z.object({
 
   /** How long in-flight requests are given to finish after SIGTERM. */
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
+
+  // --- Authentication ----------------------------------------------------------
+  /**
+   * `firebase` verifies Firebase ID tokens and scopes data to the signed-in user. `implicit`
+   * serves every request as the singleton default profile and exists for tests and local
+   * tooling only. Defaults to `implicit` when NODE_ENV=test, otherwise `firebase`.
+   */
+  AUTH_MODE: z.enum(AUTH_MODES).optional(),
+  /** Required for `firebase` mode: the project that issues the ID tokens. */
+  FIREBASE_PROJECT_ID: optionalString,
+  /**
+   * Base64 of the service-account JSON (secret). Optional: token verification only needs the
+   * project id, the key is used for `DELETE /me` (removes the Firebase user) and revocation checks.
+   */
+  FIREBASE_SERVICE_ACCOUNT_JSON: optionalString,
+  /** Rejects tokens revoked after issue. Costs a Firebase call per verification; needs the key. */
+  AUTH_CHECK_REVOKED: z.stringbool().default(false),
 
   // --- Database ----------------------------------------------------------------
   DATABASE_URL: z
@@ -214,7 +239,62 @@ export function resolveDatabaseUrl(input: {
   return candidate;
 }
 
-const configSchema = rawEnvSchema.transform((raw) => ({
+export type AuthMode = (typeof AUTH_MODES)[number];
+
+/** Tests default to the implicit profile; every real environment defaults to Firebase. */
+export function resolveAuthMode(nodeEnv: string, authMode?: AuthMode): AuthMode {
+  return authMode ?? (nodeEnv === 'test' ? 'implicit' : 'firebase');
+}
+
+/** Cheap structural check so a mangled secret fails at startup, not on the first account deletion. */
+function serviceAccountProblem(encoded: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+    if (typeof parsed !== 'object' || parsed === null) {
+      return 'must decode to a JSON object';
+    }
+    const account = parsed as Record<string, unknown>;
+    for (const field of ['project_id', 'client_email', 'private_key']) {
+      if (typeof account[field] !== 'string' || account[field] === '') {
+        return `decoded JSON is missing "${field}"`;
+      }
+    }
+    return undefined;
+  } catch {
+    return 'must be the base64 encoding of the service-account JSON';
+  }
+}
+
+const validatedEnvSchema = rawEnvSchema.superRefine((raw, ctx) => {
+  const mode = resolveAuthMode(raw.NODE_ENV, raw.AUTH_MODE);
+
+  if (mode === 'firebase' && raw.FIREBASE_PROJECT_ID === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['FIREBASE_PROJECT_ID'],
+      message: 'is required when AUTH_MODE=firebase',
+    });
+  }
+  if (mode === 'implicit' && raw.NODE_ENV === 'production') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['AUTH_MODE'],
+      message: 'implicit is not allowed in production: every caller would share one profile',
+    });
+  }
+  if (raw.FIREBASE_SERVICE_ACCOUNT_JSON !== undefined) {
+    const problem = serviceAccountProblem(raw.FIREBASE_SERVICE_ACCOUNT_JSON);
+    if (problem !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FIREBASE_SERVICE_ACCOUNT_JSON'],
+        message: problem,
+      });
+    }
+  }
+});
+
+const configSchema = validatedEnvSchema.transform((raw) => ({
   nodeEnv: raw.NODE_ENV,
   isProduction: raw.NODE_ENV === 'production',
   isTest: raw.NODE_ENV === 'test',
@@ -242,6 +322,12 @@ const configSchema = rawEnvSchema.transform((raw) => ({
   },
   cors: {
     origins: raw.CORS_ORIGINS,
+  },
+  auth: {
+    mode: resolveAuthMode(raw.NODE_ENV, raw.AUTH_MODE),
+    firebaseProjectId: raw.FIREBASE_PROJECT_ID,
+    firebaseServiceAccountJson: raw.FIREBASE_SERVICE_ACCOUNT_JSON,
+    checkRevoked: raw.AUTH_CHECK_REVOKED,
   },
   rateLimit: {
     enabled: raw.RATE_LIMIT_ENABLED,

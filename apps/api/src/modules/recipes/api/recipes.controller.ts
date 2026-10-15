@@ -37,7 +37,7 @@ function serializeMeasurement(measurement: Measurement): {
 }
 
 export function serializeRecipeDetail(
-  recipe: Awaited<ReturnType<RecipeService['getById']>>,
+  recipe: Awaited<ReturnType<RecipeService['getByIdForProfile']>>,
 ): Record<string, unknown> {
   const minutes = minutesFromTimes(
     recipe.prepTimeMinutes,

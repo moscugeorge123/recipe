@@ -52,7 +52,13 @@ describe('API documentation', () => {
       '/api/v1/collections/{id}/recipes/{recipeId}',
       '/api/v1/cook-sessions',
       '/api/v1/cook-sessions/{id}',
+      '/api/v1/dashboard/imports',
+      '/api/v1/dashboard/imports/{id}',
+      '/api/v1/dashboard/logs',
+      '/api/v1/dashboard/summary',
+      '/api/v1/dashboard/usage',
       '/api/v1/health',
+      '/api/v1/me',
       '/api/v1/meal-plan',
       '/api/v1/meal-plan/entries',
       '/api/v1/meal-plan/entries/{id}',
@@ -63,6 +69,7 @@ describe('API documentation', () => {
       '/api/v1/pantry/items/{id}',
       '/api/v1/pantry/organize',
       '/api/v1/recipes',
+      '/api/v1/recipes/assist',
       '/api/v1/recipes/extract',
       '/api/v1/recipes/extract/jobs/{id}',
       '/api/v1/recipes/extract/jobs/{id}/cancel',
@@ -77,6 +84,7 @@ describe('API documentation', () => {
       '/api/v1/recipes/{id}/revisions',
       '/api/v1/recipes/{id}/revisions/{revisionId}',
       '/api/v1/recipes/{id}/revisions/{revisionId}/restore',
+      '/api/v1/recipes/{id}/translations',
       '/api/v1/shopping-list',
       '/api/v1/shopping-list/clear-done',
       '/api/v1/shopping-list/from-recipe',
@@ -108,7 +116,9 @@ describe('API documentation', () => {
     expect(create?.responses['202']).toBeDefined();
 
     const byId = spec.paths['/api/v1/recipes/{id}']?.['get'];
-    expect(byId?.parameters?.[0]).toMatchObject({ name: 'id', in: 'path' });
+    expect(byId?.parameters).toEqual(
+      expect.arrayContaining([expect.objectContaining({ name: 'id', in: 'path' })]),
+    );
     expect(byId?.responses['404']).toBeDefined();
 
     const patch = spec.paths['/api/v1/recipes/{id}']?.['patch'];

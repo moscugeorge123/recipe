@@ -63,3 +63,8 @@ apps/api/logs/
 # OS / editor
 .idea/
 *.swp
+
+# Firebase CLI
+.firebase/
+firebase-debug.log
+firestore-debug.log

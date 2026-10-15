@@ -12,6 +12,7 @@ export type CookSessionWithRecipe = CookSession & {
 };
 
 export interface CreateCookSessionInput {
+  userId: string;
   recipeId: string;
   currentStepIndex?: number;
 }
@@ -33,15 +34,23 @@ export interface UpdateCookSessionInput {
 }
 
 export interface ICookSessionRepository {
+  /** True when the user has the recipe in their cookbook (a UserRecipe link). */
+  userHasRecipe(userId: string, recipeId: string): Promise<boolean>;
   create(input: CreateCookSessionInput): Promise<CookSessionWithRecipe>;
-  findById(id: string): Promise<CookSessionWithRecipe | null>;
-  findInProgressByRecipeId(recipeId: string): Promise<CookSessionWithRecipe | null>;
-  findManyInProgress(exceptRecipeId?: string): Promise<CookSessionWithRecipe[]>;
-  list(params: {
-    page: number;
-    pageSize: number;
-    status?: CookSessionStatus;
-  }): Promise<{ items: CookSessionWithRecipe[]; total: number }>;
+  findById(id: string, userId: string): Promise<CookSessionWithRecipe | null>;
+  findInProgressByRecipeId(
+    userId: string,
+    recipeId: string,
+  ): Promise<CookSessionWithRecipe | null>;
+  findManyInProgress(userId: string, exceptRecipeId?: string): Promise<CookSessionWithRecipe[]>;
+  list(
+    userId: string,
+    params: {
+      page: number;
+      pageSize: number;
+      status?: CookSessionStatus;
+    },
+  ): Promise<{ items: CookSessionWithRecipe[]; total: number }>;
   update(id: string, input: UpdateCookSessionInput): Promise<CookSessionWithRecipe>;
   delete(id: string): Promise<void>;
 }

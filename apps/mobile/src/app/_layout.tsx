@@ -21,22 +21,25 @@ import { useEffect, useState } from 'react';
 import { LogBox, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
+import '@/features/auth/api-auth';
+import { useAuthListener } from '@/features/auth/use-auth-listener';
 import { prefetchHomeQueries } from '@/features/home/prefetch';
 import { useKitchenMigration } from '@/features/kitchen/use-kitchen-migration';
 import { usePendingSyncFlush } from '@/features/kitchen/use-pending-sync';
 import { ShareRoot } from '@/features/share/share-provider';
 import { QueryProvider } from '@/lib/query-provider';
 import { useUiStore } from '@/stores/ui-store';
+import { useTortieAuth } from '@/tortie/auth-store';
 import { useNav } from '@/tortie/nav-store';
 import { C } from '@/tortie/theme';
 
 if (__DEV__) LogBox.ignoreAllLogs();
 
 SplashScreen.preventAutoHideAsync().catch(() => undefined);
-void prefetchHomeQueries();
 
 const FONT_LOAD_TIMEOUT_MS = 2_000;
 
+/** Mounted only while signed in: it migrates and syncs account data through the API. */
 function KitchenDataHost() {
   useKitchenMigration();
   usePendingSyncFlush();
@@ -72,7 +75,16 @@ export default function RootLayout() {
     MaterialSymbolsOutlinedFill: require('../../assets/fonts/MaterialSymbolsOutlinedFill.ttf'),
   });
   const [fontsGaveUp, setFontsGaveUp] = useState(false);
-  const ready = fontsLoaded || fontsGaveUp;
+  const authStatus = useTortieAuth((st) => st.status);
+  useAuthListener();
+  // The splash stays up until the persisted Firebase session has been read,
+  // so a signed-in user never sees a flash of the sign-in screen.
+  const ready = (fontsLoaded || fontsGaveUp) && authStatus !== 'loading';
+
+  // Warm the home queries only for a signed-in user; anonymous requests are refused.
+  useEffect(() => {
+    if (authStatus === 'signedIn') void prefetchHomeQueries();
+  }, [authStatus]);
 
   useEffect(() => {
     if (fontsLoaded) return;
@@ -88,7 +100,7 @@ export default function RootLayout() {
     <ShareRoot>
       <GestureHandlerRootView style={styles.root}>
         <QueryProvider>
-          <KitchenDataHost />
+          {authStatus === 'signedIn' ? <KitchenDataHost /> : null}
           <ToastBridge />
           {ready ? (
             <Stack screenOptions={{ headerShown: false, animation: 'none' }} />

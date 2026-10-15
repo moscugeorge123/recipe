@@ -11,6 +11,7 @@ import {
 } from '../../../shared/errors/extraction-errors.js';
 import { hashUrl, normalizeUrl } from '../../../shared/utils/url.js';
 import type { ContentProviderRegistry } from '../../content/domain/types.js';
+import { DEFAULT_PROFILE_ID } from '../../profiles/domain/profile.js';
 import { parseJobOptions } from '../domain/job-options.js';
 import { JobStateMachine } from '../domain/job-state-machine.js';
 import type { IExtractionJobRepository } from '../repository/extraction-job.repository.js';
@@ -54,7 +55,10 @@ export class ExtractionJobService {
     private readonly log: AppLogger = silentLogger(),
   ) {}
 
-  async createJob(input: CreateExtractionJobInput): Promise<CreateExtractionJobResult> {
+  async createJob(
+    userId: string,
+    input: CreateExtractionJobInput,
+  ): Promise<CreateExtractionJobResult> {
     await assertSafeUrl(input.url);
 
     const options = parseJobOptions(input.options);
@@ -80,6 +84,8 @@ export class ExtractionJobService {
     if (!input.forceRefresh) {
       const existing = await this.jobRepo.findLatestCompletedBySourceId(source.id);
       if (existing?.recipeId) {
+        // The recipe is shared across accounts; make sure this caller gets their own copy of it.
+        await this.jobRepo.linkRecipeToUser(userId, existing.recipeId);
         this.log.info(
           { step: 'http.extract.create', jobId: existing.id, url: input.url, deduplicated: true },
           'http.extract.create completed',
@@ -95,6 +101,7 @@ export class ExtractionJobService {
 
     const job = await this.jobRepo.create({
       recipeSourceId: source.id,
+      requestedByUserId: userId,
       outputLanguage: input.outputLanguage ?? 'en',
       options: input.options ?? {},
     });
@@ -108,9 +115,30 @@ export class ExtractionJobService {
     return { jobId: job.id, status: 'queued' };
   }
 
-  async getJobStatus(jobId: string): Promise<JobStatusView> {
+  /**
+   * Jobs are visible to the account that requested them. Jobs from before accounts existed
+   * (no requester) belong to the default profile. A completed job is also visible to anyone who
+   * holds its recipe, because de-duplicated imports hand back the original job id.
+   */
+  private async canViewJob(job: ExtractionJob, userId: string): Promise<boolean> {
+    if (job.requestedByUserId === userId) return true;
+    if (job.requestedByUserId === null && userId === DEFAULT_PROFILE_ID) return true;
+    if (job.status === 'COMPLETED' && job.recipeId) {
+      return this.jobRepo.userHasRecipe(userId, job.recipeId);
+    }
+    return false;
+  }
+
+  private isJobOwner(job: ExtractionJob, userId: string): boolean {
+    return (
+      job.requestedByUserId === userId ||
+      (job.requestedByUserId === null && userId === DEFAULT_PROFILE_ID)
+    );
+  }
+
+  async getJobStatus(userId: string, jobId: string): Promise<JobStatusView> {
     const job = await this.jobRepo.findById(jobId);
-    if (!job) {
+    if (!job || !(await this.canViewJob(job, userId))) {
       throw new JobNotFoundError();
     }
 
@@ -126,9 +154,9 @@ export class ExtractionJobService {
     };
   }
 
-  async cancelJob(jobId: string): Promise<ExtractionJob> {
+  async cancelJob(userId: string, jobId: string): Promise<ExtractionJob> {
     const job = await this.jobRepo.findById(jobId);
-    if (!job) {
+    if (!job || !this.isJobOwner(job, userId)) {
       throw new JobNotFoundError();
     }
 

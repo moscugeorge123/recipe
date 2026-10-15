@@ -14,6 +14,7 @@ import { collectionsRoutes } from '../modules/collections/api/collections.routes
 import { pantryRoutes } from '../modules/pantry/api/pantry.routes.js';
 import { mealPlanRoutes } from '../modules/meal-plan/api/meal-plan.routes.js';
 import { shoppingListRoutes } from '../modules/shopping-list/api/shopping-list.routes.js';
+import { meRoutes } from '../modules/me/api/me.routes.js';
 import { opsRoutes } from '../modules/ops/api/ops.routes.js';
 import { createLogger, type AppLogger } from '../infrastructure/logging/logger.js';
 import type { AppContainer } from '../shared/di/container.js';
@@ -55,7 +56,16 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   const container = options.container ?? createContainer({ logger });
 
   if (options.bootstrapProfile === true) {
-    await container.profileBootstrap.ensureDefaults();
+    // ensureDefaults() links every recipe to the shared default profile. With real accounts that
+    // would leak each user's imports into it, so the full repair only runs for the implicit
+    // profile. Firebase mode still needs the bare default user row (claim script, legacy-null
+    // worker fallbacks) but must not link anything to it.
+    if (config.auth.mode === 'implicit') {
+      await container.profileBootstrap.ensureDefaults();
+    } else {
+      await container.profileBootstrap.ensureDefaultUser();
+      logger.info('AUTH_MODE=firebase: ensured default user only, skipped recipe linking');
+    }
   }
 
   const app = Fastify({
@@ -94,21 +104,22 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await registerSwagger(app, config);
 
   /*
-   * AUTHENTICATION EXTENSION POINT
-   * ------------------------------
-   * Nothing is implemented here on purpose. When authentication is added:
+   * AUTHENTICATION
+   * --------------
+   * `AUTH_MODE=firebase` (the default outside tests) authenticates every resource route:
    *
-   *   1. Create `app/plugins/auth.ts` that verifies the credential (e.g. a Cognito JWT) and
-   *      decorates the request with the caller: `request.auth = { userId, scopes }`.
-   *   2. Expose it as a route-level hook, not a global one, so public endpoints stay public:
-   *        app.decorate('authenticate', async (request) => { ... throw new UnauthorizedError() })
-   *   3. Opt individual routes in:
-   *        app.get('/private', { preHandler: [app.authenticate], schema }, handler)
-   *   4. Throw `UnauthorizedError` / `ForbiddenError`; the error handler already maps them to
-   *      401/403 with the standard envelope. Document them per protected route by adding
-   *      `401: errorResponseSchema` to that route's `response` map.
+   *   1. `registerProfileContext` below runs on `onRequest` for the resource scope. It asks
+   *      `container.profileResolver` (FirebaseProfileResolver) to verify the
+   *      `Authorization: Bearer <Firebase ID token>` header, map the Firebase uid to a `users`
+   *      row (created on first sign-in) and decorate the request with `request.profile`.
+   *   2. A missing or invalid token throws `UnauthorizedError`; the error handler maps it to the
+   *      401 envelope. Services scope all data by `request.profile.userId`.
+   *   3. `AUTH_MODE=implicit` (tests and local tooling, never production) resolves every request
+   *      to the singleton default profile instead.
    *
-   * `/health` must remain unauthenticated for the load balancer.
+   * Public by design, because they are registered outside the resource scope: `/health`
+   * (the load balancer) and `/dashboard/*`. Protecting the dashboard is a separate follow-up.
+   * `/ops/summary` is inside the scope, so it needs a valid token but is not user-specific.
    */
 
   const healthChecks = options.healthChecks ?? [];
@@ -152,6 +163,9 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         });
         await resources.register(collectionsRoutes, {
           collectionService: container.collectionService,
+        });
+        await resources.register(meRoutes, {
+          meService: container.meService,
         });
         await resources.register(opsRoutes, {
           prisma: container.prisma,

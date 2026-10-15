@@ -123,13 +123,20 @@ export class CookSessionService {
     private readonly recipeRepo: IRecipeRepository,
   ) {}
 
-  async create(body: CreateCookSessionBody): Promise<{ session: CookSessionView; resumed: boolean }> {
+  async create(
+    userId: string,
+    body: CreateCookSessionBody,
+  ): Promise<{ session: CookSessionView; resumed: boolean }> {
+    // A recipe outside this user's cookbook is indistinguishable from a missing one.
+    if (!(await this.cookSessionRepo.userHasRecipe(userId, body.recipeId))) {
+      throw new RecipeNotFoundError();
+    }
     const recipe = await this.recipeRepo.findById(body.recipeId);
     if (!recipe) {
       throw new RecipeNotFoundError();
     }
 
-    const existing = await this.cookSessionRepo.findInProgressByRecipeId(body.recipeId);
+    const existing = await this.cookSessionRepo.findInProgressByRecipeId(userId, body.recipeId);
     if (existing) {
       return { session: toView(existing), resumed: true };
     }
@@ -138,10 +145,11 @@ export class CookSessionService {
       assertStepIndex(body.currentStepIndex, recipe.steps.length);
     }
 
-    await this.finishOtherInProgress(body.recipeId);
+    await this.finishOtherInProgress(userId, body.recipeId);
 
     try {
       const created = await this.cookSessionRepo.create({
+        userId,
         recipeId: body.recipeId,
         ...(body.currentStepIndex !== undefined ? { currentStepIndex: body.currentStepIndex } : {}),
       });
@@ -151,7 +159,7 @@ export class CookSessionService {
         throw error;
       }
 
-      const raced = await this.cookSessionRepo.findInProgressByRecipeId(body.recipeId);
+      const raced = await this.cookSessionRepo.findInProgressByRecipeId(userId, body.recipeId);
       if (!raced) {
         throw error;
       }
@@ -159,8 +167,8 @@ export class CookSessionService {
     }
   }
 
-  async getById(id: string): Promise<CookSessionView> {
-    const session = await this.cookSessionRepo.findById(id);
+  async getById(userId: string, id: string): Promise<CookSessionView> {
+    const session = await this.cookSessionRepo.findById(id, userId);
     if (!session) {
       throw new CookSessionNotFoundError();
     }
@@ -169,9 +177,10 @@ export class CookSessionService {
   }
 
   async list(
+    userId: string,
     query: ListCookSessionsQuery,
   ): Promise<{ items: CookSessionView[]; meta: ReturnType<typeof buildPaginationMeta> }> {
-    const { items, total } = await this.cookSessionRepo.list({
+    const { items, total } = await this.cookSessionRepo.list(userId, {
       page: query.page,
       pageSize: query.pageSize,
       ...(query.status !== undefined ? { status: query.status } : {}),
@@ -183,8 +192,8 @@ export class CookSessionService {
     };
   }
 
-  async update(id: string, patch: PatchCookSessionBody): Promise<CookSessionView> {
-    const existing = await this.cookSessionRepo.findById(id);
+  async update(userId: string, id: string, patch: PatchCookSessionBody): Promise<CookSessionView> {
+    const existing = await this.cookSessionRepo.findById(id, userId);
     if (!existing) {
       throw new CookSessionNotFoundError();
     }
@@ -198,14 +207,14 @@ export class CookSessionService {
     }
 
     if (patch.status === 'IN_PROGRESS' && isEndedStatus(existing.status)) {
-      await this.finishOtherInProgress(existing.recipeId);
+      await this.finishOtherInProgress(userId, existing.recipeId);
     }
 
     return toView(await this.applyProgress(existing, patch));
   }
 
-  async delete(id: string): Promise<void> {
-    const existing = await this.cookSessionRepo.findById(id);
+  async delete(userId: string, id: string): Promise<void> {
+    const existing = await this.cookSessionRepo.findById(id, userId);
     if (!existing) {
       throw new CookSessionNotFoundError();
     }
@@ -216,8 +225,8 @@ export class CookSessionService {
     await this.cookSessionRepo.delete(id);
   }
 
-  private async finishOtherInProgress(exceptRecipeId: string): Promise<void> {
-    const others = await this.cookSessionRepo.findManyInProgress(exceptRecipeId);
+  private async finishOtherInProgress(userId: string, exceptRecipeId: string): Promise<void> {
+    const others = await this.cookSessionRepo.findManyInProgress(userId, exceptRecipeId);
     for (const other of others) {
       await this.applyProgress(other, { status: 'STOPPED' });
     }

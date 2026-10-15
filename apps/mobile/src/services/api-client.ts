@@ -129,22 +129,64 @@ async function parseBody(response: Response): Promise<unknown> {
   }
 }
 
+/** Returns the current ID token, or null when nobody is signed in. */
+export type AuthTokenProvider = (
+  forceRefresh: boolean,
+) => Promise<string | null>;
+
+let tokenProvider: AuthTokenProvider | null = null;
+let unauthorizedHandler: (() => void) | null = null;
+
+/** Installs the source of `Authorization: Bearer` tokens (set by `features/auth`). */
+export function setAuthTokenProvider(provider: AuthTokenProvider | null): void {
+  tokenProvider = provider;
+}
+
+/** Called when a request is still 401 after one forced token refresh. */
+export function setUnauthorizedHandler(handler: (() => void) | null): void {
+  unauthorizedHandler = handler;
+}
+
+async function send(
+  method: HttpMethod,
+  path: string,
+  body: unknown,
+  options: ApiRequestOptions | undefined,
+  forceRefresh: boolean,
+): Promise<Response> {
+  const token = tokenProvider ? await tokenProvider(forceRefresh) : undefined;
+  if (tokenProvider && !token) {
+    // Signed out: never reach the API without credentials.
+    throw new ApiError('Not signed in', 401, null, 'UNAUTHORIZED');
+  }
+  return fetch(joinUrl(getApiBaseUrl(), path), {
+    method,
+    headers: {
+      Accept: 'application/json',
+      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options?.headers,
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    signal: options?.signal,
+  });
+}
+
 async function request<T>(
   method: HttpMethod,
   path: string,
   body?: unknown,
   options?: ApiRequestOptions,
 ): Promise<T> {
-  const response = await fetch(joinUrl(getApiBaseUrl(), path), {
-    method,
-    headers: {
-      Accept: 'application/json',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...options?.headers,
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal: options?.signal,
-  });
+  let response = await send(method, path, body, options, false);
+
+  if (response.status === 401 && tokenProvider) {
+    // The token may simply have expired or been revoked: refresh once.
+    response = await send(method, path, body, options, true);
+    if (response.status === 401) {
+      unauthorizedHandler?.();
+    }
+  }
 
   const parsed = await parseBody(response);
 

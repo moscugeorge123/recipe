@@ -20,7 +20,7 @@ export function createJobsController(
       reply: FastifyReply,
     ): Promise<void> => {
       request.log.info({ step: 'http.extract.create', url: request.body.url }, 'http.extract.create started');
-      const result = await service.createJob(request.body);
+      const result = await service.createJob(request.profile.userId, request.body);
 
       if (result.deduplicated) {
         reply.status(200).send(dataResponse(result));
@@ -47,7 +47,7 @@ export function createJobsController(
       request: FastifyRequest<{ Params: { id: string } }>,
       reply: FastifyReply,
     ): Promise<void> => {
-      const job = await service.getJobStatus(request.params.id);
+      const job = await service.getJobStatus(request.profile.userId, request.params.id);
 
       reply.send(
         dataResponse({
@@ -67,7 +67,7 @@ export function createJobsController(
       request: FastifyRequest<{ Params: { id: string } }>,
       reply: FastifyReply,
     ): Promise<void> => {
-      const job = await service.cancelJob(request.params.id);
+      const job = await service.cancelJob(request.profile.userId, request.params.id);
 
       reply.send(
         dataResponse({

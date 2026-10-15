@@ -1,0 +1,21 @@
+{
+  "firestore": {
+    "database": "(default)",
+    "location": "europe-west3",
+    "edition": "standard",
+    "rules": "firestore.rules"
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Tortie",
+        "supportEmail": "moscugeorge@gmail.com",
+        "authorizedRedirectUris": [
+          "https://tortie-recipe.firebaseapp.com/__/auth/handler",
+          "http://localhost"
+        ]
+      }
+    }
+  }
+}

@@ -14,6 +14,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import { useTortieAuth } from '@/tortie/auth-store';
 import { startCookTicker } from '@/tortie/cook-store';
 import { startTimerAlarms } from '@/tortie/timer-alarm';
 import { useMotion } from '@/tortie/motion';
@@ -57,11 +58,50 @@ import { ToastView } from '@/tortie/ui/toast';
 SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
 
 /**
+ * Auth gate. Signed out, the only thing on screen is the required sign-in
+ * flow: no shell, no data hooks, no prefetch, so no API call happens before
+ * sign-in. The flow stays up after the account is created until its "done"
+ * step is dismissed, then the app takes over.
+ */
+export function TortieShell() {
+  const status = useTortieAuth((s) => s.status);
+  const au = useNav((s) => s.au);
+  const auStep = useNav((s) => s.auStep);
+
+  if (status === 'loading') return null;
+  // The session exists as soon as Firebase signs in, but the flow still has
+  // its "done" step to show. Its CTA clears `au` and `auStep`, which ends the hold.
+  if (status === 'signedOut' || au || auStep === 'done') {
+    return <SignedOutGate />;
+  }
+  return <SignedInShell />;
+}
+
+/** Hosts `<SignInFlow required />` with the same providers the shell gives it. */
+function SignedOutGate() {
+  useEffect(() => {
+    // Fresh navigation state (no profile or sheet left open by the previous
+    // account), with the sign-in layer already up.
+    useNav.setState(
+      { ...useNav.getInitialState(), au: true, auStep: 'start' },
+      true,
+    );
+  }, []);
+  return (
+    <View style={{ flex: 1, backgroundColor: C.bg, overflow: 'hidden' }}>
+      <SignInFlow required />
+      <ToastView />
+      <StatusBar style="dark" />
+    </View>
+  );
+}
+
+/**
  * One viewport, layered like the prototype (NAVIGATION.md §1):
  * tabs 1–2 · tab bar 20 · dim 30 · recipe 35 · profile 36 · sheets 40–43 ·
  * editor 45 · cook 50 · sign in 56 · camera 60 · share 65 · toast 70.
  */
-export function TortieShell() {
+function SignedInShell() {
   const rootRef = useRef<View>(null);
   const { D } = useMotion();
   const { width } = useWindowDimensions();
@@ -213,7 +253,6 @@ export function TortieShell() {
 
       <RecipeEditor />
       <CookMode />
-      <SignInFlow />
       <ScanCamera />
 
       <Animated.View
@@ -261,7 +300,6 @@ function popTopLayer(): boolean {
   const s = useNav.getState();
   if (s.shareOpen) return (s.closeShare(), true);
   if (s.cam) return (s.closeCam(true), true);
-  if (s.au) return (s.closeAuth(), true);
   if (s.notesOn) return (s.closeNotes(), true);
   if (s.cookOpen) return (s.closeCook(), true);
   if (s.edit) return (requestEditorClose(), true);

@@ -1,5 +1,5 @@
 import { DEFAULT_CATEGORIES } from '@recipe/contracts';
-import { Prisma, type PrismaClient } from '@prisma/client';
+import { Prisma, type PrismaClient, type RevisionSource } from '@prisma/client';
 
 import {
   DEFAULT_PROFILE_ID,
@@ -20,6 +20,140 @@ function nullableJson(
   return value === null ? Prisma.DbNull : value;
 }
 
+type Tx = Prisma.TransactionClient;
+
+const linkWithRecipeInclude = {
+  recipe: {
+    include: {
+      ingredients: { orderBy: { sortOrder: 'asc' } },
+      steps: { orderBy: { stepOrder: 'asc' } },
+    },
+  },
+  categoryLinks: { include: { category: true } },
+} satisfies Prisma.UserRecipeInclude;
+
+type LinkWithRecipe = Prisma.UserRecipeGetPayload<{ include: typeof linkWithRecipeInclude }>;
+
+/**
+ * Creates revision 0 (the user's untouched copy) for a UserRecipe link, inferring categories from
+ * the user's own category set when the link has none yet.
+ */
+async function writeOriginalRevision(
+  tx: Tx,
+  userId: string,
+  link: LinkWithRecipe,
+  source: RevisionSource,
+): Promise<void> {
+  const recipe = link.recipe;
+  let categories = link.categoryLinks.map((item) => item.category);
+  if (categories.length === 0) {
+    const slugs = inferCategorySlugs(recipe.title, recipe.description);
+    categories = await tx.category.findMany({
+      where: { userId, slug: { in: slugs } },
+      orderBy: { sortOrder: 'asc' },
+    });
+    if (categories.length > 0) {
+      await tx.recipeCategory.createMany({
+        data: categories.map((category) => ({
+          userRecipeId: link.id,
+          categoryId: category.id,
+          userId,
+        })),
+        skipDuplicates: true,
+      });
+    }
+  }
+  await tx.recipeRevision.create({
+    data: {
+      userRecipeId: link.id,
+      authorUserId: userId,
+      revisionNumber: 0,
+      source,
+      title: recipe.title,
+      description: recipe.description,
+      servings: recipe.servings,
+      prepTimeMinutes: recipe.prepTimeMinutes,
+      cookTimeMinutes: recipe.cookTimeMinutes,
+      totalTimeMinutes: recipe.totalTimeMinutes,
+      calories: recipe.calories,
+      cuisine: recipe.cuisine,
+      nutrition: nullableJson(recipe.nutrition),
+      sourceLanguage: recipe.sourceLanguage,
+      confidence: recipe.confidence,
+      warnings: requiredJson(recipe.warnings),
+      promptVersion: recipe.promptVersion,
+      rawExtraction: nullableJson(recipe.rawExtraction),
+      createdAt: recipe.updatedAt,
+      ingredients: {
+        create: recipe.ingredients.map((ingredient) => ({
+          sourceId: ingredient.id,
+          name: ingredient.name,
+          canonicalName: ingredient.canonicalName,
+          quantity: ingredient.quantity,
+          unit: ingredient.unit,
+          preparation: ingredient.preparation,
+          optional: ingredient.optional,
+          emoji: ingredient.emoji,
+          colorToken: ingredient.colorToken,
+          category: ingredient.category,
+          confidence: ingredient.confidence,
+          provenance: requiredJson(ingredient.provenance),
+          warnings: requiredJson(ingredient.warnings),
+          sortOrder: ingredient.sortOrder,
+        })),
+      },
+      steps: {
+        create: recipe.steps.map((step) => ({
+          sourceId: step.id,
+          stepOrder: step.stepOrder,
+          title: step.title,
+          instruction: step.instruction,
+          durationMinutes: step.durationMinutes,
+          temperature: step.temperature,
+          stage: step.stage,
+          ahead: step.ahead,
+          confidence: step.confidence,
+          provenance: requiredJson(step.provenance),
+          warnings: requiredJson(step.warnings),
+        })),
+      },
+      categories: {
+        create: categories.map((category) => ({
+          categoryId: category.id,
+          slug: category.slug,
+          name: category.name,
+          sortOrder: category.sortOrder,
+        })),
+      },
+    },
+  });
+}
+
+/**
+ * Gives `userId` their own copy of an existing global recipe: the UserRecipe link, revision 0 and
+ * inferred categories. Idempotent: returns false (and changes nothing) when the link and its
+ * original revision already exist. Used by the job de-duplication path and extraction reuse.
+ */
+export async function linkRecipeToUser(
+  tx: Tx,
+  userId: string,
+  recipeId: string,
+): Promise<boolean> {
+  const created = await tx.userRecipe.createMany({
+    data: [{ userId, recipeId }],
+    skipDuplicates: true,
+  });
+
+  const link = await tx.userRecipe.findFirst({
+    where: { userId, recipeId, revisions: { none: { revisionNumber: 0 } } },
+    include: linkWithRecipeInclude,
+  });
+  if (link) {
+    await writeOriginalRevision(tx, userId, link, 'IMPORT');
+  }
+  return created.count > 0;
+}
+
 /**
  * Idempotent repair/bootstrap used at process startup and by database integration tests.
  * Migrations remain the source of truth; this covers empty developer databases and recipes
@@ -28,26 +162,39 @@ function nullableJson(
 export class PrismaProfileBootstrapRepository implements IProfileBootstrapRepository {
   constructor(private readonly db: PrismaClient) {}
 
+  /**
+   * Upserts only the bare default user row and its categories. Safe under `AUTH_MODE=firebase`:
+   * the claim script and legacy-null worker fallbacks need the row, and nothing is linked to it.
+   */
+  async ensureDefaultUser(): Promise<number> {
+    return this.db.$transaction((tx) => this.upsertDefaultUser(tx));
+  }
+
+  private async upsertDefaultUser(tx: Tx): Promise<number> {
+    await tx.user.upsert({
+      where: { id: DEFAULT_PROFILE_ID },
+      create: {
+        id: DEFAULT_PROFILE_ID,
+        profileKey: DEFAULT_PROFILE_KEY,
+        displayName: 'My Kitchen',
+      },
+      update: {},
+    });
+
+    const categories = await tx.category.createMany({
+      data: DEFAULT_CATEGORIES.map((category, index) => ({
+        id: `00000000-0000-4000-8000-00000000010${String(index + 1)}`,
+        userId: DEFAULT_PROFILE_ID,
+        ...category,
+      })),
+      skipDuplicates: true,
+    });
+    return categories.count;
+  }
+
   async ensureDefaults(): Promise<ProfileBootstrapResult> {
     return this.db.$transaction(async (tx) => {
-      await tx.user.upsert({
-        where: { id: DEFAULT_PROFILE_ID },
-        create: {
-          id: DEFAULT_PROFILE_ID,
-          profileKey: DEFAULT_PROFILE_KEY,
-          displayName: 'My Kitchen',
-        },
-        update: {},
-      });
-
-      const categories = await tx.category.createMany({
-        data: DEFAULT_CATEGORIES.map((category, index) => ({
-          id: `00000000-0000-4000-8000-00000000010${String(index + 1)}`,
-          userId: DEFAULT_PROFILE_ID,
-          ...category,
-        })),
-        skipDuplicates: true,
-      });
+      const categoriesCreated = await this.upsertDefaultUser(tx);
 
       const recipes = await tx.recipe.findMany({ select: { id: true } });
       const recipeLinks = await tx.userRecipe.createMany({
@@ -63,106 +210,16 @@ export class PrismaProfileBootstrapRepository implements IProfileBootstrapReposi
           userId: DEFAULT_PROFILE_ID,
           revisions: { none: { revisionNumber: 0 } },
         },
-        include: {
-          recipe: {
-            include: {
-              ingredients: { orderBy: { sortOrder: 'asc' } },
-              steps: { orderBy: { stepOrder: 'asc' } },
-            },
-          },
-          categoryLinks: { include: { category: true } },
-        },
+        include: linkWithRecipeInclude,
       });
 
       for (const link of linksMissingOriginal) {
-        const recipe = link.recipe;
-        let categories = link.categoryLinks.map((item) => item.category);
-        if (categories.length === 0) {
-          const slugs = inferCategorySlugs(recipe.title, recipe.description);
-          categories = await tx.category.findMany({
-            where: { userId: DEFAULT_PROFILE_ID, slug: { in: slugs } },
-            orderBy: { sortOrder: 'asc' },
-          });
-          if (categories.length > 0) {
-            await tx.recipeCategory.createMany({
-              data: categories.map((category) => ({
-                userRecipeId: link.id,
-                categoryId: category.id,
-                userId: DEFAULT_PROFILE_ID,
-              })),
-              skipDuplicates: true,
-            });
-          }
-        }
-        await tx.recipeRevision.create({
-          data: {
-            userRecipeId: link.id,
-            authorUserId: DEFAULT_PROFILE_ID,
-            revisionNumber: 0,
-            source: 'MIGRATION',
-            title: recipe.title,
-            description: recipe.description,
-            servings: recipe.servings,
-            prepTimeMinutes: recipe.prepTimeMinutes,
-            cookTimeMinutes: recipe.cookTimeMinutes,
-            totalTimeMinutes: recipe.totalTimeMinutes,
-            calories: recipe.calories,
-            cuisine: recipe.cuisine,
-            nutrition: nullableJson(recipe.nutrition),
-            sourceLanguage: recipe.sourceLanguage,
-            confidence: recipe.confidence,
-            warnings: requiredJson(recipe.warnings),
-            promptVersion: recipe.promptVersion,
-            rawExtraction: nullableJson(recipe.rawExtraction),
-            createdAt: recipe.updatedAt,
-            ingredients: {
-              create: recipe.ingredients.map((ingredient) => ({
-                sourceId: ingredient.id,
-                name: ingredient.name,
-                canonicalName: ingredient.canonicalName,
-                quantity: ingredient.quantity,
-                unit: ingredient.unit,
-                preparation: ingredient.preparation,
-                optional: ingredient.optional,
-                emoji: ingredient.emoji,
-                colorToken: ingredient.colorToken,
-                category: ingredient.category,
-                confidence: ingredient.confidence,
-                provenance: requiredJson(ingredient.provenance),
-                warnings: requiredJson(ingredient.warnings),
-                sortOrder: ingredient.sortOrder,
-              })),
-            },
-            steps: {
-              create: recipe.steps.map((step) => ({
-                sourceId: step.id,
-                stepOrder: step.stepOrder,
-                title: step.title,
-                instruction: step.instruction,
-                durationMinutes: step.durationMinutes,
-                temperature: step.temperature,
-                stage: step.stage,
-                ahead: step.ahead,
-                confidence: step.confidence,
-                provenance: requiredJson(step.provenance),
-                warnings: requiredJson(step.warnings),
-              })),
-            },
-            categories: {
-              create: categories.map((category) => ({
-                categoryId: category.id,
-                slug: category.slug,
-                name: category.name,
-                sortOrder: category.sortOrder,
-              })),
-            },
-          },
-        });
+        await writeOriginalRevision(tx, DEFAULT_PROFILE_ID, link, 'MIGRATION');
       }
 
       return {
         profileId: DEFAULT_PROFILE_ID,
-        categoriesCreated: categories.count,
+        categoriesCreated,
         recipeLinksCreated: recipeLinks.count,
         revisionsCreated: linksMissingOriginal.length,
       };

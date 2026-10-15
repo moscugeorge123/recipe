@@ -182,15 +182,16 @@ export class PrismaRecipeRepository implements IRecipeRepository {
   ) {}
 
   async create(input: CreateRecipeInput): Promise<RecipeWithDetails> {
+    const ownerUserId = input.ownerUserId ?? this.ownerUserId;
     return this.db.$transaction(async (tx) => {
       const requestedSlugs = [...new Set(input.categorySlugs ?? ['dinner'])];
       const categories = await tx.category.findMany({
-        where: { userId: this.ownerUserId, slug: { in: requestedSlugs } },
+        where: { userId: ownerUserId, slug: { in: requestedSlugs } },
         orderBy: { sortOrder: 'asc' },
       });
       if (categories.length === 0) {
         const dinner = await tx.category.findUnique({
-          where: { userId_slug: { userId: this.ownerUserId, slug: 'dinner' } },
+          where: { userId_slug: { userId: ownerUserId, slug: 'dinner' } },
         });
         if (dinner) categories.push(dinner);
       }
@@ -230,20 +231,20 @@ export class PrismaRecipeRepository implements IRecipeRepository {
           },
           users: {
             create: {
-              userId: this.ownerUserId,
+              userId: ownerUserId,
               reviewState: input.reviewState ?? 'NEEDS_REVIEW',
               categoryLinks: {
                 create: categories.map((category) => ({
                   category: {
                     connect: {
-                      id_userId: { id: category.id, userId: this.ownerUserId },
+                      id_userId: { id: category.id, userId: ownerUserId },
                     },
                   },
                 })),
               },
               revisions: {
                 create: {
-                  authorUserId: this.ownerUserId,
+                  authorUserId: ownerUserId,
                   revisionNumber: 0,
                   source: 'IMPORT',
                   title: input.title,
@@ -843,6 +844,23 @@ export class PrismaRecipeRepository implements IRecipeRepository {
 
   async delete(id: string): Promise<void> {
     await this.db.recipe.delete({ where: { id } });
+  }
+
+  async deleteForUser(id: string, userId: string): Promise<boolean> {
+    return this.db.$transaction(async (tx) => {
+      const removed = await tx.userRecipe.deleteMany({ where: { userId, recipeId: id } });
+      if (removed.count === 0) return false;
+
+      // Cook sessions point at the shared recipe, so they do not cascade from the user's link.
+      await tx.cookSession.deleteMany({ where: { userId, recipeId: id } });
+
+      // The shared recipe goes away only when nobody else keeps a copy.
+      const remaining = await tx.userRecipe.count({ where: { recipeId: id } });
+      if (remaining === 0) {
+        await tx.recipe.deleteMany({ where: { id } });
+      }
+      return true;
+    });
   }
 
   async list(params: {

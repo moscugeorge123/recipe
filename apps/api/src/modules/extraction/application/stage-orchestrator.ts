@@ -7,6 +7,7 @@ import { AIUsageTracker } from '../../../infrastructure/ai/usage/ai-usage-tracke
 import { DEFAULT_PRICING } from '../../../infrastructure/ai/usage/pricing.js';
 import { silentLogger, type AppLogger } from '../../../infrastructure/logging/logger.js';
 import { logStep } from '../../../infrastructure/logging/log-step.js';
+import { DEFAULT_PROFILE_ID } from '../../profiles/domain/profile.js';
 import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
 import { isAppError } from '../../../shared/errors/app-error.js';
 import { ExtractionFailedError } from '../../../shared/errors/extraction-errors.js';
@@ -374,7 +375,11 @@ export function createDefaultStageHandlers(
       const options = parseJobOptions(job.options);
       ctx.options = options;
 
-      const usageTracker = new AIUsageTracker(deps.aiUsageRepo, DEFAULT_PRICING);
+      const usageTracker = new AIUsageTracker(
+        deps.aiUsageRepo,
+        DEFAULT_PRICING,
+        job.requestedByUserId ?? undefined,
+      );
       const ai = createAIProviders(deps.config, usageTracker, ctx.jobId, jobLog);
 
       const classifier = createRecipeClassifier(ai.llm, {
@@ -543,6 +548,9 @@ export function createDefaultStageHandlers(
         })),
       };
 
+      // Jobs created before accounts existed have no requester; they belong to the default profile.
+      const ownerUserId = job.requestedByUserId ?? DEFAULT_PROFILE_ID;
+
       const recipe = await logStep(
         jobLog,
         'recipe.persist',
@@ -555,10 +563,12 @@ export function createDefaultStageHandlers(
               'recipe.persist reusing the recipe already imported from this source',
             );
             await deps.jobRepo.clearRecipeIdExcept(existing.id, ctx.jobId);
+            await deps.jobRepo.linkRecipeToUser(ownerUserId, existing.id);
             return existing;
           }
           return deps.recipeRepo.create({
             recipeSourceId: job.recipeSourceId,
+            ownerUserId,
             ...recipeFields,
           });
         },

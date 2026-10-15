@@ -63,6 +63,41 @@ describe('AIUsageTracker', () => {
     });
     expect(records[0]).not.toHaveProperty('jobId');
   });
+
+  it("attributes job usage to the job's requesting user when a default user is set", async () => {
+    const records: unknown[] = [];
+    const repo: IAIUsageRepository = {
+      create: async (input) => {
+        records.push(input);
+        return { ...input, id: '3', createdAt: new Date() } as never;
+      },
+      findByJobId: async () => [],
+    };
+    const tracker = new AIUsageTracker(repo, DEFAULT_PRICING, 'user-from-job');
+
+    await tracker.track({
+      jobId: 'job-1',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      operation: 'ocr',
+      inputTokens: 10,
+      outputTokens: 5,
+      durationMs: 20,
+    });
+    await tracker.track({
+      jobId: 'job-1',
+      userId: 'explicit-user',
+      provider: 'openai',
+      model: 'gpt-4o-mini',
+      operation: 'ocr',
+      inputTokens: 10,
+      outputTokens: 5,
+      durationMs: 20,
+    });
+
+    expect(records[0]).toMatchObject({ jobId: 'job-1', userId: 'user-from-job' });
+    expect(records[1]).toMatchObject({ userId: 'explicit-user' });
+  });
 });
 
 describe('estimateCost', () => {

@@ -46,6 +46,11 @@ Finished tasks (checked `[x]`) live in [done/](done/).
 ### Group E: Recipe assistant
 - [E1. Ask Tortie step numbers](E1-assist-step-numbering.md)
 
+### Group F: Lists
+These two are not from the Tortie prototype. F2 depends on F1.
+- [F1. Paginate list endpoints](F1-list-pagination.md)
+- [F2. Infinite loading for list screens](F2-infinite-loading.md)
+
 ## Already in the repo (excluded)
 Each has a matching file. Their behaviour was not compared with the design in detail.
 - Ingredient picker before adding to groceries: `screens/grocery-pick.tsx`

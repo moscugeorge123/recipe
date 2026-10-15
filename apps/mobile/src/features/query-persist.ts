@@ -1,9 +1,10 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const PREFIX = 'mise.query.v1';
+/** Every cached query key starts with this; sign-out clears them all. */
+export const QUERY_PERSIST_PREFIX = 'mise.query.v1';
 
 export function persistKeyFor(parts: readonly unknown[]): string {
-  return `${PREFIX}:${JSON.stringify(parts)}`;
+  return `${QUERY_PERSIST_PREFIX}:${JSON.stringify(parts)}`;
 }
 
 export async function readPersistedQuery<T>(key: string): Promise<T | null> {
