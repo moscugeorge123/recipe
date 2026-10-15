@@ -98,7 +98,7 @@ npx nx test:ci mobile
 
 - API database integration tests `skipIf` when Postgres is unreachable.
 - Tests never call live OpenAI (`NODE_ENV=test` uses fakes).
-- Maestro is not part of `nx test`. It needs the Maestro CLI and a **development or preview build** of `com.recipe.app`. Expo Go is not a reliable target for API-backed screens (import review, recipe detail, history). YAML still lives under `apps/mobile/.maestro/flows` as best-effort flows.
+- Maestro is not part of `nx test`. It needs the Maestro CLI and a **development or preview build** of `com.tortie.com`. Expo Go is not a reliable target for API-backed screens (import review, recipe detail, history). YAML still lives under `apps/mobile/.maestro/flows` as best-effort flows.
 - Mobile Jest sets `forceExit` because React Native `TextInput` typing leaves open handles after assertions. Tests still run and fail on real errors.
 
 ```bash

@@ -22,7 +22,7 @@
     },
     "android": {
       "softwareKeyboardLayoutMode": "resize",
-      "package": "com.recipe.app",
+      "package": "com.tortie.com",
       "adaptiveIcon": {
         "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/images/android-icon-foreground.png",

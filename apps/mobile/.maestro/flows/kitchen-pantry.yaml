@@ -1,4 +1,4 @@
-appId: com.recipe.app
+appId: com.tortie.com
 ---
 # Groceries → pantry organize empty state.
 # Does not require a live API. Expo Go may still fail on native tab labels.

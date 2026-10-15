@@ -96,7 +96,7 @@ Flows in `.maestro/flows/`:
 - `kitchen-pantry.yaml` — Groceries → Pantry empty/organize copy
 - `recipe-surface.yaml` — best-effort Recipes / import / rating / calories / history (mostly optional)
 
-**Limitation:** Maestro needs a **development or preview build** (`com.recipe.app`). Expo Go is not
+**Limitation:** Maestro needs a **development or preview build** (`com.tortie.com`). Expo Go is not
 a reliable target for API-backed screens (import extract/review, recipe detail, history).
 The YAML is still a best-effort flow with `optional: true` where a clean install has no recipes.
 
@@ -163,14 +163,14 @@ steps (Google iOS client and URL scheme, Facebook iOS platform, Sign in with App
    `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`, `EXPO_PUBLIC_FIREBASE_PROJECT_ID`,
    `EXPO_PUBLIC_FIREBASE_APP_ID`.
 3. **Google.** Copy the Web client ID (Google provider > Web SDK configuration) into
-   `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. Add an Android app (`com.recipe.app`) in Project settings
+   `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. Add an Android app (`com.tortie.com`) in Project settings
    and register the **SHA-1** of every key that signs a build: debug keystore, EAS keystore, and the
    Play App Signing certificate. A missing or wrong SHA-1 fails with `DEVELOPER_ERROR` (code 10).
 4. **Facebook.** In the Meta developer console, take the App ID and Client token (App settings >
    Basic / Advanced > Security) and put them in `.env` as `FACEBOOK_APP_ID` and
    `FACEBOOK_CLIENT_TOKEN`. These are read by `app.config.ts` at **build** time (not
    `EXPO_PUBLIC_`), so rebuild the native app after changing them. Add the Android platform
-   (package `com.recipe.app`, class `com.recipe.app.MainActivity`) with the key hash of your signing
+   (package `com.tortie.com`, class `com.tortie.com.MainActivity`) with the key hash of your signing
    keys, and add Firebase's OAuth redirect URI to Facebook Login > Valid OAuth Redirect URIs.
    While the Meta app is in Development mode only users with an app role can log in.
 5. **Build.** `npx expo prebuild --clean -p android`, then `npx expo run:android`. If the Facebook
