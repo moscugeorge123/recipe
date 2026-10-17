@@ -80,7 +80,7 @@ describe.skipIf(!dbAvailable)('cook session API endpoints', () => {
         ],
         recipe: {
           id: recipeId,
-          title: 'Fake pasta recipe',
+          title: 'Fake Pasta Recipe',
           stepCount: expect.any(Number),
         },
       });
