@@ -9,8 +9,9 @@ export const AISLES = [
   'Dry goods',
   'Bakery',
   'Other',
+  'Oils & condiments',
 ] as const;
-export const AHUE = [140, 28, 88, 62, 50, 250] as const;
+export const AHUE = [140, 28, 88, 62, 50, 250, 75] as const;
 export const SHELVES = [
   'Fridge',
   'Veg basket',
@@ -221,7 +222,13 @@ export const hasKey = (tx: string, k: string) =>
 
 /** [pattern, emoji, aisle index, shelf index] */
 export const LEX: [RegExp, string, number, number][] = [
-  [/black pepper|peppercorn/, '🫙', 3, 3],
+  // Table pepper is a spice; bell and chilli peppers stay produce (below).
+  [
+    /black pepper|white pepper|ground pepper|peppercorn|^\s*pepper\s*$/,
+    '🫙',
+    3,
+    3,
+  ],
   [/tomato/, '🍅', 0, 1],
   [/garlic/, '🧄', 0, 1],
   [/onion|shallot|leek/, '🧅', 0, 1],
@@ -233,7 +240,8 @@ export const LEX: [RegExp, string, number, number][] = [
   [/avocado/, '🥑', 0, 1],
   [/cucumber|courgette|zucchini/, '🥒', 0, 0],
   [/chil+i|jalape/, '🌶️', 0, 3],
-  [/pepper/, '🫑', 0, 0],
+  [/pepper|capsicum/, '🫑', 0, 0],
+  [/radish|jicama|turnip|beetroot|parsnip|swede/, '🥕', 0, 1],
   [/broccoli/, '🥦', 0, 0],
   [/lettuce|salad|spinach|kale|cabbage/, '🥬', 0, 0],
   [/mushroom/, '🍄', 0, 0],
@@ -273,15 +281,24 @@ export const LEX: [RegExp, string, number, number][] = [
   [/coffee/, '☕', 3, 2],
   [/tea/, '🍵', 3, 2],
   [/chocolate|cocoa/, '🍫', 3, 2],
-  [/wine/, '🍷', 3, 2],
+  [/wine(?! vinegar)/, '🍷', 3, 2],
   [/beer/, '🍺', 5, 0],
-  [/oil|olive|caper/, '🫒', 3, 3],
+  [/\boil\b|olive|caper|vinegar/, '🫒', 6, 3],
   [/salt/, '🧂', 3, 3],
-  [/sugar|spice|cumin|paprika|cinnamon|vinegar/, '🫙', 3, 3],
+  [/sugar|spice|cumin|paprika|cinnamon/, '🫙', 3, 3],
   [/ice cream/, '🍨', 5, 4],
   [/water|juice/, '🧃', 5, 2],
   [/paper|soap|towel|foil/, '🧻', 5, 2],
 ];
+
+/** Shown in place of a missing grocery amount. */
+export function noAmountLabel(name: string): string {
+  return /salt|pepper|spice|oil|vinegar|herb|sauce|seasoning|paprika|cumin|cinnamon/i.test(
+    name,
+  )
+    ? 'to taste'
+    : 'as needed';
+}
 
 export function lexOf(name: string) {
   const lo = String(name).toLowerCase();

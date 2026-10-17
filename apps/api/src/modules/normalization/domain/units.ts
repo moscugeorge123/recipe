@@ -104,6 +104,16 @@ export function singularizePhrase(raw: string): string {
   return parts.join(' ');
 }
 
+/**
+ * Name shown on a list row. A bare noun is singularized ("Lemons" -> "lemon");
+ * a phrase keeps the words as written ("Lemon wedges" stays plural), since
+ * the last word is often a cut or form, not the thing being counted.
+ */
+export function displayNameForm(raw: string): string {
+  const parts = raw.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  return parts.length > 1 ? parts.join(' ') : singularizePhrase(raw);
+}
+
 function singularizeWord(word: string): string {
   if (word.length <= 3 || word.endsWith('ss') || word.endsWith('us') || word.endsWith('is')) {
     return word;

@@ -10,7 +10,7 @@ import {
   canonicalNameKeys,
   normalizeIngredientName,
   normalizeUnit,
-  singularizePhrase,
+  displayNameForm,
 } from '../../normalization/domain/units.js';
 import type { IPantryRepository } from '../../pantry/repository/pantry.repository.js';
 import type { IRecipeRepository } from '../../recipes/repository/recipe.repository.js';
@@ -267,7 +267,7 @@ export class ShoppingListService {
       emoji: item.emoji,
     });
     const canonicalName = normalizeIngredientName(item.name);
-    const displayName = toSentenceCase(singularizePhrase(item.name));
+    const displayName = toSentenceCase(displayNameForm(item.name));
     const quantity =
       item.quantity === undefined || item.quantity === null
         ? null

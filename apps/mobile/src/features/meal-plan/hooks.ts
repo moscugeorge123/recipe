@@ -7,7 +7,10 @@ import {
   patchMealPlanEntry,
   reorderMealPlan,
 } from '@/features/meal-plan/api';
+import { groceriesAddedMessage } from '@/features/shopping-list/aisle';
+import { toast } from '@/tortie/nav-store';
 import {
+  MealEntryKind,
   sundayOfWeek,
   type CreateMealPlanEntryBody,
   type PatchMealPlanEntryBody,
@@ -21,6 +24,14 @@ import {
 import { networkFirst, persistKeyFor } from '@/features/query-persist';
 
 export { mealPlanKeys } from '@/features/query-keys';
+
+/** Rows in the cached shopping list (0 when it was never loaded). */
+function shoppingCount(client: ReturnType<typeof useQueryClient>): number {
+  return (
+    client.getQueryData<{ items: unknown[] }>(shoppingListKeys.list())?.items
+      .length ?? 0
+  );
+}
 
 function invalidatePlanAndShop(
   client: ReturnType<typeof useQueryClient>,
@@ -60,7 +71,24 @@ export function useCreateMealPlanEntry() {
   const client = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateMealPlanEntryBody) => createMealPlanEntry(body),
-    onSuccess: () => invalidatePlanAndShop(client),
+    onMutate: () => ({
+      before: shoppingCount(client),
+    }),
+    onSuccess: (_entry, body, ctx) => {
+      invalidatePlanAndShop(client);
+      if (body.kind !== MealEntryKind.RECIPE) return;
+      // The API adds the recipe's ingredients to the list when a meal is
+      // planned. Tell the user so the badge change has a visible cause.
+      void client
+        .refetchQueries({ queryKey: shoppingListKeys.all })
+        .then(() => {
+          const msg = groceriesAddedMessage(
+            shoppingCount(client) - (ctx?.before ?? 0),
+          );
+          if (msg) toast(msg);
+        })
+        .catch(() => undefined);
+    },
   });
 }
 

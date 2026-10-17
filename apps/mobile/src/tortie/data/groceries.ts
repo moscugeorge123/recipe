@@ -44,7 +44,7 @@ import {
 } from '@/tortie/data/pantry-extras';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
-import { lexOf, parseLocal, plz } from '@/tortie/lib/fmt';
+import { AISLES, lexOf, noAmountLabel, parseLocal, plz } from '@/tortie/lib/fmt';
 import { motionMultiplier } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
 
@@ -114,10 +114,10 @@ export function toTGroc(
   return {
     id: v.id,
     n: cap(v.name),
-    q: formatGroceryQty(amount.quantity, amount.unit),
+    q: formatGroceryQty(amount.quantity, amount.unit) || noAmountLabel(v.name),
     src,
     a:
-      aisle != null && aisle >= 0 && aisle <= 5
+      aisle != null && aisle >= 0 && aisle < AISLES.length
         ? aisle
         : aisleIndexOf(v.name, v.category),
     e: emojiFor(v.name, v.emoji),

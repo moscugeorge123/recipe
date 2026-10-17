@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
@@ -143,6 +143,20 @@ function TabItem({
   const col = useAnimatedStyle(() => ({
     color: tw(active ? '#32533C' : C.ink2, 300),
   }));
+  // A short pulse when the count changes, so the user sees the cause (e.g. a
+  // planned meal adding its ingredients).
+  const [pulse, setPulse] = useState(false);
+  const seen = useRef(badge);
+  useEffect(() => {
+    if (seen.current === badge) return;
+    seen.current = badge;
+    setPulse(true);
+    const t = setTimeout(() => setPulse(false), 200);
+    return () => clearTimeout(t);
+  }, [badge]);
+  const bump = useAnimatedStyle(() => ({
+    transform: [{ scale: tw(pulse ? 1.3 : 1, 160) }],
+  }));
   return (
     <Press
       onPress={onPress}
@@ -163,22 +177,25 @@ function TabItem({
           fill={active}
         />
         {badge > 0 ? (
-          <View
-            style={{
-              position: 'absolute',
-              top: -6,
-              right: -10,
-              minWidth: 18,
-              height: 18,
-              paddingHorizontal: 5,
-              borderRadius: 9,
-              backgroundColor: C.terra,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
+          <Animated.View
+            style={[
+              {
+                position: 'absolute',
+                top: -6,
+                right: -10,
+                minWidth: 18,
+                height: 18,
+                paddingHorizontal: 5,
+                borderRadius: 9,
+                backgroundColor: C.terra,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+              bump,
+            ]}
           >
             <T style={sans(10, 700, C.bg)}>{badge}</T>
-          </View>
+          </Animated.View>
         ) : null}
       </View>
       <Animated.Text allowFontScaling={false} style={[sans(11, 600), col]}>

@@ -1,5 +1,4 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
@@ -8,7 +7,6 @@ import { addUtcDays, localTodayIso } from '@/features/meal-plan/week';
 import { mondayOfWeek } from '@/features/meal-plan/types';
 import { useCook } from '@/tortie/cook-store';
 import { useCookbook } from '@/tortie/data/cookbook';
-import { presentGroceryPick } from '@/tortie/data/grocery-pick';
 import {
   currentMonday,
   daysBetween,
@@ -609,35 +607,11 @@ function EmptySlot({
   );
 }
 
+/**
+ * Planning a meal adds its ingredients to the shopping list automatically (the
+ * API does it), so this card points at the list instead of offering to add.
+ */
 function ShopCard({ on }: { on: boolean }) {
-  const wk = usePlan((s) => s.wk);
-  const addedWeek = usePlan((s) => s.addedWeek);
-  const monday = mondayAt(wk);
-  const { recipeIds, planned } = usePlanWeek(monday);
-  const client = useQueryClient();
-  const busy = useRef(false);
-  const added = wk === 0 && addedWeek === currentMonday();
-
-  const addWeek = async () => {
-    if (busy.current) return;
-    if (added) {
-      useNav.getState().goTab('groceries');
-      return;
-    }
-    if (!planned || !recipeIds.length) {
-      toast('Nothing planned that week yet');
-      return;
-    }
-    busy.current = true;
-    try {
-      await presentGroceryPick(client, recipeIds, {
-        markWeekMonday: wk === 0 ? monday : null,
-      });
-    } finally {
-      busy.current = false;
-    }
-  };
-
   return (
     <Stagger
       i={3}
@@ -650,13 +624,14 @@ function ShopCard({ on }: { on: boolean }) {
       }}
     >
       <T style={[serif(21, 500, C.bg), { lineHeight: 25.2 }]}>
-        Shop for the whole week
+        Your week’s ingredients are on your list
       </T>
       <T style={[sans(14, 400, '#c5eacc'), { lineHeight: 21, marginTop: 6 }]}>
-        Choose which ingredients to add. Duplicates across recipes are merged.
+        Planning a meal adds its ingredients to Groceries. Duplicates across
+        recipes are merged, and removing a meal takes them off again.
       </T>
       <Press
-        onPress={addWeek}
+        onPress={() => useNav.getState().goTab('groceries')}
         scale={0.97}
         easing={CSS_EASE}
         style={{
@@ -671,14 +646,8 @@ function ShopCard({ on }: { on: boolean }) {
           gap: 6,
         }}
       >
-        <Glyph
-          name={added ? 'check' : 'add_shopping_cart'}
-          size={20}
-          color="#32533C"
-        />
-        <T style={sans(14, 700, '#32533C')}>
-          {added ? 'Added to groceries' : 'Add week to groceries'}
-        </T>
+        <Glyph name="shopping_basket" size={20} color="#32533C" />
+        <T style={sans(14, 700, '#32533C')}>Review groceries</T>
       </Press>
     </Stagger>
   );
