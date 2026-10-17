@@ -1,7 +1,9 @@
+import Constants from 'expo-constants';
 import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   View,
@@ -26,7 +28,7 @@ import { useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { motionMultiplier } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
-import { useTortiePrefs, type DietKey } from '@/tortie/prefs-store';
+import { useTortiePrefs } from '@/tortie/prefs-store';
 import { clampSnooze } from '@/tortie/timer-clock';
 import { C, CSS_EASE, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
@@ -371,6 +373,28 @@ function LanguageSection() {
   );
 }
 
+type AboutRow = { icon: string; label: string; sub?: string; url?: string };
+
+/** Version always; legal and support links only when configured for the build. */
+export function aboutLinks(
+  version = Constants.expoConfig?.version ?? '',
+  env: Record<string, string | undefined> = {
+    terms: process.env.EXPO_PUBLIC_TERMS_URL,
+    privacy: process.env.EXPO_PUBLIC_PRIVACY_URL,
+    support: process.env.EXPO_PUBLIC_SUPPORT_URL,
+  },
+): AboutRow[] {
+  const rows: AboutRow[] = [
+    { icon: 'notes', label: 'Version', sub: version || undefined },
+  ];
+  if (env.terms) rows.push({ icon: 'link', label: 'Terms', url: env.terms });
+  if (env.privacy)
+    rows.push({ icon: 'link', label: 'Privacy policy', url: env.privacy });
+  if (env.support)
+    rows.push({ icon: 'link', label: 'Support', url: env.support });
+  return rows;
+}
+
 function SectionLabel({ children }: { children: string }) {
   return (
     <T
@@ -489,21 +513,8 @@ function SignedIn({
     [String(recipes.total), 'recipes'],
     [String(colls.data?.items.length ?? 0), 'collections'],
   ];
-  const DIETS: [DietKey, string][] = [
-    ['veg', 'Vegetarian'],
-    ['pesc', 'Pescatarian'],
-    ['gf', 'Gluten-free'],
-    ['df', 'Dairy-free'],
-    ['nut', 'No nuts'],
-  ];
+  const aboutRows = aboutLinks();
   const cookRows: [string, string, string, boolean, () => void][] = [
-    [
-      'mic',
-      'Voice commands',
-      'Say “next” to move between steps',
-      prefs.voice,
-      () => prefs.set({ voice: !prefs.voice }),
-    ],
     [
       'notifications_active',
       'Timer alerts',
@@ -712,45 +723,6 @@ function SignedIn({
               />
             </View>
           </View>
-          <View style={DIVIDER} />
-          <View style={{ paddingTop: 12, paddingBottom: 14 }}>
-            <View
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}
-            >
-              <Glyph name="eco" size={22} color={C.green} />
-              <RowText
-                l="Dietary preferences"
-                sub="Tortie flags recipes that don’t fit"
-              />
-            </View>
-            <View
-              style={{
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                gap: 8,
-                marginTop: 12,
-              }}
-            >
-              {DIETS.map(([k, l]) => {
-                const v = !!prefs.diet[k];
-                return (
-                  <Pill
-                    key={k}
-                    label={l}
-                    on={v}
-                    icon={v ? 'check' : undefined}
-                    iconSize={16}
-                    onPress={() =>
-                      prefs.set({ diet: { ...prefs.diet, [k]: !v } })
-                    }
-                    height={34}
-                    paddingH={12}
-                    style={{ gap: 4 }}
-                  />
-                );
-              })}
-            </View>
-          </View>
         </View>
       </Stagger>
 
@@ -849,6 +821,36 @@ function SignedIn({
           <RowText l="Take the tour" sub="A quick look at what Tortie can do" />
           <Glyph name="chevron_right" size={20} color={C.ink3} />
         </Press>
+      </Stagger>
+
+      <Stagger i={4} on={on}>
+        <SectionLabel>About</SectionLabel>
+        <View style={CARD}>
+          {aboutRows.map((r, i) => (
+            <Press
+              key={r.label}
+              onPress={() => r.url && void Linking.openURL(r.url)}
+              disabled={!r.url}
+              scale={0.98}
+              bg={C.white}
+              pressedBg={C.surface2}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 14,
+                paddingVertical: 12,
+                borderTopWidth: i ? 1 : 0,
+                borderTopColor: C.surface3,
+              }}
+            >
+              <Glyph name={r.icon} size={22} color={C.green} />
+              <RowText l={r.label} sub={r.sub} />
+              {r.url ? (
+                <Glyph name="chevron_right" size={20} color={C.ink3} />
+              ) : null}
+            </Press>
+          ))}
+        </View>
       </Stagger>
 
       <Stagger i={4} on={on}>
