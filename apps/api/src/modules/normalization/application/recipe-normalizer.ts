@@ -206,10 +206,25 @@ export function normalizeRecipeCategorySlugs(
     inferred.push('breakfast');
   } else if (/(lunch|sandwich|salad|wrap)/.test(text)) {
     inferred.push('lunch');
-  } else {
-    inferred.push('dinner');
   }
+  // No match is an honest "unknown": the recipe shows no meal tag instead of a wrong one.
   return inferred;
+}
+
+/**
+ * Meal types from a page's schema.org `recipeCategory` ("Main Course", "Dessert", "Brunch").
+ * Dips, sides, snacks and drinks fit none of the four categories and map to nothing.
+ */
+export function mealSlugsFromRecipeCategory(categories: string[]): string[] {
+  const slugs = new Set<string>();
+  for (const raw of categories) {
+    const text = raw.toLowerCase();
+    if (/\b(breakfast|brunch)\b/.test(text)) slugs.add('breakfast');
+    if (/\b(lunch|sandwich|salad|soup)\b/.test(text)) slugs.add('lunch');
+    if (/\b(dinner|supper|main (?:course|dish)|entr[eé]e|main)\b/.test(text)) slugs.add('dinner');
+    if (/\b(dessert|sweet|cake|cookie|biscuit|pastry|baking)\b/.test(text)) slugs.add('sweet');
+  }
+  return [...slugs];
 }
 
 /** Seasonings a method names without the list carrying them: salt, and ground black pepper. */

@@ -1,6 +1,6 @@
 import { GARDEN_PLATE_COLOR_TOKENS } from '../../normalization/domain/presentation.js';
 
-export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v14';
+export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v15';
 
 const OUTPUT_LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
@@ -86,7 +86,7 @@ Rules:
 - Set cuisine from evidence of a cuisine style (for example Italian, Korean). Do not guess from unrelated words. Use null if unknown.
 - Set each ingredient category from the ingredient itself. Allowed values: Produce, Meat, Dairy, Pantry, Spices, Frozen.
 - Set each ingredient emoji to exactly one relevant emoji grapheme and colorToken to one Garden Plate token: paprikaSoft, basilSoft, honey50, peach, linen, steamedMilk, chili50.
-- Categorize the recipe with one or more stable categorySlugs. Allowed values: breakfast, lunch, dinner, sweet.
+- Set categorySlugs to the meal types the recipe clearly fits. Allowed values: breakfast, lunch, dinner, sweet. Use the source's own recipe category when it states one. Return an empty list when you are not sure or the dish fits none of them (a dip, a side, a snack, a drink); do not default to dinner.
 - Set each step stage from the instruction: mise en place → PREP, heat/simmer → COOK, finish sauce → FINISH, plate → SERVE. Allowed values: PREP, COOK, FINISH, SERVE. Steps with ahead true are PREP.
 - Each step has a short title and a separate instruction.
   - title is a simple imperative label of 2–5 words, with no period. Examples: "Boil the pasta", "Roast the chicken", "Soak the rice".
@@ -136,7 +136,6 @@ export const RECIPE_EXTRACTION_SCHEMA = {
     categorySlugs: {
       type: 'array',
       items: { type: 'string', enum: ['breakfast', 'lunch', 'dinner', 'sweet'] },
-      minItems: 1,
     },
     ingredients: {
       type: 'array',

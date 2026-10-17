@@ -190,7 +190,9 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         where: { userId: ownerUserId, slug: { in: requestedSlugs } },
         orderBy: { sortOrder: 'asc' },
       });
-      if (categories.length === 0) {
+      // Only a create that said nothing about categories gets the Dinner default; an empty list
+      // means the extractor was not sure, and an unguessed meal type is better than a wrong one.
+      if (categories.length === 0 && input.categorySlugs === undefined) {
         const dinner = await tx.category.findUnique({
           where: { userId_slug: { userId: ownerUserId, slug: 'dinner' } },
         });

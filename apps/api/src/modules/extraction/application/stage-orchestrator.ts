@@ -19,7 +19,10 @@ import type { AcquiredContent } from '../../content/domain/types.js';
 import { EvidenceBuilder } from '../../evidence/application/evidence-builder.js';
 import type { EvidenceItem } from '../../evidence/domain/types.js';
 import { ConfidenceCalculator } from '../../confidence/application/confidence-calculator.js';
-import { RecipeNormalizer } from '../../normalization/application/recipe-normalizer.js';
+import {
+  RecipeNormalizer,
+  mealSlugsFromRecipeCategory,
+} from '../../normalization/application/recipe-normalizer.js';
 import {
   assertExtractedRecipeHasContent,
   assertFoodRecipe,
@@ -513,6 +516,11 @@ export function createDefaultStageHandlers(
         );
         throw error;
       }
+      // The page's own recipeCategory beats the model's guess at a meal type.
+      const sourceSlugs = mealSlugsFromRecipeCategory(
+        ctx.acquiredContent?.structuredRecipe?.category ?? [],
+      );
+      if (sourceSlugs.length > 0) normalized.categorySlugs = sourceSlugs;
       const validation = recipeValidator.validate(normalized);
       normalized.warnings = validation.warnings as unknown as Prisma.InputJsonValue;
       normalized.confidence = confidenceCalculator.calculate(normalized);
@@ -585,7 +593,7 @@ export function createDefaultStageHandlers(
         warnings: normalized.warnings,
         promptVersion,
         rawExtraction: rawExtraction as unknown as Prisma.InputJsonValue,
-        categorySlugs: normalized.categorySlugs ?? ['dinner'],
+        categorySlugs: normalized.categorySlugs ?? [],
         reviewState:
           validation.valid && validation.warnings.length === 0 && normalized.confidence >= 0.8
             ? ('READY' as const)
