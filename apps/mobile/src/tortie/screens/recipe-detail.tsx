@@ -228,7 +228,7 @@ export function RecipeDetail() {
               <T style={sans(14, 400, C.ink2)}>
                 by{' '}
                 <T style={sans(14, 700, C.ink)}>
-                  {host ? r.view.creator : 'You'}
+                  {host ? r.byline.replace(/^by /, '') : 'You'}
                 </T>
               </T>
               {host && r.originalUrl ? (

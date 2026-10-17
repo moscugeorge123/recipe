@@ -1,6 +1,6 @@
 import { GARDEN_PLATE_COLOR_TOKENS } from '../../normalization/domain/presentation.js';
 
-export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v12';
+export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v13';
 
 const OUTPUT_LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
@@ -76,7 +76,8 @@ Rules:
 - ingredientIndexes lists the 0-based positions in the ingredients array of the ingredients a step uses. Use [] when a step uses none.
 - Only include ingredients and steps that are supported by the evidence
 - Set sourceLanguage to the original language of the source evidence, not the output language
-- Capitalize the recipe title and each ingredient name in sentence case in the output language (first letter capital, remaining letters lowercase). Examples: "wholemeal pitta" → "Wholemeal pitta", "tuna" → "Tuna", "recipe name" → "Recipe name"
+- Write each ingredient name in sentence case in the output language (first letter capital, remaining letters lowercase). Examples: "wholemeal pitta" → "Wholemeal pitta", "tuna" → "Tuna".
+- Keep the recipe title exactly as the source writes it, including its capitalization, proper nouns, brands and acronyms ("Nonna's BBQ Ribs"). Do not lower-case it and do not rewrite the wording.
 - Include provenance references where possible (caption, description, transcript, ocr, vision)
 - Do not invent ingredients or ingredient quantities that are not present in evidence
 - Set cuisine from evidence of a cuisine style (for example Italian, Korean). Do not guess from unrelated words. Use null if unknown.

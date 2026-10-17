@@ -8,7 +8,7 @@ import type {
   NutritionSource,
   RecipeDifficulty,
 } from '../../recipes/domain/types.js';
-import { toSentenceCase } from '../domain/casing.js';
+import { normalizeRecipeTitle, toSentenceCase } from '../domain/casing.js';
 import { addDualMeasurements, reconcileTemperature } from '../domain/measurement-conversion.js';
 import { cuisineFromText, isStepStage, stageForIndex } from '../domain/presentation-heuristics.js';
 import { IngredientNormalizer } from './ingredient-normalizer.js';
@@ -274,7 +274,7 @@ export class RecipeNormalizer {
       return ingWarnings.map((w) => ({ code: 'NORMALIZATION', message: w, field: i.name }));
     });
 
-    const title = toSentenceCase(extracted.title);
+    const title = normalizeRecipeTitle(extracted.title);
     const description = extracted.description?.trim() ?? null;
     const trimmedCuisine = extracted.cuisine?.trim();
     const { calories, nutrition, nutritionSource } = normalizeNutrition(extracted);

@@ -26,4 +26,24 @@ describe('bylineOf', () => {
   test('says "by you" when the recipe has no web source', () => {
     expect(bylineOf({ creator: 'Manual', originalUrl: null })).toBe('by you');
   });
+
+  test('shows the domain instead of the generic "Website" label', () => {
+    expect(
+      bylineOf({
+        creator: 'Website',
+        sourceLabel: 'Website',
+        originalUrl: 'https://www.simplyrecipes.com/recipes/perfect_guacamole/',
+      }),
+    ).toBe('by simplyrecipes.com');
+  });
+
+  test('never prints a generic name, even when the source label differs', () => {
+    expect(
+      bylineOf({
+        creator: 'Video',
+        sourceLabel: 'YouTube',
+        originalUrl: 'https://youtu.be/abc',
+      }),
+    ).toBe('by youtu.be');
+  });
 });

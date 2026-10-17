@@ -625,7 +625,10 @@ const RecipeCard = memo(function RecipeCard({
           </View>
         ) : null}
       </SelectTile>
-      <T style={serif(17, 600, C.ink, { lineHeight: 20.4, marginTop: 9 })}>
+      <T
+        numberOfLines={2}
+        style={serif(17, 600, C.ink, { lineHeight: 20.4, marginTop: 9 })}
+      >
         {r.title}
       </T>
       <Byline text={r.byline} />
@@ -680,7 +683,9 @@ const RecipeRow = memo(function RecipeRow({
         style={{ width: 72, height: 72 }}
       />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <T style={serif(17, 600, C.ink, { lineHeight: 20.4 })}>{r.title}</T>
+        <T numberOfLines={2} style={serif(17, 600, C.ink, { lineHeight: 20.4 })}>
+          {r.title}
+        </T>
         <Byline text={r.byline} />
         <T style={sans(12, 400, C.ink2, { marginTop: 3 })}>
           {fmtT(r.time) + ' · ' + meta}
