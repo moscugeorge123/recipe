@@ -29,6 +29,9 @@ export function ShareIntentBridge() {
       return;
     }
 
+    // An incoming share starts from a clean stack: no clip viewer, cook mode or sheet
+    // left open underneath it.
+    useNav.getState().closeOverlays();
     useNav.getState().openShare(handoff.url, handoff.title);
   }, [hasShareIntent, shareIntent, resetShareIntent]);
 

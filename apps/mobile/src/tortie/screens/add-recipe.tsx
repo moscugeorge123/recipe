@@ -10,7 +10,7 @@ import { startImport, retryImport } from '@/tortie/data/import-engine';
 import { useTRecipe } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { useImports } from '@/tortie/import-store';
-import { afterMotion, useNav } from '@/tortie/nav-store';
+import { openImportedRecipe, useNav } from '@/tortie/nav-store';
 import { C, CSS_EASE } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { BRAND_COLOR, BrandLogo, type Brand } from '@/tortie/ui/brand';
@@ -134,7 +134,7 @@ export function AddRecipeSheet() {
     setUrl('');
     setClip(null);
     setFocus(null);
-    if (id) afterMotion(260, () => useNav.getState().openRecipe(id));
+    if (id) openImportedRecipe(id, 260);
   };
 
   const onErrorAction = (action: ImportErrorAction) => {

@@ -14,7 +14,7 @@ import {
 import { hueOf } from '@/tortie/color';
 import { useFrame } from '@/tortie/frame';
 import { fmtT, plz } from '@/tortie/lib/fmt';
-import { afterMotion, useNav } from '@/tortie/nav-store';
+import { openImportedRecipe, useNav } from '@/tortie/nav-store';
 import { BASE_D, C, CSS_EASE, F, SH } from '@/tortie/theme';
 import { BrandLogo } from '@/tortie/ui/brand';
 import { Glyph } from '@/tortie/ui/icon';
@@ -75,10 +75,7 @@ export function SharePreview() {
   const openImported = () => {
     const id = imp.recipeId;
     useNav.getState().closeShare();
-    if (id)
-      afterMotion(Math.round(BASE_D * 1.1), () =>
-        useNav.getState().openRecipe(id),
-      );
+    if (id) openImportedRecipe(id, Math.round(BASE_D * 1.1));
   };
 
   return (

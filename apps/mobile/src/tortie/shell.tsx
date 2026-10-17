@@ -305,7 +305,10 @@ function TabLayer({ tab, children }: { tab: TabKey; children: ReactNode }) {
   );
 }
 
-/** Android back: close the topmost layer. Returns true when something closed. */
+/**
+ * Android back: close the topmost layer. Returns true when something closed.
+ * The order follows the z-order above; `closeOverlays` in the nav store clears the same layers.
+ */
 function popTopLayer(): boolean {
   const s = useNav.getState();
   if (s.shareOpen) return (s.closeShare(), true);

@@ -131,6 +131,13 @@ type Actions = {
   set: (p: Partial<Nav>) => void;
   goTab: (t: TabKey) => void;
   openRecipe: (id: string) => void;
+  /**
+   * Closes every layer that would sit over (or hide) a recipe about to open: the step clip
+   * viewer, notes, sheets, editor, camera, Add sheet, welcome and cook mode. Cook mode closes
+   * through its normal path, so the session is kept. `pushed` also closes the profile and
+   * Imports screens.
+   */
+  closeOverlays: (pushed?: boolean) => void;
   closeRecipe: () => void;
   openProfile: () => void;
   closeProfile: () => void;
@@ -178,6 +185,28 @@ type Actions = {
 };
 
 export type ToastKind = 'ok' | 'error';
+
+/** Every overlay flag that `closeOverlays` clears. */
+const OVERLAYS_CLOSED = {
+  addSheet: false,
+  addJobId: null,
+  cam: false,
+  menu: false,
+  menuBulk: false,
+  sel: null,
+  nc: false,
+  fs: false,
+  cal: false,
+  pedOn: false,
+  gedOn: false,
+  grocEdit: false,
+  grocPickOn: false,
+  notesOn: false,
+  clipOn: false,
+  edit: false,
+  cookOpen: false,
+  welcome: false,
+} satisfies Partial<Nav>;
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let bulkExit: ReturnType<typeof setTimeout> | null = null;
@@ -270,6 +299,14 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
       detailOpen: true,
       detailNonce: s.detailNonce + 1,
     })),
+  closeOverlays: (pushed = false) => {
+    cancelBulkExit();
+    set(
+      pushed
+        ? { ...OVERLAYS_CLOSED, prof: false, imports: false }
+        : OVERLAYS_CLOSED,
+    );
+  },
   closeRecipe: () => set({ detailOpen: false, menu: false, menuBulk: false }),
   openProfile: () => set((s) => ({ prof: true, profNonce: s.profNonce + 1 })),
   closeProfile: () => set({ prof: false }),
@@ -413,4 +450,17 @@ export const toast = (msg: string, kind?: ToastKind) =>
 /** `setTimeout` scaled by the motion multiplier (sheet → sheet hand-offs). */
 export function afterMotion(ms: number, fn: () => void) {
   return setTimeout(fn, Math.round(ms * motionMultiplier()));
+}
+
+/**
+ * Opens a recipe that was just imported so that it is the top thing on screen: every layer
+ * above the detail closes first, then the recipe slides in once they are gone.
+ */
+export function openImportedRecipe(id: string, delayMs = 0) {
+  useNav.getState().closeOverlays(true);
+  if (delayMs <= 0) {
+    useNav.getState().openRecipe(id);
+    return;
+  }
+  afterMotion(delayMs, () => useNav.getState().openRecipe(id));
 }
