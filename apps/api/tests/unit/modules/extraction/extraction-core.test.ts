@@ -448,7 +448,7 @@ describe('RECIPE_EXTRACTION_SCHEMA', () => {
   });
 
   it('uses the bumped prompt version', () => {
-    expect(RECIPE_EXTRACTION_PROMPT_VERSION).toMatch(/^recipe-extraction-vd+$/);
+    expect(RECIPE_EXTRACTION_PROMPT_VERSION).toMatch(/^recipe-extraction-v\d+$/);
   });
 });
 
