@@ -26,7 +26,7 @@ import {
   weekRange,
   type MealKey,
 } from '@/tortie/data/plan';
-import { findSlotRecipeEntry } from '@/tortie/data/plan-slot';
+import { emptySlotAction, findSlotRecipeEntry } from '@/tortie/data/plan-slot';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { DAYLETTERS, DAYNAMES, fmtT, MON } from '@/tortie/lib/fmt';
@@ -42,7 +42,6 @@ import { PlanDaySwipe } from '@/tortie/screens/plan-day-swipe';
 import { C, CSS_EASE, EASE, SH } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Grabber } from '@/tortie/ui/controls';
-import { EmptyState } from '@/tortie/ui/empty-state';
 import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
@@ -57,6 +56,9 @@ const SLOTS: [MealKey, string, string][] = [
   ['d', 'Dinner', 'dark_mode'],
 ];
 
+/** Shown when a slot is tapped before any recipe is saved. */
+export const SAVE_FIRST_TOAST = 'Save a recipe first';
+
 const usePlanOn = () => useNav((s) => s.tab === 'plan' && s.mounted);
 
 export function PlanScreen() {
@@ -66,10 +68,6 @@ export function PlanScreen() {
   const day = usePlan((s) => s.day);
   const monday = mondayAt(wk);
   const { planned, week, isLoading: weekLoading } = usePlanWeek(monday);
-  const recipes = useTRecipes();
-  const noRecipes =
-    !recipes.isLoading && !recipes.isError && recipes.list.length === 0;
-  const blankWeek = !noRecipes && !weekLoading && planned === 0;
   const dayHasRecipe = MEAL_KEYS.some((k) => week[day]?.[k]);
   return (
     <TabScroll
@@ -84,84 +82,36 @@ export function PlanScreen() {
       <PlanDaySwipe>
         <WeekControls on={on} />
         <DayStrip on={on} />
-        {noRecipes ? (
-          <NothingToPlan on={on} />
-        ) : (
-          <>
-            {blankWeek ? <BlankWeek on={on} /> : null}
-            <DayContent on={on} />
-          </>
-        )}
+        <DayContent on={on} />
+        {wk < 0 && planned === 0 && !weekLoading ? (
+          <T
+            style={[
+              sans(12, 400, C.ink3),
+              { marginTop: 16, textAlign: 'center' },
+            ]}
+          >
+            Nothing was planned that week.
+          </T>
+        ) : null}
         {dayHasRecipe ? <ShopCard on={on} /> : null}
       </PlanDaySwipe>
     </TabScroll>
   );
 }
 
-/** No recipes saved: every slot would lead to an empty Cookbook. */
-function NothingToPlan({ on }: { on: boolean }) {
-  return (
-    <Stagger i={2} on={on} style={{ marginTop: 24 }}>
-      <EmptyState
-        icons={['restaurant', 'calendar_month', 'shopping_basket']}
-        kicker="An open week"
-        title="Nothing to plan with yet"
-        body="Save a few recipes first, then drop them onto any day. Your grocery list builds itself from the plan."
-        action={{
-          label: 'Add a recipe',
-          icon: 'add',
-          onPress: () => useNav.getState().openAdd(),
-        }}
-        secondary={{
-          label: 'Take the tour',
-          onPress: () => useNav.getState().openWelcome(),
-        }}
-      />
-    </Stagger>
-  );
-}
-
-/** Recipes exist but this week has none planned: point at the easiest start. */
-function BlankWeek({ on }: { on: boolean }) {
-  const wk = usePlan((s) => s.wk);
-  const day = usePlan((s) => s.day);
-  const tonight = wk === 0 && day === todayIndex();
-  return (
-    <Stagger i={2} on={on} style={{ marginTop: 20 }}>
-      <EmptyState
-        variant="wash"
-        compact
-        icons={['restaurant', 'edit_calendar', 'shopping_basket']}
-        title={
-          wk === 0
-            ? 'A blank week'
-            : wk < 0
-              ? 'Nothing was planned that week'
-              : 'Nothing planned that week yet'
-        }
-        body={
-          wk < 0
-            ? 'Past weeks show what you planned. Head back to this week to plan ahead.'
-            : 'Pick a recipe for any meal below. Planned meals turn into one grocery list.'
-        }
-        action={
-          wk < 0
-            ? undefined
-            : {
-                label: tonight
-                  ? 'Plan tonight’s dinner'
-                  : `Plan ${DAYNAMES[day]}’s dinner`,
-                icon: 'dark_mode',
-                onPress: () => startSlotPick(day, 'd', 'Dinner'),
-              }
-        }
-      />
-    </Stagger>
-  );
-}
-
 /** Opens the Cookbook in pick mode for one meal slot. */
-function startSlotPick(day: number, meal: MealKey, label: string) {
+function startSlotPick(
+  day: number,
+  meal: MealKey,
+  label: string,
+  noRecipes = false,
+) {
+  if (emptySlotAction(noRecipes) === 'add') {
+    // No recipes yet: an empty picker is a dead end, so explain and offer Add.
+    toast(SAVE_FIRST_TOAST);
+    useNav.getState().openAdd();
+    return;
+  }
   useCookbook.getState().setCbSeg('recipes');
   usePlan.getState().startPick(day, meal, label);
   useNav.getState().goTab('cookbook');
@@ -631,9 +581,12 @@ function EmptySlot({
   label: string;
   day: number;
 }) {
+  const recipes = useTRecipes();
+  const noRecipes =
+    !recipes.isLoading && !recipes.isError && recipes.list.length === 0;
   return (
     <Press
-      onPress={() => startSlotPick(day, meal, label)}
+      onPress={() => startSlotPick(day, meal, label, noRecipes)}
       scale={0.98}
       easing={CSS_EASE}
       bg="transparent"

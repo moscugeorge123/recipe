@@ -1,4 +1,12 @@
 import { daysOfWeek } from '@/features/meal-plan/week';
+
+/**
+ * What tapping an empty meal slot does: pick from the Cookbook, or (with no
+ * saved recipes) explain and open the Add sheet so the tap is not a dead end.
+ */
+export function emptySlotAction(noRecipes: boolean): 'pick' | 'add' {
+  return noRecipes ? 'add' : 'pick';
+}
 import {
   MealSlot,
   type MealPlanEntryView,

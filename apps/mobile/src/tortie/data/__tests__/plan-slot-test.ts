@@ -5,6 +5,7 @@ import {
 } from '@/features/meal-plan/types';
 import {
   displayedPlanEntryIds,
+  emptySlotAction,
   findSlotRecipeEntry,
   isMealPlanWeekItemsCache,
   omitPlanEntries,
@@ -167,5 +168,14 @@ describe('omitPlanEntries', () => {
     expect(omitPlanEntries(['2026-09-22'], ['a'])).toBeNull();
     expect(omitPlanEntries({ items: [] }, ['a'])).toBeNull();
     expect(isMealPlanWeekItemsCache(['2026-09-22'])).toBe(false);
+  });
+});
+
+describe('emptySlotAction', () => {
+  it('opens the picker when recipes exist', () => {
+    expect(emptySlotAction(false)).toBe('pick');
+  });
+  it('opens the Add sheet instead of an empty picker with no recipes', () => {
+    expect(emptySlotAction(true)).toBe('add');
   });
 });
