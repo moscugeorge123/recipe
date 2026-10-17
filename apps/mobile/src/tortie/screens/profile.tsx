@@ -36,6 +36,7 @@ import { BrandLogo } from '@/tortie/ui/brand';
 import { Pill, Switch } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
+import { Select, type SelectOption } from '@/tortie/ui/select';
 import { Stagger } from '@/tortie/ui/stagger';
 import { em, kicker, sans, serif, T } from '@/tortie/ui/text';
 
@@ -294,83 +295,55 @@ export function ProfileScreen() {
   );
 }
 
-/** App language and recipe language pickers, stored on the device. */
+/** App language and recipe language dropdowns, stored on the device. */
 function LanguageSection() {
   const t = useT();
   const appLanguage = useTortiePrefs((s) => s.appLanguage);
   const recipeLanguage = useTortiePrefs((s) => s.recipeLanguage);
   const set = useTortiePrefs((s) => s.set);
-  const wrap = {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    paddingTop: 10,
-  } as const;
-  const pill = (label: string, on: boolean, onPress: () => void) => (
-    <Pill
-      key={label}
-      label={label}
-      on={on}
-      onPress={onPress}
-      height={32}
-      paddingH={12}
-      size={12}
-      weight={700}
-    />
-  );
   return (
     <>
       <SectionLabel>{t('profile.language')}</SectionLabel>
       <View style={CARD}>
-        <View style={{ paddingTop: 12, paddingBottom: 14 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Glyph name="language" size={22} color={C.green} />
-            <RowText
-              l={t('profile.appLanguage')}
-              sub={t('profile.appLanguageSub')}
-            />
-          </View>
-          <View style={wrap}>
-            {pill(
-              t('profile.appLanguageSystem'),
-              appLanguage === 'system',
-              () => set({ appLanguage: 'system' satisfies AppLanguagePref }),
-            )}
-            {APP_LANGUAGES.map((l) =>
-              pill(l.name, appLanguage === l.code, () =>
-                set({ appLanguage: l.code }),
-              ),
-            )}
-          </View>
-        </View>
+        <Select<AppLanguagePref>
+          icon="language"
+          label={t('profile.appLanguage')}
+          sub={t('profile.appLanguageSub')}
+          value={appLanguage}
+          options={appLanguageOptions(t('profile.appLanguageSystem'))}
+          onChange={(v) => set({ appLanguage: v })}
+        />
         <View style={DIVIDER} />
-        <View style={{ paddingTop: 12, paddingBottom: 14 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Glyph name="translate" size={22} color={C.green} />
-            <RowText
-              l={t('profile.recipeLanguage')}
-              sub={t('profile.recipeLanguageSub')}
-            />
-          </View>
-          <View style={wrap}>
-            {pill(
-              t('profile.recipeLanguageOriginal'),
-              recipeLanguage === 'original',
-              () =>
-                set({
-                  recipeLanguage: 'original' satisfies RecipeLanguagePref,
-                }),
-            )}
-            {RECIPE_LANGUAGES.map((l) =>
-              pill(l.name, recipeLanguage === l.code, () =>
-                set({ recipeLanguage: l.code }),
-              ),
-            )}
-          </View>
-        </View>
+        <Select<RecipeLanguagePref>
+          icon="translate"
+          label={t('profile.recipeLanguage')}
+          sub={t('profile.recipeLanguageSub')}
+          value={recipeLanguage}
+          options={recipeLanguageOptions(t('profile.recipeLanguageOriginal'))}
+          onChange={(v) => set({ recipeLanguage: v })}
+        />
       </View>
     </>
   );
+}
+
+/** Device first, then each language under its own name. */
+export function appLanguageOptions(
+  systemLabel: string,
+): SelectOption<AppLanguagePref>[] {
+  return [
+    { value: 'system', label: systemLabel },
+    ...APP_LANGUAGES.map((l) => ({ value: l.code, label: l.name })),
+  ];
+}
+
+export function recipeLanguageOptions(
+  originalLabel: string,
+): SelectOption<RecipeLanguagePref>[] {
+  return [
+    { value: 'original', label: originalLabel },
+    ...RECIPE_LANGUAGES.map((l) => ({ value: l.code, label: l.name })),
+  ];
 }
 
 type AboutRow = { icon: string; label: string; sub?: string; url?: string };
