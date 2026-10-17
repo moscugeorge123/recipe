@@ -110,6 +110,7 @@ function repo(overrides: Partial<IRecipeRepository> = {}): IRecipeRepository {
     findById: vi.fn(),
     findBySourceId: vi.fn(),
     delete: vi.fn(),
+    deleteForUser: vi.fn(),
     list: vi.fn(),
     update: vi.fn(),
     findEffectiveById: vi.fn(),
@@ -307,11 +308,11 @@ describe('RecipeService revisions', () => {
   });
 
   it('refuses delete and restore for recipes the profile does not own', async () => {
-    const remove = vi.fn();
+    const remove = vi.fn().mockResolvedValue(false);
     const recipeRepo = repo({
       findEffectiveById: vi.fn().mockResolvedValue(null),
       restoreRevision: vi.fn().mockResolvedValue(null),
-      delete: remove,
+      deleteForUser: remove,
     });
     const service = new RecipeService(recipeRepo);
 
@@ -326,7 +327,7 @@ describe('RecipeService revisions', () => {
         0,
       ),
     ).rejects.toBeInstanceOf(RecipeNotFoundError);
-    expect(remove).not.toHaveBeenCalled();
+    expect(remove).toHaveBeenCalledWith('22222222-2222-4222-8222-222222222222', USER_ID);
   });
 });
 

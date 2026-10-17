@@ -23,6 +23,16 @@ const commaSeparatedList = z
   )
   .pipe(z.array(z.string().min(1)));
 
+/** Treats an empty string (for example `KEY=` passed through docker compose) as unset. */
+const optionalString = z
+  .string()
+  .optional()
+  .transform((value) => (value === undefined || value.trim() === '' ? undefined : value.trim()));
+
+const AUTH_MODES = ['implicit', 'firebase'] as const;
+
+const AI_PROVIDERS = ['openai', 'deepseek'] as const;
+
 const rawEnvSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 
@@ -73,6 +83,23 @@ const rawEnvSchema = z.object({
   /** How long in-flight requests are given to finish after SIGTERM. */
   SHUTDOWN_TIMEOUT_MS: z.coerce.number().int().positive().default(10_000),
 
+  // --- Authentication ----------------------------------------------------------
+  /**
+   * `firebase` verifies Firebase ID tokens and scopes data to the signed-in user. `implicit`
+   * serves every request as the singleton default profile and exists for tests and local
+   * tooling only. Defaults to `implicit` when NODE_ENV=test, otherwise `firebase`.
+   */
+  AUTH_MODE: z.enum(AUTH_MODES).optional(),
+  /** Required for `firebase` mode: the project that issues the ID tokens. */
+  FIREBASE_PROJECT_ID: optionalString,
+  /**
+   * Base64 of the service-account JSON (secret). Optional: token verification only needs the
+   * project id, the key is used for `DELETE /me` (removes the Firebase user) and revocation checks.
+   */
+  FIREBASE_SERVICE_ACCOUNT_JSON: optionalString,
+  /** Rejects tokens revoked after issue. Costs a Firebase call per verification; needs the key. */
+  AUTH_CHECK_REVOKED: z.stringbool().default(false),
+
   // --- Database ----------------------------------------------------------------
   DATABASE_URL: z
     .string()
@@ -92,23 +119,30 @@ const rawEnvSchema = z.object({
   STORAGE_S3_ENDPOINT: z.string().optional(),
 
   // --- AI ----------------------------------------------------------------------
+  /**
+   * Which vendor serves the chat / vision / OCR calls. `openai` keeps the AI_* model settings below;
+   * `deepseek` ignores them and uses DEEPSEEK_FAST_MODEL for everything instead. Transcription
+   * (Whisper) is always OpenAI: DeepSeek has no audio API.
+   */
+  AI_PROVIDER: z.enum(AI_PROVIDERS).default('openai'),
   OPENAI_API_KEY: z.string().optional(),
-  AI_DEFAULT_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  DEEPSEEK_API_KEY: optionalString,
+  /** OpenAI-compatible endpoint. */
+  DEEPSEEK_BASE_URL: z.url().default('https://api.deepseek.com'),
+  /**
+   * The one DeepSeek model, used for every call: extraction, assistant, translation, pantry
+   * organization, vision and OCR. Vision needs it too: the flagship does not accept image input.
+   */
+  DEEPSEEK_FAST_MODEL: z.string().min(1).default('deepseek-flash'),
+  /** DeepSeek models think by default, which is slow and ignores temperature. Off unless set. */
+  DEEPSEEK_THINKING: z.stringbool().default(false),
+  AI_DEFAULT_MODEL: z.string().min(1).default('gpt-6-luna'),
   AI_WHISPER_MODEL: z.string().min(1).default('whisper-1'),
-  // gpt-4o-mini bills each high-detail frame at ~37k tokens; gpt-4.1-mini at ~2.5k.
-  AI_VISION_MODEL: z.string().min(1).default('gpt-4.1-mini'),
+  AI_VISION_MODEL: z.string().min(1).default('gpt-6-luna'),
   AI_MAX_RETRIES: z.coerce.number().int().nonnegative().max(10).default(5),
-  AI_INGREDIENT_MODEL: z
-    .string()
-    .min(1)
-    .default('gpt-5-nano')
-    .refine((value) => !/gpt-5\.6/i.test(value), 'GPT-5.6 is not allowed for pantry organization'),
-  AI_INGREDIENT_FALLBACK_MODEL: z
-    .string()
-    .min(1)
-    .default('gpt-4.1-nano')
-    .refine((value) => !/gpt-5\.6/i.test(value), 'GPT-5.6 is not allowed for pantry organization'),
-  AI_INGREDIENT_ESCALATION_MODEL: z.string().min(1).default('gpt-4o-mini'),
+  AI_INGREDIENT_MODEL: z.string().min(1).default('gpt-6-luna'),
+  AI_INGREDIENT_FALLBACK_MODEL: z.string().min(1).default('gpt-6-luna'),
+  AI_INGREDIENT_ESCALATION_MODEL: z.string().min(1).default('gpt-6-luna'),
   AI_INGREDIENT_REASONING_EFFORT: z
     .enum(['none', 'minimal', 'low', 'medium', 'high'])
     .default('none'),
@@ -214,7 +248,93 @@ export function resolveDatabaseUrl(input: {
   return candidate;
 }
 
-const configSchema = rawEnvSchema.transform((raw) => ({
+export type AuthMode = (typeof AUTH_MODES)[number];
+
+/** Tests default to the implicit profile; every real environment defaults to Firebase. */
+export function resolveAuthMode(nodeEnv: string, authMode?: AuthMode): AuthMode {
+  return authMode ?? (nodeEnv === 'test' ? 'implicit' : 'firebase');
+}
+
+/** Cheap structural check so a mangled secret fails at startup, not on the first account deletion. */
+function serviceAccountProblem(encoded: string): string | undefined {
+  try {
+    const parsed: unknown = JSON.parse(Buffer.from(encoded, 'base64').toString('utf8'));
+    if (typeof parsed !== 'object' || parsed === null) {
+      return 'must decode to a JSON object';
+    }
+    const account = parsed as Record<string, unknown>;
+    for (const field of ['project_id', 'client_email', 'private_key']) {
+      if (typeof account[field] !== 'string' || account[field] === '') {
+        return `decoded JSON is missing "${field}"`;
+      }
+    }
+    return undefined;
+  } catch {
+    return 'must be the base64 encoding of the service-account JSON';
+  }
+}
+
+const validatedEnvSchema = rawEnvSchema.superRefine((raw, ctx) => {
+  const mode = resolveAuthMode(raw.NODE_ENV, raw.AUTH_MODE);
+
+  if (mode === 'firebase' && raw.FIREBASE_PROJECT_ID === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['FIREBASE_PROJECT_ID'],
+      message: 'is required when AUTH_MODE=firebase',
+    });
+  }
+  if (mode === 'implicit' && raw.NODE_ENV === 'production') {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['AUTH_MODE'],
+      message: 'implicit is not allowed in production: every caller would share one profile',
+    });
+  }
+  if (raw.FIREBASE_SERVICE_ACCOUNT_JSON !== undefined) {
+    const problem = serviceAccountProblem(raw.FIREBASE_SERVICE_ACCOUNT_JSON);
+    if (problem !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['FIREBASE_SERVICE_ACCOUNT_JSON'],
+        message: problem,
+      });
+    }
+  }
+});
+
+export type AiProvider = (typeof AI_PROVIDERS)[number];
+
+/**
+ * The model each AI scenario runs on. `openai` reads the AI_* settings; `deepseek` maps every
+ * scenario onto DEEPSEEK_FAST_MODEL.
+ */
+function resolveAiModels(raw: z.infer<typeof rawEnvSchema>): {
+  defaultModel: string;
+  visionModel: string;
+  ingredientModel: string;
+  ingredientFallbackModel: string;
+  ingredientEscalationModel: string;
+} {
+  if (raw.AI_PROVIDER === 'deepseek') {
+    return {
+      defaultModel: raw.DEEPSEEK_FAST_MODEL,
+      visionModel: raw.DEEPSEEK_FAST_MODEL,
+      ingredientModel: raw.DEEPSEEK_FAST_MODEL,
+      ingredientFallbackModel: raw.DEEPSEEK_FAST_MODEL,
+      ingredientEscalationModel: raw.DEEPSEEK_FAST_MODEL,
+    };
+  }
+  return {
+    defaultModel: raw.AI_DEFAULT_MODEL,
+    visionModel: raw.AI_VISION_MODEL,
+    ingredientModel: raw.AI_INGREDIENT_MODEL,
+    ingredientFallbackModel: raw.AI_INGREDIENT_FALLBACK_MODEL,
+    ingredientEscalationModel: raw.AI_INGREDIENT_ESCALATION_MODEL,
+  };
+}
+
+const configSchema = validatedEnvSchema.transform((raw) => ({
   nodeEnv: raw.NODE_ENV,
   isProduction: raw.NODE_ENV === 'production',
   isTest: raw.NODE_ENV === 'test',
@@ -242,6 +362,12 @@ const configSchema = rawEnvSchema.transform((raw) => ({
   },
   cors: {
     origins: raw.CORS_ORIGINS,
+  },
+  auth: {
+    mode: resolveAuthMode(raw.NODE_ENV, raw.AUTH_MODE),
+    firebaseProjectId: raw.FIREBASE_PROJECT_ID,
+    firebaseServiceAccountJson: raw.FIREBASE_SERVICE_ACCOUNT_JSON,
+    checkRevoked: raw.AUTH_CHECK_REVOKED,
   },
   rateLimit: {
     enabled: raw.RATE_LIMIT_ENABLED,
@@ -271,14 +397,17 @@ const configSchema = rawEnvSchema.transform((raw) => ({
         : undefined,
   },
   ai: {
+    provider: raw.AI_PROVIDER,
+    /** Key for the selected provider's chat/vision/OCR calls. Unset means mock AI. */
+    llmApiKey: raw.AI_PROVIDER === 'deepseek' ? raw.DEEPSEEK_API_KEY : raw.OPENAI_API_KEY,
+    /** Set only for providers other than OpenAI; the OpenAI SDK defaults to api.openai.com. */
+    llmBaseUrl: raw.AI_PROVIDER === 'deepseek' ? raw.DEEPSEEK_BASE_URL : undefined,
+    deepseekThinking: raw.DEEPSEEK_THINKING,
+    /** Whisper only; transcription always goes to OpenAI. */
     openaiApiKey: raw.OPENAI_API_KEY,
-    defaultModel: raw.AI_DEFAULT_MODEL,
+    ...resolveAiModels(raw),
     whisperModel: raw.AI_WHISPER_MODEL,
-    visionModel: raw.AI_VISION_MODEL,
     maxRetries: raw.AI_MAX_RETRIES,
-    ingredientModel: raw.AI_INGREDIENT_MODEL,
-    ingredientFallbackModel: raw.AI_INGREDIENT_FALLBACK_MODEL,
-    ingredientEscalationModel: raw.AI_INGREDIENT_ESCALATION_MODEL,
     ingredientReasoningEffort: raw.AI_INGREDIENT_REASONING_EFFORT,
     ingredientMaxOutputTokens: raw.AI_INGREDIENT_MAX_OUTPUT_TOKENS,
     ingredientMaxInputTokens: raw.AI_INGREDIENT_MAX_INPUT_TOKENS,

@@ -37,7 +37,7 @@ class ScriptedLLM implements LLMProvider {
       });
     return {
       data: { items } as T,
-      model: input.model ?? 'gpt-5-nano',
+      model: input.model ?? 'gpt-6-luna',
       usage: { inputTokens: 20, outputTokens: 10 },
       durationMs: 5,
     };
@@ -182,7 +182,7 @@ describe.skipIf(!dbAvailable)('pantry API', () => {
       });
       expect(response.statusCode).toBe(200);
       expect(llm.calls).toBe(1);
-      expect(response.json().data.meta.modelsUsed).toContain('gpt-5-nano');
+      expect(response.json().data.meta.modelsUsed).toContain('gpt-6-luna');
 
       const usage = await prisma.aIUsage.findMany({
         where: { operation: 'pantry_organize_batch' },

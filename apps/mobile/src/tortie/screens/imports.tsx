@@ -24,6 +24,7 @@ import { useImports } from '@/tortie/import-store';
 import { afterMotion, toast, useNav } from '@/tortie/nav-store';
 import { BASE_D, C, CSS_EASE, SH } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
+import { EmptyState } from '@/tortie/ui/empty-state';
 import { Glyph } from '@/tortie/ui/icon';
 import { ErrorTile } from '@/tortie/ui/import-error';
 import { SourceGlyph } from '@/tortie/ui/import-progress';
@@ -83,59 +84,57 @@ export function ImportsScreen() {
           Links you’ve sent to Tortie, newest first.
         </T>
 
-        <SectionLabel>In progress</SectionLabel>
-        {running.length ? (
-          <View style={{ gap: 10 }}>
-            {running.map((j) => (
-              <RunningRow key={j.id} job={j} />
-            ))}
-          </View>
+        {!running.length && !history.length ? (
+          <EmptyState
+            icons={['link', 'cloud_download', 'history']}
+            kicker="All quiet"
+            title="No imports yet"
+            body="Links you send to Tortie show up here while they import, and stay as a history you can come back to."
+            action={{ label: 'Paste a link', icon: 'link', onPress: pasteLink }}
+            style={{ marginTop: 24 }}
+          />
         ) : (
-          <View style={card({ alignItems: 'center', paddingVertical: 24 })}>
-            <T style={sans(15, 600)}>Nothing importing right now</T>
-            <Press
-              onPress={pasteLink}
-              scale={0.96}
-              easing={CSS_EASE}
-              style={{
-                height: 40,
-                marginTop: 12,
-                paddingHorizontal: 18,
-                borderRadius: 99,
-                backgroundColor: C.green,
-                flexDirection: 'row',
-                alignItems: 'center',
-                gap: 6,
-              }}
-            >
-              <Glyph name="link" size={18} color={C.bg} />
-              <T style={sans(14, 700, C.bg)}>Paste a link</T>
-            </Press>
-          </View>
-        )}
-
-        <SectionLabel>History</SectionLabel>
-        {history.length ? (
-          <View style={{ gap: 10 }}>
-            {history.map((j) =>
-              j.status === 'done' ? (
-                <DoneRow key={j.id} job={j} />
-              ) : (
-                <FailedRow key={j.id} job={j} />
-              ),
+          <>
+            <SectionLabel>In progress</SectionLabel>
+            {running.length ? (
+              <View style={{ gap: 10 }}>
+                {running.map((j) => (
+                  <RunningRow key={j.id} job={j} />
+                ))}
+              </View>
+            ) : (
+              <EmptyState
+                compact
+                icons={['link', 'cloud_done', 'history']}
+                title="Nothing importing right now"
+                action={{
+                  label: 'Paste a link',
+                  icon: 'link',
+                  onPress: pasteLink,
+                }}
+              />
             )}
-          </View>
-        ) : (
-          <View style={card({ alignItems: 'center', paddingVertical: 24 })}>
-            <T
-              style={[
-                sans(14, 400, C.ink2),
-                { textAlign: 'center', paddingHorizontal: 12 },
-              ]}
-            >
-              Finished and failed imports will show up here.
-            </T>
-          </View>
+
+            <SectionLabel>History</SectionLabel>
+            {history.length ? (
+              <View style={{ gap: 10 }}>
+                {history.map((j) =>
+                  j.status === 'done' ? (
+                    <DoneRow key={j.id} job={j} />
+                  ) : (
+                    <FailedRow key={j.id} job={j} />
+                  ),
+                )}
+              </View>
+            ) : (
+              <EmptyState
+                compact
+                icons={['link', 'history', 'check']}
+                title="No history yet"
+                body="Finished and failed imports will show up here."
+              />
+            )}
+          </>
         )}
       </ScrollView>
       <View

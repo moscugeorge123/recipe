@@ -1,4 +1,4 @@
-appId: com.recipe.app
+appId: com.tortie.com
 ---
 # Best-effort recipe surface from the Recipes tab. Selectors are optional because
 # a clean install has no API recipes, and Expo Go cannot complete import → review.

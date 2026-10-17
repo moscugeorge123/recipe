@@ -15,6 +15,16 @@ describe('chatSampling', () => {
     });
   });
 
+  it('treats gpt-6-luna as a reasoning model: effort when given, never a temperature', () => {
+    expect(chatSampling('gpt-6-luna', { reasoningEffort: 'none' })).toEqual({
+      reasoning_effort: 'minimal',
+    });
+    expect(chatSampling('gpt-6-luna', { reasoningEffort: 'high' })).toEqual({
+      reasoning_effort: 'high',
+    });
+    expect(chatSampling('gpt-6-luna', { temperature: 0.2 })).toEqual({});
+  });
+
   it('omits reasoning_effort for models that reject it', () => {
     expect(chatSampling('gpt-4.1-nano', { reasoningEffort: 'none' })).toEqual({
       temperature: 0.2,

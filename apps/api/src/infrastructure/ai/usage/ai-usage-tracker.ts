@@ -18,11 +18,15 @@ export class AIUsageTracker {
   constructor(
     private readonly repo: IAIUsageRepository,
     private readonly pricing: AIPricingTable,
+    /** Account billed for rows that do not name one, e.g. the user who requested the job. */
+    private readonly defaultUserId?: string,
   ) {}
 
   async track(input: TrackUsageInput): Promise<void> {
+    const userId = input.userId ?? this.defaultUserId;
     await this.repo.create({
       ...input,
+      ...(userId !== undefined ? { userId } : {}),
       estimatedCostUsd: estimateCost(
         input.model,
         input.inputTokens,

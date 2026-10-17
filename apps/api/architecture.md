@@ -232,7 +232,7 @@ src/
       s3/                           # S3StorageProvider
       storage-provider.ts           # interface
     ai/
-      llm/                          # LLMProvider interface + OpenAIProvider
+      llm/                          # LLMProvider interface + OpenAIProvider (OpenAI or DeepSeek via AI_PROVIDER)
       usage/                        # AIUsageTracker
     logging/                        # existing Pino logger
     security/
@@ -1033,7 +1033,7 @@ Steps store `temperatureCelsius` / `temperatureFahrenheit` (oven temperatures sn
 
 ### Ingredient AI policy
 
-Dictionary + cache first. Unknown lines go in one compact batch to `AI_INGREDIENT_MODEL` (`gpt-5-nano`). Compatibility fallback: `AI_INGREDIENT_FALLBACK_MODEL` (`gpt-4.1-nano`). At most `AI_INGREDIENT_MAX_ESCALATIONS` items escalate to `gpt-4o-mini`. GPT-5.6 is rejected by env validation. Change models and budgets in environment variables only.
+Dictionary + cache first. Unknown lines go in one compact batch to `AI_INGREDIENT_MODEL` (`gpt-6-luna`). Fallback: `AI_INGREDIENT_FALLBACK_MODEL` (`gpt-6-luna`, skipped when equal to the primary). At most `AI_INGREDIENT_MAX_ESCALATIONS` items escalate to `AI_INGREDIENT_ESCALATION_MODEL` (`gpt-6-luna`). Change models and budgets in environment variables only.
 
 ### Workers
 

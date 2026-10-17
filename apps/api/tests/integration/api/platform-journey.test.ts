@@ -41,7 +41,7 @@ class ScriptedLLM implements LLMProvider {
       });
     return {
       data: { items } as T,
-      model: input.model ?? 'gpt-5-nano',
+      model: input.model ?? 'gpt-6-luna',
       usage: { inputTokens: 20, outputTokens: 10 },
       durationMs: 5,
     };

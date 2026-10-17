@@ -39,6 +39,8 @@ import {
 import { C, CSS_EASE, EASE, F } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Pill, Segmented } from '@/tortie/ui/controls';
+import { EmptyState } from '@/tortie/ui/empty-state';
+import { FirstRecipeHero, LibraryNotice } from '@/tortie/ui/first-recipe';
 import { Glyph } from '@/tortie/ui/icon';
 import { Input, RevealBox } from '@/tortie/ui/input';
 import { Photo } from '@/tortie/ui/photo';
@@ -85,6 +87,9 @@ export function CookbookScreen() {
         on={on}
         collName={v.collO ? collName(v.collO).n : null}
         loading={v.recipesLoading}
+        empty={v.libraryEmpty}
+        notice={v.libraryNotice}
+        onRetry={v.retryLibrary}
         fade={fx}
       />
     );
@@ -94,7 +99,12 @@ export function CookbookScreen() {
     <TabScroll header={head}>
       <Top on={on} isC={isC} v={v} pick={pick} />
       <Animated.View style={fx}>
-        <CollectionsView colls={v.colls} on={on} loading={v.collsLoading} />
+        <CollectionsView
+          colls={v.colls}
+          total={v.nColls}
+          on={on}
+          loading={v.collsLoading}
+        />
       </Animated.View>
     </TabScroll>
   );
@@ -131,9 +141,11 @@ function Top({
           ]}
         />
       </Stagger>
-      <Stagger i={2} on={on}>
-        <SearchBar isC={isC} count={v.aCnt} />
-      </Stagger>
+      {v.libraryEmpty && !isC ? null : (
+        <Stagger i={2} on={on}>
+          <SearchBar isC={isC} count={v.aCnt} />
+        </Stagger>
+      )}
       {pick ? <PickBar pick={pick} /> : null}
     </>
   );
@@ -279,6 +291,9 @@ function RecipesList({
   on,
   collName,
   loading,
+  empty,
+  notice,
+  onRetry,
   fade,
 }: {
   header: (compact: boolean) => ReactNode;
@@ -287,6 +302,10 @@ function RecipesList({
   on: boolean;
   collName: string | null;
   loading: boolean;
+  /** No recipes saved yet: show the first-recipe state, not filters. */
+  empty: boolean;
+  notice: 'slow' | 'unreachable' | null;
+  onRetry: () => void;
   fade: ComponentProps<typeof Animated.View>['style'];
 }) {
   const filter = useCookbook((s) => s.filter);
@@ -335,39 +354,41 @@ function RecipesList({
   const listHeader = (
     <>
       {top}
-      <Stagger i={3} on={on}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-          style={{ marginTop: 14, marginBottom: 18, marginHorizontal: -20 }}
-          contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
-        >
-          {collName ? (
-            <>
-              <CollChip name={collName} />
-              <View
-                style={{
-                  width: 1,
-                  height: 22,
-                  alignSelf: 'center',
-                  backgroundColor: C.line,
-                }}
+      {empty ? null : (
+        <Stagger i={3} on={on}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            style={{ marginTop: 14, marginBottom: 18, marginHorizontal: -20 }}
+            contentContainerStyle={{ paddingHorizontal: 20, gap: 8 }}
+          >
+            {collName ? (
+              <>
+                <CollChip name={collName} />
+                <View
+                  style={{
+                    width: 1,
+                    height: 22,
+                    alignSelf: 'center',
+                    backgroundColor: C.line,
+                  }}
+                />
+              </>
+            ) : null}
+            {FILTERS.map(([k, l]) => (
+              <Pill
+                key={k}
+                label={l}
+                on={filter === k}
+                onPress={() => useCookbook.getState().setFilter(k)}
+                paddingH={16}
+                ms={260}
               />
-            </>
-          ) : null}
-          {FILTERS.map(([k, l]) => (
-            <Pill
-              key={k}
-              label={l}
-              on={filter === k}
-              onPress={() => useCookbook.getState().setFilter(k)}
-              paddingH={16}
-              ms={260}
-            />
-          ))}
-        </ScrollView>
-      </Stagger>
+            ))}
+          </ScrollView>
+        </Stagger>
+      )}
       {loading ? (
         <Grid>
           {[0, 1, 2, 3].map((i) => (
@@ -388,12 +409,10 @@ function RecipesList({
       keyExtractor={(b: BookItem) => b.r.id}
       ListHeaderComponent={listHeader}
       ListEmptyComponent={
-        loading ? null : (
-          <Empty
-            title="Nothing matches yet"
-            body="Loosen a filter, try another word, or import it with the + button."
-            pad={[48, 20, 48]}
-          />
+        loading ? null : empty ? (
+          <LibraryEmpty on={on} notice={notice} onRetry={onRetry} />
+        ) : (
+          <NoMatches collName={collName} />
         )
       }
       renderItem={({ item, index }: { item: BookItem; index: number }) => {
@@ -700,53 +719,155 @@ function PlaceholderCard({ i }: { i: number }) {
   );
 }
 
-function Empty({
-  title,
-  body,
-  pad,
+/** No recipe known: the Cookbook becomes a door to importing one. */
+function LibraryEmpty({
+  on,
+  notice,
+  onRetry,
 }: {
-  title: string;
-  body: string;
-  pad: [number, number, number];
+  on: boolean;
+  notice: 'slow' | 'unreachable' | null;
+  onRetry: () => void;
 }) {
   return (
-    <View
-      style={{
-        alignItems: 'center',
-        paddingTop: pad[0],
-        paddingHorizontal: pad[1],
-        paddingBottom: pad[2],
-      }}
-    >
-      <T
-        style={{
-          fontFamily: F.serif400i,
-          fontSize: 22,
-          color: C.ink,
-          textAlign: 'center',
-        }}
-      >
-        {title}
-      </T>
-      <T style={sans(14, 400, C.ink2, { marginTop: 6, textAlign: 'center' })}>
-        {body}
-      </T>
+    <View style={{ paddingTop: 6, paddingBottom: 24 }}>
+      {notice ? (
+        <Stagger i={3} on={on} style={{ marginBottom: 12 }}>
+          <LibraryNotice kind={notice} onRetry={onRetry} />
+        </Stagger>
+      ) : null}
+      <Stagger i={3} on={on}>
+        <FirstRecipeHero title="Your cookbook is empty" />
+      </Stagger>
     </View>
+  );
+}
+
+/** Recipes exist but none survive the search, filters or open collection. */
+function NoMatches({ collName }: { collName: string | null }) {
+  const q = useCookbook((s) => s.q.trim());
+  const filter = useCookbook((s) => s.filter);
+  const rf = useCookbook((s) => s.rf);
+  const cb = useCookbook.getState;
+  const narrowed =
+    filter !== 'all' ||
+    rf.time !== 'any' ||
+    Object.values(rf.lv).some(Boolean) ||
+    rf.pantry;
+  const clearFilters = () => {
+    cb().setFilter('all');
+    cb().resetRF();
+  };
+  const pad = { marginTop: 4, marginBottom: 24 };
+
+  if (q) {
+    return (
+      <EmptyState
+        icons={['menu_book', 'search_off', 'restaurant']}
+        title={`Nothing for “${q}”`}
+        body="Check the spelling, or search for an ingredient you’d like to use."
+        action={{
+          label: 'Clear search',
+          icon: 'close',
+          onPress: () => cb().setQ(''),
+        }}
+        secondary={
+          narrowed || rf.saved
+            ? { label: 'Clear filters too', onPress: clearFilters }
+            : undefined
+        }
+        style={pad}
+      />
+    );
+  }
+  if (collName && !narrowed && !rf.saved) {
+    return (
+      <EmptyState
+        icons={['bookmark', 'folder_open', 'add']}
+        title={`${collName} is empty`}
+        body="Open any recipe, tap its menu and choose Add to collection."
+        action={{
+          label: 'Browse all recipes',
+          icon: 'menu_book',
+          onPress: () => useNav.getState().set({ cookbookColl: null }),
+        }}
+        style={pad}
+      />
+    );
+  }
+  if (rf.saved && !narrowed) {
+    return (
+      <EmptyState
+        icons={['restaurant', 'favorite', 'bookmark']}
+        tone="terra"
+        title="No favourites yet"
+        body="Tap the heart on a recipe you love and it’ll wait for you here."
+        action={{
+          label: 'Show all recipes',
+          onPress: () => cb().setRF({ saved: false }),
+        }}
+        style={pad}
+      />
+    );
+  }
+  if (rf.pantry) {
+    return (
+      <EmptyState
+        icons={['egg', 'kitchen', 'shopping_basket']}
+        title="Nothing to cook from your pantry"
+        body="Tell Tortie what’s at home and it’ll find recipes that use it."
+        action={{
+          label: 'Stock the pantry',
+          icon: 'kitchen',
+          onPress: () => {
+            useNav.getState().set({ grocSec: 'pantry' });
+            useNav.getState().goTab('groceries');
+          },
+        }}
+        secondary={{ label: 'Clear filters', onPress: clearFilters }}
+        style={pad}
+      />
+    );
+  }
+  return (
+    <EmptyState
+      icons={['tune', 'filter_alt_off', 'restaurant_menu']}
+      title="Nothing matches these filters"
+      body="Loosen a filter or try another category."
+      action={{ label: 'Clear filters', icon: 'close', onPress: clearFilters }}
+      style={pad}
+    />
   );
 }
 
 function CollectionsView({
   colls,
+  total,
   on,
   loading,
 }: {
   colls: CollItem[];
+  /** Collections before search and filters. */
+  total: number;
   on: boolean;
   loading: boolean;
 }) {
   const view = useCookbook((s) => s.cf.view);
   const newColl = () => useNav.getState().openNewCollection();
   const openColl = (id: string) => useCookbook.getState().openColl(id);
+  if (!loading && total === 0) {
+    return (
+      <Stagger i={3} on={on} style={{ marginTop: 18 }}>
+        <EmptyState
+          icons={['cake', 'collections_bookmark', 'dinner_dining']}
+          kicker="Nothing grouped yet"
+          title="Make your first collection"
+          body="Weeknight dinners, holiday baking, Gran’s classics. Group recipes however you like to cook."
+          action={{ label: 'New collection', icon: 'add', onPress: newColl }}
+        />
+      </Stagger>
+    );
+  }
   return (
     <>
       <View style={{ height: 18 }} />
@@ -786,10 +907,20 @@ function CollectionsView({
         </View>
       )}
       {!loading && colls.length === 0 ? (
-        <Empty
+        <EmptyState
+          variant="plain"
+          compact
+          icons={['search', 'search_off', 'tune']}
           title="No collections match"
           body="Try another name or change what’s shown in filters."
-          pad={[40, 20, 8]}
+          action={{
+            label: 'Clear search and filters',
+            onPress: () => {
+              useCookbook.getState().setQ('');
+              useCookbook.getState().resetCF();
+            },
+          }}
+          style={{ marginTop: 12 }}
         />
       ) : null}
     </>

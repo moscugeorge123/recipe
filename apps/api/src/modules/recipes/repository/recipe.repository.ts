@@ -48,6 +48,8 @@ export interface CreateRecipeStepInput {
 
 export interface CreateRecipeInput {
   recipeSourceId: string;
+  /** Account that receives the new UserRecipe; overrides the repository default profile. */
+  ownerUserId?: string;
   title: string;
   description?: string | null;
   servings?: number | null;
@@ -283,6 +285,11 @@ export interface IRecipeRepository {
   findById(id: string): Promise<RecipeWithDetails | null>;
   findBySourceId(recipeSourceId: string): Promise<RecipeWithDetails | null>;
   delete(id: string): Promise<void>;
+  /**
+   * Removes the caller's copy (UserRecipe, their cook sessions). The shared recipe is deleted only
+   * when no other user still links to it. Returns false when the user has no copy.
+   */
+  deleteForUser(id: string, userId: string): Promise<boolean>;
   list(params: {
     page: number;
     pageSize: number;

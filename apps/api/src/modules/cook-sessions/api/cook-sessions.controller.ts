@@ -58,7 +58,7 @@ export function createCookSessionsController(service: CookSessionService): {
         { step: 'http.cook-session.create', recipeId: request.body.recipeId },
         'http.cook-session.create started',
       );
-      const { session, resumed } = await service.create(request.body);
+      const { session, resumed } = await service.create(request.profile.userId, request.body);
       request.log.info(
         { step: 'http.cook-session.create', sessionId: session.id, resumed, status: session.status },
         'http.cook-session.create completed',
@@ -67,12 +67,12 @@ export function createCookSessionsController(service: CookSessionService): {
     },
 
     list: async (request, reply): Promise<void> => {
-      const { items, meta } = await service.list(request.query);
+      const { items, meta } = await service.list(request.profile.userId, request.query);
       reply.send(collectionResponse(items.map(serializeCookSession), meta));
     },
 
     getById: async (request, reply): Promise<void> => {
-      const session = await service.getById(request.params.id);
+      const session = await service.getById(request.profile.userId, request.params.id);
       reply.send(dataResponse(serializeCookSession(session)));
     },
 
@@ -86,7 +86,7 @@ export function createCookSessionsController(service: CookSessionService): {
         },
         'http.cook-session.patch started',
       );
-      const session = await service.update(request.params.id, request.body);
+      const session = await service.update(request.profile.userId, request.params.id, request.body);
       reply.send(dataResponse(serializeCookSession(session)));
     },
 
@@ -95,7 +95,7 @@ export function createCookSessionsController(service: CookSessionService): {
         { step: 'http.cook-session.delete', sessionId: request.params.id },
         'http.cook-session.delete started',
       );
-      await service.delete(request.params.id);
+      await service.delete(request.profile.userId, request.params.id);
       reply.send(dataResponse({ id: request.params.id, deleted: true as const }));
     },
   };

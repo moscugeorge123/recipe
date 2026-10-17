@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
+import { DEFAULT_PROFILE_ID } from '../../../src/modules/profiles/domain/profile.js';
 import { createTestContainer } from '../../../src/shared/di/container.js';
 import {
   disconnectTestDatabase,
@@ -30,14 +31,14 @@ describe.skipIf(!dbAvailable)('fake extraction pipeline', () => {
       enableMediaProcessing: false,
     });
 
-    const result = await container.extractionJobService.createJob({
+    const result = await container.extractionJobService.createJob(DEFAULT_PROFILE_ID, {
       url: 'https://example.com/fake-recipe',
       outputLanguage: 'en',
     });
 
     expect(result.status).toBe('queued');
 
-    const status = await container.extractionJobService.getJobStatus(result.jobId);
+    const status = await container.extractionJobService.getJobStatus(DEFAULT_PROFILE_ID, result.jobId);
 
     expect(status.status).toBe('COMPLETED');
     expect(status.progress).toBe(100);
@@ -54,13 +55,13 @@ describe.skipIf(!dbAvailable)('fake extraction pipeline', () => {
   it('deduplicates completed extractions for the same URL', async () => {
     const container = createTestContainer({ enableMediaProcessing: false });
 
-    const first = await container.extractionJobService.createJob({
+    const first = await container.extractionJobService.createJob(DEFAULT_PROFILE_ID, {
       url: 'https://example.com/fake-recipe',
     });
 
     expect(first.status).toBe('queued');
 
-    const second = await container.extractionJobService.createJob({
+    const second = await container.extractionJobService.createJob(DEFAULT_PROFILE_ID, {
       url: 'https://example.com/fake-recipe',
     });
 
@@ -72,12 +73,12 @@ describe.skipIf(!dbAvailable)('fake extraction pipeline', () => {
   it('re-runs extraction when forceRefresh is true', async () => {
     const container = createTestContainer({ enableMediaProcessing: false });
 
-    const first = await container.extractionJobService.createJob({
+    const first = await container.extractionJobService.createJob(DEFAULT_PROFILE_ID, {
       url: 'https://example.com/fake-recipe',
     });
-    const firstStatus = await container.extractionJobService.getJobStatus(first.jobId);
+    const firstStatus = await container.extractionJobService.getJobStatus(DEFAULT_PROFILE_ID, first.jobId);
 
-    const refreshed = await container.extractionJobService.createJob({
+    const refreshed = await container.extractionJobService.createJob(DEFAULT_PROFILE_ID, {
       url: 'https://example.com/fake-recipe',
       forceRefresh: true,
     });
@@ -85,7 +86,7 @@ describe.skipIf(!dbAvailable)('fake extraction pipeline', () => {
     expect(refreshed.deduplicated).toBeUndefined();
     expect(refreshed.status).toBe('queued');
 
-    const refreshedStatus = await container.extractionJobService.getJobStatus(refreshed.jobId);
+    const refreshedStatus = await container.extractionJobService.getJobStatus(DEFAULT_PROFILE_ID, refreshed.jobId);
     expect(refreshedStatus.status).toBe('COMPLETED');
     expect(refreshedStatus.recipeId).toBe(firstStatus.recipeId);
 

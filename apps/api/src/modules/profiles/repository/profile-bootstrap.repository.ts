@@ -6,5 +6,7 @@ export interface ProfileBootstrapResult {
 }
 
 export interface IProfileBootstrapRepository {
+  /** Upserts only the default user row and its categories (no recipe links). */
+  ensureDefaultUser(): Promise<number>;
   ensureDefaults(): Promise<ProfileBootstrapResult>;
 }

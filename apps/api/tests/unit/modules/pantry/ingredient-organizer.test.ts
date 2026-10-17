@@ -312,7 +312,7 @@ describe('IngredientOrganizer', () => {
     expect(result.items.map((item) => item.rawText)).toEqual(['gochujang', 'kecap manis']);
   });
 
-  it('batches unknown items in one compact call and does not use gpt-4o-mini for the batch', async () => {
+  it('batches unknown items in one compact call on gpt-6-luna', async () => {
     const llm = new ScriptedLLM((input) => compactFromPrompt(input));
     const { tracker, records } = usage();
     const organizer = new IngredientOrganizer(
@@ -328,13 +328,12 @@ describe('IngredientOrganizer', () => {
     });
 
     expect(llm.calls).toHaveLength(1);
-    expect(llm.calls[0]?.model).toBe('gpt-5-nano');
+    expect(llm.calls[0]?.model).toBe('gpt-6-luna');
     expect(llm.calls[0]?.reasoningEffort).toBe('none');
     expect(llm.calls[0]?.maxTokens).toBe(1024);
     expect(result.items).toHaveLength(3);
     expect(result.items.every((item) => item.source === 'ai')).toBe(true);
     expect(records.some((row) => row.operation === 'pantry_organize_batch')).toBe(true);
-    expect(llm.calls.every((call) => call.model !== 'gpt-4o-mini')).toBe(true);
   });
 
   it('uses the cache on a repeat batch', async () => {
@@ -350,16 +349,19 @@ describe('IngredientOrganizer', () => {
     expect(second.items[0]?.source).toBe('cache');
   });
 
-  it('falls back to gpt-4.1-nano when the primary batch fails', async () => {
+  it('falls back to the fallback model when the primary batch fails', async () => {
     const llm = new ScriptedLLM((input) => {
-      if (input.model === 'gpt-5-nano') {
+      if (input.model === 'primary-model') {
         throw new Error('timeout');
       }
       return compactFromPrompt(input);
     });
     const { records } = usage();
     const organizer = new IngredientOrganizer(
-      config(),
+      config({
+        AI_INGREDIENT_MODEL: 'primary-model',
+        AI_INGREDIENT_FALLBACK_MODEL: 'fallback-model',
+      }),
       new MemoryClassificationCache(),
       llm,
       usage().tracker,
@@ -367,27 +369,27 @@ describe('IngredientOrganizer', () => {
     void records;
 
     const result = await organizer.organize({ userId, text: 'gochujang' });
-    expect(llm.calls.map((call) => call.model)).toEqual(['gpt-5-nano', 'gpt-4.1-nano']);
+    expect(llm.calls.map((call) => call.model)).toEqual(['primary-model', 'fallback-model']);
     expect(result.items[0]?.source).toBe('ai');
   });
 
-  it('escalates only individual low-confidence items to gpt-4o-mini', async () => {
+  it('escalates only individual low-confidence items to the escalation model', async () => {
     const llm = new ScriptedLLM((input) => {
-      if (input.model === 'gpt-4o-mini') {
+      if (input.model === 'escalation-model') {
         return compactFromPrompt(input, { k: 0.92, n: 'Gochujang', c: 'Pantry' });
       }
       return compactFromPrompt(input, { k: 0.2 });
     });
     const organizer = new IngredientOrganizer(
-      config(),
+      config({ AI_INGREDIENT_ESCALATION_MODEL: 'escalation-model' }),
       new MemoryClassificationCache(),
       llm,
       null,
     );
 
     const result = await organizer.organize({ userId, text: 'gochujang\nkecap manis' });
-    const batchCalls = llm.calls.filter((call) => call.model === 'gpt-5-nano');
-    const miniCalls = llm.calls.filter((call) => call.model === 'gpt-4o-mini');
+    const batchCalls = llm.calls.filter((call) => call.model === 'gpt-6-luna');
+    const miniCalls = llm.calls.filter((call) => call.model === 'escalation-model');
     expect(batchCalls).toHaveLength(1);
     expect(miniCalls.length).toBeGreaterThan(0);
     expect(miniCalls.length).toBeLessThanOrEqual(2);
@@ -426,19 +428,6 @@ describe('IngredientOrganizer', () => {
     expect(result.unresolved.map((item) => item.rawText)).toEqual(
       expect.arrayContaining(['zaatar blend', 'sumac']),
     );
-  });
-
-  it('never sends gpt-4o-mini as the whole-batch model even if configured as primary', async () => {
-    const llm = new ScriptedLLM((input) => compactFromPrompt(input));
-    const organizer = new IngredientOrganizer(
-      config({ AI_INGREDIENT_MODEL: 'gpt-4o-mini' }),
-      new MemoryClassificationCache(),
-      llm,
-      null,
-    );
-    await organizer.organize({ userId, text: 'gochujang' });
-    expect(llm.calls[0]?.model).toBe('gpt-4.1-nano');
-    expect(llm.calls.filter((call) => call.model === 'gpt-4o-mini')).toHaveLength(0);
   });
 
   it('logs the model input, output, and token use', async () => {

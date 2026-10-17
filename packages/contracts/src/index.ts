@@ -2,6 +2,7 @@ export * from "./categories.js";
 export * from "./collections.js";
 export * from "./errors.js";
 export * from "./http.js";
+export * from "./me.js";
 export * from "./meal-plan.js";
 export * from "./pagination.js";
 export * from "./pantry.js";

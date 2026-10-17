@@ -1,8 +1,9 @@
 # Recipe mobile
 
-Expo + TypeScript app for importing, reviewing, cooking, and organizing recipes. It talks to the
-Recipe API using the implicit singleton profile (no login yet). `EXPO_PUBLIC_API_URL` is the only
-client config — OpenAI keys stay on the server.
+Expo + TypeScript app for importing, reviewing, cooking, and organizing recipes. Sign-in is
+required (Firebase Authentication: email/password, Google, Facebook); the app sends the user's
+Firebase ID token to the Recipe API on every request. The client config is `EXPO_PUBLIC_API_URL`
+plus the public Firebase identifiers below — OpenAI keys stay on the server.
 
 This app lives in an Nx workspace. From the **repository root**:
 
@@ -95,7 +96,7 @@ Flows in `.maestro/flows/`:
 - `kitchen-pantry.yaml` — Groceries → Pantry empty/organize copy
 - `recipe-surface.yaml` — best-effort Recipes / import / rating / calories / history (mostly optional)
 
-**Limitation:** Maestro needs a **development or preview build** (`com.recipe.app`). Expo Go is not
+**Limitation:** Maestro needs a **development or preview build** (`com.tortie.com`). Expo Go is not
 a reliable target for API-backed screens (import extract/review, recipe detail, history).
 The YAML is still a best-effort flow with `optional: true` where a clean install has no recipes.
 
@@ -146,6 +147,46 @@ Never put in `EXPO_PUBLIC_*` (or anywhere else in this client):
 - Anything that grants privileged access if leaked
 
 Secrets belong on a server, not in this app.
+
+## Auth setup
+
+Sign-in uses the Firebase JS SDK (no `google-services.json`) with the native Google and Facebook
+SDKs for token acquisition. Because those are native modules, **Expo Go cannot run the app any
+more**: use a development build (`npx expo run:android`). Android only for now; iOS needs extra
+steps (Google iOS client and URL scheme, Facebook iOS platform, Sign in with Apple).
+
+1. **Firebase project.** Console > Authentication > Sign-in method: enable Email/Password, Google
+   and Facebook (Facebook needs the Meta App ID and App Secret; the secret lives only in the
+   Firebase console). Authentication > Settings: password policy minimum length 8.
+2. **Web app config.** Project settings > General > Your apps > add a Web app and copy
+   `apiKey`, `authDomain`, `projectId`, `appId` into `.env` as `EXPO_PUBLIC_FIREBASE_API_KEY`,
+   `EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN`, `EXPO_PUBLIC_FIREBASE_PROJECT_ID`,
+   `EXPO_PUBLIC_FIREBASE_APP_ID`.
+3. **Google.** Copy the Web client ID (Google provider > Web SDK configuration) into
+   `EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID`. Add an Android app (`com.tortie.com`) in Project settings
+   and register the **SHA-1** of every key that signs a build: debug keystore, EAS keystore, and the
+   Play App Signing certificate. A missing or wrong SHA-1 fails with `DEVELOPER_ERROR` (code 10).
+4. **Facebook.** In the Meta developer console, take the App ID and Client token (App settings >
+   Basic / Advanced > Security) and put them in `.env` as `FACEBOOK_APP_ID` and
+   `FACEBOOK_CLIENT_TOKEN`. These are read by `app.config.ts` at **build** time (not
+   `EXPO_PUBLIC_`), so rebuild the native app after changing them. Add the Android platform
+   (package `com.tortie.com`, class `com.tortie.com.MainActivity`) with the key hash of your signing
+   keys, and add Firebase's OAuth redirect URI to Facebook Login > Valid OAuth Redirect URIs.
+   While the Meta app is in Development mode only users with an app role can log in.
+5. **Build.** `npx expo prebuild --clean -p android`, then `npx expo run:android`. If the Facebook
+   variables are missing, `expo config` and tests only warn and skip the Facebook plugin, but
+   `prebuild`, `run:*` and EAS builds fail with a clear message. For EAS builds define every
+   variable above as an EAS environment variable (`eas env:create`), since `.env` is not uploaded.
+
+Every value above is a public identifier that ships in the APK; the Facebook App Secret and the
+API's Firebase service account are the only secrets and never belong in this app.
+
+How it fits together: `src/features/auth` owns the Firebase singleton, the provider helpers and
+`authService`; `useAuthListener` (root layout) mirrors the session into `useTortieAuth`, and the
+shell shows only the sign-in flow until `status` is `signedIn`. `api-client` adds the Bearer token,
+refreshes it once on a 401 and signs the user out if the retry also fails. Sign-out and account
+deletion wipe the query cache, offline drafts and every user-scoped persisted store
+(`features/auth/reset-user-data.ts`); device preferences are kept.
 
 ## Project architecture
 

@@ -4,6 +4,8 @@ export const DEFAULT_PROFILE_KEY = 'default';
 export interface ResolvedProfile {
   userId: string;
   mode: 'implicit' | 'authenticated';
+  /** Identity-provider account id (Firebase uid). Only present for authenticated callers. */
+  authSubject?: string;
 }
 
 export interface ProfileResolutionInput {
@@ -17,6 +19,8 @@ export interface ProfileResolutionInput {
  */
 export interface ProfileResolver {
   resolve(input: ProfileResolutionInput): Promise<ResolvedProfile>;
+  /** Drops anything cached for this account, for example after it was deleted. */
+  forget?(authSubject: string): void;
 }
 
 export class ImplicitProfileResolver implements ProfileResolver {

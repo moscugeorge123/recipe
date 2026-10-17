@@ -1,4 +1,4 @@
-appId: com.recipe.app
+appId: com.tortie.com
 ---
 # Recipes wordmark → profile → capture chooser.
 # Best-effort shell flow. Expo Go cannot reliably open API-backed screens.

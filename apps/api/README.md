@@ -28,9 +28,11 @@ creating a job. It shares the extract rate limit. Instagram preview is oEmbed/Op
 (never Apify); set `META_APP_ID` + `META_APP_SECRET` for Graph oEmbed. YouTube preview uses public oEmbed plus `i.ytimg.com` stills (never yt-dlp, never downloads).
 Extraction still uses yt-dlp on the worker.
 
-Identity is an **implicit singleton profile** (`00000000-0000-4000-8000-000000000001`) until
-authentication is wired at the `AUTHENTICATION EXTENSION POINT` in `src/app/app.ts`. Controllers
-already read `request.profile`; swapping `ImplicitProfileResolver` is the replacement point.
+Identity comes from **Firebase Authentication**: every resource route requires
+`Authorization: Bearer <Firebase ID token>`, the API maps the Firebase uid to a `users` row and
+scopes all data to it (see [Auth setup](#auth-setup)). Controllers read `request.profile`. The
+**implicit singleton profile** (`00000000-0000-4000-8000-000000000001`) only exists for tests and
+local tooling (`AUTH_MODE=implicit`).
 
 The scaffold ships with request validation, centralised error handling, structured logging, OpenAPI
 documentation, health checks, operational aggregates (`GET /api/v1/ops/summary`), security defaults,
@@ -92,12 +94,19 @@ come from the ECS task definition and secrets from Secrets Manager or SSM Parame
 | `REQUEST_TIMEOUT_MS`    | `30000`       | Aborts requests that exceed it (`0` disables).                             |
 | `KEEP_ALIVE_TIMEOUT_MS` | `72000`       | Must exceed the ALB idle timeout (60s) to avoid 502s.                      |
 | `SHUTDOWN_TIMEOUT_MS`   | `10000`       | Drain time after SIGTERM. Keep below the ECS `stopTimeout`.                |
+| `AUTH_MODE`             | `firebase`    | `firebase` or `implicit`. Defaults to `implicit` only when `NODE_ENV=test`; `implicit` is rejected in production. |
+| `FIREBASE_PROJECT_ID`   | _(unset)_     | **Required** when `AUTH_MODE=firebase`. Public identifier.                 |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | _(unset)_ | Optional secret: base64 of the service-account JSON. See [Auth setup](#auth-setup). |
+| `AUTH_CHECK_REVOKED`    | `false`       | Reject revoked tokens (extra Firebase call per request; needs the key).    |
 | `DATABASE_URL`          | _local default_ | PostgreSQL connection string.                                            |
 | `REDIS_URL`             | `redis://localhost:6379` | BullMQ queue backend.                                              |
 | `STORAGE_PROVIDER`      | `local`       | `local` or `s3`.                                                           |
 | `STORAGE_LOCAL_PATH`    | `./storage`   | Local artifact directory (dev).                                            |
-| `OPENAI_API_KEY`        | _(unset)_     | Live extraction/pantry AI. Tests never call OpenAI.                   |
-| `AI_INGREDIENT_MODEL`   | `gpt-5-nano`  | Pantry batch model after dictionary/cache. Never GPT-5.6.             |
+| `AI_PROVIDER`           | `openai`      | `openai` or `deepseek`: which vendor serves chat, vision and OCR.     |
+| `OPENAI_API_KEY`        | _(unset)_     | Live extraction/pantry AI, and Whisper always. Tests never call it.   |
+| `DEEPSEEK_API_KEY`      | _(unset)_     | Required when `AI_PROVIDER=deepseek`.                                 |
+| `DEEPSEEK_FAST_MODEL`   | `deepseek-flash` | The one DeepSeek model, used for every call (extraction, assistant, translation, pantry, vision, OCR). |
+| `AI_INGREDIENT_MODEL`   | `gpt-6-luna`  | Pantry batch model after dictionary/cache.                            |
 | `META_APP_ID`           | _(unset)_     | Optional Instagram Graph oEmbed for `POST /recipes/preview`.          |
 | `META_APP_SECRET`       | _(unset)_     | Pair with `META_APP_ID`. Preview falls back to Open Graph when unset. |
 | `YTDLP_PATH`            | `yt-dlp`      | Binary used for YouTube preview and extraction. Must be on PATH.      |
@@ -155,9 +164,9 @@ http://localhost:3000/docs                Swagger UI
 Pantry organization (and import emoji/category enrichment) is **configuration, not code**:
 
 1. Deterministic dictionary + classification cache.
-2. One compact batch to `AI_INGREDIENT_MODEL` (`gpt-5-nano`).
-3. Compatibility fallback `AI_INGREDIENT_FALLBACK_MODEL` (`gpt-4.1-nano`).
-4. At most `AI_INGREDIENT_MAX_ESCALATIONS` items to `gpt-4o-mini`.
+2. One compact batch to `AI_INGREDIENT_MODEL` (`gpt-6-luna`).
+3. Fallback `AI_INGREDIENT_FALLBACK_MODEL` (`gpt-6-luna`; skipped when equal to the primary).
+4. At most `AI_INGREDIENT_MAX_ESCALATIONS` items to `AI_INGREDIENT_ESCALATION_MODEL` (`gpt-6-luna`).
 5. Item/token budgets: `AI_INGREDIENT_MAX_ITEMS`, `AI_INGREDIENT_MAX_INPUT_TOKENS`, `AI_INGREDIENT_MAX_OUTPUT_TOKENS`.
 
 Usage lands in `ai_usage`. `GET /api/v1/ops/summary` totals tokens, cost, cache, and escalation calls.
@@ -321,7 +330,7 @@ user's bug report traceable to exact log lines.
 | ------------------------ | ------ | -------------------------------------------- |
 | `VALIDATION_ERROR`       | 400    | Request failed schema validation.            |
 | `BAD_REQUEST`            | 400    | Malformed request (e.g. invalid JSON).       |
-| `UNAUTHORIZED`           | 401    | Reserved for the future auth layer.          |
+| `UNAUTHORIZED`           | 401    | Missing or invalid Firebase ID token.        |
 | `FORBIDDEN`              | 403    | Reserved for the future authz layer.         |
 | `NOT_FOUND`              | 404    | Unknown route or missing resource.           |
 | `CONFLICT`               | 409    | Resource already exists.                     |
@@ -468,18 +477,84 @@ A note on CORS and mobile: React Native's `fetch` is not a browser and is not su
 same-origin policy, so the mobile app works with an empty `CORS_ORIGINS`. The allow-list exists for
 web clients (Expo web, an admin dashboard, local tooling).
 
-### Authentication (replacement point)
+### Authentication
 
-There is no authentication and no fake stand-in. The extension points are in place:
+Requests are authenticated with **Firebase ID tokens** (email/password, Google and Facebook all
+yield one). See [Auth setup](#auth-setup) for configuration.
 
-- `UnauthorizedError` and `ForbiddenError` already map to 401/403 with the standard envelope.
-- `app.ts` contains a commented `AUTHENTICATION EXTENSION POINT`.
-- `ImplicitProfileResolver` (`src/modules/profiles/domain/profile.ts`) is the swap target: a future
-  JWT resolver should still decorate `request.profile` with `{ userId, mode }`.
-- CORS already allows the `Authorization` request header.
-- `/health` must remain unauthenticated for the load balancer.
-- `GET /api/v1/ops/summary` is unauthenticated while the singleton profile is in use. Gate it when
-  auth ships.
+- `registerProfileContext` runs the `ProfileResolver` on `onRequest` for every route in the
+  resource scope; the result is `request.profile = { userId, mode, authSubject? }`.
+- `FirebaseProfileResolver` (`src/modules/profiles/application/`) requires a Bearer token,
+  verifies it through a `TokenVerifier` (`src/infrastructure/auth/`), and upserts the `users` row
+  by `authSubject = uid`. A new user gets the default categories in the same transaction.
+  A small in-memory cache (10 minutes, 5,000 accounts) skips the database for known uids; the token
+  itself is verified on every request.
+- A missing or invalid token throws `UnauthorizedError`, returned as the standard 401 envelope
+  (never leaking why verification failed).
+- `GET /api/v1/me` returns the account; `DELETE /api/v1/me` deletes it and everything it owns
+  (cascading relations) and, when a service account is configured, the Firebase user too.
+- `/health` is unauthenticated for the load balancer. `/dashboard/*` is registered outside the
+  resource scope and is **still unauthenticated**; protecting it (an admin claim or separate
+  token) is a follow-up. `GET /api/v1/ops/summary` needs a valid token but is not user-specific.
+- `ImplicitProfileResolver` is selected by `AUTH_MODE=implicit` and serves every request as the
+  shared default profile. At startup, `ensureDefaults()` (which links **every** recipe to the
+  default profile) runs only in that mode; with real accounts it would leak imports across users.
+- Tests: `buildTestApp({ fakeAuth: true })` (or `createFakeAuthContainer()` from
+  `tests/helpers/build-test-app.ts`) authenticates with `fakeBearer(uid, email?, name?)` from
+  `src/infrastructure/auth/fake-token-verifier.ts`.
+
+---
+
+## Auth setup
+
+1. **Create the Firebase project** at <https://console.firebase.google.com>, then
+   *Build > Authentication > Get started* and enable the *Email/Password*, *Google* and *Facebook*
+   sign-in methods (the Facebook app id/secret come from the Meta developer console).
+2. **`FIREBASE_PROJECT_ID`** (required): *Project settings > General > Project ID*. This is all the
+   API needs to verify ID tokens; it is a public identifier.
+3. **`FIREBASE_SERVICE_ACCOUNT_JSON`** (optional, secret): *Project settings > Service accounts >
+   Generate new private key*, then base64 the downloaded file:
+
+   ```bash
+   base64 -w0 service-account.json   # Git Bash / Linux; macOS: base64 -i service-account.json
+   ```
+
+   Put the result in the server environment (Secrets Manager / SSM in AWS) and **never commit it**.
+   Startup fails fast if it is not valid base64 service-account JSON. With it configured:
+   - `DELETE /api/v1/me` also removes the Firebase user. Without it the API deletes only its own
+     data and the mobile client deletes the Firebase user afterwards.
+   - `AUTH_CHECK_REVOKED=true` rejects tokens that were revoked after they were issued.
+4. **Local development**: set `FIREBASE_PROJECT_ID` in `apps/api/.env`. To run without Firebase at
+   all (curl, scripts) use `AUTH_MODE=implicit`; it is refused when `NODE_ENV=production`.
+5. **Docker Compose** passes `AUTH_MODE`, `FIREBASE_PROJECT_ID`, `FIREBASE_SERVICE_ACCOUNT_JSON` and
+   `AUTH_CHECK_REVOKED` through from `apps/api/.env`. The **worker** validates the same config at
+   startup, so its environment (here the shared `apps/api/.env`) must also contain
+   `FIREBASE_PROJECT_ID` (or `AUTH_MODE=implicit` outside production), even though it never verifies
+   tokens.
+6. **Default user row**: in `firebase` mode startup upserts only the bare default user and its
+   categories (needed by `npm run claim-profile` and jobs created before accounts existed). It does
+   not link any recipes to it.
+
+Quick check: `curl -H "Authorization: Bearer garbage" $API/api/v1/categories` returns the 401
+envelope, while `curl $API/health` still returns 200.
+
+### Claiming the pre-authentication data
+
+Before accounts existed, everything belonged to the singleton default profile. To hand it to your
+own Firebase account, sign in once in the app (this creates an empty account), copy your uid from
+the Firebase console (*Authentication > Users*), then run:
+
+```bash
+npm run claim-profile -- --uid <firebaseUid> [--email you@example.com] [--name "Your Name"] [--force]
+```
+
+In one transaction the script removes the empty account the first sign-in created, then turns the
+default `users` row into your account (`authSubject = uid`, email and name from Firebase when a
+service account is configured, otherwise `--email`/`--name`, `profileKey = null`). No data moves,
+so recipes, categories, collections, pantry, shopping list, meal plan and cook sessions are yours on
+the next request. It prints counts when done. It aborts if the uid's account already owns recipes,
+or if the default profile was already claimed, unless you pass `--force` (which deletes that
+account and its data).
 
 ---
 
@@ -561,7 +636,7 @@ Each of the following can be added without restructuring what exists:
 
 | Addition           | Where it goes                                                                                                                                                           |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Authentication     | `app/plugins/auth.ts` + route-level `preHandler`; errors already defined.                                                                                               |
+| Authentication     | Firebase ID tokens via `FirebaseProfileResolver`; swap `TokenVerifier` for another IdP.                                                                                               |
 | Authorization      | Same plugin scope, using `ForbiddenError`.                                                                                                                              |
 | Database           | `infrastructure/database/`, exposed via a Fastify decorator, injected into services in each feature's `routes.ts`. Add a health check via `buildApp({ healthChecks })`. |
 | S3 / file uploads  | `infrastructure/storage/`; the API returns pre-signed URLs.                                                                                                             |
@@ -643,8 +718,9 @@ will need to:
 4. **Add CI** to run `npm run typecheck`, `npm run lint`, `npm run format:check` and `npm test`, then
    build and push the image.
 5. **Choose an infrastructure-as-code tool** and add it under `infra/`.
-6. **Decide on authentication** (Cognito, Auth0, …) and replace `ImplicitProfileResolver` plus the
-   documented extension point in `app.ts`. Gate `/api/v1/ops/summary` at the same time.
+6. **Set up Firebase auth** (see [Auth setup](#auth-setup)): `FIREBASE_PROJECT_ID` is mandatory in
+   production, `FIREBASE_SERVICE_ACCOUNT_JSON` comes from Secrets Manager. Protect `/dashboard/*`
+   (still unauthenticated) and decide who may read `/api/v1/ops/summary`.
 7. **Set `OPENAI_API_KEY`** in production. A missing key is visible (pantry dictionary/fallback) and
    does not destroy user data.
 

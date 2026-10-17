@@ -1,7 +1,16 @@
-import OpenAI from 'openai';
+import type OpenAI from 'openai';
 
 import type { AppConfig } from '../../../../config/env.js';
-import { openAIErrorFields } from '../../../../infrastructure/ai/llm/openai-provider.js';
+import {
+  createChatClient,
+  outputTokenLimit,
+  retryOnEmptyResponse,
+  structuredRequest,
+} from '../../../../infrastructure/ai/llm/chat-client.js';
+import {
+  chatSampling,
+  openAIErrorFields,
+} from '../../../../infrastructure/ai/llm/openai-provider.js';
 import type { AIUsageTracker } from '../../../../infrastructure/ai/usage/ai-usage-tracker.js';
 import { silentLogger, type AppLogger } from '../../../../infrastructure/logging/logger.js';
 import type { ImageInput, OCRProvider, OCRResult } from '../../domain/types.js';
@@ -21,15 +30,12 @@ export class LLMVisionOCRProvider implements OCRProvider {
   private readonly model: string;
 
   constructor(
-    config: AppConfig,
+    private readonly config: AppConfig,
     private readonly usageTracker: AIUsageTracker | null,
     private readonly jobId?: string,
     private readonly log: AppLogger = silentLogger(),
   ) {
-    if (!config.ai.openaiApiKey) {
-      throw new Error('OPENAI_API_KEY is required for LLMVisionOCRProvider');
-    }
-    this.client = new OpenAI({ apiKey: config.ai.openaiApiKey, maxRetries: config.ai.maxRetries });
+    this.client = createChatClient(config, 'LLMVisionOCRProvider');
     this.model = config.ai.visionModel;
   }
 
@@ -43,48 +49,61 @@ export class LLMVisionOCRProvider implements OCRProvider {
       ...originFields(image),
     };
 
-    const response = await this.client.chat.completions
-      .create({
-      model: this.model,
-      messages: [
-        {
-          role: 'system',
-          content: OCR_SYSTEM_PROMPT,
-        },
-        {
-          role: 'user',
-          content: [
+    const request = structuredRequest(this.config, 'ocr_result', OCR_SCHEMA, [
+      { role: 'system', content: OCR_SYSTEM_PROMPT },
+    ]);
+    const response = await retryOnEmptyResponse(
+      () =>
+        this.client.chat.completions.create({
+          model: this.model,
+          messages: [
             {
-              type: 'image_url',
-              image_url: { url: `data:${image.mimeType};base64,${base64}` },
+              role: 'system',
+              content: request.messages[0]?.content ?? OCR_SYSTEM_PROMPT,
+            },
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image_url',
+                  image_url: { url: `data:${image.mimeType};base64,${base64}` },
+                },
+              ],
             },
           ],
-        },
-      ],
-      temperature: 0.1,
-      max_tokens: 1500,
-      response_format: {
-        type: 'json_schema',
-        json_schema: {
-          name: 'ocr_result',
-          strict: true,
-          schema: OCR_SCHEMA,
-        },
-      },
-      })
-      .catch((error: unknown) => {
-        this.log.error(
-          { ...fields, durationMs: Date.now() - startedAt, ...openAIErrorFields(error), err: error },
-          'ai.ocr.call failed',
+          ...(this.config.ai.provider === 'deepseek'
+            ? { temperature: 0.1 }
+            : chatSampling(this.model, { temperature: 0.1 })),
+          ...outputTokenLimit(this.config, 1500),
+          ...request.params,
+        }),
+      ({ attempt, retriesLeft, response: empty }) => {
+        this.log.warn(
+          {
+            ...fields,
+            attempt,
+            retriesLeft,
+            finishReason: empty.choices[0]?.finish_reason ?? null,
+            outputTokens: empty.usage?.completion_tokens ?? 0,
+          },
+          retriesLeft > 0
+            ? 'ai.ocr.call returned an empty response; retrying'
+            : 'ai.ocr.call returned an empty response; out of retries',
         );
-        throw error;
-      });
+      },
+    ).catch((error: unknown) => {
+      this.log.error(
+        { ...fields, durationMs: Date.now() - startedAt, ...openAIErrorFields(error), err: error },
+        'ai.ocr.call failed',
+      );
+      throw error;
+    });
 
     const durationMs = Date.now() - startedAt;
     if (this.usageTracker && this.jobId) {
       await this.usageTracker.track({
         jobId: this.jobId,
-        provider: 'openai',
+        provider: this.config.ai.provider,
         model: this.model,
         operation: 'ocr',
         inputTokens: response.usage?.prompt_tokens ?? 0,

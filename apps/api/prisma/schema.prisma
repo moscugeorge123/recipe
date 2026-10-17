@@ -151,6 +151,7 @@ model User {
   shoppingListItems ShoppingListItem[]
   mealPlanEntries   MealPlanEntry[]
   aiUsage           AIUsage[]
+  extractionJobs    ExtractionJob[]
 
   @@map("users")
 }
@@ -239,6 +240,8 @@ model ExtractionJob {
   id             String    @id @default(uuid()) @db.Uuid
   recipeSourceId String    @db.Uuid
   recipeId       String?   @unique @db.Uuid
+  /// The account that submitted the import. Null for jobs created before accounts existed.
+  requestedByUserId String?   @db.Uuid
   status         JobStatus @default(QUEUED)
   progress       Int       @default(0)
   currentStage   String?
@@ -254,6 +257,7 @@ model ExtractionJob {
 
   recipeSource RecipeSource         @relation(fields: [recipeSourceId], references: [id], onDelete: Cascade)
   recipe       Recipe?              @relation(fields: [recipeId], references: [id], onDelete: SetNull)
+  requestedBy  User?                @relation(fields: [requestedByUserId], references: [id], onDelete: SetNull)
   stages       ExtractionStage[]
   mediaAssets  MediaAsset[]
   evidence     ExtractionEvidence[]
@@ -262,6 +266,7 @@ model ExtractionJob {
 
   @@index([status])
   @@index([createdAt])
+  @@index([requestedByUserId])
   @@map("extraction_jobs")
 }
 
@@ -325,7 +330,7 @@ model Recipe {
 
 model CookSession {
   id                   String            @id @default(uuid()) @db.Uuid
-  userId               String            @default("00000000-0000-4000-8000-000000000001") @db.Uuid
+  userId               String            @db.Uuid
   recipeId             String            @db.Uuid
   status               CookSessionStatus @default(IN_PROGRESS)
   currentStepIndex     Int               @default(0)

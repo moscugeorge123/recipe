@@ -13,6 +13,7 @@ import { config } from '../config/env.js';
 import { disconnectPrisma } from '../infrastructure/database/prisma/client.js';
 import { IMPORT_LOG_FILE, silentLogger } from '../infrastructure/logging/logger.js';
 import { disconnectRedis, getRedisClient } from '../infrastructure/redis/client.js';
+import { DEFAULT_PROFILE_ID } from '../modules/profiles/domain/profile.js';
 import { createContainer } from '../shared/di/container.js';
 
 const POLL_MS = 2_000;
@@ -35,7 +36,7 @@ async function main(): Promise<void> {
   const jobs = await Promise.all(
     urls.map(async (url) => {
       try {
-        const created = await service.createJob({ url, forceRefresh: true, outputLanguage: 'en' });
+        const created = await service.createJob(DEFAULT_PROFILE_ID, { url, forceRefresh: true, outputLanguage: 'en' });
         console.log(`queued  ${created.jobId}  ${url}`);
         return { url, jobId: created.jobId };
       } catch (error: unknown) {
@@ -53,7 +54,7 @@ async function main(): Promise<void> {
   while (pending.size > 0 && Date.now() - startedAt < TIMEOUT_MS) {
     await new Promise((resolve) => setTimeout(resolve, POLL_MS));
     for (const [jobId, url] of pending) {
-      const status = await service.getJobStatus(jobId);
+      const status = await service.getJobStatus(DEFAULT_PROFILE_ID, jobId);
       if (!TERMINAL.has(status.status)) {
         continue;
       }

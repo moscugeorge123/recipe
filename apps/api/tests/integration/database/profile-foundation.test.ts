@@ -68,6 +68,25 @@ describe.skipIf(!foundationAvailable)('profile persistence foundation', () => {
     await expect(db.category.count({ where: { userId: DEFAULT_PROFILE_ID } })).resolves.toBe(4);
   });
 
+  it('ensureDefaultUser seeds the user and categories but never links recipes', async () => {
+    const source = await db.recipeSource.create({
+      data: {
+        sourceType: 'GENERIC_WEB',
+        originalUrl: 'https://example.com/unlinked',
+        normalizedUrl: 'https://example.com/unlinked',
+        urlHash: 'profile-foundation-unlinked',
+      },
+    });
+    await db.recipe.create({ data: { recipeSourceId: source.id, title: 'Someone else recipe' } });
+
+    await expect(bootstrap.ensureDefaultUser()).resolves.toBe(4);
+    await expect(bootstrap.ensureDefaultUser()).resolves.toBe(0);
+
+    await expect(db.user.count({ where: { id: DEFAULT_PROFILE_ID } })).resolves.toBe(1);
+    await expect(db.category.count({ where: { userId: DEFAULT_PROFILE_ID } })).resolves.toBe(4);
+    await expect(db.userRecipe.count({ where: { userId: DEFAULT_PROFILE_ID } })).resolves.toBe(0);
+  });
+
   it('supports immutable revision snapshots and cascades them with the recipe', async () => {
     await bootstrap.ensureDefaults();
     const source = await db.recipeSource.create({

@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useSyncExternalStore } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
@@ -24,6 +25,8 @@ type TortiePrefs = {
   timerAlerts: boolean;
   keepAwake: boolean;
   snappy: boolean;
+  /** The first-run tour was finished or skipped on this device. */
+  welcomed: boolean;
   set: (patch: Partial<Omit<TortiePrefs, 'set'>>) => void;
 };
 
@@ -39,6 +42,7 @@ export const useTortiePrefs = create<TortiePrefs>()(
       timerAlerts: true,
       keepAwake: true,
       snappy: false,
+      welcomed: false,
       set: (patch) => set(patch),
     }),
     {
@@ -48,3 +52,11 @@ export const useTortiePrefs = create<TortiePrefs>()(
     },
   ),
 );
+
+/** True once the persisted prefs have been read back from storage. */
+export function usePrefsHydrated(): boolean {
+  return useSyncExternalStore(
+    (cb) => useTortiePrefs.persist.onFinishHydration(cb),
+    () => useTortiePrefs.persist.hasHydrated(),
+  );
+}

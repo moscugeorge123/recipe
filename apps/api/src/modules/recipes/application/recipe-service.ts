@@ -103,10 +103,6 @@ export class RecipeService {
     private readonly translations: RecipeTranslationService | null = null,
   ) {}
 
-  async getById(id: string): Promise<RecipeDetailView> {
-    return this.getByIdForProfile(id, '00000000-0000-4000-8000-000000000001');
-  }
-
   async getByIdForProfile(
     id: string,
     userId: string,
@@ -141,7 +137,7 @@ export class RecipeService {
 
   async list(
     query: ListRecipesQuery,
-    userId = '00000000-0000-4000-8000-000000000001',
+    userId: string,
   ): Promise<{ items: RecipeListRecord[]; meta: ReturnType<typeof buildPaginationMeta> }> {
     const { items, total } = await this.recipeRepo.list({
       page: query.page,
@@ -157,10 +153,6 @@ export class RecipeService {
       items,
       meta: buildPaginationMeta(query, total),
     };
-  }
-
-  async update(id: string, patch: PatchRecipeBody): Promise<RecipeDetailView> {
-    return this.updateForProfile(id, '00000000-0000-4000-8000-000000000001', patch);
   }
 
   async updateForProfile(
@@ -285,17 +277,11 @@ export class RecipeService {
     return this.toDetailView(result);
   }
 
-  async delete(id: string): Promise<void> {
-    return this.deleteForProfile(id, '00000000-0000-4000-8000-000000000001');
-  }
-
   async deleteForProfile(id: string, userId: string): Promise<void> {
-    const recipe = await this.recipeRepo.findEffectiveById(id, userId);
-    if (!recipe) {
+    const deleted = await this.recipeRepo.deleteForUser(id, userId);
+    if (!deleted) {
       throw new RecipeNotFoundError();
     }
-
-    await this.recipeRepo.delete(id);
   }
 
   async setFavorite(

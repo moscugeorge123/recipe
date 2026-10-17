@@ -264,6 +264,85 @@ jest.mock('@react-native-async-storage/async-storage', () => {
   };
 });
 
+// Firebase and the native sign-in SDKs cannot load under Jest. Auth tests that
+// need behaviour override these with their own jest.mock.
+jest.mock('firebase/app', () => ({
+  initializeApp: jest.fn(() => ({})),
+  getApps: jest.fn(() => []),
+  getApp: jest.fn(() => ({})),
+}));
+
+jest.mock('firebase/auth', () => {
+  const provider = (id: string) => ({
+    PROVIDER_ID: id,
+    credential: jest.fn((token: string) => ({ providerId: id, token })),
+    credentialFromError: jest.fn(() => null),
+  });
+  const auth = {
+    currentUser: null,
+    authStateReady: jest.fn(async () => undefined),
+  };
+  return {
+    getReactNativePersistence: jest.fn(() => ({})),
+    initializeAuth: jest.fn(() => auth),
+    getAuth: jest.fn(() => auth),
+    onIdTokenChanged: jest.fn(() => jest.fn()),
+    createUserWithEmailAndPassword: jest.fn(),
+    signInWithEmailAndPassword: jest.fn(),
+    signInWithCredential: jest.fn(),
+    linkWithCredential: jest.fn(),
+    sendEmailVerification: jest.fn(),
+    sendPasswordResetEmail: jest.fn(),
+    fetchSignInMethodsForEmail: jest.fn(async () => []),
+    getAdditionalUserInfo: jest.fn(() => null),
+    updateProfile: jest.fn(),
+    signOut: jest.fn(async () => undefined),
+    GoogleAuthProvider: provider('google.com'),
+    FacebookAuthProvider: provider('facebook.com'),
+  };
+});
+
+jest.mock('firebase/firestore', () => ({
+  getFirestore: jest.fn(() => ({})),
+  doc: jest.fn((_db: unknown, ...path: string[]) => ({ path: path.join('/') })),
+  getDoc: jest.fn(async () => ({ exists: () => false })),
+  setDoc: jest.fn(async () => undefined),
+  deleteDoc: jest.fn(async () => undefined),
+  serverTimestamp: jest.fn(() => 'SERVER_TIMESTAMP'),
+}));
+
+jest.mock('@react-native-google-signin/google-signin', () => ({
+  GoogleSignin: {
+    configure: jest.fn(),
+    hasPlayServices: jest.fn(async () => true),
+    signIn: jest.fn(),
+    signOut: jest.fn(async () => null),
+  },
+  isCancelledResponse: jest.fn(
+    (response: { type?: string }) => response?.type === 'cancelled',
+  ),
+  isSuccessResponse: jest.fn(
+    (response: { type?: string }) => response?.type === 'success',
+  ),
+  isErrorWithCode: jest.fn(
+    (error: { code?: unknown }) => typeof error?.code === 'string',
+  ),
+  statusCodes: {
+    SIGN_IN_CANCELLED: 'SIGN_IN_CANCELLED',
+    IN_PROGRESS: 'IN_PROGRESS',
+    PLAY_SERVICES_NOT_AVAILABLE: 'PLAY_SERVICES_NOT_AVAILABLE',
+    SIGN_IN_REQUIRED: 'SIGN_IN_REQUIRED',
+  },
+}));
+
+jest.mock('react-native-fbsdk-next', () => ({
+  LoginManager: {
+    logInWithPermissions: jest.fn(),
+    logOut: jest.fn(),
+  },
+  AccessToken: { getCurrentAccessToken: jest.fn(async () => null) },
+}));
+
 jest.mock('react-native-safe-area-context', () => {
   const { View } = require('react-native') as typeof import('react-native');
 

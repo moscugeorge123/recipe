@@ -21,12 +21,21 @@ const sessionInclude = {
 export class PrismaCookSessionRepository implements ICookSessionRepository {
   constructor(private readonly db: PrismaClient) {}
 
+  async userHasRecipe(userId: string, recipeId: string): Promise<boolean> {
+    const link = await this.db.userRecipe.findUnique({
+      where: { userId_recipeId: { userId, recipeId } },
+      select: { id: true },
+    });
+    return link !== null;
+  }
+
   create(input: CreateCookSessionInput): Promise<CookSessionWithRecipe> {
     const stepIndex = input.currentStepIndex ?? 0;
     const now = new Date();
 
     return this.db.cookSession.create({
       data: {
+        userId: input.userId,
         recipeId: input.recipeId,
         currentStepIndex: stepIndex,
         currentStepEnteredAt: now,
@@ -44,23 +53,27 @@ export class PrismaCookSessionRepository implements ICookSessionRepository {
     });
   }
 
-  findById(id: string): Promise<CookSessionWithRecipe | null> {
-    return this.db.cookSession.findUnique({
-      where: { id },
-      include: sessionInclude,
-    });
-  }
-
-  findInProgressByRecipeId(recipeId: string): Promise<CookSessionWithRecipe | null> {
+  findById(id: string, userId: string): Promise<CookSessionWithRecipe | null> {
     return this.db.cookSession.findFirst({
-      where: { recipeId, status: 'IN_PROGRESS' },
+      where: { id, userId },
       include: sessionInclude,
     });
   }
 
-  findManyInProgress(exceptRecipeId?: string): Promise<CookSessionWithRecipe[]> {
+  findInProgressByRecipeId(
+    userId: string,
+    recipeId: string,
+  ): Promise<CookSessionWithRecipe | null> {
+    return this.db.cookSession.findFirst({
+      where: { userId, recipeId, status: 'IN_PROGRESS' },
+      include: sessionInclude,
+    });
+  }
+
+  findManyInProgress(userId: string, exceptRecipeId?: string): Promise<CookSessionWithRecipe[]> {
     return this.db.cookSession.findMany({
       where: {
+        userId,
         status: 'IN_PROGRESS',
         ...(exceptRecipeId ? { recipeId: { not: exceptRecipeId } } : {}),
       },
@@ -68,12 +81,15 @@ export class PrismaCookSessionRepository implements ICookSessionRepository {
     });
   }
 
-  async list(params: {
-    page: number;
-    pageSize: number;
-    status?: CookSessionStatus;
-  }): Promise<{ items: CookSessionWithRecipe[]; total: number }> {
-    const where = params.status ? { status: params.status } : {};
+  async list(
+    userId: string,
+    params: {
+      page: number;
+      pageSize: number;
+      status?: CookSessionStatus;
+    },
+  ): Promise<{ items: CookSessionWithRecipe[]; total: number }> {
+    const where = params.status ? { userId, status: params.status } : { userId };
     const skip = (params.page - 1) * params.pageSize;
 
     const [items, total] = await Promise.all([

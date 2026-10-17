@@ -7,6 +7,7 @@ import { PrismaMediaAssetRepository } from '../../infrastructure/database/reposi
 import { PrismaOCRRepository } from '../../infrastructure/database/repositories/ocr.repository.js';
 import { PrismaCookSessionRepository } from '../../infrastructure/database/repositories/cook-session.repository.js';
 import { PrismaProfileBootstrapRepository } from '../../infrastructure/database/repositories/profile-bootstrap.repository.js';
+import { PrismaUserRepository } from '../../infrastructure/database/repositories/user.repository.js';
 import { PrismaRecipeRepository } from '../../infrastructure/database/repositories/recipe.repository.js';
 import { PrismaRecipeSourceRepository } from '../../infrastructure/database/repositories/recipe-source.repository.js';
 import { PrismaTranscriptRepository } from '../../infrastructure/database/repositories/transcript.repository.js';
@@ -23,6 +24,12 @@ import {
   silentLogger,
   type AppLogger,
 } from '../../infrastructure/logging/logger.js';
+import { getFirebaseApp } from '../../infrastructure/auth/firebase-app.js';
+import {
+  FirebaseAccountDeleter,
+  FirebaseTokenVerifier,
+} from '../../infrastructure/auth/firebase-token-verifier.js';
+import type { AccountDeleter } from '../../infrastructure/auth/token-verifier.js';
 import { FileLogReader } from '../../infrastructure/logging/log-reader.js';
 import {
   BullMQQueueProvider,
@@ -67,6 +74,9 @@ import type { IExtractionJobRepository } from '../../modules/jobs/repository/ext
 import type { IExtractionStageRepository } from '../../modules/jobs/repository/extraction-stage.repository.js';
 import { CookSessionService } from '../../modules/cook-sessions/application/cook-session-service.js';
 import type { ICookSessionRepository } from '../../modules/cook-sessions/repository/cook-session.repository.js';
+import { MeService } from '../../modules/me/application/me-service.js';
+import { FirebaseProfileResolver } from '../../modules/profiles/application/firebase-profile-resolver.js';
+import type { IUserRepository } from '../../modules/profiles/repository/user.repository.js';
 import { ProfileBootstrapService } from '../../modules/profiles/application/profile-bootstrap-service.js';
 import {
   ImplicitProfileResolver,
@@ -126,6 +136,7 @@ export interface AppContainer {
     vision: PrismaVisionRepository;
     aiUsage: PrismaAIUsageRepository;
     profileBootstrap: PrismaProfileBootstrapRepository;
+    user: IUserRepository;
     pantry: IPantryRepository;
     shoppingList: IShoppingListRepository;
     mealPlan: IMealPlanRepository;
@@ -143,6 +154,7 @@ export interface AppContainer {
   cookSessionService: CookSessionService;
   profileBootstrap: ProfileBootstrapService;
   profileResolver: ProfileResolver;
+  meService: MeService;
   dashboardService: DashboardService;
   pipeline: RecipeExtractionPipeline;
   pantryService: PantryService;
@@ -157,7 +169,10 @@ export interface CreateContainerOptions {
   queue?: QueueProvider;
   enableMediaProcessing?: boolean;
   logger?: AppLogger;
+  /** Replaces the resolver chosen from `AUTH_MODE`; tests use it to inject a fake verifier. */
   profileResolver?: ProfileResolver;
+  /** Replaces the Firebase account deleter (tests); `null` means no service account. */
+  accountDeleter?: AccountDeleter | null;
   pantryLlm?: LLMProvider | null;
   assistLlm?: LLMProvider | null;
   translationLlm?: LLMProvider | null;
@@ -199,6 +214,51 @@ function withChargeRecording(
   });
 }
 
+/**
+ * Picks the request identity strategy from `AUTH_MODE`. `firebase` verifies ID tokens; the account
+ * deleter only exists when a service account is configured (otherwise the client deletes the
+ * Firebase user itself after `DELETE /me`).
+ */
+function createAuth(
+  appConfig: AppConfig,
+  users: IUserRepository,
+  options: CreateContainerOptions,
+): { profileResolver: ProfileResolver; accountDeleter: AccountDeleter | null } {
+  const injectedDeleter = options.accountDeleter;
+
+  if (options.profileResolver !== undefined) {
+    return {
+      profileResolver: options.profileResolver,
+      accountDeleter: injectedDeleter ?? null,
+    };
+  }
+
+  if (appConfig.auth.mode === 'implicit') {
+    return {
+      profileResolver: new ImplicitProfileResolver(),
+      accountDeleter: injectedDeleter ?? null,
+    };
+  }
+
+  const app = getFirebaseApp(appConfig.auth);
+  const hasServiceAccount = appConfig.auth.firebaseServiceAccountJson !== undefined;
+
+  return {
+    profileResolver: new FirebaseProfileResolver(
+      new FirebaseTokenVerifier(app, {
+        checkRevoked: appConfig.auth.checkRevoked && hasServiceAccount,
+      }),
+      users,
+    ),
+    accountDeleter:
+      injectedDeleter !== undefined
+        ? injectedDeleter
+        : hasServiceAccount
+          ? new FirebaseAccountDeleter(app)
+          : null,
+  };
+}
+
 export function createContainer(options: CreateContainerOptions = {}): AppContainer {
   const appConfig = config;
   const log =
@@ -220,6 +280,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     vision: new PrismaVisionRepository(prisma),
     aiUsage: new PrismaAIUsageRepository(prisma),
     profileBootstrap: new PrismaProfileBootstrapRepository(prisma),
+    user: new PrismaUserRepository(prisma),
     pantry: new PrismaPantryRepository(prisma),
     shoppingList: new PrismaShoppingListRepository(prisma),
     mealPlan: new PrismaMealPlanRepository(prisma),
@@ -308,7 +369,13 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
   const categoryService = new CategoryService(prisma);
   const cookSessionService = new CookSessionService(repositories.cookSession, repositories.recipe);
   const profileBootstrap = new ProfileBootstrapService(repositories.profileBootstrap);
-  const profileResolver = options.profileResolver ?? new ImplicitProfileResolver();
+  const { profileResolver, accountDeleter } = createAuth(appConfig, repositories.user, options);
+  const meService = new MeService({
+    users: repositories.user,
+    accountDeleter,
+    forgetAccount: (authSubject): void => profileResolver.forget?.(authSubject),
+    log: log.child({ component: 'me' }),
+  });
 
   const pantryCache =
     options.pantryCache ??
@@ -319,7 +386,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
   const pantryLlm =
     options.pantryLlm !== undefined
       ? options.pantryLlm
-      : appConfig.ai.openaiApiKey
+      : appConfig.ai.llmApiKey
         ? new OpenAIProvider(appConfig, null, undefined, ingredientLog)
         : null;
   const pantryUsage = new AIUsageTracker(repositories.aiUsage, DEFAULT_PRICING);
@@ -332,7 +399,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     appConfig,
     options.assistLlm !== undefined
       ? options.assistLlm
-      : appConfig.ai.openaiApiKey
+      : appConfig.ai.llmApiKey
         ? new OpenAIProvider(appConfig, null, undefined, assistLog)
         : null,
     assistLog,
@@ -342,7 +409,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     appConfig,
     options.translationLlm !== undefined
       ? options.translationLlm
-      : appConfig.ai.openaiApiKey
+      : appConfig.ai.llmApiKey
         ? new OpenAIProvider(appConfig, null, undefined, translationLog)
         : null,
     translationLog,
@@ -385,6 +452,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     cookSessionService,
     profileBootstrap,
     profileResolver,
+    meService,
     dashboardService,
     pipeline,
     pantryService,

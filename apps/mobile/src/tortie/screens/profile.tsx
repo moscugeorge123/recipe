@@ -1,6 +1,7 @@
 import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
 import {
+  Alert,
   ScrollView,
   StyleSheet,
   View,
@@ -9,6 +10,7 @@ import {
 } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
+import { isFacebookEnabled } from '@/constants/env';
 import { useT } from '@/i18n';
 import {
   APP_LANGUAGES,
@@ -16,6 +18,7 @@ import {
   type AppLanguagePref,
   type RecipeLanguagePref,
 } from '@/i18n/languages';
+import { AuthError, authService } from '@/features/auth/auth-service';
 import { useCollections } from '@/features/collections/hooks';
 import { useCookSessions } from '@/features/cook-sessions/hooks';
 import { useTortieAuth, type TortieUser } from '@/tortie/auth-store';
@@ -26,7 +29,6 @@ import { toast, useNav } from '@/tortie/nav-store';
 import { useTortiePrefs, type DietKey } from '@/tortie/prefs-store';
 import { C, CSS_EASE, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
-import { GuestArt } from '@/tortie/ui/art';
 import { BrandLogo } from '@/tortie/ui/brand';
 import { Pill, Switch } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
@@ -35,6 +37,15 @@ import { Stagger } from '@/tortie/ui/stagger';
 import { em, kicker, sans, serif, T } from '@/tortie/ui/text';
 
 const PROV_NAME = { google: 'Google', facebook: 'Facebook' } as const;
+
+/** User-facing text for a failed auth call; `null` when the user backed out. */
+function authMessage(e: unknown, fallback: string): string | null {
+  if (e instanceof AuthError) {
+    if (e.failure.kind === 'cancelled') return null;
+    if (e.failure.kind === 'error') return e.failure.message;
+  }
+  return fallback;
+}
 
 export function initialsOf(name: string): string {
   return (
@@ -62,7 +73,6 @@ export function ProfileScreen() {
   const pfOut = useNav((s) => s.pfOut);
   const profNonce = useNav((s) => s.profNonce);
   const closeProfile = useNav((s) => s.closeProfile);
-  const authed = useTortieAuth((s) => s.authed);
   const user = useTortieAuth((s) => s.user);
   const scrollRef = useRef<ScrollView>(null);
   // Scroll state is scoped to one opening so it resets without an effect.
@@ -75,7 +85,7 @@ export function ProfileScreen() {
   }, [profNonce]);
 
   const on = prof && mounted && !pfOut;
-  const pAv = scr && authed;
+  const pAv = scr;
   const name = nameOf(user);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -117,11 +127,7 @@ export function ProfileScreen() {
         }}
       >
         <View style={{ paddingHorizontal: 20 }}>
-          {authed ? (
-            <SignedIn on={on} heroHidden={pAv} user={user} name={name} />
-          ) : (
-            <Guest on={on} />
-          )}
+          <SignedIn on={on} heroHidden={pAv} user={user} name={name} />
         </View>
       </ScrollView>
       <View
@@ -211,9 +217,7 @@ export function ProfileScreen() {
                 ttl,
               ]}
             >
-              <T style={[sans(15, 700), { lineHeight: 22 }]}>
-                {authed ? 'Profile' : 'Account'}
-              </T>
+              <T style={[sans(15, 700), { lineHeight: 22 }]}>Profile</T>
             </Animated.View>
             <Animated.View
               style={[
@@ -265,21 +269,19 @@ export function ProfileScreen() {
                   mini,
                 ]}
               >
-                {authed ? (
-                  <View
-                    style={{
-                      width: 38,
-                      height: 38,
-                      borderRadius: 19,
-                      backgroundColor: C.green,
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 0 0 2px #f8faf5, 0 0 0 3.5px #c7ecce',
-                    }}
-                  >
-                    <T style={sans(14, 700, C.bg)}>{initialsOf(name)}</T>
-                  </View>
-                ) : null}
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 19,
+                    backgroundColor: C.green,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 0 0 2px #f8faf5, 0 0 0 3.5px #c7ecce',
+                  }}
+                >
+                  <T style={sans(14, 700, C.bg)}>{initialsOf(name)}</T>
+                </View>
               </Animated.View>
             </Press>
           </View>
@@ -416,7 +418,6 @@ function SignedIn({
   const t = useT();
   const prefs = useTortiePrefs();
   const linked = useTortieAuth((s) => s.linked);
-  const link = useTortieAuth((s) => s.link);
   const recipes = useTRecipes();
   const colls = useCollections();
   const cooked = useCookSessions({ status: 'COMPLETED', pageSize: 1 });
@@ -433,14 +434,53 @@ function SignedIn({
   const signOut = () => {
     useNav.getState().set({ pfOut: true });
     setTimeout(
-      () => {
-        useTortieAuth.getState().signOut();
-        useNav.getState().set({ pfOut: false });
+      async () => {
+        try {
+          await authService.signOut();
+          toast('Signed out');
+        } catch {
+          toast('Couldn’t sign out. Try again.', 'error');
+        } finally {
+          useNav.getState().set({ pfOut: false });
+        }
       },
       Math.round(280 * motionMultiplier()),
     );
-    toast('Signed out');
   };
+
+  const link = async (k: 'google' | 'facebook') => {
+    try {
+      await authService.linkProvider(k);
+      toast(`${PROV_NAME[k]} connected`);
+    } catch (e) {
+      const m = authMessage(e, `Couldn’t connect ${PROV_NAME[k]}. Try again.`);
+      if (m) toast(m, 'error');
+    }
+  };
+
+  const deleteAccount = () =>
+    Alert.alert(
+      'Delete your account?',
+      'This permanently deletes your account, recipes, collections and plans. It can’t be undone.',
+      [
+        { text: 'Keep account', style: 'cancel' },
+        {
+          text: 'Delete account',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await authService.deleteAccount();
+            } catch (e) {
+              const m = authMessage(
+                e,
+                'Couldn’t delete your account. Try again.',
+              );
+              if (m) toast(m, 'error');
+            }
+          },
+        },
+      ],
+    );
 
   const prov = user?.prov ?? 'email';
   const stats: [string, string][] = [
@@ -741,9 +781,35 @@ function SignedIn({
       </Stagger>
 
       <Stagger i={4} on={on}>
+        <SectionLabel>Help</SectionLabel>
+        <Press
+          onPress={() => useNav.getState().openWelcome()}
+          scale={0.98}
+          bg={C.white}
+          pressedBg={C.surface2}
+          style={[
+            CARD,
+            {
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 14,
+              paddingVertical: 12,
+            },
+          ]}
+        >
+          <Glyph name="tour" size={22} color={C.green} />
+          <RowText l="Take the tour" sub="A quick look at what Tortie can do" />
+          <Glyph name="chevron_right" size={20} color={C.ink3} />
+        </Press>
+      </Stagger>
+
+      <Stagger i={4} on={on}>
         <SectionLabel>Connected accounts</SectionLabel>
         <View style={CARD}>
-          {(['google', 'facebook'] as const).map((k, i) => {
+          {(isFacebookEnabled() || linked.facebook
+            ? (['google', 'facebook'] as const)
+            : (['google'] as const)
+          ).map((k, i) => {
             const isOn = linked[k];
             const n = PROV_NAME[k];
             return (
@@ -784,10 +850,7 @@ function SignedIn({
                   <Glyph name="check_circle" size={24} color={C.green} fill />
                 ) : (
                   <Press
-                    onPress={() => {
-                      link(k);
-                      toast(`${n} connected`);
-                    }}
+                    onPress={() => void link(k)}
                     scale={0.94}
                     pressedBg={C.greenWash3}
                     bg="transparent"
@@ -829,6 +892,24 @@ function SignedIn({
           <Glyph name="logout" size={20} color={C.terraInk} />
           <T style={sans(15, 700, C.terraInk)}>Sign out</T>
         </Press>
+        <Press
+          onPress={deleteAccount}
+          scale={0.97}
+          style={{
+            height: 54,
+            marginTop: 10,
+            borderRadius: 99,
+            borderWidth: 1.5,
+            borderColor: C.line,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 8,
+          }}
+        >
+          <Glyph name="delete_forever" size={20} color={C.terraInk} />
+          <T style={sans(15, 700, C.terraInk)}>Delete account</T>
+        </Press>
       </Stagger>
     </>
   );
@@ -859,196 +940,5 @@ function StepBtn({
     >
       <Glyph name={icon} size={18} color={C.ink} />
     </Press>
-  );
-}
-
-function Guest({ on }: { on: boolean }) {
-  const openAuth = useNav((s) => s.openAuth);
-  const recipes = useTRecipes();
-  const colls = useCollections();
-  const perks: [string, string, string][] = [
-    [
-      'cloud_sync',
-      'Every device, in sync',
-      'Recipes, plans and pantry follow you from phone to tablet.',
-    ],
-    [
-      'group',
-      'Cook together',
-      'Share collections and the grocery list with your household.',
-    ],
-    [
-      'history',
-      'Remember every meal',
-      'Keep a cooking history and see what you make most.',
-    ],
-  ];
-  const outline = {
-    height: 54,
-    borderRadius: 99,
-    borderWidth: 1.5,
-    borderColor: C.line,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-  } as const;
-  return (
-    <>
-      <Stagger
-        i={0}
-        on={on}
-        style={{ alignItems: 'center', paddingTop: 18, paddingBottom: 4 }}
-      >
-        <GuestArt />
-      </Stagger>
-      <Stagger i={1} on={on} style={{ alignItems: 'center' }}>
-        <T
-          style={[
-            serif(30, 500),
-            {
-              letterSpacing: em(30, -0.015),
-              lineHeight: 33.6,
-              marginTop: 14,
-              textAlign: 'center',
-            },
-          ]}
-        >
-          Keep your kitchen with you
-        </T>
-        <T
-          style={[
-            sans(14, 400, C.ink2),
-            {
-              lineHeight: 21,
-              marginTop: 8,
-              maxWidth: 300,
-              textAlign: 'center',
-            },
-          ]}
-        >
-          Sign in to back up your recipes, plans and pantry — and pick up on any
-          device.
-        </T>
-      </Stagger>
-      <Stagger
-        i={2}
-        on={on}
-        style={{
-          gap: 14,
-          marginTop: 24,
-          padding: 16,
-          backgroundColor: C.white,
-          borderWidth: 1,
-          borderColor: C.line,
-          borderRadius: 18,
-        }}
-      >
-        {perks.map(([icon, t, d]) => (
-          <View
-            key={t}
-            style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}
-          >
-            <View
-              style={{
-                width: 40,
-                height: 40,
-                borderRadius: 12,
-                backgroundColor: C.greenWash3,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Glyph name={icon} size={21} color={C.green} />
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <T style={sans(15, 600)}>{t}</T>
-              <T
-                style={[
-                  sans(12, 400, C.ink2),
-                  { lineHeight: 16.8, marginTop: 2 },
-                ]}
-              >
-                {d}
-              </T>
-            </View>
-          </View>
-        ))}
-      </Stagger>
-      <Stagger i={3} on={on} style={{ gap: 10, marginTop: 24 }}>
-        <Press
-          onPress={() => openAuth('signup', 'google')}
-          scale={0.97}
-          bg={C.white}
-          pressedBg={C.surface2}
-          style={outline}
-        >
-          <BrandLogo brand="google" size={20} />
-          <T style={sans(15, 700)}>Continue with Google</T>
-        </Press>
-        <Press
-          onPress={() => openAuth('signup', 'facebook')}
-          scale={0.97}
-          bg={C.white}
-          pressedBg={C.surface2}
-          style={outline}
-        >
-          <BrandLogo brand="facebook" size={20} />
-          <T style={sans(15, 700)}>Continue with Facebook</T>
-        </Press>
-        <Press
-          onPress={() => openAuth('signup')}
-          scale={0.97}
-          style={{
-            height: 54,
-            borderRadius: 99,
-            backgroundColor: C.green,
-            flexDirection: 'row',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 10,
-          }}
-        >
-          <Glyph name="mail" size={20} color={C.bg} />
-          <T style={sans(15, 700, C.bg)}>Sign up with email</T>
-        </Press>
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: 4,
-            marginTop: 6,
-          }}
-        >
-          <T style={sans(14, 400, C.ink2)}>Already have an account?</T>
-          <Press onPress={() => openAuth('login')} style={{ padding: 4 }}>
-            <T style={sans(14, 700, C.green)}>Log in</T>
-          </Press>
-        </View>
-      </Stagger>
-      <Stagger
-        i={4}
-        on={on}
-        style={{
-          flexDirection: 'row',
-          gap: 10,
-          alignItems: 'flex-start',
-          marginTop: 20,
-          paddingVertical: 14,
-          paddingHorizontal: 16,
-          borderRadius: 16,
-          backgroundColor: C.surface2,
-        }}
-      >
-        <Glyph name="smartphone" size={18} color={C.green} />
-        <T style={[sans(12, 400, C.ink2), { lineHeight: 17.4, flex: 1 }]}>
-          {`Your ${recipes.total} recipes and ${colls.data?.items.length ?? 0} collections live on this phone for now. Sign in and they move into your account.`}
-        </T>
-      </Stagger>
-      <Stagger i={5} on={on}>
-        <LanguageSection />
-      </Stagger>
-    </>
   );
 }

@@ -1,0 +1,115 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Firestore holds account documents only. Recipes, pantry, cook sessions and
+// everything else live in the Postgres-backed API, so all other paths are denied.
+//
+// Collection: users
+// Document ID: Firebase Auth uid of the owner
+// Fields (written by apps/mobile/src/features/auth/account-doc.ts with setDoc + merge):
+//   - uid: string (required, immutable) - equals the document id and request.auth.uid
+//   - email: string | null (required) - must match the email on the caller's ID token
+//   - displayName: string | null (required, <= 100 chars)
+//   - photoURL: string | null (required, https URL, <= 2048 chars)
+//   - providers: list<string> (required, <= 5 entries from a fixed set of provider ids)
+//   - createdAt: timestamp (required, immutable) - request.time on create
+//   - updatedAt: timestamp (required) - request.time on every write
+//
+// Access: only the signed-in owner may read, create, update or delete their
+// document. No one may list or query the collection.
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // On create the uid field must be the caller's uid.
+    function uidUnchanged() {
+      return request.resource.data.uid == request.auth.uid;
+    }
+
+    // On update the uid field must keep its stored value.
+    function uidNotModified() {
+      return request.resource.data.uid == resource.data.uid;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function isNullOrString(value, maxLen) {
+      return value == null || (value is string && value.size() <= maxLen);
+    }
+
+    function isValidHttpsUrl(url) {
+      return url is string && url.size() <= 2048 && url.matches('^https://.+');
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidAccount(data, userId) {
+      let fields = ['uid', 'email', 'displayName', 'photoURL', 'providers', 'createdAt', 'updatedAt'];
+      return hasOnlyAllowedFields(fields)
+        && hasRequiredFields(fields)
+        && data.uid == userId
+        // Email is copied from the verified token so it cannot be spoofed.
+        && data.email == request.auth.token.get('email', null)
+        && isNullOrString(data.email, 320)
+        && isNullOrString(data.displayName, 100)
+        && (data.photoURL == null || isValidHttpsUrl(data.photoURL))
+        && data.providers is list
+        && data.providers.size() <= 5
+        && data.providers.hasOnly(['password', 'google.com', 'facebook.com', 'apple.com', 'phone'])
+        && data.createdAt is timestamp
+        && data.updatedAt == request.time;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      // `get` only: listing or querying other accounts is never allowed.
+      allow get: if isOwner(userId);
+
+      allow create: if isOwner(userId)
+        && uidUnchanged()
+        && isValidAccount(request.resource.data, userId)
+        && request.resource.data.createdAt == request.time;
+
+      allow update: if isOwner(userId)
+        && uidNotModified()
+        && areImmutableFieldsUnchanged(['uid', 'createdAt'])
+        && isValidAccount(request.resource.data, userId);
+
+      allow delete: if isOwner(userId);
+    }
+
+    // Everything else is denied by default.
+  }
+}

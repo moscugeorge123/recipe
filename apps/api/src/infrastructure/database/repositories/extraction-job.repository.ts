@@ -1,5 +1,7 @@
 import type { ExtractionJob, PrismaClient } from '@prisma/client';
 
+import { linkRecipeToUser } from './profile-bootstrap.repository.js';
+
 import type {
   CreateExtractionJobInput,
   IExtractionJobRepository,
@@ -13,6 +15,7 @@ export class PrismaExtractionJobRepository implements IExtractionJobRepository {
     return this.db.extractionJob.create({
       data: {
         recipeSourceId: input.recipeSourceId,
+        ...(input.requestedByUserId ? { requestedByUserId: input.requestedByUserId } : {}),
         outputLanguage: input.outputLanguage,
         options: input.options ?? {},
       },
@@ -58,5 +61,17 @@ export class PrismaExtractionJobRepository implements IExtractionJobRepository {
       where: { recipeId, id: { not: jobId } },
       data: { recipeId: null },
     });
+  }
+
+  async linkRecipeToUser(userId: string, recipeId: string): Promise<void> {
+    await this.db.$transaction((tx) => linkRecipeToUser(tx, userId, recipeId));
+  }
+
+  async userHasRecipe(userId: string, recipeId: string): Promise<boolean> {
+    const link = await this.db.userRecipe.findUnique({
+      where: { userId_recipeId: { userId, recipeId } },
+      select: { id: true },
+    });
+    return link !== null;
   }
 }

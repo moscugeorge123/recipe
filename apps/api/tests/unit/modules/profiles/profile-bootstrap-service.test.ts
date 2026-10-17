@@ -13,7 +13,10 @@ describe('ProfileBootstrapService', () => {
         recipeLinksCreated: 2,
         revisionsCreated: 2,
       });
-    const service = new ProfileBootstrapService({ ensureDefaults });
+    const service = new ProfileBootstrapService({
+      ensureDefaults,
+      ensureDefaultUser: vi.fn<IProfileBootstrapRepository['ensureDefaultUser']>(),
+    });
 
     await expect(service.ensureDefaults()).resolves.toEqual({
       profileId: '00000000-0000-4000-8000-000000000001',
@@ -22,5 +25,17 @@ describe('ProfileBootstrapService', () => {
       revisionsCreated: 2,
     });
     expect(ensureDefaults).toHaveBeenCalledOnce();
+  });
+
+  it('delegates the bare default-user upsert without the recipe repair', async () => {
+    const ensureDefaults = vi.fn<IProfileBootstrapRepository['ensureDefaults']>();
+    const ensureDefaultUser = vi
+      .fn<IProfileBootstrapRepository['ensureDefaultUser']>()
+      .mockResolvedValue(4);
+    const service = new ProfileBootstrapService({ ensureDefaults, ensureDefaultUser });
+
+    await expect(service.ensureDefaultUser()).resolves.toBe(4);
+    expect(ensureDefaultUser).toHaveBeenCalledOnce();
+    expect(ensureDefaults).not.toHaveBeenCalled();
   });
 });

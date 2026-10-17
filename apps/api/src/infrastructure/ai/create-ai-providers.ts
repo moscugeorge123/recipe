@@ -1,5 +1,6 @@
 import type { AppConfig } from '../../config/env.js';
 import { MockLLMProvider } from '../ai/llm/mock-llm-provider.js';
+import { llmKeyName } from '../ai/llm/chat-client.js';
 import type { LLMProvider } from '../ai/llm/llm-provider.js';
 import { OpenAIProvider } from '../ai/llm/openai-provider.js';
 import type { AIUsageTracker } from '../ai/usage/ai-usage-tracker.js';
@@ -9,6 +10,7 @@ import { LLMVisionOCRProvider } from '../../modules/ocr/providers/llm-vision/llm
 import type { OCRProvider } from '../../modules/ocr/domain/types.js';
 import {
   MockTranscriptionProvider,
+  NoTranscriptionProvider,
   OpenAITranscriptionProvider,
 } from '../../modules/transcription/providers/openai/openai-transcription-provider.js';
 import type { TranscriptionProvider } from '../../modules/transcription/domain/types.js';
@@ -31,11 +33,11 @@ export function createAIProviders(
   jobId?: string,
   log: AppLogger = silentLogger(),
 ): AIProviders {
-  if (config.ai.openaiApiKey) {
+  if (config.ai.llmApiKey) {
     const llm = new OpenAIProvider(config, usageTracker, jobId, log);
     return {
       llm,
-      transcription: new OpenAITranscriptionProvider(config, usageTracker, jobId, log),
+      transcription: createTranscriptionProvider(config, usageTracker, jobId, log),
       ocr: new LLMVisionOCRProvider(config, usageTracker, jobId, log),
       vision: new OpenAIVisionProvider(config, usageTracker, jobId, log),
     };
@@ -43,7 +45,7 @@ export function createAIProviders(
 
   log.warn(
     { step: 'ai.providers', provider: 'mock' },
-    'OPENAI_API_KEY is not set; using mock AI providers (results are placeholders)',
+    `${llmKeyName(config)} is not set; using mock AI providers (results are placeholders)`,
   );
   const llm = new MockLLMProvider();
   return {
@@ -52,4 +54,21 @@ export function createAIProviders(
     ocr: new MockOCRProvider(),
     vision: new MockVisionProvider(),
   };
+}
+
+/** Whisper is OpenAI-only, so it needs OPENAI_API_KEY even when another provider serves the LLM. */
+function createTranscriptionProvider(
+  config: AppConfig,
+  usageTracker: AIUsageTracker | null,
+  jobId: string | undefined,
+  log: AppLogger,
+): TranscriptionProvider {
+  if (config.ai.openaiApiKey) {
+    return new OpenAITranscriptionProvider(config, usageTracker, jobId, log);
+  }
+  log.warn(
+    { step: 'ai.providers', provider: config.ai.provider, transcription: 'none' },
+    'OPENAI_API_KEY is not set; spoken audio will not be transcribed (Whisper is OpenAI-only)',
+  );
+  return new NoTranscriptionProvider();
 }

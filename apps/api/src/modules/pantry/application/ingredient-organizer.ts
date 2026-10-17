@@ -135,24 +135,6 @@ const SYSTEM_PROMPT = [
   'c: category. t: Garden Plate colorToken. k: confidence from 0 to 1. i: the line index.',
 ].join(' ');
 
-function isForbiddenModel(model: string): boolean {
-  return /gpt-5\.6/i.test(model);
-}
-
-function isEscalationOnlyModel(model: string): boolean {
-  return /gpt-4o-mini/i.test(model) || isForbiddenModel(model);
-}
-
-function batchModel(candidate: string, fallback: string): string | null {
-  if (!isEscalationOnlyModel(candidate)) {
-    return candidate;
-  }
-  if (!isEscalationOnlyModel(fallback)) {
-    return fallback;
-  }
-  return null;
-}
-
 function toOrganized(
   line: ParsedPantryLine,
   input: {
@@ -514,24 +496,14 @@ export class IngredientOrganizer {
     const byIndex = new Map(batchLines.map((line) => [line.index, line]));
     const remaining = new Map(byIndex);
 
-    const primary = batchModel(
-      this.config.ai.ingredientModel,
-      this.config.ai.ingredientFallbackModel,
-    );
+    const primary = this.config.ai.ingredientModel;
     const fallback =
-      this.config.ai.ingredientFallbackModel !== primary &&
-      !isEscalationOnlyModel(this.config.ai.ingredientFallbackModel)
+      this.config.ai.ingredientFallbackModel !== primary
         ? this.config.ai.ingredientFallbackModel
         : null;
 
-    let batchOutcome = primary
-      ? await this.runBatch(batchLines, primary, 'pantry_organize_batch', ctx)
-      : null;
-    if (
-      primary &&
-      fallback &&
-      (batchOutcome === null || batchOutcome === 'malformed')
-    ) {
+    let batchOutcome = await this.runBatch(batchLines, primary, 'pantry_organize_batch', ctx);
+    if (fallback && (batchOutcome === null || batchOutcome === 'malformed')) {
       const retry = await this.runBatch(batchLines, fallback, 'pantry_organize_fallback', ctx);
       if (retry !== null) {
         batchOutcome = retry;
@@ -558,22 +530,20 @@ export class IngredientOrganizer {
     let escalatedCount = 0;
     const escalationModel = this.config.ai.ingredientEscalationModel;
     const maxEscalations = this.config.ai.ingredientMaxEscalations;
-    if (/gpt-4o-mini/i.test(escalationModel) && !isForbiddenModel(escalationModel)) {
-      for (const line of toEscalate.slice(0, maxEscalations)) {
-        const escalated = await this.runSingle(line, escalationModel, ctx);
-        escalatedCount += 1;
-        if (escalated) {
-          remaining.delete(line.index);
-          const idx = items.findIndex((item) => item.rawText === line.rawText);
-          if (idx >= 0) {
-            items[idx] = escalated;
-          } else {
-            items.push(escalated);
-          }
-          const unresolvedIdx = unresolved.findIndex((entry) => entry.rawText === line.rawText);
-          if (unresolvedIdx >= 0) {
-            unresolved.splice(unresolvedIdx, 1);
-          }
+    for (const line of toEscalate.slice(0, maxEscalations)) {
+      const escalated = await this.runSingle(line, escalationModel, ctx);
+      escalatedCount += 1;
+      if (escalated) {
+        remaining.delete(line.index);
+        const idx = items.findIndex((item) => item.rawText === line.rawText);
+        if (idx >= 0) {
+          items[idx] = escalated;
+        } else {
+          items.push(escalated);
+        }
+        const unresolvedIdx = unresolved.findIndex((entry) => entry.rawText === line.rawText);
+        if (unresolvedIdx >= 0) {
+          unresolved.splice(unresolvedIdx, 1);
         }
       }
     }
@@ -627,7 +597,7 @@ export class IngredientOrganizer {
     operation: string,
     ctx: { locale: string; promptVersion: string; userId: string; modelsUsed: string[] },
   ): Promise<CompactAiItem[] | 'malformed' | null> {
-    if (!this.llm || lines.length === 0 || isForbiddenModel(model) || isEscalationOnlyModel(model)) {
+    if (!this.llm || lines.length === 0) {
       return null;
     }
     ctx.modelsUsed.push(model);
@@ -712,7 +682,7 @@ export class IngredientOrganizer {
     model: string,
     ctx: { locale: string; promptVersion: string; userId: string; modelsUsed: string[] },
   ): Promise<OrganizedPantryItem | null> {
-    if (!this.llm || isForbiddenModel(model)) {
+    if (!this.llm) {
       return null;
     }
     ctx.modelsUsed.push(model);
@@ -821,7 +791,7 @@ export class IngredientOrganizer {
     }
     await this.usageTracker.track({
       userId,
-      provider: 'openai',
+      provider: this.config.ai.provider,
       model,
       operation,
       inputTokens,

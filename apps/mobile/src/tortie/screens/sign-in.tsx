@@ -3,14 +3,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { StyleSheet, View, type TextInputProps } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
-import { useCollections } from '@/features/collections/hooks';
 import {
-  firstName,
-  useTortieAuth,
-  type AuthProv,
-  type TortieUser,
-} from '@/tortie/auth-store';
-import { useTRecipes } from '@/tortie/data/recipes';
+  AuthError,
+  authService,
+  type AuthFailure,
+} from '@/features/auth/auth-service';
+import { isFacebookEnabled } from '@/constants/env';
+import { firstName, useTortieAuth } from '@/tortie/auth-store';
 import { useFrame } from '@/tortie/frame';
 import { motionMultiplier, useMotion } from '@/tortie/motion';
 import { toast, useNav, type AuthStep } from '@/tortie/nav-store';
@@ -42,17 +41,27 @@ const STR: [string, string][] = [
   ['Strong', C.green],
 ];
 
-/** "elena.moretti@…" → "Elena Moretti" (the API has no account lookup yet). */
-function nameFromEmail(email: string): string {
-  return email
-    .split('@')[0]!
-    .split(/[._-]+/)
-    .filter(Boolean)
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(' ');
+const FALLBACK = 'Something went wrong. Try again.';
+
+function failureOf(e: unknown): AuthFailure {
+  return e instanceof AuthError
+    ? e.failure
+    : { kind: 'error', message: FALLBACK };
 }
 
-export function SignInFlow() {
+/** Copy for an email that already belongs to another sign-in method. */
+function collisionCopy(
+  f: Extract<AuthFailure, { kind: 'collision' }>,
+  attempted?: 'google' | 'facebook',
+): string {
+  if (f.existingProvider === 'password') {
+    return `This email already has an account with a password. Log in with it${attempted ? ` to connect ${PROV[attempted]}` : ''}.`;
+  }
+  const n = PROV[f.existingProvider];
+  return `This email already has an account with ${n}. Continue with ${n}${attempted ? ` to connect ${PROV[attempted]}` : ''}.`;
+}
+
+export function SignInFlow({ required = false }: { required?: boolean }) {
   const f = useFrame();
   const { m } = useMotion();
   const au = useNav((s) => s.au);
@@ -61,8 +70,6 @@ export function SignInFlow() {
   const prov = useNav((s) => s.auProv);
   const set = useNav((s) => s.set);
   const user = useTortieAuth((s) => s.user);
-  const recipes = useTRecipes();
-  const colls = useCollections();
 
   const [email, setEmail] = useState('');
   const [pw, setPw] = useState('');
@@ -73,6 +80,9 @@ export function SignInFlow() {
   const [stage, setStage] = useState(0);
   const [returning, setReturning] = useState(false);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // Bumped on Back / Cancel / unmount so a late auth result is ignored.
+  const attempt = useRef(0);
+  const resetting = useRef(false);
 
   const clear = () => {
     timers.current.forEach(clearTimeout);
@@ -81,23 +91,43 @@ export function SignInFlow() {
   const later = (ms: number, fn: () => void) =>
     timers.current.push(setTimeout(fn, ms));
 
-  const finish = (u: TortieUser, back: boolean) => {
+  const finish = (back: boolean) => {
+    clear();
     setBusy(false);
     setReturning(back);
-    useTortieAuth.getState().signIn(u);
-    set({ auStep: 'done', pfOut: true });
+    // Required mode has no profile layer underneath to hide.
+    set(required ? { auStep: 'done' } : { auStep: 'done', pfOut: true });
   };
 
-  const runOauth = (p: 'google' | 'facebook') => {
+  /** Settles a failed call: cancelled stays silent, anything else shows copy. */
+  const fail = (e: unknown, step: AuthStep, via?: 'google' | 'facebook') => {
+    const f = failureOf(e);
     clear();
+    setBusy(false);
+    set({ auStep: step });
+    if (f.kind === 'cancelled') return;
+    setErr(f.kind === 'collision' ? collisionCopy(f, via) : f.message);
+  };
+
+  const runOauth = async (p: 'google' | 'facebook') => {
+    clear();
+    const id = ++attempt.current;
     setStage(0);
     setErr('');
     set({ auStep: 'oauth', auProv: p });
-    const mm = motionMultiplier();
-    later(Math.max(500, 1100 * mm), () => setStage(1));
-    later(Math.max(900, 2300 * mm), () =>
-      finish({ name: '', email: '', prov: p as AuthProv, img: false }, true),
-    );
+    // Purely visual: the real call decides when this ends.
+    later(Math.max(500, 1100 * motionMultiplier()), () => setStage(1));
+    try {
+      const r =
+        p === 'google'
+          ? await authService.signInWithGoogle()
+          : await authService.signInWithFacebook();
+      if (id !== attempt.current) return;
+      finish(!r.isNewUser);
+    } catch (e) {
+      if (id !== attempt.current) return;
+      fail(e, 'start', p);
+    }
   };
 
   // Opening resets the form; opening straight onto a provider starts Connecting.
@@ -114,28 +144,46 @@ export function SignInFlow() {
         setPw('');
         setBusy(false);
         setShow(false);
-        if (s.auStep === 'oauth') runOauthRef.current(s.auProv);
+        if (s.auStep === 'oauth') void runOauthRef.current(s.auProv);
       }),
     [],
   );
-  useEffect(() => clear, []);
+  useEffect(
+    () => () => {
+      attempt.current++;
+      clear();
+    },
+    [],
+  );
+  // A fresh gate must not open on a stale "done" from the previous session.
+  useEffect(() => {
+    if (required && useNav.getState().auStep === 'done') {
+      set({ auStep: 'start' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const close = () => {
     clear();
+    attempt.current++;
     const done = useNav.getState().auStep === 'done';
     setBusy(false);
-    set({ au: false });
+    // Required: leaving "done" is what tells the gate the flow is over.
+    set(required && done ? { au: false, auStep: 'start' } : { au: false });
     if (done) {
-      setTimeout(
-        () => set({ pfOut: false }),
-        Math.round(300 * motionMultiplier()),
-      );
+      if (!required) {
+        setTimeout(
+          () => set({ pfOut: false }),
+          Math.round(300 * motionMultiplier()),
+        );
+      }
       const first = firstName(useTortieAuth.getState().user);
       toast(first === 'there' ? 'Welcome to Tortie' : `Welcome, ${first}`);
     }
   };
   const back = () => {
     clear();
+    attempt.current++;
     setErr('');
     setBusy(false);
     set({ auStep: 'start' });
@@ -153,27 +201,25 @@ export function SignInFlow() {
     setShow(false);
     set({ auStep: isLogin ? 'pw' : 'signup' });
   };
-  const login = () => {
+  const login = async () => {
     if (busy) return;
     if (pw.length < 6) {
       setErr('That password doesn’t match this email. Try again or reset it.');
       return;
     }
+    const id = ++attempt.current;
     setBusy(true);
     setErr('');
-    later(1100, () =>
-      finish(
-        {
-          name: nameFromEmail(email.trim()),
-          email: email.trim(),
-          prov: 'email',
-          img: false,
-        },
-        true,
-      ),
-    );
+    try {
+      const r = await authService.signInWithEmail(email.trim(), pw);
+      if (id !== attempt.current) return;
+      finish(!r.isNewUser);
+    } catch (e) {
+      if (id !== attempt.current) return;
+      fail(e, 'pw');
+    }
   };
-  const create = () => {
+  const create = async () => {
     if (busy) return;
     if (!name.trim()) {
       setErr('Add your name so the people you cook with know it’s you.');
@@ -183,19 +229,37 @@ export function SignInFlow() {
       setErr('Passwords need at least 8 characters.');
       return;
     }
+    const id = ++attempt.current;
     setBusy(true);
     setErr('');
-    later(1200, () =>
-      finish(
-        {
-          name: name.trim().replace(/\b\w/g, (c) => c.toUpperCase()),
-          email: email.trim(),
-          prov: 'email',
-          img: false,
-        },
-        false,
-      ),
-    );
+    try {
+      const r = await authService.signUpWithEmail(
+        name.trim().replace(/\b\w/g, (c) => c.toUpperCase()),
+        email.trim(),
+        pw,
+      );
+      if (id !== attempt.current) return;
+      finish(!r.isNewUser);
+    } catch (e) {
+      if (id !== attempt.current) return;
+      fail(e, 'signup');
+    }
+  };
+  const forgot = async () => {
+    if (resetting.current) return;
+    resetting.current = true;
+    const id = attempt.current;
+    try {
+      await authService.sendPasswordReset(email.trim());
+      toast('Reset link sent to ' + (email.trim() || 'your inbox'));
+    } catch (e) {
+      const f = failureOf(e);
+      if (id === attempt.current && f.kind !== 'cancelled') {
+        setErr(f.kind === 'error' ? f.message : FALLBACK);
+      }
+    } finally {
+      resetting.current = false;
+    }
   };
 
   const scN = pw
@@ -216,14 +280,16 @@ export function SignInFlow() {
         : 'Great password';
 
   const backable = step === 'pw' || step === 'signup' || step === 'oauth';
-  const open = useOpenProgress(au, Math.round(560 * m));
+  const shown = required || au;
+  const open = useOpenProgress(shown, Math.round(560 * m));
   const slide = useSlideUp(open);
   const backSt = useAnimatedStyle(() => ({
     opacity: tw(backable ? 1 : 0, 240, CSS_EASE),
     transform: [{ translateX: tw(backable ? 0 : -8, 320) }],
   }));
+  const noClose = required || step === 'done';
   const closeSt = useAnimatedStyle(() => ({
-    opacity: tw(step === 'done' ? 0 : 1, 240, CSS_EASE),
+    opacity: tw(noClose ? 0 : 1, 240, CSS_EASE),
   }));
 
   const createFade = useFade(name.trim() && pw.length >= 8 ? 1 : 0.45);
@@ -232,7 +298,7 @@ export function SignInFlow() {
 
   return (
     <Animated.View
-      pointerEvents={au ? 'auto' : 'none'}
+      pointerEvents={shown ? 'auto' : 'none'}
       onLayout={slide.onLayout}
       style={[
         StyleSheet.absoluteFill,
@@ -282,7 +348,7 @@ export function SignInFlow() {
         </Animated.View>
         <Animated.View
           style={closeSt}
-          pointerEvents={step === 'done' ? 'none' : 'auto'}
+          pointerEvents={noClose ? 'none' : 'auto'}
         >
           <Press
             onPress={close}
@@ -345,10 +411,12 @@ export function SignInFlow() {
             <BrandLogo brand="google" size={20} />
             <T style={sans(15, 700)}>Continue with Google</T>
           </OutlineBtn>
-          <OutlineBtn onPress={() => runOauth('facebook')}>
-            <BrandLogo brand="facebook" size={20} />
-            <T style={sans(15, 700)}>Continue with Facebook</T>
-          </OutlineBtn>
+          {isFacebookEnabled() && (
+            <OutlineBtn onPress={() => runOauth('facebook')}>
+              <BrandLogo brand="facebook" size={20} />
+              <T style={sans(15, 700)}>Continue with Facebook</T>
+            </OutlineBtn>
+          )}
         </View>
         <View
           style={{
@@ -450,9 +518,7 @@ export function SignInFlow() {
         </View>
         <ErrorLine err={step === 'pw' ? err : ''} />
         <Press
-          onPress={() =>
-            toast('Reset link sent to ' + (email.trim() || 'your inbox'))
-          }
+          onPress={forgot}
           style={{
             alignSelf: 'flex-start',
             paddingVertical: 12,
@@ -649,7 +715,7 @@ export function SignInFlow() {
         >
           {returning
             ? 'Welcome back. Your recipes, plan and pantry are synced to this phone.'
-            : `Your ${recipes.total} recipes and ${colls.data?.items.length ?? 0} collections are now saved to your account.`}
+            : 'Your kitchen is ready. Import a recipe to get started.'}
         </T>
         <View style={{ flex: 1 }} />
         <Press
