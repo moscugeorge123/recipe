@@ -75,7 +75,14 @@ import { Grabber, Segmented } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
-import { DETAIL_TABS } from '@/tortie/screens/detail-layout';
+import {
+  DESC_LINES,
+  DETAIL_TABS,
+  activePanelHeight,
+  descLayout,
+  scrollAfterTabSwitch,
+  type DescLayout,
+} from '@/tortie/screens/detail-layout';
 import { StepClipChip } from '@/tortie/screens/step-clip';
 import { OpenInNewIcon } from '@/tortie/ui/svg-icons';
 import {
@@ -121,7 +128,50 @@ export function RecipeDetail() {
     if (id && seg === 1 && hasVideo) useNav.getState().primeClip(id);
   }, [id, seg, hasVideo]);
 
+  const scrollY = useRef(0);
+  const sheetY = useRef(0);
+  const controlY = useRef(0);
+  const [heights, setHeights] = useState<(number | undefined)[]>([]);
+  const panelH = activePanelHeight(heights, seg);
+  const { m: motionM } = useMotion();
+  const heightSV = useSharedValue(0);
+  const heightPrimed = useRef(false);
+  useEffect(() => {
+    if (panelH == null) return;
+    heightSV.value = heightPrimed.current
+      ? withTiming(panelH, {
+          duration: Math.round(460 * motionM),
+          easing: EASE,
+        })
+      : panelH;
+    heightPrimed.current = true;
+  }, [panelH, motionM, heightSV]);
+  const clip = useAnimatedStyle(() => ({
+    height: heightSV.value > 0 ? heightSV.value : undefined,
+  }));
+  const measurePanel = (i: number, value: number) => {
+    const next = Math.round(value);
+    setHeights((cur) => {
+      if (cur[i] === next) return cur;
+      const copy = cur.slice();
+      copy[i] = next;
+      return copy;
+    });
+  };
+  const pickSeg = (next: 0 | 1) => {
+    if (next === seg) return;
+    const to = scrollAfterTabSwitch(
+      scrollY.current,
+      sheetY.current + controlY.current - (f.pushTop + 54),
+      activePanelHeight(heights, seg),
+      activePanelHeight(heights, next),
+    );
+    setSeg(next);
+    if (to != null) ref.current?.scrollTo({ y: to, animated: true });
+  };
+
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    scrollY.current = e.nativeEvent.contentOffset.y;
     const v = e.nativeEvent.contentOffset.y > 250;
     if (v !== scr) setScr(v);
   };
@@ -188,6 +238,9 @@ export function RecipeDetail() {
           <HeroChips chips={heroChips} />
         </Photo>
         <View
+          onLayout={(e) => {
+            sheetY.current = e.nativeEvent.layout.y;
+          }}
           style={{
             marginTop: -30,
             backgroundColor: C.bg,
@@ -256,19 +309,7 @@ export function RecipeDetail() {
               ) : null}
             </View>
           ) : null}
-          {r?.desc ? (
-            <T
-              style={{
-                fontFamily: F.serif400i,
-                fontSize: 17,
-                lineHeight: 25.5,
-                color: C.ink2,
-                marginTop: 10,
-              }}
-            >
-              {r.desc}
-            </T>
-          ) : null}
+          {r?.desc ? <Description key={r.desc} text={r.desc} /> : null}
           <TranslationBanner recipeId={id} translation={r?.view?.translation} />
           {canNote ? (
             <NotesRow
@@ -276,16 +317,24 @@ export function RecipeDetail() {
               onPress={() => useNav.getState().openNotes(id)}
             />
           ) : null}
-          <Segmented
-            style={{ marginTop: 24 }}
-            height={40}
-            index={seg}
-            items={[
-              { label: DETAIL_TABS[0], onPress: () => setSeg(0) },
-              { label: DETAIL_TABS[1], onPress: () => setSeg(1) },
-            ]}
-          />
-          <View style={{ overflow: 'hidden', marginHorizontal: -20 }}>
+          <View
+            onLayout={(e) => {
+              controlY.current = e.nativeEvent.layout.y;
+            }}
+          >
+            <Segmented
+              style={{ marginTop: 24 }}
+              height={40}
+              index={seg}
+              items={[
+                { label: DETAIL_TABS[0], onPress: () => pickSeg(0) },
+                { label: DETAIL_TABS[1], onPress: () => pickSeg(1) },
+              ]}
+            />
+          </View>
+          <Animated.View
+            style={[{ overflow: 'hidden', marginHorizontal: -20 }, clip]}
+          >
             <Animated.View
               style={[
                 {
@@ -296,7 +345,14 @@ export function RecipeDetail() {
                 track,
               ]}
             >
-              <Animated.View style={[{ width, paddingHorizontal: 20 }, o0]}>
+              <Animated.View
+                pointerEvents={seg === 0 ? 'auto' : 'none'}
+                importantForAccessibility={
+                  seg === 0 ? 'auto' : 'no-hide-descendants'
+                }
+                onLayout={(e) => measurePanel(0, e.nativeEvent.layout.height)}
+                style={[{ width, paddingHorizontal: 20 }, o0]}
+              >
                 <View style={{ paddingTop: 18, paddingBottom: 8 }}>
                   <T
                     style={sans(14, 600, C.ink2)}
@@ -356,6 +412,11 @@ export function RecipeDetail() {
                 ))}
               </Animated.View>
               <Animated.View
+                pointerEvents={seg === 1 ? 'auto' : 'none'}
+                importantForAccessibility={
+                  seg === 1 ? 'auto' : 'no-hide-descendants'
+                }
+                onLayout={(e) => measurePanel(1, e.nativeEvent.layout.height)}
                 style={[{ width, paddingTop: 8, paddingHorizontal: 20 }, o1]}
               >
                 {r?.steps.map((st, i) => (
@@ -452,7 +513,7 @@ export function RecipeDetail() {
                 ))}
               </Animated.View>
             </Animated.View>
-          </View>
+          </Animated.View>
         </View>
       </ScrollView>
 
@@ -601,6 +662,77 @@ export function RecipeDetail() {
         </Press>
       </View>
     </>
+  );
+}
+
+/** Italic description under the byline: 3 lines, with More / Less when there is more. */
+function Description({ text }: { text: string }) {
+  const { m } = useMotion();
+  const ms = Math.round(360 * m);
+  const [layout, setLayout] = useState<DescLayout | null>(null);
+  const [open, setOpen] = useState(false);
+  /** Keeps the line clamp off while the height animates. */
+  const [clamp, setClamp] = useState(true);
+  const h = useSharedValue(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (timer.current) clearTimeout(timer.current);
+    },
+    [],
+  );
+  const box = useAnimatedStyle(() => ({
+    height: h.value > 0 ? h.value : undefined,
+  }));
+  const truncated = !!layout?.truncated;
+
+  const toggle = () => {
+    if (!layout) return;
+    if (timer.current) clearTimeout(timer.current);
+    const next = !open;
+    setOpen(next);
+    h.value = withTiming(next ? layout.full : layout.clamped, {
+      duration: ms,
+      easing: EASE,
+    });
+    if (next) setClamp(false);
+    else timer.current = setTimeout(() => setClamp(true), ms);
+  };
+
+  return (
+    <View style={{ marginTop: 10 }}>
+      <Animated.View style={[{ overflow: 'hidden' }, truncated ? box : null]}>
+        <T
+          numberOfLines={layout && clamp ? DESC_LINES : undefined}
+          onTextLayout={(e) => {
+            if (layout) return;
+            const next = descLayout(e.nativeEvent.lines);
+            h.value = next.clamped;
+            setLayout(next);
+          }}
+          style={{
+            fontFamily: F.serif400i,
+            fontSize: 17,
+            lineHeight: 25.5,
+            color: C.ink2,
+            opacity: layout ? 1 : 0,
+          }}
+        >
+          {text}
+        </T>
+      </Animated.View>
+      {truncated ? (
+        <Press
+          onPress={toggle}
+          accessibilityRole="button"
+          accessibilityLabel={open ? 'Show less' : 'Show more'}
+          accessibilityState={{ expanded: open }}
+          style={{ alignSelf: 'flex-start', paddingVertical: 6 }}
+        >
+          <T style={sans(14, 700, C.green)}>{open ? 'Less' : 'More'}</T>
+        </Press>
+      ) : null}
+    </View>
   );
 }
 
