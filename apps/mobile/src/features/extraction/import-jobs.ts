@@ -24,6 +24,8 @@ export type ImportJob = {
   createdAt: number;
   finishedAt?: number;
   recipeId?: string;
+  /** The link was already in the Cookbook; nothing new was added. */
+  duplicate?: boolean;
   title?: string;
   thumb?: string | null;
   errorCode?: string;

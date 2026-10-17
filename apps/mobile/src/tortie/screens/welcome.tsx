@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
+import { advertisedSourcesText } from '@/features/share/sources';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { useMotion } from '@/tortie/motion';
@@ -38,7 +39,7 @@ const PAGES: PageDef[] = [
   {
     kicker: 'Welcome to Tortie',
     title: 'Every recipe you love, in one kitchen',
-    body: 'Save recipes from Instagram, TikTok, YouTube, Pinterest or any website. Snap a cookbook page, or write down the one in your head.',
+    body: `Save recipes from ${advertisedSourcesText()}. Snap a cookbook page, or write down the one in your head.`,
     Art: ImportArt,
   },
   {
@@ -404,8 +405,8 @@ function Badge({ children }: { children: ReactNode }) {
 const ORBIT: { x: number; y: number; brand?: Brand; icon?: string }[] = [
   { x: 18, y: 6, brand: 'instagram' },
   { x: 208, y: 0, brand: 'youtube' },
-  { x: 0, y: 112, brand: 'tiktok' },
-  { x: 226, y: 104, brand: 'pinterest' },
+  { x: 0, y: 112, icon: 'edit' },
+  { x: 226, y: 104, icon: 'link' },
   { x: 54, y: 196, icon: 'photo_camera' },
   { x: 172, y: 196, icon: 'language' },
 ];

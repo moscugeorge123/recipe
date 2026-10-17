@@ -1,6 +1,7 @@
 import { fetchHtml, PREVIEW_HTTP_TIMEOUT_MS, type FetchLike } from '../fetch-html.js';
 import { parseOpenGraph } from '../open-graph.js';
 import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
+import { looksLikeRecipePage } from '../recipe-precheck.js';
 import { dedupeExactUrls, pickBestImage } from '../thumbnails.js';
 import type { LinkPreview, LinkUnfurler } from '../types.js';
 
@@ -51,6 +52,7 @@ export class OpenGraphLinkUnfurler implements LinkUnfurler {
       author: null,
       description: og.description,
       thumbnails: dedupeExactUrls(best ? [best, ...og.images.filter((image) => image !== best)] : []),
+      looksLikeRecipe: looksLikeRecipePage(html),
     };
   }
 }

@@ -1,8 +1,6 @@
 import {
   importStageIndex,
   importStageLabel,
-  stageBoundsFor,
-  targetProgress,
 } from '@/features/extraction/import-stages';
 
 describe('import stages', () => {

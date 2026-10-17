@@ -48,16 +48,26 @@ const CODE_COPY: Record<string, Copy> = {
     retryable: true,
   },
   UNSUPPORTED_SOURCE: {
-    title: 'This video is private',
-    message:
-      'That source isn’t available yet — or the link is locked. Try a website, Instagram or YouTube URL.',
+    title: 'That source isn’t supported yet',
+    message: 'Try a recipe website, Instagram or YouTube link instead.',
     actionLabel: 'Paste a different link',
     retryable: false,
   },
   INVALID_URL: {
-    title: 'This video is private',
-    message:
-      'That source isn’t available yet — or the link is locked. Try a website, Instagram or YouTube URL.',
+    title: 'That doesn’t look like a valid link',
+    message: 'Check the address and try again.',
+    actionLabel: 'Paste a different link',
+    retryable: false,
+  },
+  HOST_NOT_FOUND: {
+    title: 'We couldn’t find that site',
+    message: 'Check the address and try again.',
+    actionLabel: 'Paste a different link',
+    retryable: false,
+  },
+  BLOCKED: {
+    title: 'That site won’t let us in',
+    message: 'It blocks automated readers. Try another link, or write it down.',
     actionLabel: 'Paste a different link',
     retryable: false,
   },
@@ -304,8 +314,25 @@ export function mapUserError(
 }
 
 /**
- * One-line toast for a failed link import. `code` is the API error code, from a thrown
- * `ApiError` or the failed job's `error.code`.
+ * The error code to show for a failed import request. The API answers `INVALID_URL` both for
+ * a malformed link and for a domain that does not resolve; the second reads differently
+ * ("We couldn't find that site"), so it gets its own code.
+ */
+export function importErrorCodeOf(error: unknown): string | undefined {
+  const code = errorCodeOf(error);
+  if (
+    code === 'INVALID_URL' &&
+    error instanceof Error &&
+    /resolve/i.test(error.message)
+  ) {
+    return 'HOST_NOT_FOUND';
+  }
+  return code;
+}
+
+/**
+ * Toast for a failed link import: one or two lines (about 90 characters at most). `code` is
+ * the API error code, from a thrown `ApiError` or the failed job's `error.code`.
  */
 export function importFailureToast(
   code: string | undefined,
@@ -316,10 +343,17 @@ export function importFailureToast(
     case 'NOT_A_RECIPE':
       return 'That link doesn’t look like a food recipe';
     case 'UNSUPPORTED_SOURCE':
+      return `${source ? `${source} links` : 'That kind of link'} can’t be imported yet — try a recipe website, Instagram or YouTube`;
     case 'INVALID_URL':
-      return `${source ? `${source} links aren’t` : 'That link isn’t'} supported yet — try a website, Instagram or YouTube`;
+      return 'That doesn’t look like a valid link — check the address';
+    case 'HOST_NOT_FOUND':
+      return 'We couldn’t find that site. Check the address and try again';
+    case 'BLOCKED':
+      return 'That site won’t let us read it — try another link';
+    case 'NOT_FOUND':
+      return 'That page isn’t there any more — check the link';
     case 'CONTENT_ACQUISITION_FAILED':
-      return 'Couldn’t open that link — check it and try again';
+      return 'We couldn’t reach that link — check it and try again';
     case 'TOO_MANY_REQUESTS':
     case 'PROVIDER_RATE_LIMITED':
       return 'That source is busy — wait a moment and try again';
@@ -335,10 +369,10 @@ export function importErrorCopy(
   const mapped = mapUserError(code ?? 'EXTRACTION_FAILED', 'import', {
     log: false,
   });
-  if ((code === 'UNSUPPORTED_SOURCE' || code === 'INVALID_URL') && source) {
+  if (code === 'UNSUPPORTED_SOURCE' && source) {
     return {
       ...mapped,
-      message: `${source} isn’t available yet — or the link is locked. Try a website, Instagram or YouTube URL.`,
+      title: `${source} links aren’t supported yet`,
     };
   }
   return mapped;

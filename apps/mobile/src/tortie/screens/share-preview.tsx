@@ -1,9 +1,10 @@
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { ScrollView, View, type ViewStyle } from 'react-native';
 
 import { useLinkPreview } from '@/features/link-preview/hooks/use-link-preview';
+import { supportOf, unsupportedSourceNote } from '@/features/share/sources';
 import { useSharedImport } from '@/features/share/use-shared-import';
 import {
   hostOf,
@@ -34,6 +35,8 @@ export function SharePreview() {
   const preview = useLinkPreview(open ? (url ?? undefined) : undefined);
   const imp = useSharedImport();
   const [dock, setDock] = useState(120);
+  // "Import anyway" on a page that does not look like a recipe, remembered per link.
+  const [anywayFor, setAnywayFor] = useState<string | null>(null);
 
   if (!url) return null;
 
@@ -46,15 +49,33 @@ export function SharePreview() {
       ? fromPreview
       : (fromUrl ?? fromPreview);
   const host = hostOf(url);
-  const title = preview.data?.title?.trim() || hinted?.trim() || host;
-  const author = preview.data?.author?.trim() || null;
-  const description = preview.data?.description?.trim() || null;
-  const thumb = preview.data?.thumbnails.find((item) =>
-    /^https?:\/\//i.test(item.url),
-  )?.url;
   const brand = source && source.kind !== 'web' ? source.kind : null;
+  // TikTok and Facebook show a login wall to the preview fetcher, so its title ("TikTok -
+  // Make Your Day") says nothing about the link. Show only the source and the domain.
+  const blocked = brand && supportOf(brand) === 'unsupported' ? source : null;
+  const fetchedTitle = blocked ? '' : preview.data?.title?.trim() || '';
+  const hintedTitle = blocked ? '' : hinted?.trim() || '';
+  // A platform page with no title of its own gets a note instead of its hostname as a title.
+  const title = fetchedTitle || hintedTitle || (brand ? '' : host);
+  const author = blocked ? null : preview.data?.author?.trim() || null;
+  const description = blocked
+    ? null
+    : preview.data?.description?.trim() || null;
+  const thumb = blocked
+    ? undefined
+    : preview.data?.thumbnails.find((item) => /^https?:\/\//i.test(item.url))
+        ?.url;
   const hue = hueOf(url);
   const reading = preview.isFetching && !preview.data;
+  const noPreview =
+    !blocked &&
+    !!brand &&
+    !title &&
+    !description &&
+    !reading &&
+    !preview.isError;
+  const notRecipe =
+    !blocked && preview.data?.looksLikeRecipe === false && anywayFor !== url;
   const cta = brand ? 'Import from ' + source!.name : 'Import recipe';
   const barPad = Math.max(30, f.bottom);
 
@@ -92,16 +113,18 @@ export function SharePreview() {
           }}
         >
           {source ? <SourceChip source={source} /> : null}
-          <T
-            numberOfLines={4}
-            style={serif(31, 500, C.ink, {
-              lineHeight: 34.72,
-              letterSpacing: em(31, -0.02),
-              marginTop: 12,
-            })}
-          >
-            {title}
-          </T>
+          {title ? (
+            <T
+              numberOfLines={4}
+              style={serif(31, 500, C.ink, {
+                lineHeight: 34.72,
+                letterSpacing: em(31, -0.02),
+                marginTop: 12,
+              })}
+            >
+              {title}
+            </T>
+          ) : null}
           {author ? (
             <T style={[sans(14, 500, C.ink2), { marginTop: 6 }]}>{author}</T>
           ) : null}
@@ -144,6 +167,25 @@ export function SharePreview() {
             <T style={[sans(14, 500, C.ink3), { marginTop: 12 }]}>
               Couldn’t load a preview. You can still import it.
             </T>
+          ) : null}
+          {noPreview ? (
+            <T style={[sans(14, 500, C.ink3), { marginTop: 12 }]}>
+              Preview not available. You can still import it.
+            </T>
+          ) : null}
+          {blocked ? (
+            <Notice
+              icon="link_off"
+              text={unsupportedSourceNote(blocked.name)}
+              style={{ marginTop: 16 }}
+            />
+          ) : null}
+          {notRecipe && imp.phase === 0 ? (
+            <Notice
+              icon="no_meals"
+              text="This doesn’t look like a recipe. You can still try importing it."
+              style={{ marginTop: 16 }}
+            />
           ) : null}
           <View
             style={{
@@ -215,7 +257,18 @@ export function SharePreview() {
           locations={[0, 0.36, 1]}
           style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
         />
-        {imp.phase === 0 ? <ImportButton label={cta} onPress={start} /> : null}
+        {imp.phase === 0 && blocked ? (
+          <ImportButton label="Not supported yet" onPress={close} disabled />
+        ) : null}
+        {imp.phase === 0 && !blocked && notRecipe ? (
+          <OutlineButton
+            label="Import anyway"
+            onPress={() => setAnywayFor(url)}
+          />
+        ) : null}
+        {imp.phase === 0 && !blocked && !notRecipe ? (
+          <ImportButton label={cta} onPress={start} />
+        ) : null}
         {imp.phase === 1 ? (
           <Press
             onPress={imp.cancel}
@@ -237,6 +290,7 @@ export function SharePreview() {
         ) : null}
         {imp.phase === 2 ? (
           <SavedDock
+            duplicate={imp.job?.duplicate}
             title={imp.recipe?.title}
             meta={
               imp.recipe
@@ -283,7 +337,36 @@ function SourceChip({ source }: { source: LinkSource }) {
   );
 }
 
-function ImportButton({
+function Notice({
+  icon,
+  text,
+  style,
+}: {
+  icon: string;
+  text: string;
+  style?: ViewStyle;
+}) {
+  return (
+    <View
+      style={[
+        {
+          flexDirection: 'row',
+          alignItems: 'flex-start',
+          gap: 10,
+          padding: 14,
+          borderRadius: 16,
+          backgroundColor: C.surface3,
+        },
+        style,
+      ]}
+    >
+      <Glyph name={icon} size={20} color={C.ink2} />
+      <T style={[sans(14, 500, C.ink2), { flex: 1 }]}>{text}</T>
+    </View>
+  );
+}
+
+function OutlineButton({
   label,
   onPress,
 }: {
@@ -294,6 +377,38 @@ function ImportButton({
     <Press
       onPress={onPress}
       scale={0.97}
+      easing={CSS_EASE}
+      accessibilityLabel={label}
+      style={{
+        height: 56,
+        borderRadius: 99,
+        borderWidth: 1.5,
+        borderColor: C.line,
+        backgroundColor: C.white,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <T style={sans(16, 600)}>{label}</T>
+    </Press>
+  );
+}
+
+function ImportButton({
+  label,
+  onPress,
+  disabled = false,
+}: {
+  label: string;
+  onPress: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Press
+      onPress={onPress}
+      disabled={disabled}
+      accessibilityState={{ disabled }}
+      scale={0.97}
       ms={220}
       easing={CSS_EASE}
       accessibilityLabel={label}
@@ -301,6 +416,7 @@ function ImportButton({
         height: 56,
         borderRadius: 99,
         backgroundColor: C.green,
+        opacity: disabled ? 0.4 : 1,
         alignItems: 'center',
         justifyContent: 'center',
         boxShadow: SH.greenCta,
@@ -314,8 +430,10 @@ function ImportButton({
 function SavedDock({
   title,
   meta,
+  duplicate,
   onOpen,
 }: {
+  duplicate?: boolean;
   title?: string;
   meta: string | null;
   onOpen: () => void;
@@ -324,7 +442,9 @@ function SavedDock({
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Glyph name="check_circle" size={18} color={C.green} fill />
-        <T style={sans(13, 700, C.green)}>Saved to Cookbook</T>
+        <T style={sans(13, 700, C.green)}>
+          {duplicate ? 'Already in your cookbook' : 'Saved to Cookbook'}
+        </T>
       </View>
       {title ? (
         <T numberOfLines={1} style={[serif(20, 600), { marginTop: 4 }]}>

@@ -13,6 +13,11 @@ export interface LinkPreview {
   thumbnails: LinkPreviewThumbnail[];
   /** The site refused the preview request; importing may still work through the fallback. */
   blocked?: boolean;
+  /**
+   * Web pages only: whether the page reads like a food recipe. `null` when it could not be
+   * judged; absent for platforms (Instagram, YouTube) where the importer decides.
+   */
+  looksLikeRecipe?: boolean | null;
 }
 
 export interface LinkUnfurler {

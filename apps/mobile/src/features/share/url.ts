@@ -12,7 +12,7 @@ export type LinkSource = {
   name: string;
 };
 
-const PLATFORMS: { kind: Brand; name: string; re: RegExp }[] = [
+export const PLATFORMS: { kind: Brand; name: string; re: RegExp }[] = [
   { kind: 'instagram', name: 'Instagram', re: /instagram\.com|instagr\.am/i },
   { kind: 'tiktok', name: 'TikTok', re: /tiktok\.com/i },
   { kind: 'youtube', name: 'YouTube', re: /youtube\.com|youtu\.be/i },

@@ -9,7 +9,10 @@ describe('import error groups', () => {
   test('maps backend codes onto the five groups', () => {
     expect(errorGroupOf('NOT_A_RECIPE')).toBe('not_recipe');
     expect(errorGroupOf('UNSUPPORTED_SOURCE')).toBe('unsupported');
-    expect(errorGroupOf('INVALID_URL')).toBe('unsupported');
+    expect(errorGroupOf('INVALID_URL')).toBe('cant_open');
+    expect(errorGroupOf('HOST_NOT_FOUND')).toBe('cant_open');
+    expect(errorGroupOf('BLOCKED')).toBe('cant_open');
+    expect(errorGroupOf('NOT_FOUND')).toBe('cant_open');
     expect(errorGroupOf('CONTENT_ACQUISITION_FAILED')).toBe('cant_open');
     expect(errorGroupOf('TOO_MANY_REQUESTS')).toBe('rate_limited');
     expect(errorGroupOf('PROVIDER_RATE_LIMITED')).toBe('rate_limited');
@@ -36,10 +39,10 @@ describe('import error groups', () => {
 
   test('names the platform in the unsupported message', () => {
     expect(importErrorCopy('unsupported', 'TikTok').message).toBe(
-      'TikTok links aren’t supported yet',
+      'TikTok links can’t be imported yet',
     );
     expect(importErrorCopy('unsupported').message).toBe(
-      'That link isn’t supported yet',
+      'That kind of link can’t be imported yet',
     );
   });
 

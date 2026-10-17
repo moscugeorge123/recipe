@@ -18,6 +18,7 @@ import { getRecipe } from '@/features/recipes/api';
 import { queryClient } from '@/lib/query-client';
 import {
   errorCodeOf,
+  importErrorCodeOf,
   importFailureToast,
   isAbortError,
 } from '@/lib/user-error';
@@ -62,6 +63,8 @@ type Runtime = {
   serverStatus?: string;
   /** Set once the API says the recipe is saved; the bar then runs to 100. */
   recipeId?: string;
+  /** The API answered with a recipe that was already in the Cookbook. */
+  duplicate?: boolean;
   doneAt?: number;
   lastTick: number;
 };
@@ -140,6 +143,7 @@ export function startImport(
       }
       if (res.recipeId && (res.deduplicated || res.status === 'completed')) {
         rt.recipeId = res.recipeId;
+        rt.duplicate = !!res.deduplicated;
         return;
       }
       rt.serverJobId = res.jobId;
@@ -147,7 +151,7 @@ export function startImport(
     })
     .catch((e) => {
       if (!runtimes.has(id) || isAbortError(e)) return;
-      fail(id, errorCodeOf(e) ?? 'EXTRACTION_FAILED');
+      fail(id, importErrorCodeOf(e) ?? 'EXTRACTION_FAILED');
     });
 
   return id;
@@ -220,12 +224,13 @@ function fail(id: string, code: string) {
   stopTickerIfIdle();
 }
 
-function complete(id: string, recipeId: string) {
+function complete(id: string, recipeId: string, duplicate: boolean) {
   if (!runtimes.delete(id)) return;
   useImports.getState().patch(id, {
     status: 'done',
     pct: 100,
     recipeId,
+    ...(duplicate ? { duplicate: true } : {}),
     finishedAt: Date.now(),
   });
   queryClient
@@ -239,10 +244,24 @@ function complete(id: string, recipeId: string) {
       useImports
         .getState()
         .patch(id, { title: r.title, thumb: r.thumbnailUrl ?? null });
-      if (!quiet) toast(`${r.title} added to Cookbook`, 'ok', open);
+      if (!quiet) {
+        toast(
+          duplicate
+            ? `Already in your cookbook — ${r.title}`
+            : `${r.title} added to Cookbook`,
+          'ok',
+          open,
+        );
+      }
     })
     .catch(() => {
-      if (!quiet) toast('Recipe added to Cookbook', 'ok', open);
+      if (!quiet) {
+        toast(
+          duplicate ? 'Already in your cookbook' : 'Recipe added to Cookbook',
+          'ok',
+          open,
+        );
+      }
     });
   stopTickerIfIdle();
 }
@@ -305,7 +324,7 @@ function tick() {
       continue;
     }
     if (rt.doneAt) {
-      if (now >= rt.doneAt) complete(id, rt.recipeId!);
+      if (now >= rt.doneAt) complete(id, rt.recipeId!, !!rt.duplicate);
       continue;
     }
     const creep =

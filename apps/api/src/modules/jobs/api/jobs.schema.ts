@@ -33,6 +33,7 @@ export const linkPreviewResponseSchema = z.object({
   description: z.string().nullable(),
   thumbnails: z.array(z.object({ url: z.string() })),
   blocked: z.boolean().optional(),
+  looksLikeRecipe: z.boolean().nullish(),
 });
 
 export const jobIdParamsSchema = z.object({
