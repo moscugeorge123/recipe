@@ -43,6 +43,7 @@ import { Grabber } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
+import { ProfileButton } from '@/tortie/ui/profile-button';
 import { Sheet } from '@/tortie/ui/sheet';
 import { Stagger } from '@/tortie/ui/stagger';
 import { TabScroll } from '@/tortie/ui/tab-scroll';
@@ -141,17 +142,26 @@ function PlanHeader({
   return (
     <Stagger i={0} on={on}>
       <Animated.View style={pad}>
-        <Animated.Text allowFontScaling={false} style={[serif(36, 500), title]}>
-          Meal plan
-        </Animated.Text>
-        <Animated.View style={[{ overflow: 'hidden' }, subA]}>
-          <T
-            numberOfLines={1}
-            style={[sans(14, 400, C.ink2), { lineHeight: 20 }]}
-          >
-            {sub}
-          </T>
-        </Animated.View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Animated.Text
+              allowFontScaling={false}
+              numberOfLines={1}
+              style={[serif(36, 500), title]}
+            >
+              Meal plan
+            </Animated.Text>
+            <Animated.View style={[{ overflow: 'hidden' }, subA]}>
+              <T
+                numberOfLines={1}
+                style={[sans(14, 400, C.ink2), { lineHeight: 20 }]}
+              >
+                {sub}
+              </T>
+            </Animated.View>
+          </View>
+          <ProfileButton compact={compact} />
+        </View>
       </Animated.View>
     </Stagger>
   );

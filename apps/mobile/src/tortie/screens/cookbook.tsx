@@ -46,6 +46,7 @@ import { Glyph } from '@/tortie/ui/icon';
 import { Input, RevealBox } from '@/tortie/ui/input';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
+import { ProfileButton } from '@/tortie/ui/profile-button';
 import { Stagger } from '@/tortie/ui/stagger';
 import { Byline, TimeChip } from '@/tortie/ui/time-chip';
 import { TabList, TabScroll } from '@/tortie/ui/tab-scroll';
@@ -191,18 +192,33 @@ function CookbookHeader({
   return (
     <Stagger i={0} on={on}>
       <Animated.View style={pad}>
-        <Animated.Text
-          allowFontScaling={false}
-          style={[
-            { fontFamily: F.serif500, color: C.ink, includeFontPadding: false },
-            title,
-          ]}
-        >
-          Cookbook
-        </Animated.Text>
-        <Animated.View style={[{ overflow: 'hidden' }, subBox]}>
-          <T style={sans(14, 400, C.ink2, { lineHeight: 20 })}>{sub}</T>
-        </Animated.View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Animated.Text
+              allowFontScaling={false}
+              numberOfLines={1}
+              style={[
+                {
+                  fontFamily: F.serif500,
+                  color: C.ink,
+                  includeFontPadding: false,
+                },
+                title,
+              ]}
+            >
+              Cookbook
+            </Animated.Text>
+            <Animated.View style={[{ overflow: 'hidden' }, subBox]}>
+              <T
+                numberOfLines={1}
+                style={sans(14, 400, C.ink2, { lineHeight: 20 })}
+              >
+                {sub}
+              </T>
+            </Animated.View>
+          </View>
+          <ProfileButton compact={compact} />
+        </View>
       </Animated.View>
     </Stagger>
   );

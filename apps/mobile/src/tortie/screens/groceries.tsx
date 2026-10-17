@@ -60,6 +60,7 @@ import { iconText } from '@/tortie/ui/icon-text';
 import { Input, RevealBox } from '@/tortie/ui/input';
 import { Dots, Orb, Pop, ShimmerText } from '@/tortie/ui/keyframes';
 import { Press } from '@/tortie/ui/press';
+import { ProfileButton } from '@/tortie/ui/profile-button';
 import { Sheet } from '@/tortie/ui/sheet';
 import { Stagger } from '@/tortie/ui/stagger';
 import { TabScroll } from '@/tortie/ui/tab-scroll';
@@ -546,9 +547,10 @@ function GrocHeader({
           pad,
         ]}
       >
-        <View style={{ minWidth: 0, flexShrink: 1 }}>
+        <View style={{ minWidth: 0, flex: 1 }}>
           <Animated.Text
             allowFontScaling={false}
+            numberOfLines={1}
             style={[serif(36, 500), title]}
           >
             Groceries
@@ -561,6 +563,9 @@ function GrocHeader({
               {sub}
             </T>
           </Animated.View>
+        </View>
+        <View style={{ alignSelf: 'center' }}>
+          <ProfileButton compact={compact} />
         </View>
       </Animated.View>
       <Segmented
