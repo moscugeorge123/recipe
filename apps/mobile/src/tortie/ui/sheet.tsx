@@ -32,9 +32,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useMotion } from '@/tortie/motion';
 import { C, EASE, SH } from '@/tortie/theme';
+import { tw } from '@/tortie/ui/anim';
 import { BlurWhenClosed, KeyboardScroll } from '@/tortie/ui/input';
 import { useKeyboard, useKeyboardLift } from '@/tortie/ui/keyboard';
 import { sheetDragDecision } from '@/tortie/ui/sheet-drag';
+import { sheetKeyboardLayout } from '@/tortie/ui/sheet-keyboard';
 import {
   blockAfterSettle,
   blockOnDragEnd,
@@ -48,7 +50,6 @@ import { SheetScrollCtx, type SheetScrollApi } from '@/tortie/ui/sheet-scroll';
 export { SheetScroll } from '@/tortie/ui/sheet-scroll';
 
 const KEYBOARD_TOP_GAP = 8;
-const KEYBOARD_BOTTOM_GAP = 16;
 
 const SheetDrag = createContext<GestureType | null>(null);
 const SheetPressCtx = createContext<() => boolean>(() => true);
@@ -143,14 +144,18 @@ export function Sheet({
   const { height: winH } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const kb = useKeyboard();
-  const lift = useKeyboardLift(KEYBOARD_BOTTOM_GAP);
+  const flat = StyleSheet.flatten(style);
+  const restingPad =
+    typeof flat?.paddingBottom === 'number' ? flat.paddingBottom : 34;
+  const kbLayout = sheetKeyboardLayout(avoidKeyboard ? kb.h : 0, restingPad);
+  const lift = useKeyboardLift(kbLayout.gap);
+  const padAnim = useAnimatedStyle(() => ({
+    paddingBottom: tw(kbLayout.padBottom, kb.ms, EASE),
+  }));
   const frame = kb.frame > 0 ? kb.frame : winH;
   const kbCap =
     avoidKeyboard && kb.h > 0
-      ? Math.max(
-          0,
-          frame - kb.h - KEYBOARD_BOTTOM_GAP - insets.top - KEYBOARD_TOP_GAP,
-        )
+      ? Math.max(0, frame - kb.h - kbLayout.gap - insets.top - KEYBOARD_TOP_GAP)
       : undefined;
   const cap = maxHeight ? winH * maxHeight : undefined;
   const [mounted, setMounted] = useState(open || keepMounted);
@@ -378,10 +383,8 @@ export function Sheet({
   }));
 
   if (!mounted) return null;
-  const flat = StyleSheet.flatten(style);
   const padTop = typeof flat?.paddingTop === 'number' ? flat.paddingTop : 10;
-  const padBottom =
-    typeof flat?.paddingBottom === 'number' ? flat.paddingBottom : 34;
+  const padBottom = kbLayout.padBottom;
   const sheetMax =
     cap != null && kbCap != null ? Math.min(cap, kbCap) : (cap ?? kbCap);
   const docked = avoidKeyboard && footer ? footH : 0;
@@ -429,6 +432,7 @@ export function Sheet({
               maxHeight: sheetMax,
             },
             style,
+            avoidKeyboard ? padAnim : null,
             avoidKeyboard ? lift : null,
             sheet,
           ]}
