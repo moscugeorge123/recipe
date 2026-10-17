@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { StyleSheet, View, type TextInputProps } from 'react-native';
+import { Keyboard, StyleSheet, View, type TextInputProps } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import {
@@ -23,6 +23,11 @@ import { Input, KeyboardScroll } from '@/tortie/ui/input';
 import { ButtonSpinner, Dots } from '@/tortie/ui/keyframes';
 import { Press } from '@/tortie/ui/press';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+
+/** Success-screen button: "back" only makes sense for someone who has been here before. */
+export function doneCtaLabel(returning: boolean): string {
+  return returning ? 'Back to the kitchen' : 'Start cooking';
+}
 
 const RANK: Record<AuthStep, number> = {
   start: 0,
@@ -162,6 +167,11 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // The keyboard would cover the success copy and its button.
+  useEffect(() => {
+    if (step === 'done') Keyboard.dismiss();
+  }, [step]);
 
   const close = () => {
     clear();
@@ -488,6 +498,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           scale={0.96}
           style={{
             alignSelf: 'flex-start',
+            maxWidth: '100%',
             flexDirection: 'row',
             alignItems: 'center',
             gap: 8,
@@ -502,7 +513,13 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           }}
         >
           <Glyph name="mail" size={17} color={C.green} />
-          <T style={sans(13, 600)}>{email.trim()}</T>
+          <T
+            numberOfLines={1}
+            ellipsizeMode="middle"
+            style={[sans(13, 600), { flexShrink: 1 }]}
+          >
+            {email.trim()}
+          </T>
           <Glyph name="edit" size={16} color={C.ink3} />
         </Press>
         <View style={{ marginTop: 24 }}>
@@ -737,7 +754,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           }}
         >
           <Glyph name="local_fire_department" size={20} color={C.white} />
-          <T style={sans(15, 700, C.white)}>Back to the kitchen</T>
+          <T style={sans(15, 700, C.white)}>{doneCtaLabel(returning)}</T>
         </Press>
       </Panel>
     </Animated.View>
