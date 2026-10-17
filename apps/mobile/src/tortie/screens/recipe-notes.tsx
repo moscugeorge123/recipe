@@ -34,7 +34,6 @@ import { useFrame } from '@/tortie/frame';
 import { toast, useNav } from '@/tortie/nav-store';
 import { C, CSS_EASE, F } from '@/tortie/theme';
 import { Grabber, Pill, SheetClose } from '@/tortie/ui/controls';
-import { EmptyState } from '@/tortie/ui/empty-state';
 import { Glyph } from '@/tortie/ui/icon';
 import { Input, RevealBox } from '@/tortie/ui/input';
 import { Press } from '@/tortie/ui/press';
@@ -580,13 +579,7 @@ export function RecipeNotesSheet() {
                 />
               ))
             ) : (
-              <EmptyState
-                variant="plain"
-                compact
-                icons={['restaurant', 'edit_note', 'chat']}
-                title="No notes yet"
-                body="Jot down tweaks, swaps or what the table said. They’ll be here next time you cook it."
-              />
+              <NotesEmpty />
             )}
           </View>
         </>
@@ -594,6 +587,34 @@ export function RecipeNotesSheet() {
     </Sheet>
   );
 }
+
+/** Left-aligned empty row: icon beside the text, no card, so the composer above stays in view. */
+export function NotesEmpty() {
+  return (
+    <View
+      style={{
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 12,
+        paddingVertical: 12,
+      }}
+    >
+      <View style={{ height: 21, justifyContent: 'center' }}>
+        <Glyph name={NOTES_EMPTY_ICON} size={24} color={C.green} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <T style={sans(15, 600, C.ink, { lineHeight: 21 })}>No notes yet</T>
+        <T style={sans(13, 400, C.ink2, { lineHeight: 19, marginTop: 2 })}>
+          Jot down tweaks, swaps or what the table said. They’ll be here next
+          time you cook it.
+        </T>
+      </View>
+    </View>
+  );
+}
+
+/** Must exist in the bundled icon font. */
+export const NOTES_EMPTY_ICON = 'edit';
 
 function NoteItem({
   note,
