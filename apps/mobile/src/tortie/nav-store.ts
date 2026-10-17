@@ -96,6 +96,10 @@ type Nav = {
   cookId: string | null;
   cookNonce: number;
 
+  /** First-run tour. */
+  welcome: boolean;
+  welcomeNonce: number;
+
   au: boolean;
   auStep: AuthStep;
   auMode: 'signup' | 'login';
@@ -137,7 +141,10 @@ type Actions = {
   selectIds: (ids: string[]) => void;
   openBulkCollections: () => void;
   openNewCollection: (forRecipe?: string | string[] | null) => void;
-  openNotes: (id: string, opts?: { step?: number | null; overCook?: boolean }) => void;
+  openNotes: (
+    id: string,
+    opts?: { step?: number | null; overCook?: boolean },
+  ) => void;
   closeNotes: () => void;
   openEditor: (id: string) => void;
   openNewRecipe: () => void;
@@ -148,6 +155,8 @@ type Actions = {
   closeGroceryPick: () => void;
   openAuth: (mode: 'signup' | 'login', prov?: AuthProvider) => void;
   closeAuth: () => void;
+  openWelcome: () => void;
+  closeWelcome: () => void;
   toastShow: (msg: string, kind?: ToastKind) => void;
 };
 
@@ -207,6 +216,8 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   cookOpen: false,
   cookId: null,
   cookNonce: 0,
+  welcome: false,
+  welcomeNonce: 0,
   au: false,
   auStep: 'start',
   auMode: 'signup',
@@ -336,6 +347,9 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
       auProv: prov ?? get().auProv,
     }),
   closeAuth: () => set({ au: false }),
+  openWelcome: () =>
+    set((s) => ({ welcome: true, welcomeNonce: s.welcomeNonce + 1 })),
+  closeWelcome: () => set({ welcome: false }),
   toastShow: (msg, kind = 'ok') => {
     if (toastTimer) clearTimeout(toastTimer);
     const err = kind === 'error';

@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { useRecipe } from '@/features/recipes/hooks/use-recipe';
 import { COOKBOOK_PAGE_SIZE } from '@/features/query-keys';
@@ -231,7 +231,56 @@ export function useTRecipes(sort: RecipeSort = 'latest') {
     total: q.data?.meta.total ?? list.length,
     isLoading: q.isLoading,
     isError: q.isError,
+    isSuccess: q.isSuccess,
+    /** Waiting for the network to come back (TanStack paused the fetch). */
+    isPaused: q.isPending && q.fetchStatus === 'paused',
     refetch: q.refetch,
+  };
+}
+
+/**
+ * `ready` some recipes · `loading` first load in flight · `empty` the API says
+ * there are none · `unreachable` the first load failed or is waiting for a
+ * network, with nothing cached.
+ */
+export type LibraryStatus = 'ready' | 'loading' | 'empty' | 'unreachable';
+
+/** A first load slower than this shows the import state instead of a skeleton. */
+export const LIBRARY_SLOW_MS = 1500;
+
+/**
+ * Drives the Today and Cookbook empty states. Both pages fall back to
+ * "import a recipe" whenever no recipe is known, so a slow or unreachable API
+ * never leaves a blank page or an endless skeleton.
+ */
+export function useLibraryStatus() {
+  const r = useTRecipes();
+  const status: LibraryStatus = r.list.length
+    ? 'ready'
+    : r.isSuccess
+      ? 'empty'
+      : r.isError || r.isPaused
+        ? 'unreachable'
+        : 'loading';
+  const loading = status === 'loading';
+  const [slow, setSlow] = useState(false);
+  useEffect(() => {
+    if (!loading) return;
+    const t = setTimeout(() => setSlow(true), LIBRARY_SLOW_MS);
+    return () => {
+      clearTimeout(t);
+      setSlow(false);
+    };
+  }, [loading]);
+  return {
+    status,
+    /** Still loading after `LIBRARY_SLOW_MS`. */
+    slow: loading && slow,
+    /** Show the skeleton (or nothing) rather than the import state. */
+    pending: loading && !slow,
+    /** No recipes to show: the import state is up. */
+    showEmpty: status !== 'ready' && !(loading && !slow),
+    retry: () => void r.refetch(),
   };
 }
 

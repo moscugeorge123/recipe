@@ -11,7 +11,11 @@ import { getRecipe } from '@/features/recipes/api';
 import { useRecipeSearch } from '@/features/recipes/hooks/use-recipes';
 import type { RecipeView } from '@/features/recipes/types';
 import { hueOf } from '@/tortie/color';
-import { useTRecipes, type TRecipe } from '@/tortie/data/recipes';
+import {
+  useLibraryStatus,
+  useTRecipes,
+  type TRecipe,
+} from '@/tortie/data/recipes';
 import { plz, splitEmoji } from '@/tortie/lib/fmt';
 import { useNav } from '@/tortie/nav-store';
 
@@ -266,6 +270,7 @@ export function useCookbookView() {
   const { filter, q: rawQ, cbSeg, rf, cf } = useCookbook();
   const coll = useNav((s) => s.cookbookColl);
   const recipes = useTRecipes();
+  const library = useLibraryStatus();
   const collections = useCollections();
   const q = rawQ.trim().toLowerCase();
   const server = useRecipeSearch(q);
@@ -380,7 +385,16 @@ export function useCookbookView() {
     rCnt,
     cCnt,
     aCnt: isC ? cCnt : rCnt,
-    recipesLoading: recipes.isLoading && recipes.list.length === 0,
+    /** Skeleton: only the first moments of the first load. */
+    recipesLoading: library.pending,
+    /** No recipe known at all (not just filtered out): show the import state. */
+    libraryEmpty: library.showEmpty,
+    libraryNotice: library.slow
+      ? ('slow' as const)
+      : library.status === 'unreachable'
+        ? ('unreachable' as const)
+        : null,
+    retryLibrary: library.retry,
     collsLoading: collections.isLoading && allColls.length === 0,
   };
 }

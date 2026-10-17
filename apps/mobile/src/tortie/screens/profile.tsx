@@ -781,6 +781,29 @@ function SignedIn({
       </Stagger>
 
       <Stagger i={4} on={on}>
+        <SectionLabel>Help</SectionLabel>
+        <Press
+          onPress={() => useNav.getState().openWelcome()}
+          scale={0.98}
+          bg={C.white}
+          pressedBg={C.surface2}
+          style={[
+            CARD,
+            {
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 14,
+              paddingVertical: 12,
+            },
+          ]}
+        >
+          <Glyph name="tour" size={22} color={C.green} />
+          <RowText l="Take the tour" sub="A quick look at what Tortie can do" />
+          <Glyph name="chevron_right" size={20} color={C.ink3} />
+        </Press>
+      </Stagger>
+
+      <Stagger i={4} on={on}>
         <SectionLabel>Connected accounts</SectionLabel>
         <View style={CARD}>
           {(isFacebookEnabled() || linked.facebook

@@ -45,6 +45,11 @@ import { ScanCamera } from '@/tortie/screens/scan-camera';
 import { SharePreview } from '@/tortie/screens/share-preview';
 import { SignInFlow } from '@/tortie/screens/sign-in';
 import { TodayScreen } from '@/tortie/screens/today';
+import {
+  finishWelcome,
+  useWelcomeGate,
+  Welcome,
+} from '@/tortie/screens/welcome';
 import { TabBar } from '@/tortie/tab-bar';
 import { requestEditorClose } from '@/tortie/data/editor-draft';
 import { usePlan } from '@/tortie/data/plan';
@@ -99,7 +104,8 @@ function SignedOutGate() {
 /**
  * One viewport, layered like the prototype (NAVIGATION.md §1):
  * tabs 1–2 · tab bar 20 · dim 30 · recipe 35 · profile 36 · sheets 40–43 ·
- * editor 45 · cook 50 · sign in 56 · camera 60 · share 65 · toast 70.
+ * editor 45 · cook 50 · welcome 55 · sign in 56 · camera 60 · share 65 ·
+ * toast 70.
  */
 function SignedInShell() {
   const rootRef = useRef<View>(null);
@@ -115,6 +121,7 @@ function SignedInShell() {
   const openAdd = useNav((s) => s.openAdd);
   const left = useGroceriesLeft();
   const shareP = useSharedValue(0);
+  useWelcomeGate();
 
   useEffect(() => {
     const bg = cam && !shareOpen ? C.camera : C.bg;
@@ -253,6 +260,7 @@ function SignedInShell() {
 
       <RecipeEditor />
       <CookMode />
+      <Welcome />
       <ScanCamera />
 
       <Animated.View
@@ -300,6 +308,7 @@ function popTopLayer(): boolean {
   const s = useNav.getState();
   if (s.shareOpen) return (s.closeShare(), true);
   if (s.cam) return (s.closeCam(true), true);
+  if (s.welcome) return (finishWelcome(), true);
   if (s.notesOn) return (s.closeNotes(), true);
   if (s.cookOpen) return (s.closeCook(), true);
   if (s.edit) return (requestEditorClose(), true);

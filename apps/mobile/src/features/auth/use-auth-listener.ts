@@ -33,12 +33,18 @@ async function wipeIfAccountChanged(uid: string): Promise<void> {
 export function useAuthListener(): void {
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
+    let latest = 0;
     try {
       unsubscribe = onIdTokenChanged(getFirebaseAuth(), (user) => {
-        if (user) {
-          void wipeIfAccountChanged(user.uid);
-        }
-        useTortieAuth.getState()._setFirebaseUser(user);
+        const seq = ++latest;
+        void (async () => {
+          // The previous account's data must be gone before the new user is
+          // published: screens mount on it and would briefly show that data.
+          if (user) await wipeIfAccountChanged(user.uid);
+          if (seq === latest) {
+            useTortieAuth.getState()._setFirebaseUser(user);
+          }
+        })();
       });
     } catch (error) {
       // Missing Firebase config: show the sign-in screen, whose actions

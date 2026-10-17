@@ -12,6 +12,14 @@ export function isMigratableRecipeId(id: string): boolean {
   return UUID_RE.test(id) && !isSeedRecipeId(id);
 }
 
+/**
+ * Sample recipes belong to nobody, so they stay out of every account's data.
+ * Opt in for UI work with `EXPO_PUBLIC_DEV_SEED_RECIPES=1` in a dev build.
+ */
 export function includeDevSeedRecipes(): boolean {
-  return typeof __DEV__ !== 'undefined' && __DEV__;
+  return (
+    typeof __DEV__ !== 'undefined' &&
+    __DEV__ &&
+    process.env.EXPO_PUBLIC_DEV_SEED_RECIPES === '1'
+  );
 }

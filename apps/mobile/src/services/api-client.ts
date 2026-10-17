@@ -147,6 +147,33 @@ export function setUnauthorizedHandler(handler: (() => void) | null): void {
   unauthorizedHandler = handler;
 }
 
+/**
+ * Reads give up after this long. An unreachable host can otherwise leave a
+ * request (and every screen waiting on it) pending for minutes.
+ */
+export const READ_TIMEOUT_MS = 20_000;
+
+/** `signal` that also aborts after `ms`; `timedOut()` tells the two apart. */
+function withTimeout(signal: AbortSignal | undefined, ms: number) {
+  const ctl = new AbortController();
+  let fired = false;
+  const timer = setTimeout(() => {
+    fired = true;
+    ctl.abort();
+  }, ms);
+  const onAbort = () => ctl.abort();
+  if (signal?.aborted) ctl.abort();
+  else signal?.addEventListener('abort', onAbort);
+  return {
+    signal: ctl.signal,
+    timedOut: () => fired,
+    done: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    },
+  };
+}
+
 async function send(
   method: HttpMethod,
   path: string,
@@ -159,17 +186,29 @@ async function send(
     // Signed out: never reach the API without credentials.
     throw new ApiError('Not signed in', 401, null, 'UNAUTHORIZED');
   }
-  return fetch(joinUrl(getApiBaseUrl(), path), {
-    method,
-    headers: {
-      Accept: 'application/json',
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options?.headers,
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-    signal: options?.signal,
-  });
+  // Only reads are bounded: writes may legitimately run long (imports, AI).
+  const limit =
+    method === 'GET' ? withTimeout(options?.signal, READ_TIMEOUT_MS) : null;
+  try {
+    return await fetch(joinUrl(getApiBaseUrl(), path), {
+      method,
+      headers: {
+        Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...options?.headers,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal: limit?.signal ?? options?.signal,
+    });
+  } catch (error) {
+    if (limit?.timedOut()) {
+      throw new ApiError('Request timed out', 0, null, 'TIMEOUT');
+    }
+    throw error;
+  } finally {
+    limit?.done();
+  }
 }
 
 async function request<T>(

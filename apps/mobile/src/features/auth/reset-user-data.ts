@@ -23,6 +23,7 @@ const USER_KEY_PREFIXES = [
   'mise.pantry-draft.v1',
   'mise.recipe-editor-draft.v1',
   'mise.note-draft.v1',
+  'mise.kitchen.migration.v1',
 ];
 
 type PersistedStore<T> = StoreApi<T> & {

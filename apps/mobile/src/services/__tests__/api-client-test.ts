@@ -1,6 +1,7 @@
 import {
   ApiError,
   apiClient,
+  READ_TIMEOUT_MS,
   setAuthTokenProvider,
   setUnauthorizedHandler,
   unwrapCollection,
@@ -188,5 +189,59 @@ describe('api client authentication', () => {
     });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(provider).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('api client read timeout', () => {
+  /** A fetch that only settles when its signal aborts, like an unreachable host. */
+  function hangingFetch() {
+    return jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(
+        (_url, init) =>
+          new Promise((_resolve, reject) =>
+            init?.signal?.addEventListener('abort', () =>
+              reject(new Error('Aborted')),
+            ),
+          ),
+      );
+  }
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    setAuthTokenProvider(null);
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  test('a GET that never answers fails with TIMEOUT', async () => {
+    hangingFetch();
+    const pending = apiClient.get('/recipes');
+    const check = expect(pending).rejects.toMatchObject({ code: 'TIMEOUT' });
+    await jest.advanceTimersByTimeAsync(READ_TIMEOUT_MS);
+    await check;
+  });
+
+  test('a caller abort is not reported as a timeout', async () => {
+    hangingFetch();
+    const ctl = new AbortController();
+    const pending = apiClient.get('/recipes', { signal: ctl.signal });
+    const check = expect(pending).rejects.not.toMatchObject({
+      code: 'TIMEOUT',
+    });
+    await Promise.resolve();
+    ctl.abort();
+    await check;
+  });
+
+  test('writes are not bounded', async () => {
+    const fetchMock = hangingFetch();
+    void apiClient.post('/recipes/extract', {}).catch(() => undefined);
+    await jest.advanceTimersByTimeAsync(READ_TIMEOUT_MS * 2);
+    const init = fetchMock.mock.calls[0]?.[1];
+    expect(init?.signal?.aborted ?? false).toBe(false);
   });
 });

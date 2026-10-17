@@ -34,6 +34,7 @@ import { useFrame } from '@/tortie/frame';
 import { toast, useNav } from '@/tortie/nav-store';
 import { C, CSS_EASE, F } from '@/tortie/theme';
 import { Grabber, Pill, SheetClose } from '@/tortie/ui/controls';
+import { EmptyState } from '@/tortie/ui/empty-state';
 import { Glyph } from '@/tortie/ui/icon';
 import { Input, RevealBox } from '@/tortie/ui/input';
 import { Press } from '@/tortie/ui/press';
@@ -579,18 +580,13 @@ export function RecipeNotesSheet() {
                 />
               ))
             ) : (
-              <View style={{ alignItems: 'center', paddingVertical: 28 }}>
-                <Glyph name="notes" size={34} color={C.lineStrong} />
-                <T
-                  style={sans(14, 400, C.ink2, {
-                    marginTop: 10,
-                    lineHeight: 21,
-                    textAlign: 'center',
-                  })}
-                >
-                  No notes yet. Jot down tweaks, swaps or what the table said.
-                </T>
-              </View>
+              <EmptyState
+                variant="plain"
+                compact
+                icons={['restaurant', 'edit_note', 'chat']}
+                title="No notes yet"
+                body="Jot down tweaks, swaps or what the table said. They’ll be here next time you cook it."
+              />
             )}
           </View>
         </>
