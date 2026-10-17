@@ -97,6 +97,22 @@ export class OpenAITranscriptionProvider implements TranscriptionProvider {
   }
 }
 
+/**
+ * Stands in for Whisper when AI_PROVIDER=deepseek and no OPENAI_API_KEY is set (DeepSeek has no
+ * audio API). Returns an empty transcript so spoken content is skipped rather than invented; the
+ * recipe is then built from captions, on-screen text and vision.
+ */
+export class NoTranscriptionProvider implements TranscriptionProvider {
+  transcribe(_audio: AudioInput, opts?: TranscriptionOptions): Promise<Transcript> {
+    return Promise.resolve({
+      language: opts?.language ?? 'en',
+      fullText: '',
+      segments: [],
+      provider: { name: 'none', model: 'none' },
+    });
+  }
+}
+
 /** Returns deterministic transcript for tests and no-API-key pipeline runs. */
 export class MockTranscriptionProvider implements TranscriptionProvider {
   async transcribe(_audio: AudioInput, opts?: TranscriptionOptions): Promise<Transcript> {

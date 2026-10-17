@@ -15,7 +15,7 @@ const acquireCtx = { jobId: 'job-1', outputLanguage: 'en', tempDir: '/tmp/test' 
 
 const mockAiConfig = {
   ...config,
-  ai: { ...config.ai, openaiApiKey: undefined },
+  ai: { ...config.ai, llmApiKey: undefined, openaiApiKey: undefined },
   extraction: { ...config.extraction, fakePipelineDelayMs: 0 },
 } as AppConfig;
 

@@ -81,7 +81,10 @@ services:
       SERVICE_NAME: worker
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/recipe_api
       REDIS_URL: redis://redis:6379
+      AI_PROVIDER: ${AI_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_FAST_MODEL: ${DEEPSEEK_FAST_MODEL:-deepseek-flash}
       SENTRY_DSN: ${SENTRY_DSN:-}
       STORAGE_PROVIDER: ${STORAGE_PROVIDER:-local}
       STORAGE_LOCAL_PATH: /app/apps/api/storage

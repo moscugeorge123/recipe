@@ -102,8 +102,11 @@ come from the ECS task definition and secrets from Secrets Manager or SSM Parame
 | `REDIS_URL`             | `redis://localhost:6379` | BullMQ queue backend.                                              |
 | `STORAGE_PROVIDER`      | `local`       | `local` or `s3`.                                                           |
 | `STORAGE_LOCAL_PATH`    | `./storage`   | Local artifact directory (dev).                                            |
-| `OPENAI_API_KEY`        | _(unset)_     | Live extraction/pantry AI. Tests never call OpenAI.                   |
-| `AI_INGREDIENT_MODEL`   | `gpt-5-nano`  | Pantry batch model after dictionary/cache. Never GPT-5.6.             |
+| `AI_PROVIDER`           | `openai`      | `openai` or `deepseek`: which vendor serves chat, vision and OCR.     |
+| `OPENAI_API_KEY`        | _(unset)_     | Live extraction/pantry AI, and Whisper always. Tests never call it.   |
+| `DEEPSEEK_API_KEY`      | _(unset)_     | Required when `AI_PROVIDER=deepseek`.                                 |
+| `DEEPSEEK_FAST_MODEL`   | `deepseek-flash` | The one DeepSeek model, used for every call (extraction, assistant, translation, pantry, vision, OCR). |
+| `AI_INGREDIENT_MODEL`   | `gpt-6-luna`  | Pantry batch model after dictionary/cache.                            |
 | `META_APP_ID`           | _(unset)_     | Optional Instagram Graph oEmbed for `POST /recipes/preview`.          |
 | `META_APP_SECRET`       | _(unset)_     | Pair with `META_APP_ID`. Preview falls back to Open Graph when unset. |
 | `YTDLP_PATH`            | `yt-dlp`      | Binary used for YouTube preview and extraction. Must be on PATH.      |
@@ -161,9 +164,9 @@ http://localhost:3000/docs                Swagger UI
 Pantry organization (and import emoji/category enrichment) is **configuration, not code**:
 
 1. Deterministic dictionary + classification cache.
-2. One compact batch to `AI_INGREDIENT_MODEL` (`gpt-5-nano`).
-3. Compatibility fallback `AI_INGREDIENT_FALLBACK_MODEL` (`gpt-4.1-nano`).
-4. At most `AI_INGREDIENT_MAX_ESCALATIONS` items to `gpt-4o-mini`.
+2. One compact batch to `AI_INGREDIENT_MODEL` (`gpt-6-luna`).
+3. Fallback `AI_INGREDIENT_FALLBACK_MODEL` (`gpt-6-luna`; skipped when equal to the primary).
+4. At most `AI_INGREDIENT_MAX_ESCALATIONS` items to `AI_INGREDIENT_ESCALATION_MODEL` (`gpt-6-luna`).
 5. Item/token budgets: `AI_INGREDIENT_MAX_ITEMS`, `AI_INGREDIENT_MAX_INPUT_TOKENS`, `AI_INGREDIENT_MAX_OUTPUT_TOKENS`.
 
 Usage lands in `ai_usage`. `GET /api/v1/ops/summary` totals tokens, cost, cache, and escalation calls.

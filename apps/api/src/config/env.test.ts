@@ -86,20 +86,59 @@ describe('loadConfig', () => {
   it('defaults pantry ingredient models and budgets', () => {
     const config = load({});
 
-    expect(config.ai.ingredientModel).toBe('gpt-5-nano');
-    expect(config.ai.ingredientFallbackModel).toBe('gpt-4.1-nano');
-    expect(config.ai.ingredientEscalationModel).toBe('gpt-4o-mini');
+    expect(config.ai.ingredientModel).toBe('gpt-6-luna');
+    expect(config.ai.ingredientFallbackModel).toBe('gpt-6-luna');
+    expect(config.ai.ingredientEscalationModel).toBe('gpt-6-luna');
     expect(config.ai.ingredientReasoningEffort).toBe('none');
     expect(config.ai.ingredientMaxOutputTokens).toBe(1024);
     expect(config.ai.ingredientMaxItems).toBe(40);
     expect(config.ai.ingredientPromptVersion).toBe('ingredient-enrichment-v2');
   });
 
-  it('rejects GPT-5.6 as a pantry ingredient model', () => {
-    expect(() => load({ AI_INGREDIENT_MODEL: 'gpt-5.6' })).toThrow(EnvValidationError);
-    expect(() => load({ AI_INGREDIENT_FALLBACK_MODEL: 'gpt-5.6-luna' })).toThrow(
-      EnvValidationError,
-    );
+  it('defaults to the OpenAI provider', () => {
+    const { ai } = load({ OPENAI_API_KEY: 'sk-test', DEEPSEEK_API_KEY: 'ds-test' });
+
+    expect(ai.provider).toBe('openai');
+    expect(ai.llmApiKey).toBe('sk-test');
+    expect(ai.llmBaseUrl).toBeUndefined();
+    expect(ai.defaultModel).toBe('gpt-6-luna');
+    expect(ai.visionModel).toBe('gpt-6-luna');
+    expect(ai.whisperModel).toBe('whisper-1');
+  });
+
+  it('maps every AI scenario onto DeepSeek models when AI_PROVIDER=deepseek', () => {
+    const { ai } = load({
+      AI_PROVIDER: 'deepseek',
+      DEEPSEEK_API_KEY: 'ds-test',
+      OPENAI_API_KEY: 'sk-test',
+      AI_DEFAULT_MODEL: 'gpt-4o',
+    });
+
+    expect(ai.provider).toBe('deepseek');
+    expect(ai.llmApiKey).toBe('ds-test');
+    expect(ai.llmBaseUrl).toBe('https://api.deepseek.com');
+    expect(ai.defaultModel).toBe('deepseek-flash');
+    expect(ai.visionModel).toBe('deepseek-flash');
+    expect(ai.ingredientModel).toBe('deepseek-flash');
+    expect(ai.ingredientEscalationModel).toBe('deepseek-flash');
+    expect(ai.deepseekThinking).toBe(false);
+    // Whisper stays on OpenAI.
+    expect(ai.openaiApiKey).toBe('sk-test');
+  });
+
+  it('allows the DeepSeek models to be overridden', () => {
+    const { ai } = load({
+      AI_PROVIDER: 'deepseek',
+      DEEPSEEK_FAST_MODEL: 'deepseek-next-fast',
+    });
+
+    expect(ai.defaultModel).toBe('deepseek-next-fast');
+    expect(ai.visionModel).toBe('deepseek-next-fast');
+    expect(ai.llmApiKey).toBeUndefined();
+  });
+
+  it('rejects an unknown AI provider', () => {
+    expect(() => load({ AI_PROVIDER: 'other' })).toThrow(EnvValidationError);
   });
 
   it('parses optional Meta app credentials', () => {

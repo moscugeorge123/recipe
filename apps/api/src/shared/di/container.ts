@@ -386,7 +386,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
   const pantryLlm =
     options.pantryLlm !== undefined
       ? options.pantryLlm
-      : appConfig.ai.openaiApiKey
+      : appConfig.ai.llmApiKey
         ? new OpenAIProvider(appConfig, null, undefined, ingredientLog)
         : null;
   const pantryUsage = new AIUsageTracker(repositories.aiUsage, DEFAULT_PRICING);
@@ -399,7 +399,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     appConfig,
     options.assistLlm !== undefined
       ? options.assistLlm
-      : appConfig.ai.openaiApiKey
+      : appConfig.ai.llmApiKey
         ? new OpenAIProvider(appConfig, null, undefined, assistLog)
         : null,
     assistLog,
@@ -409,7 +409,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     appConfig,
     options.translationLlm !== undefined
       ? options.translationLlm
-      : appConfig.ai.openaiApiKey
+      : appConfig.ai.llmApiKey
         ? new OpenAIProvider(appConfig, null, undefined, translationLog)
         : null,
     translationLog,

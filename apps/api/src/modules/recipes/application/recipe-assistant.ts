@@ -69,6 +69,11 @@ export class RecipeAssistant {
       throw new ServiceUnavailableError({ message: 'Ask Tortie isn’t available right now' });
     }
 
+    this.log.info(
+      { step: 'recipe.assist', instruction: input.instruction, recipe: input.recipe },
+      'recipe.assist request',
+    );
+
     const result = await this.llm.generateStructured<unknown>(
       {
         operation: 'recipe_assist',
@@ -86,7 +91,12 @@ export class RecipeAssistant {
     const parsed = outputSchema.safeParse(result.data);
     if (!parsed.success) {
       this.log.error(
-        { step: 'recipe.assist', model: result.model, issues: parsed.error.issues.slice(0, 5) },
+        {
+          step: 'recipe.assist',
+          model: result.model,
+          issues: parsed.error.issues.slice(0, 5),
+          output: result.data,
+        },
         'recipe.assist failed: output did not match schema',
       );
       throw new ServiceUnavailableError({ message: 'Tortie couldn’t make that change' });
@@ -111,9 +121,15 @@ export class RecipeAssistant {
       throw new ServiceUnavailableError({ message: 'Tortie couldn’t make that change' });
     }
 
+    const recipe = sanitize(out.recipe, input.recipe);
+    this.log.info(
+      { step: 'recipe.assist', message: out.message.trim(), recipe },
+      'recipe.assist response',
+    );
+
     return {
       message: out.message.trim(),
-      recipe: sanitize(out.recipe, input.recipe),
+      recipe,
       promptVersion: RECIPE_ASSIST_PROMPT_VERSION,
     };
   }

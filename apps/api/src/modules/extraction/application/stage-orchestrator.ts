@@ -383,7 +383,7 @@ export function createDefaultStageHandlers(
       const ai = createAIProviders(deps.config, usageTracker, ctx.jobId, jobLog);
 
       const classifier = createRecipeClassifier(ai.llm, {
-        useLlm: Boolean(deps.config.ai.openaiApiKey),
+        useLlm: Boolean(deps.config.ai.llmApiKey),
         log: jobLog,
       });
       const classification = await logStep(
