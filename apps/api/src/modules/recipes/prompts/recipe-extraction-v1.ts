@@ -1,6 +1,6 @@
 import { GARDEN_PLATE_COLOR_TOKENS } from '../../normalization/domain/presentation.js';
 
-export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v11';
+export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v12';
 
 const OUTPUT_LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
@@ -85,10 +85,12 @@ Rules:
 - Categorize the recipe with one or more stable categorySlugs. Allowed values: breakfast, lunch, dinner, sweet.
 - Set each step stage from the instruction: mise en place → PREP, heat/simmer → COOK, finish sauce → FINISH, plate → SERVE. Allowed values: PREP, COOK, FINISH, SERVE. Steps with ahead true are PREP.
 - Each step has a short title and a separate instruction.
-  - title is a simple imperative label of 2–6 words, with no period. Examples: "Boil the pasta", "Roast the chicken", "Soak the rice".
-  - instruction is the rest: technique, doneness, temperatures, and lengths. Do not repeat the title. Use an empty string when the title already says the whole step.
+  - title is a simple imperative label of 2–5 words, with no period. Examples: "Boil the pasta", "Roast the chicken", "Soak the rice".
+  - instruction is the rest: technique, doneness, temperatures, and lengths. Use an empty string when the title already says the whole step.
+  - Never take words out of the instruction to build the title. The instruction must be a complete sentence (or sentences) that starts with a capital letter. Wrong: title "Cut the avocados", instruction "in half. Remove the pit." Right: title "Cut the avocados", instruction "Cut the avocados in half and remove the pit."
+- Keep the steps in the order of the source. Do not reorder them.
 - durationMinutes is the cook timer, in whole minutes. Set it only when the cook waits and can leave the step until time is up: boiling, simmering, baking, roasting, resting, cooling, chilling, proofing, soaking, or marinating. Examples: boil pasta 10 minutes → 10; something in the oven 25 minutes → 25; soak for 4 hours → 240. Set null for hands-on work even when it takes time, such as chopping, mixing, seasoning, stirring, or frying while staying at the pan. "Sauté for 2 minutes" is hands-on: null.
-- ahead is true only for a pre-step: work that has to happen before the cooking session, not chopping or measuring once you start. Examples: "soak rice in water for 4 hours" (ahead true, durationMinutes 240); "take the meat out and let it rest for 30 minutes" before cooking (ahead true, durationMinutes 30); marinate overnight; brine; proof dough overnight; chill a component the day before. A rest in the middle of cooking, such as resting a steak before slicing, is ahead false and still gets a timer. Put every ahead step before the session steps. Do not drop pre-steps from the method.
+- ahead is true only for a pre-step: work that has to happen before the cooking session, not chopping or measuring once you start. Examples: "soak rice in water for 4 hours" (ahead true, durationMinutes 240); "take the meat out and let it rest for 30 minutes" before cooking (ahead true, durationMinutes 30); marinate overnight; brine; proof dough overnight; chill a component the day before. A rest in the middle of cooking, such as resting a steak before slicing, is ahead false and still gets a timer. A rest that is optional ("if you have time") or that comes after a mixing step is NOT ahead: resting pancake batter happens after "Make the batter" and keeps its place with a 30-minute timer. Put genuine ahead steps first, and keep every other step in source order. Do not drop pre-steps from the method.
 - prepTimeMinutes is hands-on prep during the session. Long ahead waits belong on those steps' durationMinutes and in totalTimeMinutes, not in prepTimeMinutes.
 - Return valid JSON matching the schema exactly`;
 

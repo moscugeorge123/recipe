@@ -16,6 +16,7 @@ import { IngredientNormalizer } from './ingredient-normalizer.js';
 const MAX_KCAL_PER_SERVING = 5000;
 const MAX_GRAMS_PER_SERVING = 1000;
 const MAX_TITLE_WORDS = 8;
+const MAX_SPLIT_TITLE_WORDS = 6;
 const MAX_TIMER_MINUTES = 7 * 24 * 60;
 const DIFFICULTIES: readonly RecipeDifficulty[] = ['Easy', 'Medium', 'Hard'];
 
@@ -29,28 +30,100 @@ function stripLeadingTitle(instruction: string, title: string): string {
   return instruction.trim().replace(pattern, '').trim();
 }
 
-/** Shortens an oversized title into the instruction. durationMinutes is the wait timer from the model. */
+function startsLowerCase(text: string): boolean {
+  const first = text.charAt(0);
+  return first !== '' && first !== first.toLocaleUpperCase() && first === first.toLocaleLowerCase();
+}
+
+function capitalizeFirst(text: string): string {
+  return text.charAt(0).toLocaleUpperCase() + text.slice(1);
+}
+
+/**
+ * Shortens an oversized title into the instruction. durationMinutes is the wait timer from the
+ * model. A sentence the model cut in two ("Cut the avocados" + "in half. Remove the pit.") is
+ * stitched back together; `titleSplit` reports that so the step can carry a warning.
+ */
 export function shapeExtractedStep(step: ExtractedStep): {
   title: string | null;
   instruction: string;
   ahead: boolean;
   durationMinutes: number | null;
+  titleSplit: boolean;
 } {
-  const cleaned = (step.title ?? '').trim().replace(/[.!?]+$/g, '').trim();
+  const rawTitle = (step.title ?? '').trim();
+  const cleaned = rawTitle.replace(/[.!?]+$/g, '').trim();
+  const rawInstruction = (step.instruction ?? '').trim();
   const words = cleaned.split(/\s+/).filter(Boolean);
   const head = words.slice(0, MAX_TITLE_WORDS).join(' ');
   const overflow = words.slice(MAX_TITLE_WORDS).join(' ');
-  let instruction = stripLeadingTitle(step.instruction ?? '', cleaned);
-  if (overflow && !instruction.toLocaleLowerCase().includes(overflow.toLocaleLowerCase())) {
+  let instruction = stripLeadingTitle(rawInstruction, cleaned);
+  let titleSplit = false;
+  let title: string | null = head ? toSentenceCase(head) : null;
+  if (cleaned && startsLowerCase(instruction) && !/[.!?:;]$/.test(rawTitle)) {
+    // The model moved the first words of the sentence into the title.
+    titleSplit = true;
+    instruction =
+      instruction === rawInstruction
+        ? `${cleaned} ${rawInstruction}`
+        : capitalizeFirst(rawInstruction);
+    if (words.length > MAX_SPLIT_TITLE_WORDS) title = null;
+  } else if (
+    overflow &&
+    !instruction.toLocaleLowerCase().includes(overflow.toLocaleLowerCase())
+  ) {
     instruction = [overflow, instruction].filter(Boolean).join(' ');
   }
+  instruction = capitalizeFirst(instruction);
 
   return {
-    title: head ? toSentenceCase(head) : null,
+    title,
     instruction,
     ahead: step.ahead === true,
     durationMinutes: boundedInt(step.durationMinutes, 1, MAX_TIMER_MINUTES),
+    titleSplit,
   };
+}
+
+/** Work that really has to happen before the session starts. */
+const PRE_STEP_PATTERN =
+  /\b(soak|marinate|marinade|brine|overnight|defrost|thaw|preheat|pre-heat|room temperature|out of the (?:fridge|refrigerator)|proof)/i;
+/** Wording that makes a rest or wait optional or concurrent, never a pre-step. */
+const OPTIONAL_STEP_PATTERN =
+  /\b(if you (?:have|want|like|can|prefer)|optional(?:ly)?|if (?:time|needed|desired)|meanwhile|while (?:the|you)|or start cooking)\b/i;
+/** A step that creates or combines something, so later waits depend on it. */
+const MIXING_STEP_PATTERN =
+  /\b(mix|whisk|stir|combine|beat|blend|knead|fold|cream|measure|batter|dough|put (?:the )?\w+.* in(?:to)? a (?:large |medium )?bowl)\b/i;
+
+function stepText(step: ExtractedStep): string {
+  return `${step.title ?? ''} ${step.instruction ?? ''}`;
+}
+
+/**
+ * Steps in source order. A step flagged `ahead` only moves in front of the others when it really
+ * is a pre-step (soak, marinate, overnight...), is not optional, and no earlier step already mixes
+ * something. Everything else keeps the order the source gave and loses the `ahead` flag, so an
+ * optional rest after the batter is made stays after it.
+ */
+export function orderExtractedSteps(
+  steps: ExtractedStep[],
+): Array<{ step: ExtractedStep; ahead: boolean }> {
+  const inSourceOrder = steps
+    .map((step, index) => ({ step, index }))
+    .sort((a, b) => a.step.stepOrder - b.step.stepOrder || a.index - b.index);
+
+  let mixed = false;
+  const classified = inSourceOrder.map(({ step }) => {
+    const text = stepText(step);
+    const ahead =
+      step.ahead === true &&
+      !mixed &&
+      PRE_STEP_PATTERN.test(text) &&
+      !OPTIONAL_STEP_PATTERN.test(text);
+    if (!ahead && MIXING_STEP_PATTERN.test(text)) mixed = true;
+    return { step, ahead };
+  });
+  return [...classified.filter((item) => item.ahead), ...classified.filter((item) => !item.ahead)];
 }
 
 function boundedInt(value: unknown, min: number, max: number): number | null {
@@ -157,15 +230,8 @@ export class RecipeNormalizer {
       };
     });
 
-    const steps: NormalizedStep[] = extracted.steps
-      .map((step, index) => ({ step, index }))
-      .sort((a, b) => {
-        const aheadA = a.step.ahead === true;
-        const aheadB = b.step.ahead === true;
-        if (aheadA !== aheadB) return aheadA ? -1 : 1;
-        return a.step.stepOrder - b.step.stepOrder || a.index - b.index;
-      })
-      .map(({ step }, index, ordered) => {
+    const steps: NormalizedStep[] = orderExtractedSteps(extracted.steps).map(
+      ({ step, ahead }, index, ordered) => {
         const copy = shapeExtractedStep(step);
         const instruction = addDualMeasurements(copy.instruction);
         const temperature = reconcileTemperature({
@@ -184,12 +250,20 @@ export class RecipeNormalizer {
           temperatureFahrenheit: temperature?.fahrenheit ?? null,
           ingredientRefs: ingredientRefs(step.ingredientIndexes, ingredients.length),
           stage: isStepStage(step.stage) ? step.stage : stageForIndex(index, ordered.length),
-          ahead: copy.ahead,
+          ahead,
           confidence: step.confidence,
           provenance: step.provenance ? { source: step.provenance } : {},
-          warnings: [] as Prisma.InputJsonValue,
+          warnings: (copy.titleSplit
+            ? [
+                {
+                  code: 'STEP_TITLE_SPLIT',
+                  message: 'The step title and instruction were one sentence and were merged',
+                },
+              ]
+            : []) as Prisma.InputJsonValue,
         };
-      });
+      },
+    );
 
     const computedTotal = (extracted.prepTimeMinutes ?? 0) + (extracted.cookTimeMinutes ?? 0);
     const totalTimeMinutes =
