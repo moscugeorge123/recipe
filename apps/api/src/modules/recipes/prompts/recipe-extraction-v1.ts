@@ -1,6 +1,6 @@
 import { GARDEN_PLATE_COLOR_TOKENS } from '../../normalization/domain/presentation.js';
 
-export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v10';
+export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v11';
 
 const OUTPUT_LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
@@ -59,6 +59,8 @@ Rules:
 - The JSON field description is a short recipe summary in the output language. Never copy the original Instagram/YouTube caption or post text into description unless that text is already in the output language. Translate it.
 - Keep numeric values as digits (for example 200, 2, 1/2). Translate unit words and quantity phrases (for example "tbsp" → the output-language word for tablespoon, "cloves" → the output-language word for cloves, "a pinch" → the output-language equivalent).
 - Put the numeric amount in quantity and the translated unit in unit. Do not leave names, units, description, or steps in the source language.
+- quantity is a number or a numeric range only ("2", "1/4", "1 1/2", "2 to 4"). Never put the unit word in quantity: it always goes in unit. Examples: "1/4 teaspoon kosher salt" → quantity "1/4", unit "teaspoon". "2 to 4 tablespoons minced red onion" → quantity "2 to 4", unit "tablespoons". "1 to 2 serrano chilis" → quantity "1 to 2", unit null. Keep a range as a range; do not pick one end.
+- When the source gives no amount ("lemon wedges, to serve"), set quantity null and unit null. Do not invent a unit such as "piece" for an ingredient with no amount.
 - Nutrition is always required. Return calories (kcal per serving) and nutrition { proteinGrams, carbsGrams, fatGrams } per serving. If the evidence states them, use the stated values and set nutritionSource "stated". Otherwise estimate them from the ingredients, their quantities, and servings using standard food composition values, and set nutritionSource "estimated". Never return null for calories or macros.
 - Servings: use the stated servings. If not stated, estimate a sensible number of servings from the quantities.
 - Difficulty: use the source's stated difficulty. Otherwise judge Easy, Medium, or Hard from technique, number of steps, and active time.

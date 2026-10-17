@@ -182,3 +182,74 @@ export function parseQuantity(raw: string | null | undefined): number | null {
   const parsed = Number(match[6]);
   return Number.isFinite(parsed) ? parsed : null;
 }
+
+const AMOUNT =
+  String.raw`\d+\s+\d+\s*/\s*\d+|\d+\s*/\s*\d+|\d*(?:[.,]\d+)?\s*[½¼¾⅓⅔⅛⅜⅝⅞]|\d+(?:[.,]\d+)?`;
+const PHRASE_PATTERN = new RegExp(
+  String.raw`^(${AMOUNT})(?:\s*(?:-|–|—|to|or)\s*(${AMOUNT}))?\s*(.*)$`,
+  'i',
+);
+const LEADING_APPROX = /^(?:about|approx\.?|approximately|around|roughly|circa|~)\s*/i;
+/** Extra unit words the phrase splitter accepts beyond UNIT_MAP (kept in their own spelling). */
+const EXTRA_PHRASE_UNITS = new Map<string, string>([
+  ['dl', 'dl'],
+  ['cl', 'cl'],
+  ['fl oz', 'fl oz'],
+  ['floz', 'fl oz'],
+  ['pint', 'pint'],
+  ['pints', 'pint'],
+  ['quart', 'quart'],
+  ['quarts', 'quart'],
+  ['handful', 'handful'],
+  ['handfuls', 'handful'],
+  ['bunch', 'bunch'],
+  ['bunches', 'bunch'],
+  ['sprig', 'sprig'],
+  ['sprigs', 'sprig'],
+  ['stick', 'stick'],
+  ['sticks', 'stick'],
+  ['can', 'can'],
+  ['cans', 'can'],
+  ['dash', 'dash'],
+  ['dashes', 'dash'],
+]);
+
+export interface QuantityPhrase {
+  /** Lower bound (or the only amount). Null for a bare unit word such as "a pinch". */
+  min: number | null;
+  /** Upper bound of a range ("2 to 4"), else null. */
+  max: number | null;
+  /** Canonical unit word found in the phrase (English map), else null. */
+  unit: string | null;
+  /** The unit word as written, for non-English recipes that keep the source spelling. */
+  unitText: string | null;
+}
+
+function lookupPhraseUnit(raw: string): string | null {
+  const word = raw.toLowerCase().trim().replace(/\.$/, '');
+  if (!word) return null;
+  return UNIT_MAP[word] ?? ROMANIAN_UNIT_MAP[word] ?? EXTRA_PHRASE_UNITS.get(word) ?? null;
+}
+
+/**
+ * Splits a quantity phrase the model may have filled with more than a number:
+ * "1/4 teaspoon", "1½ cups", "2 to 4 tablespoons", "2–4", "1 or 2", "about 3", "a pinch".
+ * Anything after the amount that is not a known unit word is ignored.
+ */
+export function splitQuantityPhrase(raw: string | null | undefined): QuantityPhrase {
+  const empty: QuantityPhrase = { min: null, max: null, unit: null, unitText: null };
+  if (!raw) return empty;
+  const text = raw.trim().replace(LEADING_APPROX, '').replace(/^an?\s+/i, '');
+  const match = PHRASE_PATTERN.exec(text);
+  if (!match?.[1]) {
+    const bare = lookupPhraseUnit(text);
+    return bare ? { min: null, max: null, unit: bare, unitText: text.trim() } : empty;
+  }
+  const min = parseQuantity(match[1]);
+  let max = match[2] ? parseQuantity(match[2]) : null;
+  if (min === null) return empty;
+  if (max !== null && max <= min) max = null;
+  const unitText = (match[3] ?? '').trim();
+  const unit = lookupPhraseUnit(unitText);
+  return { min, max, unit, unitText: unit ? unitText : null };
+}

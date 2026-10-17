@@ -183,6 +183,7 @@ export class RecipeService {
         name: ingredient.name,
         canonicalName: ingredient.canonicalName ?? null,
         quantity,
+        quantityMax: toQuantityDecimal(ingredient.quantityMax ?? null),
         unit,
         ...measurementsForEdit({ name: ingredient.name, quantity, unit }, existing.ingredients),
         preparation: ingredient.preparation ?? null,

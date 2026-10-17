@@ -124,6 +124,7 @@ export function serializeRecipeDetail(
       return {
         ...rest,
         quantity: ing.quantity?.toString() ?? null,
+        quantityMax: ing.quantityMax?.toString() ?? null,
         metric: serializeMeasurement(measurements.metric),
         imperial: serializeMeasurement(measurements.imperial),
       };

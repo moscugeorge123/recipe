@@ -67,6 +67,7 @@ export interface NormalizedIngredient {
   name: string;
   canonicalName: string;
   quantity: Prisma.Decimal | null;
+  quantityMax?: Prisma.Decimal | null;
   unit: string | null;
   metricQuantity?: Prisma.Decimal | null;
   metricUnit?: string | null;

@@ -413,13 +413,29 @@ export function reconcileMeasurements(
   modelImperial?: unknown,
 ): IngredientMeasurements {
   const asWritten: Measurement = { quantity: original.quantity, unit: original.unit };
-  if (original.quantity === null || isCountUnit(original.unit)) {
+  if (original.quantity === null) {
     return { metric: asWritten, imperial: asWritten };
   }
 
   const metricCandidate = usableIn(measurementOrNull(modelMetric), 'metric');
   const imperialCandidate = usableIn(measurementOrNull(modelImperial), 'imperial');
-  const unit = resolveUnit(original.unit);
+
+  // No unit on the row: a model amount that restates the same number with a real unit means the
+  // unit was dropped ("0.25" + metric 0.25 tsp), so use it. A different number is a conversion
+  // of a bare count ("2 avocados" → 400 g) and must not replace the count.
+  const amount = original.quantity;
+  let originalUnit = original.unit;
+  if (!originalUnit?.trim()) {
+    const restated = [metricCandidate, imperialCandidate].find(
+      (candidate) =>
+        candidate?.quantity != null && Math.abs(candidate.quantity - amount) <= amount * 0.01,
+    );
+    originalUnit = restated?.unit ?? null;
+  }
+  if (isCountUnit(originalUnit)) {
+    return { metric: asWritten, imperial: asWritten };
+  }
+  const unit = resolveUnit(originalUnit);
 
   if (unit) {
     const source: Measurement = { quantity: original.quantity, unit };

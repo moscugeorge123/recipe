@@ -591,6 +591,7 @@ export function createDefaultStageHandlers(
           name: ing.name,
           canonicalName: ing.canonicalName,
           quantity: ing.quantity,
+          quantityMax: ing.quantityMax ?? null,
           unit: ing.unit,
           metricQuantity: ing.metricQuantity ?? null,
           metricUnit: ing.metricUnit ?? null,

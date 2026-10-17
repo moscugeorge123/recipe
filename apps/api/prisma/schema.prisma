@@ -374,6 +374,8 @@ model RecipeIngredient {
   name             String
   canonicalName    String?
   quantity         Decimal? @db.Decimal(10, 3)
+  /// Upper bound of a range ("2 to 4 tbsp"); quantity stays the lower bound
+  quantityMax      Decimal? @db.Decimal(10, 3)
   unit             String?
   /// Same amount in metric (g/kg/ml/l/cm, or the original count unit)
   metricQuantity   Decimal? @db.Decimal(10, 3)
@@ -471,6 +473,7 @@ model RecipeRevisionIngredient {
   name             String
   canonicalName    String?
   quantity         Decimal? @db.Decimal(10, 3)
+  quantityMax      Decimal? @db.Decimal(10, 3)
   unit             String?
   metricQuantity   Decimal? @db.Decimal(10, 3)
   metricUnit       String?
