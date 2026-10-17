@@ -16,6 +16,7 @@ import {
 } from 'firebase/auth';
 
 import { deleteAccountDoc, syncAccountDoc } from '@/features/auth/account-doc';
+import { deleteStoredAvatar } from '@/features/auth/avatar-service';
 import {
   AuthError,
   authErrorMessage,
@@ -242,6 +243,7 @@ export const authService = {
       await apiClient.delete('/me');
       // Firestore rules only let the owner delete it, so this runs before the auth user goes.
       await deleteAccountDoc(user.uid);
+      await deleteStoredAvatar(user.uid);
       try {
         await user.delete();
       } catch (error) {

@@ -21,11 +21,14 @@ import {
   type RecipeLanguagePref,
 } from '@/i18n/languages';
 import { AuthError, authService } from '@/features/auth/auth-service';
+import { removeAvatar, uploadAvatar } from '@/features/auth/avatar-service';
+import { pickAvatar } from '@/features/auth/pick-avatar';
 import { useCollections } from '@/features/collections/hooks';
 import { useCookSessions } from '@/features/cook-sessions/hooks';
 import { useTortieAuth, type TortieUser } from '@/tortie/auth-store';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
+import { initialsOf, nameOf, PROV_NAME } from '@/tortie/lib/user-display';
 import { motionMultiplier } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
 import { useTortiePrefs } from '@/tortie/prefs-store';
@@ -33,14 +36,14 @@ import { clampSnooze } from '@/tortie/timer-clock';
 import { C, CSS_EASE, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { BrandLogo } from '@/tortie/ui/brand';
-import { Pill, Switch } from '@/tortie/ui/controls';
+import { Avatar } from '@/tortie/ui/avatar';
+import { Grabber, Pill, Switch } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { Select, type SelectOption } from '@/tortie/ui/select';
+import { Sheet } from '@/tortie/ui/sheet';
 import { Stagger } from '@/tortie/ui/stagger';
 import { em, kicker, sans, serif, T } from '@/tortie/ui/text';
-
-const PROV_NAME = { google: 'Google', facebook: 'Facebook' } as const;
 
 /** User-facing text for a failed auth call; `null` when the user backed out. */
 function authMessage(e: unknown, fallback: string): string | null {
@@ -51,24 +54,7 @@ function authMessage(e: unknown, fallback: string): string | null {
   return fallback;
 }
 
-export function initialsOf(name: string): string {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((w) => w[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase() || '?'
-  );
-}
-
-/** Display name; OAuth sign-ins have no name until the API supports accounts. */
-export function nameOf(u: TortieUser | null): string {
-  if (!u) return '';
-  if (u.name) return u.name;
-  return u.prov === 'email' ? u.email : `${PROV_NAME[u.prov]} account`;
-}
+export { initialsOf, nameOf };
 
 export function ProfileScreen() {
   const f = useFrame();
@@ -78,6 +64,7 @@ export function ProfileScreen() {
   const profNonce = useNav((s) => s.profNonce);
   const closeProfile = useNav((s) => s.closeProfile);
   const user = useTortieAuth((s) => s.user);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   // Scroll state is scoped to one opening so it resets without an effect.
   const [scrState, setScrState] = useState({ n: profNonce, v: false });
@@ -131,7 +118,13 @@ export function ProfileScreen() {
         }}
       >
         <View style={{ paddingHorizontal: 20 }}>
-          <SignedIn on={on} heroHidden={pAv} user={user} name={name} />
+          <SignedIn
+            on={on}
+            heroHidden={pAv}
+            user={user}
+            name={name}
+            onChangePhoto={() => setPhotoOpen(true)}
+          />
         </View>
       </ScrollView>
       <View
@@ -251,7 +244,7 @@ export function ProfileScreen() {
             }}
           >
             <Press
-              onPress={() => toast('Choose a new profile photo')}
+              onPress={() => setPhotoOpen(true)}
               scale={0.88}
               accessibilityLabel="Change photo"
               style={{
@@ -273,26 +266,113 @@ export function ProfileScreen() {
                   mini,
                 ]}
               >
-                <View
+                <Avatar
+                  size={38}
                   style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 19,
-                    backgroundColor: C.green,
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     boxShadow: '0 0 0 2px #f8faf5, 0 0 0 3.5px #c7ecce',
                   }}
-                >
-                  <T style={sans(14, 700, C.bg)}>{initialsOf(name)}</T>
-                </View>
+                />
               </Animated.View>
             </Press>
           </View>
         </View>
       </View>
+      <PhotoSheet open={photoOpen} onClose={() => setPhotoOpen(false)} />
     </View>
   );
+}
+
+/** Take, choose or remove the profile picture. */
+function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const f = useFrame();
+  const hasPhoto = useTortieAuth((s) => !!s.user?.photoURL);
+  const rows: [string, string, 'camera' | 'library' | 'remove'][] = [
+    ['photo_camera', 'Take photo', 'camera'],
+    ['photo_library', 'Choose from library', 'library'],
+    ...(hasPhoto
+      ? ([['delete', 'Remove photo', 'remove']] as [string, string, 'remove'][])
+      : []),
+  ];
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      z={60}
+      style={{ paddingBottom: Math.max(28, f.sheetBottom) }}
+    >
+      <Grabber />
+      <T style={[serif(24, 500), { marginBottom: 8 }]}>Profile photo</T>
+      {rows.map(([icon, label, action]) => (
+        <Press
+          key={action}
+          onPress={() => {
+            onClose();
+            void changePhoto(action);
+          }}
+          scale={0.98}
+          bg="transparent"
+          pressedBg={C.surface2}
+          accessibilityRole="button"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 14,
+            height: 54,
+            borderRadius: 14,
+          }}
+        >
+          <Glyph
+            name={icon}
+            size={22}
+            color={action === 'remove' ? C.terraInk : C.green}
+          />
+          <T style={sans(15, 600, action === 'remove' ? C.terraInk : C.ink)}>
+            {label}
+          </T>
+        </Press>
+      ))}
+    </Sheet>
+  );
+}
+
+/** Runs one photo action. A failed upload keeps the old picture and offers Retry. */
+async function changePhoto(action: 'camera' | 'library' | 'remove') {
+  try {
+    if (action === 'remove') {
+      await removeAvatar();
+      toast('Photo removed');
+      return;
+    }
+    const picked = await pickAvatar(action);
+    if (picked.status === 'cancelled') return;
+    if (picked.status === 'denied') {
+      Alert.alert(
+        'Camera access is off',
+        'Allow Tortie to use the camera in Settings to take a profile photo.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+        ],
+      );
+      return;
+    }
+    await uploadAvatar(picked.uri);
+    toast('Profile photo updated');
+  } catch (e) {
+    const tooLarge = e instanceof Error && e.message === 'too-large';
+    Alert.alert(
+      'Couldn’t update your photo',
+      tooLarge
+        ? 'That photo is too large. Pick a smaller one.'
+        : 'Check your connection and try again. Your current photo is unchanged.',
+      tooLarge
+        ? [{ text: 'OK' }]
+        : [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Retry', onPress: () => void changePhoto(action) },
+          ],
+    );
+  }
 }
 
 /** App language and recipe language dropdowns, stored on the device. */
@@ -407,11 +487,13 @@ function SignedIn({
   heroHidden,
   user,
   name,
+  onChangePhoto,
 }: {
   on: boolean;
   heroHidden: boolean;
   user: TortieUser | null;
   name: string;
+  onChangePhoto: () => void;
 }) {
   const t = useT();
   const prefs = useTortiePrefs();
@@ -508,21 +590,13 @@ function SignedIn({
     <>
       <Stagger i={0} on={on} style={{ alignItems: 'center', paddingTop: 14 }}>
         <Animated.View style={hero}>
-          <View
-            style={{
-              width: 96,
-              height: 96,
-              borderRadius: 48,
-              backgroundColor: C.green,
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 0 4px #f8faf5, 0 0 0 6px #c7ecce',
-            }}
-          >
-            <T style={serif(38, 500, C.bg)}>{initialsOf(name)}</T>
-          </View>
+          <Avatar
+            size={96}
+            serifInitials
+            style={{ boxShadow: '0 0 0 4px #f8faf5, 0 0 0 6px #c7ecce' }}
+          />
           <Press
-            onPress={() => toast('Choose a new profile photo')}
+            onPress={onChangePhoto}
             scale={0.88}
             accessibilityLabel="Change photo"
             style={{

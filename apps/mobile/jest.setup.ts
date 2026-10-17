@@ -311,6 +311,14 @@ jest.mock('firebase/firestore', () => ({
   serverTimestamp: jest.fn(() => 'SERVER_TIMESTAMP'),
 }));
 
+jest.mock('firebase/storage', () => ({
+  getStorage: jest.fn(() => ({})),
+  ref: jest.fn((_s: unknown, path: string) => ({ path })),
+  uploadBytes: jest.fn(async () => ({})),
+  getDownloadURL: jest.fn(async () => 'https://example.com/avatar'),
+  deleteObject: jest.fn(async () => undefined),
+}));
+
 jest.mock('@react-native-google-signin/google-signin', () => ({
   GoogleSignin: {
     configure: jest.fn(),
