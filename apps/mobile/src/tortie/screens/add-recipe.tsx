@@ -10,8 +10,8 @@ import { startImport, retryImport } from '@/tortie/data/import-engine';
 import { useTRecipe } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { useImports } from '@/tortie/import-store';
-import { openImportedRecipe, useNav } from '@/tortie/nav-store';
-import { C, CSS_EASE } from '@/tortie/theme';
+import { afterMotion, openImportedRecipe, useNav } from '@/tortie/nav-store';
+import { BASE_D, C, CSS_EASE } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { BRAND_COLOR, BrandLogo, type Brand } from '@/tortie/ui/brand';
 import { Grabber } from '@/tortie/ui/controls';
@@ -96,6 +96,23 @@ export function AddRecipeSheet() {
     const { addJobId } = useNav.getState();
     useImports.getState().setFocus(addJobId);
     if (addJobId) useNav.setState({ addJobId: null });
+    // Back from the camera the field is as the user left it. Any other open starts empty.
+    if (!wasCam.current) {
+      setUrl('');
+      setClip(null);
+    }
+  }, [open]);
+
+  // Closing for good clears the field and the clipboard suggestion too, once the sheet has
+  // slid away, so a half-closed frame never loses its text. Going to the camera keeps them.
+  useEffect(() => {
+    if (open) return;
+    const t = afterMotion(BASE_D * 1.2, () => {
+      if (useNav.getState().cam) return;
+      setUrl('');
+      setClip(null);
+    });
+    return () => clearTimeout(t);
   }, [open]);
 
   useEffect(() => {
@@ -119,7 +136,8 @@ export function AddRecipeSheet() {
   const startImportFor = (raw?: string) => {
     const u = (raw ?? url).trim();
     if (!platOf(u)) return;
-    if (raw != null) setUrl(raw);
+    // The suggestion is used up; whatever the user typed stays where it was.
+    if (raw != null) setClip(null);
     setFocus(startImport(withScheme(u)));
   };
 
