@@ -1,8 +1,9 @@
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { AppState, Platform, type AppStateStatus } from 'react-native';
 
+import { startAlarm, stopAlarm } from '@/tortie/alarm-player';
 import { useCook } from '@/tortie/cook-store';
-import { useNav } from '@/tortie/nav-store';
+import { toast, useNav } from '@/tortie/nav-store';
 import { useTortiePrefs } from '@/tortie/prefs-store';
 import {
   ALARM_SOUND,
@@ -42,15 +43,17 @@ let channelReady: Promise<void> | null = null;
 let chain: Promise<void> = Promise.resolve();
 let notificationsModule: Promise<NotificationsModule> | null = null;
 let warnedExpoGo = false;
+let toldDenied = false;
 
 function loadNotifications(): Promise<NotificationsModule | null> {
   if (!alarmsSupported) return Promise.resolve(null);
   notificationsModule ??= import('expo-notifications').then((mod) => {
     mod.setNotificationHandler({
+      // Open app: the in-app alarm rings, so the notification stays silent.
       handleNotification: async () => ({
         shouldShowBanner: true,
         shouldShowList: true,
-        shouldPlaySound: true,
+        shouldPlaySound: AppState.currentState !== 'active',
         shouldSetBadge: false,
         priority: mod.AndroidNotificationPriority.MAX,
       }),
@@ -71,7 +74,11 @@ function warnExpoGoOnce() {
 
 export function startTimerAlarms(): () => void {
   const onActive = (state: AppStateStatus) => {
-    if (state !== 'active') return;
+    if (state !== 'active') {
+      // The notification takes over once the app leaves the foreground.
+      stopAlarm();
+      return;
+    }
     useCook.getState().tick();
     requestSync();
   };
@@ -148,6 +155,10 @@ async function reconcile() {
     const allowed = await ensurePermission(notifications);
     if (stamp() !== before) return;
     if (!allowed) {
+      if (!toldDenied) {
+        toldDenied = true;
+        toast('Allow notifications so timers can ring when Tortie is closed');
+      }
       for (const alarm of existing) {
         const timer = alarm.key ? timers[alarm.key] : undefined;
         if (timer?.run) {
@@ -299,7 +310,7 @@ function usesBundledAlarm(): boolean {
 }
 
 function channelId(): string {
-  return usesBundledAlarm() ? 'cook-alarms-v1' : 'cook-alarms-default';
+  return usesBundledAlarm() ? 'cook-alarms-v2' : 'cook-alarms-default';
 }
 
 function channelSound(): string | null {
@@ -309,4 +320,33 @@ function channelSound(): string | null {
 function contentSound(): 'default' | 'defaultRingtone' | typeof ALARM_SOUND {
   if (usesBundledAlarm()) return ALARM_SOUND;
   return Platform.OS === 'ios' ? 'defaultRingtone' : 'default';
+}
+
+/**
+ * Diagnostics for the Profile "Test alarm" row: rings the in-app alarm now and
+ * schedules a real notification in 5 s (needs notification permission).
+ */
+export async function testAlarm(): Promise<void> {
+  startAlarm();
+  const notifications = await loadNotifications();
+  if (!notifications) return;
+  await prepare(notifications);
+  if (!(await ensurePermission(notifications))) {
+    toast('Allow notifications so timers can ring when Tortie is closed');
+    return;
+  }
+  await notifications.scheduleNotificationAsync({
+    content: {
+      title: "Time's up",
+      body: 'Test alarm',
+      sound: contentSound(),
+      priority: notifications.AndroidNotificationPriority.MAX,
+      vibrate: VIBRATE,
+    },
+    trigger: {
+      type: notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      seconds: 5,
+      channelId: channelId(),
+    },
+  });
 }

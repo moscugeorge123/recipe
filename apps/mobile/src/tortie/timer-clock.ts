@@ -9,6 +9,8 @@ export type StepTimer = {
   recipeTitle: string;
   /** Epoch ms when a running timer hits zero. Null while paused. */
   endsAt: number | null;
+  /** The user saw this timer reach zero (or opened its step after). Missing = false. */
+  seen?: boolean;
 };
 
 /** Toast only when the timer finishes while the app is actually open. */
@@ -67,7 +69,7 @@ export function withRun(
 ): StepTimer {
   const rem = remainingSec(timer, now);
   if (!run || rem <= 0) return { ...timer, rem, run: false, endsAt: null };
-  return { ...timer, rem, run: true, endsAt: now + rem * 1000 };
+  return { ...timer, rem, run: true, endsAt: now + rem * 1000, seen: false };
 }
 
 /**
@@ -94,6 +96,7 @@ export function addMinute(
     total: timer.total + 60,
     run,
     endsAt: run ? now + remMs : null,
+    seen: false,
   };
 }
 
@@ -138,6 +141,7 @@ export function shiftMinutes(
     ...timer,
     rem,
     total: Math.max(rem, timer.total + minutes * 60),
+    seen: false,
     endsAt: timer.run && timer.endsAt != null ? now + rem * 1000 : null,
   };
 }
@@ -145,24 +149,84 @@ export function shiftMinutes(
 /** Apply from the settings panel: a fresh, paused timer of that length. */
 export function withDuration(timer: StepTimer, minutes: number): StepTimer {
   const sec = clampMinutes(minutes) * 60;
-  return { ...timer, rem: sec, total: sec, run: false, endsAt: null };
+  return {
+    ...timer,
+    rem: sec,
+    total: sec,
+    run: false,
+    endsAt: null,
+    seen: false,
+  };
 }
 
+/**
+ * `visibleKey` is the timer whose step the cook is looking at. A timer that
+ * finishes there is marked seen and reported in `seenKeys`, so the caller can
+ * skip the toast (the alarm still rings for everything in `finished`).
+ */
 export function projectTimers(
   timers: Record<string, StepTimer>,
   now: number,
-): { timers: Record<string, StepTimer>; finished: StepTimer[] } {
+  visibleKey: string | null = null,
+): {
+  timers: Record<string, StepTimer>;
+  finished: StepTimer[];
+  seenKeys: string[];
+} {
   let changed = false;
   const next: Record<string, StepTimer> = {};
   const finished: StepTimer[] = [];
+  const seenKeys: string[] = [];
   for (const key of Object.keys(timers)) {
     const timer = timers[key]!;
     const projected = projectOne(timer, now);
-    next[key] = projected.timer;
-    if (projected.timer !== timer) changed = true;
-    if (projected.finished) finished.push(projected.timer);
+    let out = projected.timer;
+    if (projected.finished) {
+      finished.push(out);
+      if (key === visibleKey) {
+        out = { ...out, seen: true };
+        seenKeys.push(key);
+      }
+    }
+    next[key] = out;
+    if (out !== timer) changed = true;
   }
-  return { timers: changed ? next : timers, finished };
+  return { timers: changed ? next : timers, finished, seenKeys };
+}
+
+export const isFinishedTimer = (t: StepTimer) =>
+  !t.run && t.rem === 0 && t.total > 0;
+
+/** Marks a finished timer seen (opening its step). Returns the same object when nothing changes. */
+export function markSeen(
+  timers: Record<string, StepTimer>,
+  key: string | null,
+): Record<string, StepTimer> {
+  const t = key ? timers[key] : undefined;
+  if (!key || !t || !isFinishedTimer(t) || t.seen) return timers;
+  return { ...timers, [key]: { ...t, seen: true } };
+}
+
+/** Dock pills: running or partly used timers, minus the visible step and finished ones the user saw. */
+export function dockTimerKeys(
+  timers: Record<string, StepTimer>,
+  visibleKey: string | null,
+): string[] {
+  return Object.keys(timers).filter((k) => {
+    const t = timers[k]!;
+    if (k === visibleKey) return false;
+    if (isFinishedTimer(t) && t.seen) return false;
+    return t.run || t.rem < t.total;
+  });
+}
+
+/** The alarm rings in-app only while the app is open and alerts are on. */
+export function shouldRing(
+  finished: readonly unknown[],
+  timerAlerts: boolean,
+  appState: string,
+): boolean {
+  return finished.length > 0 && timerAlerts && appState === 'active';
 }
 
 /**

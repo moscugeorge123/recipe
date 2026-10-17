@@ -23,6 +23,7 @@ import {
   MAX_TIMER_MINUTES,
   MIN_TIMER_MINUTES,
   clampMinutes,
+  dockTimerKeys,
   stepMinutes,
 } from '@/tortie/timer-clock';
 import { useCookSessionSync } from '@/tortie/data/cook-session';
@@ -110,6 +111,15 @@ export function CookMode() {
 
   const n = r?.steps.length ?? 0;
   const cur = n ? Math.min(step, n - 1) : 0;
+
+  // Tell the timer store which step is on screen: a timer finishing here (or
+  // opened after it finished) counts as seen and leaves the dock and toast.
+  const visibleKey =
+    open && !intro && !done && cookId ? timerKey(cookId, cur) : null;
+  useEffect(() => {
+    useCook.getState().setVisibleKey(visibleKey);
+    return () => useCook.getState().setVisibleKey(null);
+  }, [visibleKey]);
 
   // Closing the step clip viewer lands on the step it was showing.
   const clipBack = useNav((s) => s.clipBack);
@@ -397,9 +407,7 @@ export function CookMode() {
           cookId={cookId}
           r={r}
           timers={timers}
-          visibleKey={
-            open && !intro && !done && cookId ? timerKey(cookId, cur) : null
-          }
+          visibleKey={visibleKey}
           onGo={(id, si) => {
             if (id !== cookId) {
               useCook.getState().begin(id);
@@ -1277,12 +1285,7 @@ function Dock({
     if (!open) setTExp(null);
   }
 
-  const keys = Object.keys(timers)
-    .filter((k) => {
-      const t = timers[k]!;
-      return (t.run || t.rem < t.total) && k !== visibleKey;
-    })
-    .sort((a, b) => {
+  const keys = dockTimerKeys(timers, visibleKey).sort((a, b) => {
       const [ia, sa] = splitKey(a);
       const [ib, sb] = splitKey(b);
       return (

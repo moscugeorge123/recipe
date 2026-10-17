@@ -2,10 +2,16 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
 
+import { AppState } from 'react-native';
+
+import { startAlarm, stopAlarm } from '@/tortie/alarm-player';
 import { toast } from '@/tortie/nav-store';
+import { useTortiePrefs } from '@/tortie/prefs-store';
 import {
   addMinute,
+  markSeen,
   projectTimers,
+  shouldRing,
   shiftMinutes,
   withDuration,
   withRun,
@@ -25,6 +31,8 @@ type CookState = {
   sessionId: string | null;
   /** Result of the last `begin` (Cook mode skips the intro when resuming). */
   resumed: boolean;
+  /** Timer key of the step on screen in cook mode (not persisted). */
+  visibleKey: string | null;
 };
 
 type CookActions = {
@@ -75,6 +83,8 @@ type CookActions = {
     recipeTitle: string,
   ) => void;
   dismiss: (key: string) => void;
+  /** Cook mode reports which step's timer is on screen; a finished one is marked seen. */
+  setVisibleKey: (key: string | null) => void;
   tick: () => void;
 };
 
@@ -89,6 +99,7 @@ export const useCook = create<CookState & CookActions>()(
       activeOn: false,
       sessionId: null,
       resumed: false,
+      visibleKey: null,
 
       begin: (id) => {
         const { active, activeOn } = get();
@@ -131,6 +142,7 @@ export const useCook = create<CookState & CookActions>()(
         get().timers[key] ?? blank(minutes, title, recipeTitle),
       toggle: (key, minutes, title, recipeTitle) =>
         set((s) => {
+          stopAlarm();
           const now = Date.now();
           const current = s.timers[key] ?? blank(minutes, title, recipeTitle);
           const base =
@@ -146,6 +158,7 @@ export const useCook = create<CookState & CookActions>()(
         }),
       plus: (key) =>
         set((s) => {
+          stopAlarm();
           const timer = s.timers[key];
           if (!timer) return {};
           return {
@@ -157,6 +170,7 @@ export const useCook = create<CookState & CookActions>()(
         }),
       bump: (key, minutes, title, recipeTitle) =>
         set((s) => {
+          stopAlarm();
           const current = s.timers[key] ?? blank(minutes, title, recipeTitle);
           return {
             timers: {
@@ -171,6 +185,7 @@ export const useCook = create<CookState & CookActions>()(
         }),
       reset: (key, minutes) =>
         set((s) => {
+          stopAlarm();
           const timer = s.timers[key];
           if (!timer) return {};
           const sec = minutes * 60;
@@ -183,12 +198,14 @@ export const useCook = create<CookState & CookActions>()(
                 total: sec,
                 run: false,
                 endsAt: null,
+                seen: false,
               },
             },
           };
         }),
       shift: (key, delta, minutes, title, recipeTitle) =>
         set((s) => {
+          stopAlarm();
           const current = s.timers[key] ?? blank(minutes, title, recipeTitle);
           return {
             timers: {
@@ -203,6 +220,7 @@ export const useCook = create<CookState & CookActions>()(
         }),
       setDuration: (key, minutes, title, recipeTitle) =>
         set((s) => {
+          stopAlarm();
           const current = s.timers[key] ?? blank(minutes, title, recipeTitle);
           return {
             timers: {
@@ -213,15 +231,34 @@ export const useCook = create<CookState & CookActions>()(
         }),
       dismiss: (key) =>
         set((s) => {
+          stopAlarm();
           const T = { ...s.timers };
           delete T[key];
           return { timers: T };
         }),
+      setVisibleKey: (key) => {
+        const timers = markSeen(get().timers, key);
+        if (timers !== get().timers) {
+          stopAlarm();
+          set({ visibleKey: key, timers });
+        } else if (get().visibleKey !== key) set({ visibleKey: key });
+      },
       tick: () => {
-        const { timers, finished } = projectTimers(get().timers, Date.now());
+        const { timers, finished, seenKeys } = projectTimers(
+          get().timers,
+          Date.now(),
+          get().visibleKey,
+        );
         if (timers !== get().timers) set({ timers });
-        for (const done of finished) {
-          toast('Timer done — ' + done.title.toLowerCase());
+        const { timerAlerts } = useTortiePrefs.getState();
+        if (shouldRing(finished, timerAlerts, AppState.currentState)) {
+          startAlarm();
+        }
+        const seen = new Set(seenKeys);
+        for (const key of Object.keys(timers)) {
+          const t = timers[key]!;
+          if (!finished.includes(t) || seen.has(key)) continue;
+          toast('Timer done — ' + t.title.toLowerCase());
         }
       },
     }),
