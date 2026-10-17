@@ -7,6 +7,7 @@ import {
   RATE_LIMIT_COUNTDOWN_S,
   errorGroupOf,
 } from '@/features/extraction/error-groups';
+import { targetProgress } from '@/features/extraction/import-stages';
 import {
   brandNameOf,
   importSrcOf,
@@ -33,6 +34,9 @@ import { openImportedRecipe, toast, useNav } from '@/tortie/nav-store';
 
 const TICK_MS = 100;
 const POLL_MS = 4000;
+/** Poll quickly at first: a rejected link should reach the error in about a second. */
+const POLL_FAST_MS = 1000;
+const POLL_FAST_WINDOW_MS = 10_000;
 const RATE_LIMIT_BACKOFF_MS = 5000;
 const POLL_FAILURES_BEFORE_GIVING_UP = 3;
 /** Creep time constants: a retry from history runs slower than a live import. */
@@ -54,6 +58,8 @@ type Runtime = {
   pollFailures: number;
   /** Latest poll result. */
   serverProgress: number;
+  /** Job status from the latest poll; keeps the bar inside that stage. */
+  serverStatus?: string;
   /** Set once the API says the recipe is saved; the bar then runs to 100. */
   recipeId?: string;
   doneAt?: number;
@@ -114,7 +120,7 @@ export function startImport(
     t0: now,
     slow: !!opts.slow,
     ctrl,
-    nextPollAt: now + POLL_MS,
+    nextPollAt: now + POLL_FAST_MS,
     polling: false,
     pollFailures: 0,
     serverProgress: 0,
@@ -137,7 +143,7 @@ export function startImport(
         return;
       }
       rt.serverJobId = res.jobId;
-      rt.nextPollAt = Date.now() + POLL_MS;
+      rt.nextPollAt = Date.now() + pollEvery(rt);
     })
     .catch((e) => {
       if (!runtimes.has(id) || isAbortError(e)) return;
@@ -168,6 +174,11 @@ export function retryImport(
   if (!job || job.status !== 'failed') return null;
   useImports.getState().remove(id);
   return startImport(job.url, { src: job.src, slow: opts.slow });
+}
+
+/** Time to the next poll: fast while the job is young, slower after. */
+function pollEvery(rt: Runtime): number {
+  return Date.now() - rt.t0 < POLL_FAST_WINDOW_MS ? POLL_FAST_MS : POLL_MS;
 }
 
 function ensureTicker() {
@@ -245,8 +256,9 @@ function poll(id: string, rt: Runtime) {
       if (!runtimes.has(id)) return;
       rt.polling = false;
       rt.pollFailures = 0;
-      rt.nextPollAt = Date.now() + POLL_MS;
+      rt.nextPollAt = Date.now() + pollEvery(rt);
       rt.serverProgress = job.progress;
+      rt.serverStatus = job.status;
       if (job.status === 'COMPLETED' && job.recipeId) {
         rt.recipeId = job.recipeId;
       } else if (job.status === 'COMPLETED') {
@@ -271,7 +283,7 @@ function poll(id: string, rt: Runtime) {
         return;
       }
       rt.pollFailures += 1;
-      rt.nextPollAt = Date.now() + POLL_MS;
+      rt.nextPollAt = Date.now() + pollEvery(rt);
       if (rt.pollFailures >= POLL_FAILURES_BEFORE_GIVING_UP) {
         fail(id, LOST_TRACK);
       }
@@ -301,7 +313,7 @@ function tick() {
       (1 - Math.exp(-(now - rt.t0) / (rt.slow ? CREEP_MS_SLOW : CREEP_MS)));
     const target = rt.recipeId
       ? 100
-      : Math.min(94, Math.max(rt.serverProgress, creep));
+      : targetProgress(rt.serverStatus, rt.serverProgress, creep);
     const stepMax = STEP_PER_MS * dt * (rt.slow ? 0.5 : 1);
     const next = Math.min(Math.max(job.pct, target), job.pct + stepMax, 100);
     if (next - job.pct >= 0.25 || (next >= 100 && job.pct < 100)) {
