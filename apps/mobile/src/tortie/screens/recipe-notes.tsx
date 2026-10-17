@@ -139,7 +139,7 @@ export function NotesRow({
 /* ─────────────────────── Step / intro notes block ─────────────────────── */
 
 /**
- * Collapsible notes under a method step (or the cook-mode intro). Shows the newest note
+ * Collapsible notes under a step (or the cook-mode intro). Shows the newest note
  * clamped to two lines; "Show all n" opens the full list. "Add" opens the notes sheet.
  */
 export function StepNotes({

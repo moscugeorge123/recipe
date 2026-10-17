@@ -1,6 +1,6 @@
 import type { RecipeNoteDto } from '@/features/recipes/schemas';
 
-/** Where a note is attached: the whole recipe, or one method step (zero-based). */
+/** Where a note is attached: the whole recipe, or one step (zero-based). */
 export type NoteTarget = { kind: 'general' } | { kind: 'step'; index: number };
 
 export const GENERAL: NoteTarget = { kind: 'general' };

@@ -1079,7 +1079,7 @@ export function RecipeEditor() {
           <DashedAdd label="Add ingredient" onPress={addIng} mt={8} />
 
           <SectionHead
-            title="Method"
+            title="Steps"
             count={ns + ' step' + (ns === 1 ? '' : 's')}
             mt={30}
           />

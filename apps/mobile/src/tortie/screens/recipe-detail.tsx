@@ -75,6 +75,7 @@ import { Grabber, Segmented } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
+import { DETAIL_TABS } from '@/tortie/screens/detail-layout';
 import { StepClipChip } from '@/tortie/screens/step-clip';
 import { OpenInNewIcon } from '@/tortie/ui/svg-icons';
 import {
@@ -114,7 +115,7 @@ export function RecipeDetail() {
     ref.current?.scrollTo({ y: 0, animated: false });
   }, [nonce]);
 
-  // On the Method tab, load the source video so "Watch step" opens on a ready frame.
+  // On the Steps tab, load the source video so "Watch step" opens on a ready frame.
   const hasVideo = !!r?.video;
   useEffect(() => {
     if (id && seg === 1 && hasVideo) useNav.getState().primeClip(id);
@@ -280,8 +281,8 @@ export function RecipeDetail() {
             height={40}
             index={seg}
             items={[
-              { label: 'Ingredients', onPress: () => setSeg(0) },
-              { label: 'Method', onPress: () => setSeg(1) },
+              { label: DETAIL_TABS[0], onPress: () => setSeg(0) },
+              { label: DETAIL_TABS[1], onPress: () => setSeg(1) },
             ]}
           />
           <View style={{ overflow: 'hidden', marginHorizontal: -20 }}>
