@@ -20,6 +20,20 @@ export class PrismaRecipeSourceRepository implements IRecipeSourceRepository {
     });
   }
 
+  findOrCreate(input: CreateRecipeSourceInput): Promise<RecipeSource> {
+    return this.db.recipeSource.upsert({
+      where: { urlHash: input.urlHash },
+      create: {
+        sourceType: input.sourceType,
+        originalUrl: input.originalUrl,
+        normalizedUrl: input.normalizedUrl,
+        urlHash: input.urlHash,
+        metadata: input.metadata ?? {},
+      },
+      update: {},
+    });
+  }
+
   findByUrlHash(urlHash: string): Promise<RecipeSource | null> {
     return this.db.recipeSource.findUnique({ where: { urlHash } });
   }

@@ -9,7 +9,7 @@ import {
   JobCancelledError,
   JobNotFoundError,
 } from '../../../shared/errors/extraction-errors.js';
-import { hashUrl, normalizeUrl } from '../../../shared/utils/url.js';
+import { hashUrl, legacyNormalizeUrl, normalizeUrl } from '../../../shared/utils/url.js';
 import type { ContentProviderRegistry } from '../../content/domain/types.js';
 import { DEFAULT_PROFILE_ID } from '../../profiles/domain/profile.js';
 import { parseJobOptions } from '../domain/job-options.js';
@@ -18,6 +18,12 @@ import type { IExtractionJobRepository } from '../repository/extraction-job.repo
 import type { IRecipeSourceRepository } from '../../recipes/repository/recipe-source.repository.js';
 
 export const EXTRACTION_JOB_NAME = 'extract';
+
+/**
+ * A queued or running job older than this is treated as abandoned (a worker that died), so a
+ * new request for the same link starts a fresh job instead of joining it.
+ */
+export const ACTIVE_JOB_WINDOW_MS = 15 * 60 * 1000;
 
 export interface CreateExtractionJobInput {
   url: string;
@@ -46,6 +52,8 @@ export interface JobStatusView {
 
 export class ExtractionJobService {
   private readonly stateMachine = new JobStateMachine();
+  /** Requests for the same account and link that are being handled right now. */
+  private readonly inFlight = new Map<string, Promise<CreateExtractionJobResult>>();
 
   constructor(
     private readonly jobRepo: IExtractionJobRepository,
@@ -68,18 +76,43 @@ export class ExtractionJobService {
 
     const normalizedUrl = normalizeUrl(input.url);
     const urlHash = hashUrl(normalizedUrl);
+
+    // Two requests for the same link at the same moment (a double tap, a re-delivered share)
+    // share one result instead of racing to create two sources and two jobs.
+    const key = `${userId}:${urlHash}`;
+    const running = this.inFlight.get(key);
+    if (running) return running;
+    const pending = this.createJobFor(userId, input, normalizedUrl, urlHash);
+    this.inFlight.set(key, pending);
+    try {
+      return await pending;
+    } finally {
+      this.inFlight.delete(key);
+    }
+  }
+
+  private async createJobFor(
+    userId: string,
+    input: CreateExtractionJobInput,
+    normalizedUrl: string,
+    urlHash: string,
+  ): Promise<CreateExtractionJobResult> {
     const sourceType = this.registry.detectSourceType(input.url);
 
     let source = await this.sourceRepo.findByUrlHash(urlHash);
 
     if (!source) {
-      source = await this.sourceRepo.create({
-        sourceType,
-        originalUrl: input.url,
-        normalizedUrl,
-        urlHash,
-      });
+      // A source saved before links were normalised this far keeps its old hash.
+      const legacyHash = hashUrl(legacyNormalizeUrl(input.url));
+      if (legacyHash !== urlHash) source = await this.sourceRepo.findByUrlHash(legacyHash);
     }
+
+    source ??= await this.sourceRepo.findOrCreate({
+      sourceType,
+      originalUrl: input.url,
+      normalizedUrl,
+      urlHash,
+    });
 
     if (!input.forceRefresh) {
       const existing = await this.jobRepo.findLatestCompletedBySourceId(source.id);
@@ -97,6 +130,20 @@ export class ExtractionJobService {
           deduplicated: true,
         };
       }
+    }
+
+    // The same link is already importing for this account: hand back that job.
+    const active = await this.jobRepo.findActiveBySourceId(
+      source.id,
+      userId,
+      new Date(Date.now() - ACTIVE_JOB_WINDOW_MS),
+    );
+    if (active) {
+      this.log.info(
+        { step: 'http.extract.create', jobId: active.id, url: input.url, joinedActive: true },
+        'http.extract.create completed',
+      );
+      return { jobId: active.id, status: 'queued', deduplicated: false };
     }
 
     const job = await this.jobRepo.create({

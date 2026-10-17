@@ -25,6 +25,15 @@ export interface IExtractionJobRepository {
   findById(id: string): Promise<ExtractionJob | null>;
   update(id: string, input: UpdateExtractionJobInput): Promise<ExtractionJob>;
   findLatestCompletedBySourceId(recipeSourceId: string): Promise<ExtractionJob | null>;
+  /**
+   * A job this user started for the source that has not finished yet (queued or running)
+   * and was created at or after `since`. Newest first.
+   */
+  findActiveBySourceId(
+    recipeSourceId: string,
+    userId: string,
+    since: Date,
+  ): Promise<ExtractionJob | null>;
   clearRecipeIdExcept(recipeId: string, jobId: string): Promise<void>;
   /**
    * Gives the user their own copy of an existing recipe (UserRecipe + original revision +

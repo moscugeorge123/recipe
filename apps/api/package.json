@@ -23,6 +23,7 @@
     "start:worker": "node dist/worker/index.js",
     "import:smoke": "tsx --env-file-if-exists=.env src/scripts/import-smoke.ts",
     "claim-profile": "tsx --env-file-if-exists=.env src/scripts/claim-default-profile.ts",
+    "duplicates:list": "tsx --env-file-if-exists=.env src/scripts/list-duplicate-recipes.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",

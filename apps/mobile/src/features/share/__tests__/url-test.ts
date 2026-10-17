@@ -1,4 +1,9 @@
-import { handoffFromShare, hostOf, sourceOf } from '@/features/share/url';
+import {
+  handoffFromShare,
+  hostOf,
+  importKeyOf,
+  sourceOf,
+} from '@/features/share/url';
 
 describe('handoffFromShare', () => {
   test('prefers the shared web url', () => {
@@ -52,6 +57,43 @@ describe('hostOf', () => {
   test('drops the scheme and www', () => {
     expect(hostOf('https://www.bbcgoodfood.com/recipes/cake')).toBe(
       'bbcgoodfood.com',
+    );
+  });
+});
+
+describe('importKeyOf', () => {
+  const YT = 'youtube.com/watch?v=dQw4w9WgXcQ';
+
+  test.each([
+    'https://youtu.be/dQw4w9WgXcQ?si=AbCdEf',
+    'https://youtu.be/dQw4w9WgXcQ?si=Other',
+    'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    'https://m.youtube.com/watch?v=dQw4w9WgXcQ&feature=share',
+    'https://www.youtube.com/shorts/dQw4w9WgXcQ',
+    'http://youtu.be/dQw4w9WgXcQ#t=5',
+  ])('YouTube link %s has one key', (url) => {
+    expect(importKeyOf(url)).toBe(YT);
+  });
+
+  test('different videos differ', () => {
+    expect(importKeyOf('https://youtu.be/aaaaaaaaaaa')).not.toBe(
+      importKeyOf('https://youtu.be/bbbbbbbbbbb'),
+    );
+  });
+
+  test('ignores www, scheme, tracking parameters, order and trailing slash', () => {
+    const key = importKeyOf('https://example.com/r?a=1&b=2');
+    expect(importKeyOf('http://www.example.com/r/?b=2&a=1&utm_source=x')).toBe(
+      key,
+    );
+    expect(importKeyOf('https://example.com/r?a=1&b=2&igshid=9&ref=h')).toBe(
+      key,
+    );
+  });
+
+  test('keeps parameters that pick the content', () => {
+    expect(importKeyOf('https://example.com/r?id=1')).not.toBe(
+      importKeyOf('https://example.com/r?id=2'),
     );
   });
 });

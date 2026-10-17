@@ -10,6 +10,11 @@ export interface CreateRecipeSourceInput {
 
 export interface IRecipeSourceRepository {
   create(input: CreateRecipeSourceInput): Promise<RecipeSource>;
+  /**
+   * Returns the source with this `urlHash`, creating it when missing. Safe under concurrent
+   * calls for the same link (one row, no unique-constraint error).
+   */
+  findOrCreate(input: CreateRecipeSourceInput): Promise<RecipeSource>;
   findByUrlHash(urlHash: string): Promise<RecipeSource | null>;
   findById(id: string): Promise<RecipeSource | null>;
   updateMetadata(id: string, metadata: Prisma.InputJsonValue): Promise<RecipeSource>;

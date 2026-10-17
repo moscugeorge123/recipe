@@ -94,6 +94,12 @@ const TRACKING_PARAMS = new Set([
 ]);
 
 const YOUTUBE_ID = /^[\w-]{6,}$/;
+const YOUTUBE_HOSTS = new Set([
+  'youtube.com',
+  'm.youtube.com',
+  'music.youtube.com',
+  'youtube-nocookie.com',
+]);
 
 /**
  * A stable key for "the same link": two shares of one page give one key, whatever
@@ -108,12 +114,12 @@ export function importKeyOf(raw: string): string {
   } catch {
     return text.toLowerCase();
   }
-  const host = u.hostname.toLowerCase().replace(/^(www|m|mobile)\./, '');
+  const host = u.hostname.toLowerCase().replace(/^www\./, '');
   const parts = u.pathname.split('/').filter(Boolean);
 
   let videoId: string | null = null;
   if (host === 'youtu.be') videoId = parts[0] ?? null;
-  else if (host === 'youtube.com' || host === 'youtube-nocookie.com') {
+  else if (YOUTUBE_HOSTS.has(host)) {
     if (parts[0] === 'watch') videoId = u.searchParams.get('v');
     else if (['shorts', 'embed', 'live', 'v'].includes(parts[0] ?? ''))
       videoId = parts[1] ?? null;
