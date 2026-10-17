@@ -11,6 +11,7 @@ import type {
 } from '@/features/recipes/types';
 import {
   ingredientAmount,
+  isMeasuredUnit,
   preferUnits,
   stepHeat,
 } from '@/features/recipes/units';
@@ -259,6 +260,11 @@ function videoUrl(path: string | null | undefined): string | null {
 
 /** "115 g" / "¼ cup" for an ingredient row, scaled for servings. */
 export function ingQty(x: TIng, scale = 1): string {
+  if (x.q && scale !== 1 && !isMeasuredUnit(x.u)) {
+    // Whole things (eggs, cloves): nearest half, never "⅛ egg".
+    const q = Math.max(0.5, Math.round(x.q * scale * 2) / 2);
+    return fmtIngQty(q, x.u, 1);
+  }
   return fmtIngQty(x.q, x.u, scale);
 }
 

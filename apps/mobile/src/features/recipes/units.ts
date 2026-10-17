@@ -95,6 +95,11 @@ function resolve(unit: string | null | undefined): string | null {
   return alias && DEFS[alias] ? alias : null;
 }
 
+/** True for mass and volume units (g, tbsp, cup…); false for counts like "clove" or "". */
+export function isMeasuredUnit(unit: string | null | undefined): boolean {
+  return resolve(unit) !== null;
+}
+
 const step = (value: number, size: number) => Math.round(value / size) * size;
 const trim = (value: number) => Number(value.toFixed(3));
 

@@ -350,7 +350,11 @@ export function RecipeDetail() {
                 <View style={{ paddingTop: 18, paddingBottom: 8 }}>
                   <T
                     style={sans(14, 600, C.ink2)}
-                  >{`${r?.ings.length ?? 0} ingredients`}</T>
+                  >{`${r?.ings.length ?? 0} ingredients${
+                    r && serv !== r.base
+                      ? ` · scaled for ${serv}, original ${r.base}`
+                      : ''
+                  }`}</T>
                 </View>
                 {r?.ings.map((x, i) => (
                   <View

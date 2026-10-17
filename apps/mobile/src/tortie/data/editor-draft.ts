@@ -7,6 +7,7 @@ import type { Difficulty, RecipeView } from '@/features/recipes/types';
 import type { TDetail } from '@/tortie/data/recipes';
 import { detectMin, emoOf, parseIng, qTxt } from '@/tortie/lib/fmt';
 import { useNav } from '@/tortie/nav-store';
+import { useTortiePrefs } from '@/tortie/prefs-store';
 
 /** Editor rows (prototype `ed.ings` / `ed.steps`); `src` points at the loaded recipe's row. */
 export type EdIng = { k: string; txt: string; src?: number };
@@ -95,7 +96,10 @@ export function makeDraft(r: TDetail): Draft {
   };
 }
 
-export function blankDraft(): Draft {
+/** A new recipe starts at the user's default servings (Profile → Kitchen). */
+export function blankDraft(
+  servings: number = useTortiePrefs.getState().defaultServings,
+): Draft {
   const k = () => 'n' + uid();
   return {
     id: null,
@@ -103,7 +107,7 @@ export function blankDraft(): Draft {
     title: '',
     desc: '',
     level: 'Easy',
-    base: 4,
+    base: Math.max(1, Math.min(12, Math.round(servings)) || 4),
     time: 30,
     ings: [{ k: k(), txt: '' }],
     steps: [

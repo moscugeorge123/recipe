@@ -4,7 +4,7 @@ import { recipeKeys } from '@/features/query-keys';
 import { getRecipe } from '@/features/recipes/api';
 import type { MeasurementSystem, RecipeView } from '@/features/recipes/types';
 import { ingredientAmount } from '@/features/recipes/units';
-import { useRecipeUi } from '@/tortie/data/recipe-ui';
+import { openingServings, useRecipeUi } from '@/tortie/data/recipe-ui';
 import type { BulkRecipe } from '@/tortie/data/selection';
 import { toast, useNav } from '@/tortie/nav-store';
 import { useTortiePrefs } from '@/tortie/prefs-store';
@@ -38,6 +38,8 @@ export async function loadBulkRecipes(
   opts?: {
     units?: MeasurementSystem;
     servings?: Record<string, number>;
+    /** Servings for a recipe the user hasn't picked a count for. */
+    defaultServings?: number;
   },
 ): Promise<{ recipes: BulkRecipe[]; failed: boolean }> {
   const units = opts?.units ?? 'metric';
@@ -57,7 +59,17 @@ export async function loadBulkRecipes(
       }
     }
     if (!view) continue;
-    recipes.push(scaledIngredient(view, units, servings[view.id]));
+    recipes.push(
+      scaledIngredient(
+        view,
+        units,
+        openingServings(
+          servings[view.id],
+          opts?.defaultServings,
+          view.servings ?? 0,
+        ),
+      ),
+    );
   }
   return { recipes, failed };
 }
@@ -83,6 +95,7 @@ export async function presentGroceryPick(
   const { recipes, failed } = await loadBulkRecipes(client, ids, {
     units: useTortiePrefs.getState().units,
     servings: useRecipeUi.getState().serv,
+    defaultServings: useTortiePrefs.getState().defaultServings,
   });
   const picked = recipes.filter(hasNamedIngredient);
   if (!picked.length) {
