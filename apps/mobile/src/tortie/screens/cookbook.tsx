@@ -25,6 +25,7 @@ import {
   type CollItem,
   type CollTile,
 } from '@/tortie/data/cookbook';
+import { cookbookSubtitle, showingSummary } from '@/tortie/data/cookbook-state';
 import { mealSlot, usePlan, type MealPick } from '@/tortie/data/plan';
 import { DAYNAMES, fmtT } from '@/tortie/lib/fmt';
 import { toast, useNav } from '@/tortie/nav-store';
@@ -63,11 +64,22 @@ export function CookbookScreen() {
     ? `Tap a recipe for ${DAYNAMES[pick.day]} ${pick.label.toLowerCase()}`
     : isC
       ? `${v.nColls} collections · 0 shared`
-      : `${v.nAll} recipes · ${v.nSaved} saved`;
+      : cookbookSubtitle(v.nAll, v.nSaved);
 
   useEffect(() => {
-    if (tab !== 'cookbook') usePlan.getState().clearPick();
+    if (tab !== 'cookbook') {
+      usePlan.getState().clearPick();
+      // A search or chip left behind hides new recipes on the next visit.
+      useCookbook.getState().resetBrowse();
+    }
   }, [tab]);
+
+  // A recipe was added (import finished): show it, not a stale search.
+  const prevTotal = useRef(v.nAll);
+  useEffect(() => {
+    if (v.nAll > prevTotal.current) useCookbook.getState().resetBrowse();
+    prevTotal.current = v.nAll;
+  }, [v.nAll]);
 
   const fx = useAnimatedStyle<ViewStyle>(() => ({
     opacity: tw(cbFade ? 0 : 1, 160, CSS_EASE),
@@ -84,6 +96,7 @@ export function CookbookScreen() {
         header={head}
         top={<Top on={on} isC={isC} v={v} pick={pick} />}
         book={v.book}
+        total={v.nAll}
         on={on}
         collName={v.collO ? collName(v.collO).n : null}
         loading={v.recipesLoading}
@@ -288,6 +301,7 @@ function RecipesList({
   header,
   top,
   book,
+  total,
   on,
   collName,
   loading,
@@ -299,6 +313,8 @@ function RecipesList({
   header: (compact: boolean) => ReactNode;
   top: ReactNode;
   book: BookItem[];
+  /** All recipes, before search and filters. */
+  total: number;
   on: boolean;
   collName: string | null;
   loading: boolean;
@@ -310,6 +326,16 @@ function RecipesList({
 }) {
   const filter = useCookbook((s) => s.filter);
   const view = useCookbook((s) => s.rf.view);
+  const q = useCookbook((s) => s.q.trim());
+  const rf = useCookbook((s) => s.rf);
+  const narrowed =
+    !!q ||
+    filter !== 'all' ||
+    rf.time !== 'any' ||
+    rf.saved ||
+    rf.pantry ||
+    Object.values(rf.lv).some(Boolean);
+  const summary = collName ? null : showingSummary(book.length, total, narrowed);
   const open = useNav((s) => s.openRecipe);
   const createEntry = useCreateMealPlanEntry();
   const busy = useRef(false);
@@ -389,6 +415,31 @@ function RecipesList({
           </ScrollView>
         </Stagger>
       )}
+      {summary && !loading ? (
+        <View
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+            marginBottom: 14,
+            marginHorizontal: 4,
+          }}
+        >
+          <T style={sans(13, 400, C.ink2)}>{summary}</T>
+          <T style={sans(13, 400, C.ink3)}>·</T>
+          <Press
+            onPress={() => {
+              useCookbook.getState().resetBrowse();
+              useCookbook.getState().resetRF();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Clear search and filters"
+            hitSlop={10}
+          >
+            <T style={sans(13, 700, C.green)}>Clear</T>
+          </Press>
+        </View>
+      ) : null}
       {loading ? (
         <Grid>
           {[0, 1, 2, 3].map((i) => (
