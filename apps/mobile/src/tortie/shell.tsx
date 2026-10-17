@@ -14,11 +14,11 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import { useTortieAuth } from '@/tortie/auth-store';
+import { firstName, useTortieAuth } from '@/tortie/auth-store';
 import { startCookTicker } from '@/tortie/cook-store';
 import { startTimerAlarms } from '@/tortie/timer-alarm';
 import { useMotion } from '@/tortie/motion';
-import { TAB_ORDER, useNav, type TabKey } from '@/tortie/nav-store';
+import { TAB_ORDER, toast, useNav, type TabKey } from '@/tortie/nav-store';
 import { AddRecipeSheet } from '@/tortie/screens/add-recipe';
 import { CookMode } from '@/tortie/screens/cook';
 import { CookbookScreen } from '@/tortie/screens/cookbook';
@@ -73,13 +73,31 @@ export function TortieShell() {
   const status = useTortieAuth((s) => s.status);
   const au = useNav((s) => s.au);
   const auStep = useNav((s) => s.auStep);
-
-  if (status === 'loading') return null;
   // The session exists as soon as Firebase signs in, but the flow still has
   // its "done" step to show. Its CTA clears `au` and `auStep`, which ends the hold.
-  if (status === 'signedOut' || au || auStep === 'done') {
-    return <SignedOutGate />;
-  }
+  const gated = status === 'signedOut' || au || auStep === 'done';
+
+  // The welcome toast belongs to the shell that takes over, not to the sign-in layer that is
+  // unmounting: show it once the gate has handed over after a "done" step.
+  const sawDone = useRef(false);
+  const wasGated = useRef(gated);
+  useEffect(() => {
+    if (auStep === 'done') sawDone.current = true;
+    if (
+      wasGated.current &&
+      !gated &&
+      status === 'signedIn' &&
+      sawDone.current
+    ) {
+      sawDone.current = false;
+      const first = firstName(useTortieAuth.getState().user);
+      toast(first === 'there' ? 'Welcome to Tortie' : `Welcome, ${first}`);
+    }
+    wasGated.current = gated;
+  }, [gated, auStep, status]);
+
+  if (status === 'loading') return null;
+  if (gated) return <SignedOutGate />;
   return <SignedInShell />;
 }
 

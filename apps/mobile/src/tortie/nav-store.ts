@@ -129,6 +129,8 @@ type Nav = {
   toastNonce: number;
   /** Optional button on the toast ("Open"). */
   toastAction: ToastAction | null;
+  /** Epoch ms when the toast is due to go. The toast view re-checks it after a background. */
+  toastUntil: number;
 };
 
 type Actions = {
@@ -186,6 +188,7 @@ type Actions = {
   openWelcome: () => void;
   closeWelcome: () => void;
   toastShow: (msg: string, kind?: ToastKind, action?: ToastAction) => void;
+  toastHide: () => void;
 };
 
 export type ToastKind = 'ok' | 'error';
@@ -212,6 +215,11 @@ const OVERLAYS_CLOSED = {
   cookOpen: false,
   welcome: false,
 } satisfies Partial<Nav>;
+
+/** How long a toast stays: errors longer, and one with a button longer still. */
+export function toastDuration(error: boolean, hasAction: boolean): number {
+  return error ? 3800 : hasAction ? 4200 : 2400;
+}
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let bulkExit: ReturnType<typeof setTimeout> | null = null;
@@ -286,6 +294,7 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   toastErr: false,
   toastNonce: 0,
   toastAction: null,
+  toastUntil: 0,
 
   set: (p) => set(p),
   goTab: (t) => {
@@ -442,17 +451,24 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   toastShow: (msg, kind = 'ok', action) => {
     if (toastTimer) clearTimeout(toastTimer);
     const err = kind === 'error';
+    const ms = toastDuration(err, !!action);
     set((s) => ({
       toast: msg,
       toastOn: true,
       toastErr: err,
       toastNonce: s.toastNonce + 1,
       toastAction: action ?? null,
+      toastUntil: Date.now() + ms,
     }));
-    toastTimer = setTimeout(
-      () => set({ toastOn: false }),
-      err ? 3800 : action ? 4200 : 2400,
-    );
+    toastTimer = setTimeout(() => {
+      toastTimer = null;
+      set({ toastOn: false });
+    }, ms);
+  },
+  toastHide: () => {
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = null;
+    set({ toastOn: false });
   },
 }));
 

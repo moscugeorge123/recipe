@@ -177,8 +177,11 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           Math.round(300 * motionMultiplier()),
         );
       }
-      const first = firstName(useTortieAuth.getState().user);
-      toast(first === 'there' ? 'Welcome to Tortie' : `Welcome, ${first}`);
+      // Required: the shell that takes over shows the welcome toast (see TortieShell).
+      if (!required) {
+        const first = firstName(useTortieAuth.getState().user);
+        toast(first === 'there' ? 'Welcome to Tortie' : `Welcome, ${first}`);
+      }
     }
   };
   const back = () => {
