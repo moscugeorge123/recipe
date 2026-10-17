@@ -1,8 +1,9 @@
 import { useShareIntentContext } from 'expo-share-intent';
 import { useEffect } from 'react';
 
+import { openSharedLink } from '@/features/share/open-shared-link';
 import { handoffFromShare } from '@/features/share/url';
-import { toast, useNav } from '@/tortie/nav-store';
+import { toast } from '@/tortie/nav-store';
 
 /**
  * Opens the share preview when another app hands over a link. Mounted above
@@ -29,10 +30,7 @@ export function ShareIntentBridge() {
       return;
     }
 
-    // An incoming share starts from a clean stack: no clip viewer, cook mode or sheet
-    // left open underneath it.
-    useNav.getState().closeOverlays();
-    useNav.getState().openShare(handoff.url, handoff.title);
+    openSharedLink(handoff.url, handoff.title);
   }, [hasShareIntent, shareIntent, resetShareIntent]);
 
   return null;

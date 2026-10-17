@@ -1,6 +1,6 @@
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import { useLinkPreview } from '@/features/link-preview/hooks/use-link-preview';
@@ -30,18 +30,10 @@ export function SharePreview() {
   const open = useNav((s) => s.shareOpen);
   const url = useNav((s) => s.shareUrl);
   const hinted = useNav((s) => s.shareTitle);
-  const nonce = useNav((s) => s.shareNonce);
   const f = useFrame();
   const preview = useLinkPreview(open ? (url ?? undefined) : undefined);
-  const imp = useSharedImport(nonce);
-  const cancelImport = imp.cancel;
+  const imp = useSharedImport();
   const [dock, setDock] = useState(120);
-  const wasOpen = useRef(open);
-
-  useEffect(() => {
-    if (wasOpen.current && !open) cancelImport();
-    wasOpen.current = open;
-  }, [open, cancelImport]);
 
   if (!url) return null;
 
@@ -67,11 +59,7 @@ export function SharePreview() {
   const barPad = Math.max(30, f.bottom);
 
   const close = () => useNav.getState().closeShare();
-  const start = () =>
-    imp.start(url, {
-      thumbnail: thumb,
-      source: source && source.kind !== 'web' ? source.name : undefined,
-    });
+  const start = () => imp.start(url, { thumbnail: thumb });
   const openImported = () => {
     const id = imp.recipeId;
     useNav.getState().closeShare();
@@ -117,7 +105,17 @@ export function SharePreview() {
           {author ? (
             <T style={[sans(14, 500, C.ink2), { marginTop: 6 }]}>{author}</T>
           ) : null}
-          {reading ? (
+          {imp.phase === 1 && imp.job ? (
+            <ImportProgress
+              pct={imp.pct}
+              recipe={null}
+              src={imp.job.src}
+              url={url}
+              title={title}
+              thumb={thumb}
+              style={{ marginTop: 16 }}
+            />
+          ) : reading ? (
             <View
               style={{
                 flexDirection: 'row',
@@ -165,7 +163,7 @@ export function SharePreview() {
 
       <Press
         onPress={close}
-        accessibilityLabel={imp.phase === 1 ? 'Cancel import' : 'Close'}
+        accessibilityLabel="Close"
         scale={0.9}
         ms={200}
         easing={CSS_EASE}
@@ -219,31 +217,23 @@ export function SharePreview() {
         />
         {imp.phase === 0 ? <ImportButton label={cta} onPress={start} /> : null}
         {imp.phase === 1 ? (
-          <>
-            <ImportProgress
-              pct={imp.pct}
-              recipe={imp.recipe}
-              style={{ marginTop: 8 }}
-            />
-            <Press
-              onPress={imp.cancel}
-              scale={0.96}
-              easing={CSS_EASE}
-              accessibilityLabel="Cancel import"
-              style={{
-                height: 48,
-                marginTop: 12,
-                borderRadius: 99,
-                borderWidth: 1.5,
-                borderColor: C.line,
-                backgroundColor: C.white,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <T style={sans(15, 600)}>Cancel</T>
-            </Press>
-          </>
+          <Press
+            onPress={imp.cancel}
+            scale={0.96}
+            easing={CSS_EASE}
+            accessibilityLabel="Cancel import"
+            style={{
+              height: 48,
+              borderRadius: 99,
+              borderWidth: 1.5,
+              borderColor: C.line,
+              backgroundColor: C.white,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <T style={sans(15, 600)}>Cancel</T>
+          </Press>
         ) : null}
         {imp.phase === 2 ? (
           <SavedDock

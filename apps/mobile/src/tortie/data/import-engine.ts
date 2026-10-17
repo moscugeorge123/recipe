@@ -22,7 +22,8 @@ import {
 } from '@/lib/user-error';
 import { ApiError } from '@/services/api-client';
 import { useImports } from '@/tortie/import-store';
-import { toast, useNav } from '@/tortie/nav-store';
+import { importKeyOf } from '@/features/share/url';
+import { openImportedRecipe, toast, useNav } from '@/tortie/nav-store';
 
 /**
  * Link imports that outlive the Add sheet. The store holds what the UI shows;
@@ -67,6 +68,25 @@ function shownInSheet(id: string): boolean {
   return useNav.getState().addSheet && useImports.getState().focusId === id;
 }
 
+/** The share screen is open on this import and reports it itself. */
+function shownInShare(id: string): boolean {
+  const nav = useNav.getState();
+  return nav.shareOpen && nav.shareJobId === id;
+}
+
+/** The running import of the same link (same page, whatever the tracking parameters), if any. */
+export function findRunningImport(url: string) {
+  const key = importKeyOf(url);
+  return useImports
+    .getState()
+    .jobs.find(
+      (j) =>
+        j.status === 'running' &&
+        runtimes.has(j.id) &&
+        importKeyOf(j.url) === key,
+    );
+}
+
 /**
  * Starts an import and returns its local id. Pass `slow` for a retry from
  * history, which creeps more gently.
@@ -75,6 +95,9 @@ export function startImport(
   url: string,
   opts: { slow?: boolean; src?: ImportSrc; thumbnail?: string } = {},
 ): string {
+  // The same link is never imported twice at once: join the running import instead.
+  const running = findRunningImport(url);
+  if (running) return running.id;
   const id = `imp-${Date.now().toString(36)}-${++seq}`;
   const src = opts.src ?? importSrcOf(url);
   const ctrl = new AbortController();
@@ -197,17 +220,18 @@ function complete(id: string, recipeId: string) {
   queryClient
     .invalidateQueries({ queryKey: recipeKeys.all })
     .catch(() => undefined);
-  const quiet = shownInSheet(id);
+  const quiet = shownInSheet(id) || shownInShare(id);
+  const open = { label: 'Open', run: () => openImportedRecipe(recipeId) };
   // The history row wants a title and photo, and the toast wants the title.
   getRecipe(recipeId)
     .then((r) => {
       useImports
         .getState()
         .patch(id, { title: r.title, thumb: r.thumbnailUrl ?? null });
-      if (!quiet) toast(`${r.title} added to Cookbook`);
+      if (!quiet) toast(`${r.title} added to Cookbook`, 'ok', open);
     })
     .catch(() => {
-      if (!quiet) toast('Recipe added to Cookbook');
+      if (!quiet) toast('Recipe added to Cookbook', 'ok', open);
     });
   stopTickerIfIdle();
 }

@@ -8,6 +8,7 @@ import { useFrame } from '@/tortie/frame';
 import { useNav } from '@/tortie/nav-store';
 import { C, EASE, SH } from '@/tortie/theme';
 import { Glyph } from '@/tortie/ui/icon';
+import { Press } from '@/tortie/ui/press';
 import { sans, T } from '@/tortie/ui/text';
 
 /** Top toast: translateY −90 → 0 (520ms EASE), opacity 300ms. Visible 2400ms (3800ms for errors). */
@@ -16,6 +17,7 @@ export function ToastView() {
   const msg = useNav((s) => s.toast);
   const on = useNav((s) => s.toastOn);
   const err = useNav((s) => s.toastErr);
+  const action = useNav((s) => s.toastAction);
   const a = useAnimatedStyle(() => ({
     opacity: withTiming(on ? 1 : 0, { duration: 300 }),
     transform: [
@@ -24,7 +26,7 @@ export function ToastView() {
   }));
   return (
     <Animated.View
-      pointerEvents="none"
+      pointerEvents={on && action ? 'box-none' : 'none'}
       style={[
         {
           position: 'absolute',
@@ -59,6 +61,18 @@ export function ToastView() {
         <T numberOfLines={1} style={[sans(14, 600, C.bg), { flexShrink: 1 }]}>
           {msg}
         </T>
+        {action ? (
+          <Press
+            onPress={() => {
+              useNav.setState({ toastOn: false });
+              action.run();
+            }}
+            accessibilityLabel={action.label}
+            style={{ paddingLeft: 6, justifyContent: 'center' }}
+          >
+            <T style={sans(14, 700, C.greenSoft2)}>{action.label}</T>
+          </Press>
+        ) : null}
       </View>
     </Animated.View>
   );
