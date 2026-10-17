@@ -627,3 +627,45 @@ export function addDualMeasurements(text: string): string {
     },
   );
 }
+
+const PAREN_AMOUNT = new RegExp(
+  String.raw`\(\s*(${NUMBER})\s*(fl\.?\s*oz|oz|lbs?|kg|g|ml|l|cups?|tbsp|tsp)\b\.?\s*\)`,
+  'gi',
+);
+const SPACE_BEFORE_PAREN = new RegExp(String.raw`(${NUMBER})(kg|g|ml|l)(\s*\()`, 'gi');
+const DURATION_UNIT = String.raw`(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)`;
+const DUPLICATE_DURATION = new RegExp(
+  String.raw`(${NUMBER})\s*(${DURATION_UNIT})\b\.?(\s*\(\s*(${NUMBER})\s*(${DURATION_UNIT})\b\.?\s*\))`,
+  'gi',
+);
+
+/**
+ * Cleans the conversions a model writes into step text: "100g (3.53 oz)" → "100 g (3½ oz)",
+ * "(10.14 fl oz)" → "(10 fl oz)", and "1 min (1 min)" → "1 min". Runs before
+ * `addDualMeasurements`, which only adds temperatures and lengths.
+ */
+export function tidyInlineMeasurements(text: string): string {
+  return text
+    .replace(
+      DUPLICATE_DURATION,
+      (
+        match: string,
+        low: string,
+        lowUnit: string,
+        _paren: string,
+        high: string,
+        highUnit: string,
+      ) =>
+        num(low) === num(high) &&
+        lowUnit.toLowerCase().charAt(0) === highUnit.toLowerCase().charAt(0)
+          ? `${low} ${lowUnit}`
+          : match,
+    )
+    .replace(SPACE_BEFORE_PAREN, '$1 $2$3')
+    .replace(PAREN_AMOUNT, (match: string, value: string, rawUnit: string) => {
+      const unit = resolveUnit(rawUnit.replace(/\s+/g, ' ').replace(/\./g, ''));
+      if (!unit) return match;
+      const rounded = roundForUnit(num(value), unit);
+      return `(${formatQuantity(rounded, unit)} ${unit})`;
+    });
+}

@@ -1,6 +1,6 @@
 import { GARDEN_PLATE_COLOR_TOKENS } from '../../normalization/domain/presentation.js';
 
-export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v13';
+export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v14';
 
 const OUTPUT_LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
@@ -75,6 +75,9 @@ Rules:
 - In the step instruction field, write every temperature and length in both systems with the source unit first, for example "bake at 180°C (350°F)" and "cut into 2 cm (¾ in) cubes". Do not put temperatures, lengths, or times in the step title.
 - ingredientIndexes lists the 0-based positions in the ingredients array of the ingredients a step uses. Use [] when a step uses none.
 - Only include ingredients and steps that are supported by the evidence
+- Keep the specific ingredient wording of the source. If the description says "orecchiette", "cherry tomatoes", "pancetta" or "Robiola", write exactly that, not "pasta", "tomatoes", "bacon" or "soft cheese". Never generalise an ingredient name.
+- When the ingredient list has headings ("For the sponge", "For the buttercream"), set group on every ingredient to its heading and keep each ingredient once per group. Use null when the list has no headings.
+- Servings are the number of people the dish feeds, not the number of items it makes. "Makes 12 pancakes" for a family breakfast is about 4 servings. calories is per serving and must match the ingredients divided by servings.
 - Set sourceLanguage to the original language of the source evidence, not the output language
 - Write each ingredient name in sentence case in the output language (first letter capital, remaining letters lowercase). Examples: "wholemeal pitta" → "Wholemeal pitta", "tuna" → "Tuna".
 - Keep the recipe title exactly as the source writes it, including its capitalization, proper nouns, brands and acronyms ("Nonna's BBQ Ribs"). Do not lower-case it and do not rewrite the wording.
@@ -143,6 +146,10 @@ export const RECIPE_EXTRACTION_SCHEMA = {
           name: { type: 'string' },
           quantity: { type: ['string', 'null'] },
           unit: { type: ['string', 'null'] },
+          group: {
+            type: ['string', 'null'],
+            description: 'List heading the ingredient is under, such as "For the buttercream". Null when the list has no headings.',
+          },
           metric: MEASUREMENT_SCHEMA,
           imperial: MEASUREMENT_SCHEMA,
           preparation: { type: ['string', 'null'] },
@@ -163,6 +170,7 @@ export const RECIPE_EXTRACTION_SCHEMA = {
           'name',
           'quantity',
           'unit',
+          'group',
           'metric',
           'imperial',
           'preparation',

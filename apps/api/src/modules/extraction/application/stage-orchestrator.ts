@@ -593,6 +593,7 @@ export function createDefaultStageHandlers(
           quantity: ing.quantity,
           quantityMax: ing.quantityMax ?? null,
           unit: ing.unit,
+          group: ing.group ?? null,
           metricQuantity: ing.metricQuantity ?? null,
           metricUnit: ing.metricUnit ?? null,
           imperialQuantity: ing.imperialQuantity ?? null,

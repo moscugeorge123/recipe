@@ -55,7 +55,7 @@ function ingredient(over: Partial<ExtractedIngredient>): ExtractedIngredient {
     optional: false,
     confidence: 0.9,
     ...over,
-  } as ExtractedIngredient;
+  };
 }
 
 describe('IngredientNormalizer with phrases in quantity', () => {

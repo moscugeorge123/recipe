@@ -13,6 +13,8 @@ export interface ExtractedIngredient {
   name: string;
   quantity?: string | null;
   unit?: string | null;
+  /** Heading the ingredient is listed under ("For the sponge"). */
+  group?: string | null;
   metric?: ExtractedMeasurement | null;
   imperial?: ExtractedMeasurement | null;
   preparation?: string | null;
@@ -69,6 +71,7 @@ export interface NormalizedIngredient {
   quantity: Prisma.Decimal | null;
   quantityMax?: Prisma.Decimal | null;
   unit: string | null;
+  group?: string | null;
   metricQuantity?: Prisma.Decimal | null;
   metricUnit?: string | null;
   imperialQuantity?: Prisma.Decimal | null;

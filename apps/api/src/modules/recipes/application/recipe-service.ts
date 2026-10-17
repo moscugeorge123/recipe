@@ -185,6 +185,7 @@ export class RecipeService {
         quantity,
         quantityMax: toQuantityDecimal(ingredient.quantityMax ?? null),
         unit,
+        group: ingredient.group?.trim() || null,
         ...measurementsForEdit({ name: ingredient.name, quantity, unit }, existing.ingredients),
         preparation: ingredient.preparation ?? null,
         optional: ingredient.optional,

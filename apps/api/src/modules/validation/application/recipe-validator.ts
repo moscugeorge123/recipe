@@ -1,4 +1,12 @@
+import { singularizePhrase } from '../../normalization/domain/units.js';
 import type { NormalizedRecipe, ValidationResult, ValidationWarning } from '../../recipes/domain/types.js';
+
+/** Whole-word match of an ingredient name, allowing a plural ("egg" in "eggs"). */
+function mentions(text: string, name: string): boolean {
+  if (name.length < 3) return false;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(?<!\\p{L})${escaped}(?:s|es)?(?!\\p{L})`, 'u').test(text);
+}
 
 export class RecipeValidator {
   validate(recipe: NormalizedRecipe): ValidationResult {
@@ -38,15 +46,27 @@ export class RecipeValidator {
       }
     }
 
-    const ingredientNames = new Set(
-      recipe.ingredients.flatMap((i) => [i.name.toLowerCase(), i.canonicalName]),
-    );
+    // Names a step may use for an ingredient: full name, canonical name, singular form, and the
+    // last word of a multi-word name ("plain flour" → "flour").
+    const ingredientNames = new Set<string>();
+    for (const ing of recipe.ingredients) {
+      for (const full of [ing.name, ing.canonicalName]) {
+        const lowerName = full.toLowerCase().trim();
+        if (!lowerName) continue;
+        ingredientNames.add(lowerName);
+        ingredientNames.add(singularizePhrase(lowerName));
+        const lastWord = lowerName.split(/\s+/).pop() ?? '';
+        ingredientNames.add(lastWord);
+        ingredientNames.add(singularizePhrase(lastWord));
+      }
+    }
 
     for (const step of recipe.steps) {
       const lower = `${step.title ?? ''} ${step.instruction}`.toLowerCase();
-      const hasIngredientRef = [...ingredientNames].some(
-        (name) => name.length > 3 && lower.includes(name),
-      );
+      // Refs the extractor set are trusted; the name search is only a fallback.
+      const hasIngredientRef =
+        (step.ingredientRefs?.length ?? 0) > 0 ||
+        [...ingredientNames].some((name) => mentions(lower, name));
       if (recipe.ingredients.length > 0 && !hasIngredientRef && step.instruction.length > 20) {
         warnings.push({
           code: 'STEP_INGREDIENT_MISMATCH',

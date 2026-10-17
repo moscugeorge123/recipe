@@ -32,6 +32,7 @@ export class IngredientNormalizer {
     quantity: Prisma.Decimal | null;
     quantityMax: Prisma.Decimal | null;
     unit: string | null;
+    group: string | null;
     metricQuantity: Prisma.Decimal | null;
     metricUnit: string | null;
     imperialQuantity: Prisma.Decimal | null;
@@ -91,6 +92,7 @@ export class IngredientNormalizer {
       quantity: toDecimal(qty),
       quantityMax: toDecimal(qtyMax),
       unit,
+      group: ingredient.group?.trim() || null,
       ...measurementColumns(measurements.metric, measurements.imperial),
       preparation: ingredient.preparation?.trim() ?? null,
       optional: ingredient.optional ?? false,
