@@ -1,5 +1,7 @@
 import type { SourceType } from '@prisma/client';
 
+import { chooseYouTubeThumbnail } from '../../preview/youtube-poster.js';
+import { extractYouTubeVideoId } from '../../preview/youtube-mapper.js';
 import {
   CONTENT_FAILURE_MESSAGES,
   ContentAcquisitionFailedError,
@@ -22,6 +24,8 @@ export interface YouTubeProviderOptions {
   /** Set false to skip fetching captions (Whisper transcribes the audio instead). */
   fetchCaptions?: boolean;
   fetchImpl?: FetchLike;
+  /** HEAD-probe poster files so a hero never ends up a letter-boxed 4:3 image (production only). */
+  probeThumbnails?: boolean;
 }
 
 export class YouTubeContentProvider implements ContentProvider {
@@ -72,9 +76,14 @@ export class YouTubeContentProvider implements ContentProvider {
       log?.warn({ step: 'youtube.download', url, err: error }, 'youtube.download failed');
     }
 
-    const images = metadata.thumbnail
-      ? [{ url: metadata.thumbnail, mimeType: 'image/jpeg' as const }]
-      : [];
+    const thumbnail = await chooseYouTubeThumbnail({
+      videoId: extractYouTubeVideoId(metadata.webpage_url ?? url),
+      thumbnails: metadata.thumbnails,
+      thumbnail: metadata.thumbnail,
+      ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+      probe: this.options.probeThumbnails === true,
+    });
+    const images = thumbnail ? [{ url: thumbnail, mimeType: 'image/jpeg' as const }] : [];
     const captions =
       this.options.fetchCaptions === false ? undefined : await this.fetchCaptions(metadata, ctx);
     const chapters = formatChapters(metadata.chapters);
@@ -91,7 +100,7 @@ export class YouTubeContentProvider implements ContentProvider {
       ...(metadata.language ? { language: metadata.language } : {}),
       ...(videoLocalPath ? { videoLocalPath, videos: [{ localPath: videoLocalPath }] } : {}),
       ...(captions ? { captions } : {}),
-      ...(metadata.thumbnail ? { thumbnailUrl: metadata.thumbnail } : {}),
+      ...(thumbnail ? { thumbnailUrl: thumbnail } : {}),
       images,
       metadata: {
         provider: 'yt-dlp',
