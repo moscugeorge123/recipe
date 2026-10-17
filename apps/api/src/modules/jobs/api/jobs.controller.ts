@@ -11,6 +11,7 @@ export function createJobsController(
 ): {
   createJob: (request: FastifyRequest<{ Body: CreateExtractionJobBody }>, reply: FastifyReply) => Promise<void>;
   previewLink: (request: FastifyRequest<{ Body: PreviewLinkBody }>, reply: FastifyReply) => Promise<void>;
+  listJobs: (request: FastifyRequest<{ Querystring: { limit: number } }>, reply: FastifyReply) => Promise<void>;
   getJobStatus: (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => Promise<void>;
   cancelJob: (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => Promise<void>;
 } {
@@ -41,6 +42,23 @@ export function createJobsController(
         'http.preview completed',
       );
       reply.send(dataResponse(result));
+    },
+
+    listJobs: async (
+      request: FastifyRequest<{ Querystring: { limit: number } }>,
+      reply: FastifyReply,
+    ): Promise<void> => {
+      const jobs = await service.listJobs(request.profile.userId, request.query.limit);
+
+      reply.send(
+        dataResponse(
+          jobs.map((job) => ({
+            ...job,
+            createdAt: job.createdAt.toISOString(),
+            completedAt: job.completedAt?.toISOString() ?? null,
+          })),
+        ),
+      );
     },
 
     getJobStatus: async (

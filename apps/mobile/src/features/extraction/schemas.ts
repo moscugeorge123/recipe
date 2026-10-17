@@ -31,10 +31,23 @@ export const jobStatusSchema = z.object({
   completedAt: z.string().nullable(),
 });
 
+export const jobListItemSchema = z.object({
+  id: z.string(),
+  status: z.string(),
+  progress: z.number(),
+  url: z.string(),
+  title: z.string().nullable(),
+  recipeId: z.string().nullable(),
+  error: z.unknown().nullable(),
+  createdAt: z.string(),
+  completedAt: z.string().nullable(),
+});
+
 export const cancelJobSchema = z.object({
   id: z.string(),
   status: z.literal('CANCELLED'),
 });
 
 export type ExtractionJobCreate = z.infer<typeof extractionJobCreateSchema>;
+export type JobListItemDto = z.infer<typeof jobListItemSchema>;
 export type JobStatusDto = z.infer<typeof jobStatusSchema>;

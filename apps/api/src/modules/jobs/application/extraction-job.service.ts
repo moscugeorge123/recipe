@@ -50,6 +50,18 @@ export interface JobStatusView {
   completedAt: Date | null;
 }
 
+export interface JobListItem {
+  id: string;
+  status: JobStatus;
+  progress: number;
+  url: string;
+  title: string | null;
+  recipeId: string | null;
+  error: unknown;
+  createdAt: Date;
+  completedAt: Date | null;
+}
+
 export class ExtractionJobService {
   private readonly stateMachine = new JobStateMachine();
   /** Requests for the same account and link that are being handled right now. */
@@ -181,6 +193,26 @@ export class ExtractionJobService {
       job.requestedByUserId === userId ||
       (job.requestedByUserId === null && userId === DEFAULT_PROFILE_ID)
     );
+  }
+
+  /** The account's recent import jobs, newest first, so a fresh install can rebuild its history. */
+  async listJobs(userId: string, limit = 20): Promise<JobListItem[]> {
+    const jobs = await this.jobRepo.listByRequester(
+      userId,
+      limit,
+      userId === DEFAULT_PROFILE_ID,
+    );
+    return jobs.map((job) => ({
+      id: job.id,
+      status: job.status,
+      progress: job.progress,
+      url: job.recipeSource.originalUrl,
+      title: job.recipe?.title ?? null,
+      recipeId: job.recipeId,
+      error: job.error,
+      createdAt: job.createdAt,
+      completedAt: job.completedAt,
+    }));
   }
 
   async getJobStatus(userId: string, jobId: string): Promise<JobStatusView> {

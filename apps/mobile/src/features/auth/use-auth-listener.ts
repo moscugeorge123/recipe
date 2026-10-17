@@ -5,6 +5,10 @@ import { useEffect } from 'react';
 import { getFirebaseAuth } from '@/features/auth/firebase';
 import { resetUserData } from '@/features/auth/reset-user-data';
 import { useTortieAuth } from '@/tortie/auth-store';
+import {
+  hydrateImports,
+  resetImportHydration,
+} from '@/tortie/data/import-hydrate';
 
 const LAST_UID_KEY = 'tortie.auth.last-uid';
 
@@ -43,6 +47,9 @@ export function useAuthListener(): void {
           if (user) await wipeIfAccountChanged(user.uid);
           if (seq === latest) {
             useTortieAuth.getState()._setFirebaseUser(user);
+            // The Imports history is rebuilt from the server for this account.
+            if (user) void hydrateImports(user.uid);
+            else resetImportHydration();
           }
         })();
       });

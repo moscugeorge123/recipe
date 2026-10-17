@@ -26,6 +26,8 @@ export type ImportJob = {
   recipeId?: string;
   /** The link was already in the Cookbook; nothing new was added. */
   duplicate?: boolean;
+  /** The API job this row mirrors; lets history rebuilt from the server skip duplicates. */
+  serverJobId?: string;
   title?: string;
   thumb?: string | null;
   errorCode?: string;

@@ -4,6 +4,7 @@ import { linkRecipeToUser } from './profile-bootstrap.repository.js';
 
 import type {
   CreateExtractionJobInput,
+  ExtractionJobWithSource,
   IExtractionJobRepository,
   UpdateExtractionJobInput,
 } from '../../../modules/jobs/repository/extraction-job.repository.js';
@@ -18,6 +19,27 @@ export class PrismaExtractionJobRepository implements IExtractionJobRepository {
         ...(input.requestedByUserId ? { requestedByUserId: input.requestedByUserId } : {}),
         outputLanguage: input.outputLanguage,
         options: input.options ?? {},
+      },
+    });
+  }
+
+  listByRequester(
+    userId: string,
+    limit: number,
+    includeLegacy: boolean,
+  ): Promise<ExtractionJobWithSource[]> {
+    return this.db.extractionJob.findMany({
+      where: {
+        OR: [
+          { requestedByUserId: userId },
+          ...(includeLegacy ? [{ requestedByUserId: null }] : []),
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      include: {
+        recipeSource: { select: { originalUrl: true } },
+        recipe: { select: { title: true } },
       },
     });
   }

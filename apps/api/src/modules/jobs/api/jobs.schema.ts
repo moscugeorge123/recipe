@@ -58,6 +58,22 @@ export const jobStatusResponseSchema = z.object({
   completedAt: z.iso.datetime().nullable(),
 });
 
+export const listJobsQuerySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(50).default(20),
+});
+
+export const jobListItemSchema = z.object({
+  id: dbUuid(),
+  status: z.string(),
+  progress: z.number().int(),
+  url: z.string(),
+  title: z.string().nullable(),
+  recipeId: dbUuid().nullable(),
+  error: z.unknown().nullable(),
+  createdAt: z.iso.datetime(),
+  completedAt: z.iso.datetime().nullable(),
+});
+
 export const cancelJobResponseSchema = z.object({
   id: dbUuid(),
   status: z.literal('CANCELLED'),

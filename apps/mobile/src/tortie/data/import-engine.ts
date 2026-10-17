@@ -147,6 +147,7 @@ export function startImport(
         return;
       }
       rt.serverJobId = res.jobId;
+      useImports.getState().patch(id, { serverJobId: res.jobId });
       rt.nextPollAt = Date.now() + pollEvery(rt);
     })
     .catch((e) => {

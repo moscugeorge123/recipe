@@ -29,7 +29,6 @@ import { useTortieAuth, type TortieUser } from '@/tortie/auth-store';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { initialsOf, nameOf, PROV_NAME } from '@/tortie/lib/user-display';
-import { motionMultiplier } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
 import { useTortiePrefs } from '@/tortie/prefs-store';
 import { clampSnooze } from '@/tortie/timer-clock';
@@ -64,6 +63,7 @@ export function ProfileScreen() {
   const profNonce = useNav((s) => s.profNonce);
   const closeProfile = useNav((s) => s.closeProfile);
   const user = useTortieAuth((s) => s.user);
+  const signingOut = useTortieAuth((s) => s.signingOut);
   const [photoOpen, setPhotoOpen] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   // Scroll state is scoped to one opening so it resets without an effect.
@@ -278,6 +278,22 @@ export function ProfileScreen() {
         </View>
       </View>
       <PhotoSheet open={photoOpen} onClose={() => setPhotoOpen(false)} />
+      {signingOut ? (
+        <View
+          accessibilityLiveRegion="polite"
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              zIndex: 70,
+              backgroundColor: C.bg,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+          ]}
+        >
+          <T style={sans(15, 600, C.ink2)}>Signing out…</T>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -511,21 +527,13 @@ function SignedIn({
     ],
   }));
 
-  const signOut = () => {
-    useNav.getState().set({ pfOut: true });
-    setTimeout(
-      async () => {
-        try {
-          await authService.signOut();
-          toast('Signed out');
-        } catch {
-          toast('Couldn’t sign out. Try again.', 'error');
-        } finally {
-          useNav.getState().set({ pfOut: false });
-        }
-      },
-      Math.round(280 * motionMultiplier()),
-    );
+  const signOut = async () => {
+    try {
+      await authService.signOut();
+      toast('Signed out');
+    } catch {
+      toast('Couldn’t sign out. Try again.', 'error');
+    }
   };
 
   const link = async (k: 'google' | 'facebook') => {
@@ -971,7 +979,7 @@ function SignedIn({
 
       <Stagger i={5} on={on}>
         <Press
-          onPress={signOut}
+          onPress={() => void signOut()}
           scale={0.97}
           style={{
             height: 54,

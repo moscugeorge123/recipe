@@ -2,6 +2,27 @@ import Constants from 'expo-constants';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
+const LOCAL_HOSTS = new Set(['localhost', '127.0.0.1', '10.0.2.2']);
+
+/**
+ * In development a loopback or emulator host in the API URL is swapped for the
+ * machine serving Metro (`hostUri`), so a phone on the same network reaches the
+ * API without editing `.env`. Anything else (a LAN IP or a deployed API) is kept.
+ */
+export function resolveApiUrl(
+  apiUrl: string,
+  hostUri: string | undefined,
+  dev: boolean,
+): string {
+  if (!dev || !hostUri) return apiUrl;
+  const metroHost = hostUri.replace(/^[a-z]+:\/\//i, '').split(/[:/]/)[0];
+  if (!metroHost || LOCAL_HOSTS.has(metroHost)) return apiUrl;
+  // No `URL` here: React Native's implementation cannot set the hostname.
+  const match = /^([a-z]+:\/\/)([^:/?#]+)(.*)$/i.exec(apiUrl);
+  if (!match || !LOCAL_HOSTS.has(match[2]!)) return apiUrl;
+  return `${match[1]}${metroHost}${match[3]}`;
+}
+
 export function getApiBaseUrl(): string {
   if (!API_URL) {
     throw new Error(
@@ -9,7 +30,10 @@ export function getApiBaseUrl(): string {
     );
   }
 
-  return API_URL.replace(/\/$/, '');
+  return resolveApiUrl(API_URL, Constants.expoConfig?.hostUri, __DEV__).replace(
+    /\/$/,
+    '',
+  );
 }
 
 /**
