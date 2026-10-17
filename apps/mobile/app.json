@@ -6,7 +6,8 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "recipe",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#f8faf5",
     "ios": {
       "bundleIdentifier": "com.recipe.app",
       "supportsTablet": true,

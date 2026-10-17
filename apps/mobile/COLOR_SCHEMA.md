@@ -91,3 +91,7 @@ Paper    #F8F7F2    header / tab disc
 Cream    #FFFFFF    alias of page; use paper for warm fills
 Mango    #F4A36E    illustration only
 ```
+
+## Light only (v1)
+
+The app ships one light palette. `app.json` sets `userInterfaceStyle: "light"` and the root `backgroundColor` to `#f8faf5`, so the system dark setting does not change the app or its status bar. Dark mode is a separate epic: define a dark palette here first, then make the theme a hook.
