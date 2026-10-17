@@ -227,14 +227,7 @@ export function RecipeDetail() {
         scrollEventThrottle={16}
         onScroll={onScroll}
       >
-        <Photo
-          hue={hue}
-          uri={r?.uri}
-          caption={r ? 'photo · ' + r.photo : undefined}
-          captionSize={11}
-          captionStyle={{ left: 20, top: topBarH + 12 }}
-          style={{ height: 370 }}
-        >
+        <Photo hue={hue} uri={r?.uri} style={{ height: 370 }}>
           <HeroChips chips={heroChips} />
         </Photo>
         <View
@@ -549,7 +542,7 @@ export function RecipeDetail() {
             top: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(248,250,245,.94)',
+            backgroundColor: C.bg,
           }}
         />
         <Animated.Text
