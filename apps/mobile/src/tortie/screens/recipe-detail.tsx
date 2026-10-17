@@ -18,7 +18,6 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 import Animated, {
   FadeIn,
   useAnimatedStyle,
@@ -76,6 +75,8 @@ import { Grabber, Segmented } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
+import { StepClipChip } from '@/tortie/screens/step-clip';
+import { OpenInNewIcon } from '@/tortie/ui/svg-icons';
 import {
   NotesRow,
   StepNotes,
@@ -112,6 +113,12 @@ export function RecipeDetail() {
   useEffect(() => {
     ref.current?.scrollTo({ y: 0, animated: false });
   }, [nonce]);
+
+  // On the Method tab, load the source video so "Watch step" opens on a ready frame.
+  const hasVideo = !!r?.video;
+  useEffect(() => {
+    if (id && seg === 1 && hasVideo) useNav.getState().primeClip(id);
+  }, [id, seg, hasVideo]);
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const v = e.nativeEvent.contentOffset.y > 250;
@@ -242,7 +249,7 @@ export function RecipeDetail() {
                     }}
                   >
                     <T style={sans(14, 600, C.green)}>{host}</T>
-                    <OpenInNew size={14} color={C.green} />
+                    <OpenInNewIcon size={14} color={C.green} />
                   </Press>
                 </>
               ) : null}
@@ -428,6 +435,9 @@ export function RecipeDetail() {
                           {st.d}
                         </T>
                       ) : null}
+                      {r && id ? (
+                        <StepClipChip recipeId={id} clips={r.clips} step={i} />
+                      ) : null}
                       {canNote ? (
                         <StepNotes
                           notes={stepNotes(notes, i)}
@@ -590,18 +600,6 @@ export function RecipeDetail() {
         </Press>
       </View>
     </>
-  );
-}
-
-/** Material "open_in_new" drawn as SVG: the app's icon font is a subset without it. */
-function OpenInNew({ size, color }: { size: number; color: string }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
-      <Path
-        fill={color}
-        d="M19 19H5V5h7V3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"
-      />
-    </Svg>
   );
 }
 

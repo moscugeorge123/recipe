@@ -17,4 +17,6 @@ export interface StorageProvider {
   download(key: string): Promise<Buffer>;
   delete(key: string): Promise<void>;
   getSignedUrl(key: string, ttlSeconds: number): Promise<string>;
+  /** Path on this machine's disk, for providers that store files locally (development). */
+  localPath?(key: string): string;
 }

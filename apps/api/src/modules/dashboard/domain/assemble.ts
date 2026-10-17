@@ -598,8 +598,15 @@ function aggregateSlowestSteps(jobs: readonly ImportJobInput[]): SlowestStepAggr
   return rows;
 }
 
-export function assembleSummary(jobs: readonly ImportJobInput[]): DashboardSummary {
-  const aiRows = jobs.flatMap((job) => job.aiUsage);
+/**
+ * `standaloneAi` is usage with no import job (ingredient generation, recipe edits). Jobs already
+ * carry their own rows, so callers pass only rows whose job id is null.
+ */
+export function assembleSummary(
+  jobs: readonly ImportJobInput[],
+  standaloneAi: readonly AiUsageInput[] = [],
+): DashboardSummary {
+  const aiRows = [...jobs.flatMap((job) => job.aiUsage), ...standaloneAi];
   const thirdPartyRows = jobs.flatMap((job) => providerChargesFor(job));
   const aiUsd = sumMoney(aiRows.map((row) => row.estimatedCostUsd));
   const thirdPartyUsd = sumMoney(thirdPartyRows.map((row) => row.estimatedCostUsd));

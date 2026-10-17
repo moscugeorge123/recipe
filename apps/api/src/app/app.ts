@@ -141,6 +141,7 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
         });
         await resources.register(recipesRoutes, {
           recipeService: container.recipeService,
+          storage: container.storage,
         });
         await resources.register(recipeAssistRoutes, {
           recipeAssistant: container.recipeAssistant,

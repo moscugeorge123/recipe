@@ -38,6 +38,7 @@ import {
 } from '@/tortie/screens/groceries';
 import { MonthPickerSheet, PlanScreen } from '@/tortie/screens/plan';
 import { ImportsScreen } from '@/tortie/screens/imports';
+import { StepClipSheet } from '@/tortie/screens/step-clip';
 import { RecipeNotesSheet } from '@/tortie/screens/recipe-notes';
 import { ProfileScreen } from '@/tortie/screens/profile';
 import { RecipeDetail, RecipeMenuSheet } from '@/tortie/screens/recipe-detail';
@@ -104,8 +105,8 @@ function SignedOutGate() {
 /**
  * One viewport, layered like the prototype (NAVIGATION.md §1):
  * tabs 1–2 · tab bar 20 · dim 30 · recipe 35 · profile 36 · sheets 40–43 ·
- * editor 45 · cook 50 · welcome 55 · sign in 56 · camera 60 · share 65 ·
- * toast 70.
+ * editor 45 · cook 50 · welcome 55 · sign in 56 · step clip 57 · camera 60 ·
+ * share 65 · toast 70.
  */
 function SignedInShell() {
   const rootRef = useRef<View>(null);
@@ -261,6 +262,7 @@ function SignedInShell() {
       <RecipeEditor />
       <CookMode />
       <Welcome />
+      <StepClipSheet />
       <ScanCamera />
 
       <Animated.View
@@ -308,6 +310,7 @@ function popTopLayer(): boolean {
   const s = useNav.getState();
   if (s.shareOpen) return (s.closeShare(), true);
   if (s.cam) return (s.closeCam(true), true);
+  if (s.clipOn) return (s.closeClip(), true);
   if (s.welcome) return (finishWelcome(), true);
   if (s.notesOn) return (s.closeNotes(), true);
   if (s.cookOpen) return (s.closeCook(), true);

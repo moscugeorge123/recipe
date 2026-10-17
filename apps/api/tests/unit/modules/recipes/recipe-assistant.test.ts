@@ -6,6 +6,9 @@ import type {
   LLMProvider,
   LLMResult,
 } from '../../../../src/infrastructure/ai/llm/llm-provider.js';
+import { AIUsageTracker } from '../../../../src/infrastructure/ai/usage/ai-usage-tracker.js';
+import { DEFAULT_PRICING } from '../../../../src/infrastructure/ai/usage/pricing.js';
+import type { CreateAIUsageInput } from '../../../../src/infrastructure/database/repositories/ai-usage.repository.js';
 import { RecipeAssistant } from '../../../../src/modules/recipes/application/recipe-assistant.js';
 import {
   RECIPE_ASSIST_SCHEMA,
@@ -159,6 +162,66 @@ describe('RecipeAssistant', () => {
       });
       await expect(run).rejects.toBeInstanceOf(ServiceUnavailableError);
     }
+  });
+
+  it('records tokens and cost as recipe_assist for the user, even when the model rejects', async () => {
+    const created: CreateAIUsageInput[] = [];
+    const repo = {
+      create: async (input: CreateAIUsageInput) => {
+        created.push(input);
+        return {} as never;
+      },
+      findByJobId: async () => [],
+    };
+    const tracker = new AIUsageTracker(repo, DEFAULT_PRICING);
+    const llm: LLMProvider = {
+      generateStructured: async <T>() =>
+        ({
+          data: { decision: 'reject', message: 'No.', recipe: null } as T,
+          model: 'gpt-4o',
+          usage: { inputTokens: 1000, outputTokens: 200 },
+          durationMs: 5,
+        }) satisfies LLMResult<T>,
+    };
+
+    await expect(
+      new RecipeAssistant(config, llm, undefined, tracker).assist({
+        userId: 'user-1',
+        recipe,
+        instruction: 'Tell me a joke',
+      }),
+    ).rejects.toBeInstanceOf(RecipeAssistRejectedError);
+
+    expect(created).toEqual([
+      expect.objectContaining({
+        userId: 'user-1',
+        provider: 'openai',
+        model: 'gpt-4o',
+        operation: 'recipe_assist',
+        inputTokens: 1000,
+        outputTokens: 200,
+        durationMs: 5,
+        estimatedCostUsd: expect.any(Number),
+      }),
+    ]);
+    expect(created[0]?.jobId).toBeUndefined();
+  });
+
+  it('still returns the edit when recording usage fails', async () => {
+    const repo = {
+      create: async () => {
+        throw new Error('db down');
+      },
+      findByJobId: async () => [],
+    };
+    const llm = new StubLLM({ decision: 'apply', message: 'Done.', recipe });
+    const result = await new RecipeAssistant(
+      config,
+      llm,
+      undefined,
+      new AIUsageTracker(repo, DEFAULT_PRICING),
+    ).assist({ userId: 'user-1', recipe, instruction: 'Double it' });
+    expect(result.message).toBe('Done.');
   });
 
   it('is unavailable without an LLM', async () => {

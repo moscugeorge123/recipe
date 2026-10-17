@@ -48,6 +48,10 @@ export class LocalStorageProvider implements StorageProvider {
     await rm(this.resolveKey(key), { force: true });
   }
 
+  localPath(key: string): string {
+    return this.resolveKey(key);
+  }
+
   getSignedUrl(key: string, ttlSeconds: number): Promise<string> {
     void ttlSeconds;
     return Promise.resolve(`file://${this.resolveKey(key)}`);

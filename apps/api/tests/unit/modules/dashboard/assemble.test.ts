@@ -453,4 +453,35 @@ describe('assemble summary', () => {
       totalUsd: 0.0127,
     });
   });
+
+  it('adds usage with no import job to AI cost, total cost and tokens', () => {
+    const summary = assembleSummary(
+      [
+        job({
+          aiUsage: [
+            ai({ id: 'a1', inputTokens: 100, outputTokens: 40, estimatedCostUsd: 0.01 }),
+          ],
+        }),
+      ],
+      [
+        ai({
+          id: 'a2',
+          operation: 'pantry_organize_batch',
+          inputTokens: 30,
+          outputTokens: 5,
+          estimatedCostUsd: 0.002,
+        }),
+        ai({
+          id: 'a3',
+          operation: 'recipe_assist',
+          inputTokens: 700,
+          outputTokens: 200,
+          estimatedCostUsd: 0.004,
+        }),
+      ],
+    );
+
+    expect(summary.costs).toEqual({ aiUsd: 0.016, thirdPartyUsd: 0, totalUsd: 0.016 });
+    expect(summary.tokens).toEqual({ input: 830, output: 245 });
+  });
 });

@@ -1,5 +1,7 @@
 import type { FastifyReply, FastifyRequest } from 'fastify';
 
+import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
+import { sendFileWithRanges } from '../../../shared/http/file-range.js';
 import { collectionResponse, dataResponse } from '../../../shared/http/response.js';
 import type { Measurement } from '../../normalization/domain/measurement-conversion.js';
 import {
@@ -14,6 +16,7 @@ import {
   thumbnailFromMetadata,
 } from '../application/recipe-presentation.js';
 import type { RecipeService } from '../application/recipe-service.js';
+import { sourceVideoFromMetadata, sourceVideoPath } from '../application/source-video.js';
 import { storedMeasurements } from '../application/revision-measurements.js';
 import type {
   CreateRecipeNoteBody,
@@ -33,6 +36,40 @@ function serializeMeasurement(measurement: Measurement): {
   return {
     quantity: measurement.quantity === null ? null : String(measurement.quantity),
     unit: measurement.unit,
+  };
+}
+
+/** Signed storage links live this long; the app asks again whenever it reopens the player. */
+const VIDEO_URL_TTL_SECONDS = 60 * 60;
+
+function serializeSourceVideo(
+  recipeId: string,
+  metadata: unknown,
+): { path: string; mimeType: string; durationSeconds: number | null } | null {
+  const video = sourceVideoFromMetadata(metadata);
+  return video
+    ? { path: sourceVideoPath(recipeId), mimeType: video.mimeType, durationSeconds: video.durationSeconds }
+    : null;
+}
+
+/**
+ * Streams the source video. Local storage is served here with byte ranges; S3 answers with a
+ * redirect to a short-lived signed link so the bytes never pass through the API.
+ */
+export function createRecipeVideoHandler(
+  service: RecipeService,
+  storage: StorageProvider,
+): (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => Promise<void> {
+  return async (request, reply) => {
+    const video = await service.getSourceVideoForProfile(request.params.id, request.profile.userId);
+    reply.header('Cache-Control', 'private, max-age=300');
+    const localPath = storage.localPath?.(video.storageKey);
+    if (localPath) {
+      await sendFileWithRanges(request, reply, localPath, video.mimeType);
+      return;
+    }
+    const url = await storage.getSignedUrl(video.storageKey, VIDEO_URL_TTL_SECONDS);
+    await reply.redirect(url, 302);
   };
 }
 
@@ -112,6 +149,7 @@ export function serializeRecipeDetail(
       author: authorFromMetadata(recipe.source.metadata),
       thumbnailUrl: thumbnailFromMetadata(recipe.source.metadata),
       sourceLabel: sourceLabelFromType(recipe.source.sourceType),
+      video: serializeSourceVideo(recipe.id, recipe.source.metadata),
       createdAt: recipe.source.createdAt.toISOString(),
     },
     translation: recipe.translation,

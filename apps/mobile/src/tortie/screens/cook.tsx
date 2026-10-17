@@ -19,6 +19,12 @@ import Animated, {
 import Svg, { Circle } from 'react-native-svg';
 
 import { timerKey, useCook, type StepTimer } from '@/tortie/cook-store';
+import {
+  MAX_TIMER_MINUTES,
+  MIN_TIMER_MINUTES,
+  clampMinutes,
+  stepMinutes,
+} from '@/tortie/timer-clock';
 import { useCookSessionSync } from '@/tortie/data/cook-session';
 import { generalNotes, stepNotes } from '@/tortie/data/recipe-notes';
 import { useServings } from '@/tortie/data/recipe-ui';
@@ -38,9 +44,11 @@ import { C, CSS_EASE, EASE, SPRING } from '@/tortie/theme';
 import { tw, useOpenProgress, useSlideUp } from '@/tortie/ui/anim';
 import { TORTIE_LOGO } from '@/tortie/ui/art';
 import { Glyph } from '@/tortie/ui/icon';
+import { Input, KeyboardScroll, RevealBox } from '@/tortie/ui/input';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { StepNotes, useNotesFor } from '@/tortie/screens/recipe-notes';
+import { StepClipChip } from '@/tortie/screens/step-clip';
 import type { RecipeNoteDto } from '@/features/recipes/schemas';
 import { em, sans, serif, T } from '@/tortie/ui/text';
 
@@ -82,9 +90,7 @@ export function CookMode() {
   const { syncable: canNote, notes } = useNotesFor(cookId);
   const addNote = (stepIndex: number | null) => {
     if (cookId)
-      useNav
-        .getState()
-        .openNotes(cookId, { step: stepIndex, overCook: true });
+      useNav.getState().openNotes(cookId, { step: stepIndex, overCook: true });
   };
 
   const [step, setStep] = useState(0);
@@ -104,6 +110,29 @@ export function CookMode() {
 
   const n = r?.steps.length ?? 0;
   const cur = n ? Math.min(step, n - 1) : 0;
+
+  // Closing the step clip viewer lands on the step it was showing.
+  const clipBack = useNav((s) => s.clipBack);
+  const [clipSeen, setClipSeen] = useState(clipBack?.nonce ?? 0);
+  if (clipBack && clipBack.nonce !== clipSeen) {
+    setClipSeen(clipBack.nonce);
+    if (
+      open &&
+      clipBack.id === cookId &&
+      clipBack.step < n &&
+      clipBack.step !== cur
+    ) {
+      setStep(clipBack.step);
+      setDone(false);
+      setIntro(false);
+    }
+  }
+
+  // Load the source video while cooking, so "Watch this step" shows it straight away.
+  const hasVideo = !!r?.video;
+  useEffect(() => {
+    if (open && cookId && hasVideo) useNav.getState().primeClip(cookId);
+  }, [open, cookId, hasVideo]);
 
   useEffect(() => {
     if (!nonce) return;
@@ -548,7 +577,7 @@ function StepPage({
   const key = timerKey(r.id, i);
   return (
     <Animated.View style={[{ width: w, height: '100%' }, a]}>
-      <ScrollView
+      <KeyboardScroll
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingTop: 26,
@@ -573,6 +602,7 @@ function StepPage({
             {st.d}
           </T>
         ) : null}
+        <StepClipChip recipeId={r.id} clips={r.clips} step={i} large />
         {st.need.length ? (
           <>
             <T
@@ -634,10 +664,8 @@ function StepPage({
             T0={timer}
           />
         ) : null}
-        {notes ? (
-          <StepNotes notes={notes} onAdd={onAddNote} large />
-        ) : null}
-      </ScrollView>
+        {notes ? <StepNotes notes={notes} onAdd={onAddNote} large /> : null}
+      </KeyboardScroll>
     </Animated.View>
   );
 }
@@ -658,6 +686,7 @@ function TimerCard({
   const btnBg = useAnimatedStyle(() => ({
     backgroundColor: tw(T0.run ? C.ink : C.green, 300, CSS_EASE),
   }));
+  const idle = !T0.run && T0.rem === T0.total;
   const label = T0.run
     ? 'Pause'
     : T0.rem < T0.total && T0.rem > 0
@@ -666,106 +695,280 @@ function TimerCard({
         ? 'Again'
         : 'Start';
   const cook = useCook.getState;
+  const [panel, setPanel] = useState(false);
   return (
-    <View
+    <RevealBox
       style={{
-        marginTop: 22,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 18,
+        marginTop: 20,
         backgroundColor: C.white,
         borderWidth: 1,
         borderColor: C.line,
-        borderRadius: 28,
-        padding: 16,
-        boxShadow: '0 16px 36px -18px rgba(44,52,45,.2)',
+        borderRadius: 22,
+        padding: 10,
+        boxShadow: '0 12px 28px -20px rgba(44,52,45,.25)',
       }}
     >
-      <View style={{ width: 120, height: 120 }}>
-        <BigRing dash={RING * (1 - T0.rem / Math.max(1, T0.total))} />
-        <View
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            right: 0,
-            bottom: 0,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Press
+          onPress={() => cook().toggle(tkey, m, title, recipeTitle)}
+          accessibilityLabel={label}
+          scale={0.92}
+          easing={CSS_EASE}
+          style={{ width: 56, height: 56 }}
         >
+          <BigRing
+            dash={idle ? RING : RING * (1 - T0.rem / Math.max(1, T0.total))}
+          />
+          <Animated.View
+            style={[
+              {
+                position: 'absolute',
+                left: 9,
+                top: 9,
+                width: 38,
+                height: 38,
+                borderRadius: 19,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+              btnBg,
+            ]}
+          >
+            <Glyph
+              name={T0.run ? 'pause' : 'play_arrow'}
+              size={22}
+              color={C.bg}
+              fill
+            />
+          </Animated.View>
+        </Press>
+        <View style={{ flex: 1, minWidth: 0 }}>
           <T
-            style={serif(28, 600, C.ink, {
+            style={serif(26, 600, C.ink, {
+              lineHeight: 26,
               fontVariant: ['tabular-nums'],
-              letterSpacing: em(28, -0.01),
+              letterSpacing: em(26, -0.01),
             })}
           >
             {clock(T0.rem)}
           </T>
-          <T style={sans(11, 600, C.ink2)}>
-            {'of ' + fmtT(Math.round(T0.total / 60))}
-          </T>
         </View>
+        <RoundIcon
+          icon="restart_alt"
+          label="Reset timer"
+          onPress={() => cook().reset(tkey, m)}
+        />
+        <RoundIcon
+          icon="tune"
+          label="Adjust timer"
+          active={panel}
+          onPress={() => setPanel((v) => !v)}
+        />
       </View>
-      <View style={{ flex: 1, gap: 8 }}>
-        <Press
-          onPress={() => cook().toggle(tkey, m, title, recipeTitle)}
-          scale={0.96}
-          easing={CSS_EASE}
-          animatedStyle={btnBg}
+      <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+        <MiniBtn
+          label="−1 min"
+          dim={T0.rem <= 60}
+          onPress={() => cook().shift(tkey, -1, m, title, recipeTitle)}
+        />
+        <MiniBtn
+          label="+1 min"
+          onPress={() => cook().bump(tkey, m, title, recipeTitle)}
+        />
+        <MiniBtn
+          label="+5 min"
+          onPress={() => cook().shift(tkey, 5, m, title, recipeTitle)}
+        />
+      </View>
+      {panel ? (
+        <TimerPanel
+          key={Math.round(T0.total / 60)}
+          tkey={tkey}
+          initial={Math.round(T0.total / 60)}
+          title={title}
+          recipeTitle={recipeTitle}
+          onApplied={() => setPanel(false)}
+        />
+      ) : null}
+    </RevealBox>
+  );
+}
+
+function RoundIcon({
+  icon,
+  label,
+  active,
+  onPress,
+}: {
+  icon: string;
+  label: string;
+  active?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Press
+      onPress={onPress}
+      accessibilityLabel={label}
+      scale={0.92}
+      easing={CSS_EASE}
+      style={{
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        backgroundColor: active ? C.green : C.surface2,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <Glyph name={icon} size={19} color={active ? C.bg : C.ink} />
+    </Press>
+  );
+}
+
+function MiniBtn({
+  label,
+  dim,
+  onPress,
+}: {
+  label: string;
+  dim?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Press
+      onPress={onPress}
+      accessibilityLabel={label}
+      scale={0.94}
+      easing={CSS_EASE}
+      style={{
+        flex: 1,
+        height: 34,
+        borderWidth: 1,
+        borderColor: C.line,
+        borderRadius: 99,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: dim ? 0.4 : 1,
+      }}
+    >
+      <T numberOfLines={1} style={sans(12, 700)}>
+        {label}
+      </T>
+    </Press>
+  );
+}
+
+/** Settings under the timer card: set the duration (− / typed / +) and apply it. */
+function TimerPanel({
+  tkey,
+  initial,
+  title,
+  recipeTitle,
+  onApplied,
+}: {
+  tkey: string;
+  initial: number;
+  title: string;
+  recipeTitle: string;
+  onApplied: () => void;
+}) {
+  const [text, setText] = useState(String(clampMinutes(initial)));
+  const typed = parseInt(text, 10);
+  const mins = Number.isFinite(typed) ? clampMinutes(typed) : initial;
+  const step = (dir: 1 | -1) => setText(String(stepMinutes(mins, dir)));
+  const stepper = (dir: 1 | -1, icon: string, label: string, off: boolean) => (
+    <Press
+      onPress={() => step(dir)}
+      accessibilityLabel={label}
+      scale={0.92}
+      easing={CSS_EASE}
+      style={{
+        width: 38,
+        height: 38,
+        borderRadius: 19,
+        borderWidth: 1,
+        borderColor: C.line,
+        backgroundColor: C.white,
+        alignItems: 'center',
+        justifyContent: 'center',
+        opacity: off ? 0.4 : 1,
+      }}
+    >
+      <Glyph name={icon} size={20} color={C.ink} />
+    </Press>
+  );
+  return (
+    <View
+      style={{
+        marginTop: 10,
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: C.surface3,
+      }}
+    >
+      <T
+        style={sans(11, 700, C.ink3, {
+          letterSpacing: em(11, 0.05),
+          textTransform: 'uppercase',
+        })}
+      >
+        Set duration
+      </T>
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+          marginTop: 8,
+        }}
+      >
+        {stepper(-1, 'remove', 'Shorter', mins <= MIN_TIMER_MINUTES)}
+        <View
           style={{
-            height: 46,
-            borderRadius: 99,
+            flex: 1,
             flexDirection: 'row',
-            alignItems: 'center',
+            alignItems: 'baseline',
             justifyContent: 'center',
-            gap: 6,
+            gap: 5,
           }}
         >
-          <Glyph
-            name={T0.run ? 'pause' : 'play_arrow'}
-            size={21}
-            color={C.bg}
-            fill
+          <Input
+            value={text}
+            onChangeText={(t) => setText(t.replace(/\D/g, '').slice(0, 3))}
+            onBlur={() => setText(String(mins))}
+            keyboardType="number-pad"
+            selectTextOnFocus
+            maxLength={3}
+            accessibilityLabel="Timer minutes"
+            style={serif(22, 600, C.ink, {
+              fontVariant: ['tabular-nums'],
+              minWidth: 44,
+              textAlign: 'right',
+              padding: 0,
+            })}
           />
-          <T style={sans(15, 700, C.bg)}>{label}</T>
-        </Press>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <Press
-            onPress={() => cook().bump(tkey, m, title, recipeTitle)}
-            scale={0.94}
-            easing={CSS_EASE}
-            style={{
-              flex: 1,
-              height: 40,
-              borderWidth: 1.5,
-              borderColor: C.line,
-              borderRadius: 99,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <T style={sans(13, 700)}>+1 min</T>
-          </Press>
-          <Press
-            onPress={() => cook().reset(tkey, m)}
-            accessibilityLabel="Reset timer"
-            scale={0.94}
-            easing={CSS_EASE}
-            style={{
-              flex: 1,
-              height: 40,
-              borderWidth: 1.5,
-              borderColor: C.line,
-              borderRadius: 99,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Glyph name="restart_alt" size={19} color={C.ink} />
-          </Press>
+          <T style={serif(22, 600, C.ink)}>min</T>
         </View>
+        {stepper(1, 'add', 'Longer', mins >= MAX_TIMER_MINUTES)}
       </View>
+      <Press
+        onPress={() => {
+          useCook.getState().setDuration(tkey, mins, title, recipeTitle);
+          onApplied();
+        }}
+        scale={0.97}
+        easing={CSS_EASE}
+        style={{
+          height: 42,
+          marginTop: 12,
+          borderRadius: 99,
+          backgroundColor: C.green,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}
+      >
+        <T style={sans(14, 700, C.bg)}>{'Set timer to ' + fmtT(mins)}</T>
+      </Press>
     </View>
   );
 }
@@ -775,14 +978,19 @@ function BigRing({ dash }: { dash: number }) {
     strokeDashoffset: tw(dash, 1000, Easing.linear),
   }));
   return (
-    <Svg width={120} height={120} viewBox="0 0 120 120">
+    <Svg
+      width={56}
+      height={56}
+      viewBox="0 0 120 120"
+      style={{ position: 'absolute', left: 0, top: 0 }}
+    >
       <Circle
         cx={60}
         cy={60}
         r={52}
         fill="none"
         stroke={C.surface3}
-        strokeWidth={8}
+        strokeWidth={10}
       />
       <ACircle
         cx={60}
@@ -790,7 +998,7 @@ function BigRing({ dash }: { dash: number }) {
         r={52}
         fill="none"
         stroke={C.terra}
-        strokeWidth={8}
+        strokeWidth={10}
         strokeLinecap="round"
         strokeDasharray={`${RING}`}
         rotation={-90}
@@ -861,7 +1069,9 @@ function Intro({
           ),
         )}
       </View>
-      {notes ? <StepNotes notes={notes} onAdd={onAddNote} label="Recipe notes" /> : null}
+      {notes ? (
+        <StepNotes notes={notes} onAdd={onAddNote} label="Recipe notes" />
+      ) : null}
       <T style={[label, { marginTop: 24 }]}>Ingredients</T>
       <View style={{ marginTop: 6 }}>
         {r?.ings.map((x, i) => (

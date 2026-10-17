@@ -6,6 +6,8 @@ import { toast } from '@/tortie/nav-store';
 import {
   addMinute,
   projectTimers,
+  shiftMinutes,
+  withDuration,
   withRun,
   type StepTimer,
 } from '@/tortie/timer-clock';
@@ -57,6 +59,21 @@ type CookActions = {
     recipeTitle: string,
   ) => void;
   reset: (key: string, minutes: number) => void;
+  /** Cook-mode card −1 / +5 min: shifts the deadline, creating the timer if needed. */
+  shift: (
+    key: string,
+    delta: number,
+    minutes: number,
+    title: string,
+    recipeTitle: string,
+  ) => void;
+  /** Settings panel "Apply": a paused timer of exactly `minutes`. */
+  setDuration: (
+    key: string,
+    minutes: number,
+    title: string,
+    recipeTitle: string,
+  ) => void;
   dismiss: (key: string) => void;
   tick: () => void;
 };
@@ -167,6 +184,30 @@ export const useCook = create<CookState & CookActions>()(
                 run: false,
                 endsAt: null,
               },
+            },
+          };
+        }),
+      shift: (key, delta, minutes, title, recipeTitle) =>
+        set((s) => {
+          const current = s.timers[key] ?? blank(minutes, title, recipeTitle);
+          return {
+            timers: {
+              ...s.timers,
+              [key]: shiftMinutes(
+                { ...current, title, recipeTitle },
+                Date.now(),
+                delta,
+              ),
+            },
+          };
+        }),
+      setDuration: (key, minutes, title, recipeTitle) =>
+        set((s) => {
+          const current = s.timers[key] ?? blank(minutes, title, recipeTitle);
+          return {
+            timers: {
+              ...s.timers,
+              [key]: withDuration({ ...current, title, recipeTitle }, minutes),
             },
           };
         }),

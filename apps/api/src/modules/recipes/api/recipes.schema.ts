@@ -92,6 +92,12 @@ export const recipeIngredientSchema = z.object({
   sortOrder: z.number().int(),
 });
 
+/** A stretch of the source video where the step happens, in seconds. */
+export const stepClipRangeSchema = z.object({
+  start: z.number().nonnegative(),
+  end: z.number().nonnegative(),
+});
+
 export const recipeStepSchema = z.object({
   id: dbUuid(),
   stepOrder: z.number().int(),
@@ -104,6 +110,8 @@ export const recipeStepSchema = z.object({
   ingredientRefs: z.array(z.number().int().nonnegative()),
   stage: z.string(),
   ahead: z.boolean(),
+  /** Ranges of the source video showing this step, in video order; empty = no clip. */
+  clipSegments: z.array(stepClipRangeSchema),
   ingredientHint: z.string().nullable(),
   confidence: z.number(),
   provenance: z.unknown(),
@@ -119,6 +127,14 @@ export const recipeSourceSchema = z.object({
   author: z.string().nullable(),
   thumbnailUrl: z.string().nullable(),
   sourceLabel: z.string(),
+  /** The imported video the step clips play from; `path` is relative to the API root. */
+  video: z
+    .object({
+      path: z.string(),
+      mimeType: z.string(),
+      durationSeconds: z.number().nullable(),
+    })
+    .nullable(),
   createdAt: z.iso.datetime(),
 });
 
@@ -299,6 +315,7 @@ const patchRecipeStepSchema = z.object({
   temperature: z.string().nullable(),
   stage: z.string().optional(),
   ahead: z.boolean().optional(),
+  clipSegments: z.array(stepClipRangeSchema).max(20).optional(),
   confidence: z.number().optional(),
   provenance: z.unknown().optional(),
   warnings: z.unknown().optional(),

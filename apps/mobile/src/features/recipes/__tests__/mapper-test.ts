@@ -246,4 +246,43 @@ describe('mapRecipeDetail', () => {
     expect(view.steps[0]?.ingredientRefs).toEqual([]);
     expect(view.steps[0]?.temperatureCelsius).toBeNull();
   });
+
+  test('maps step clip ranges, the source video and its length', () => {
+    const view = mapRecipeDetail({
+      ...fixture,
+      steps: [
+        {
+          ...fixture.steps[0]!,
+          clipSegments: [
+            { start: 29, end: 41 },
+            { start: 60, end: 55 },
+          ],
+        },
+        { ...fixture.steps[1]!, clipSegments: [] },
+      ],
+      source: {
+        ...fixture.source!,
+        metadata: { author: '@noor.cooks', durationSeconds: 74.6 },
+        video: {
+          path: '/recipes/r1/video',
+          mimeType: 'video/mp4',
+          durationSeconds: 74.6,
+        },
+      },
+    });
+    // Ranges that end before they start are dropped.
+    expect(view.steps.map((s) => s.clipSegments)).toEqual([
+      [{ start: 29, end: 41 }],
+      [],
+    ]);
+    expect(view.sourceDurationSeconds).toBe(74);
+    expect(view.sourceVideoPath).toBe('/recipes/r1/video');
+  });
+
+  test('has no clips, video or duration for recipes saved before step clips existed', () => {
+    const view = mapRecipeDetail(fixture);
+    expect(view.steps.map((s) => s.clipSegments)).toEqual([[], []]);
+    expect(view.sourceDurationSeconds).toBeNull();
+    expect(view.sourceVideoPath).toBeNull();
+  });
 });
