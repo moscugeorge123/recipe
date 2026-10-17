@@ -17,7 +17,7 @@ import {
 import { getApiBaseUrl } from '@/constants/env';
 import { hueOf } from '@/tortie/color';
 import { buildClips, type StepClip } from '@/tortie/data/step-clips';
-import { emoOf, fmtIngQty, hasKey, ingKeys, lexOf } from '@/tortie/lib/fmt';
+import { emoOf, fmtIngQty, hasKey, ingKeys } from '@/tortie/lib/fmt';
 import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
 
 /** Design-shaped recipe summary (maps the prototype's RECIPES entries). */
@@ -180,8 +180,14 @@ function stripLeadingTitle(instruction: string, title: string): string {
   return instruction.trim().replace(pattern, '').trim();
 }
 
-function stepCopy(step: RecipeStepView, units: Units): [string, string] {
-  const instruction = preferUnits(step.instruction, units);
+function stepCopy(
+  step: RecipeStepView,
+  units: Units | 'source',
+): [string, string] {
+  const instruction =
+    units === 'source'
+      ? step.instruction
+      : preferUnits(step.instruction, units);
   const title = step.title
     ?.trim()
     .replace(/[.!?]+$/g, '')
@@ -191,14 +197,20 @@ function stepCopy(step: RecipeStepView, units: Units): [string, string] {
 }
 
 /** Amounts, heat and in-text measurements follow `units` (Profile → Units). */
-export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
+export function toTDetail(
+  v: RecipeView,
+  units: Units | 'source' = 'metric',
+): TDetail {
   const base = toTRecipe(v);
   const ings: TIng[] = v.ingredients.map((x) => {
     const n = [x.name, x.preparation].filter(Boolean).join(', ');
     const e = emoOf(x.name);
     // The recipe's own emoji wins; the lexicon only fills the placeholder.
     const emo = x.emoji && x.emoji !== '🥣' ? x.emoji : e.emo;
-    const amount = ingredientAmount(x, units);
+    const amount =
+      units === 'source'
+        ? { quantity: x.quantity ?? null, unit: x.unit ?? null }
+        : ingredientAmount(x, units);
     return { q: amount.quantity, u: amount.unit ?? '', n, emo, tint: e.tint };
   });
   const steps: TStep[] = [...v.steps]
@@ -220,7 +232,7 @@ export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
           : 0,
         ahead: s.ahead,
         ph: STAGE[s.stage] ?? '',
-        heat: stepHeat(s, units),
+        heat: stepHeat(s, units === 'source' ? 'metric' : units),
         tip: '',
         need,
       };
@@ -317,10 +329,12 @@ export function useLibraryStatus() {
 /** One recipe with ingredients and steps (falls back to the list preview while loading). */
 export function useTRecipe(
   id: string | null | undefined,
-  options?: { original?: boolean },
+  options?: { original?: boolean; units?: 'source' },
 ) {
-  const q = useRecipe(id ?? undefined, options);
-  const units = useTortiePrefs((s) => s.units);
+  const q = useRecipe(id ?? undefined, { original: options?.original });
+  const pref = useTortiePrefs((s) => s.units);
+  // `source`: the stored as-written amounts, for the editor (never display-converted).
+  const units = options?.units ?? pref;
   const r = useMemo(
     () => (q.data ? toTDetail(q.data as RecipeView, units) : null),
     [q.data, units],

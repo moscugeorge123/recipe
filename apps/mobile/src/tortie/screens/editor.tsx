@@ -144,6 +144,7 @@ export function RecipeEditor() {
   const nonce = useNav((s) => s.editNonce);
   const { r, view } = useTRecipe(mode === 'edit' ? editId : null, {
     original: true,
+    units: 'source',
   });
   const q = useRecipe(mode === 'edit' ? (editId ?? undefined) : undefined, {
     original: true,

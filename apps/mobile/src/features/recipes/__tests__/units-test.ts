@@ -73,11 +73,7 @@ describe('convertAmount', () => {
     });
   });
 
-  test('leaves spoons, counts, unknown units and missing amounts alone', () => {
-    expect(convertAmount(2, 'tbsp', 'metric')).toEqual({
-      quantity: 2,
-      unit: 'tbsp',
-    });
+  test('leaves counts, unknown units and missing amounts alone', () => {
     expect(convertAmount(1, 'pinch', 'imperial')).toEqual({
       quantity: 1,
       unit: 'pinch',

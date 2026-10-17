@@ -27,6 +27,7 @@ import {
   isAlerting,
   stepMinutes,
 } from '@/tortie/timer-clock';
+import { scaleStepText } from '@/features/recipes/units';
 import { useCookSessionSync } from '@/tortie/data/cook-session';
 import { generalNotes, stepNotes } from '@/tortie/data/recipe-notes';
 import { useServings } from '@/tortie/data/recipe-ui';
@@ -614,7 +615,7 @@ function StepPage({
         </T>
         {st.d ? (
           <T style={sans(19, 400, C.ink, { lineHeight: 30.4, marginTop: 14 })}>
-            {st.d}
+            {scaleStepText(st.d, scale)}
           </T>
         ) : null}
         <StepClipChip recipeId={r.id} clips={r.clips} step={i} large />
@@ -1271,7 +1272,7 @@ function Intro({
                     marginTop: 3,
                   })}
                 >
-                  {st.d}
+                  {scaleStepText(st.d, scale)}
                 </T>
               ) : null}
             </View>
