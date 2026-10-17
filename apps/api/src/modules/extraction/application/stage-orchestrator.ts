@@ -10,7 +10,10 @@ import { logStep } from '../../../infrastructure/logging/log-step.js';
 import { DEFAULT_PROFILE_ID } from '../../profiles/domain/profile.js';
 import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
 import { isAppError } from '../../../shared/errors/app-error.js';
-import { ExtractionFailedError } from '../../../shared/errors/extraction-errors.js';
+import {
+  ContentAcquisitionFailedError,
+  ExtractionFailedError,
+} from '../../../shared/errors/extraction-errors.js';
 import type { ContentAcquisitionService } from '../../content/application/content-acquisition.service.js';
 import type { AcquiredContent } from '../../content/domain/types.js';
 import { EvidenceBuilder } from '../../evidence/application/evidence-builder.js';
@@ -783,6 +786,7 @@ const STDERR_LIMIT = 500;
 export function serializeStageError(error: unknown): {
   message: string;
   code?: string;
+  reason?: string;
   cause?: string;
 } {
   const message = error instanceof Error ? error.message : 'Stage failed';
@@ -801,10 +805,16 @@ export function serializeStageError(error: unknown): {
     depth += 1;
   }
 
+  // "Post does not exist" as the message and again as its cause is one fact, not two.
+  const lowerMessage = message.toLowerCase();
+  const distinct = parts.filter((part) => !lowerMessage.includes(part.trim().toLowerCase()));
+  const reason = error instanceof ContentAcquisitionFailedError ? error.reason : undefined;
+
   return {
     message,
     ...(code ? { code } : {}),
-    ...(parts.length > 0 ? { cause: parts.join(' | ') } : {}),
+    ...(reason ? { reason } : {}),
+    ...(distinct.length > 0 ? { cause: distinct.join(' | ') } : {}),
   };
 }
 

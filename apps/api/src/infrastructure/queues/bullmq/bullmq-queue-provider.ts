@@ -1,9 +1,18 @@
-import { Queue, Worker, type ConnectionOptions } from 'bullmq';
+import { Queue, UnrecoverableError, Worker, type ConnectionOptions } from 'bullmq';
 import type { Redis } from 'ioredis';
 
 import type { AppLogger } from '../../logging/logger.js';
 import { silentLogger } from '../../logging/logger.js';
 import type { EnqueueOptions, JobHandler, JobPayload, QueueProvider } from './queue-provider.js';
+
+/** Errors that mark themselves `permanent` (see ContentAcquisitionFailedError) are not retried. */
+export function isPermanentFailure(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    (error as { permanent?: unknown }).permanent === true
+  );
+}
 
 export class BullMQQueueProvider implements QueueProvider {
   private readonly queue: Queue;
@@ -64,6 +73,10 @@ export class BullMQQueueProvider implements QueueProvider {
             { step: 'queue.job', durationMs: Date.now() - startedAt, err: error },
             'queue.job failed',
           );
+          // A missing, private or blocked link will not load on a retry: fail the job now.
+          if (isPermanentFailure(error)) {
+            throw new UnrecoverableError(error instanceof Error ? error.message : 'Permanent failure');
+          }
           throw error;
         }
       },

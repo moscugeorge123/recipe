@@ -1,6 +1,10 @@
 import type { SourceType } from '@prisma/client';
 
-import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
+import {
+  CONTENT_FAILURE_MESSAGES,
+  ContentAcquisitionFailedError,
+  classifyAcquisitionFailure,
+} from '../../../../shared/errors/extraction-errors.js';
 import { logStep } from '../../../../infrastructure/logging/log-step.js';
 import { downloadMedia, type FetchLike } from '../../../../shared/utils/download-media.js';
 import type {
@@ -46,8 +50,11 @@ export class YouTubeContentProvider implements ContentProvider {
         ? await logStep(log, 'youtube.metadata', { url }, () => this.ytdlp.fetchMetadata(url))
         : await this.ytdlp.fetchMetadata(url);
     } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : 'Failed to acquire YouTube metadata';
+      const reason = classifyAcquisitionFailure(detail);
       throw new ContentAcquisitionFailedError({
-        message: error instanceof Error ? error.message : 'Failed to acquire YouTube metadata',
+        message: reason ? CONTENT_FAILURE_MESSAGES[reason] : detail,
+        ...(reason ? { reason } : {}),
         cause: error,
       });
     }

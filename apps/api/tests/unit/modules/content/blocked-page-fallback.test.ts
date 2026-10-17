@@ -44,6 +44,8 @@ describe('GenericWebContentProvider blocked-site fallback', () => {
     await expect(provider.acquire(URL, ctx)).rejects.toMatchObject({
       code: 'CONTENT_ACQUISITION_FAILED',
       message: 'Web fetch failed with status 404',
+      reason: 'NOT_FOUND',
+      permanent: true,
     });
     expect(fetchHtml).not.toHaveBeenCalled();
   });
@@ -52,7 +54,9 @@ describe('GenericWebContentProvider blocked-site fallback', () => {
     const without = new GenericWebContentProvider({ fetchImpl: htmlFetch('', { status: 402 }) });
     await expect(without.acquire(URL, ctx)).rejects.toMatchObject({
       code: 'CONTENT_ACQUISITION_FAILED',
-      message: 'This website blocks recipe imports (status 402)',
+      message: 'This site blocks automatic import (status 402)',
+      reason: 'BLOCKED',
+      permanent: true,
     });
 
     const failing = new GenericWebContentProvider({
@@ -63,7 +67,8 @@ describe('GenericWebContentProvider blocked-site fallback', () => {
       },
     });
     await expect(failing.acquire(URL, ctx)).rejects.toMatchObject({
-      message: 'This website blocks recipe imports (status 403)',
+      message: 'This site blocks automatic import (status 403)',
+      reason: 'BLOCKED',
     });
   });
 });

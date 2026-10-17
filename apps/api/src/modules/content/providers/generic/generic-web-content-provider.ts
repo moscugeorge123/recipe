@@ -1,21 +1,27 @@
 import type { SourceType } from '@prisma/client';
 
-import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
-import { HTML_FETCH_USER_AGENT, type FetchLike } from '../../preview/fetch-html.js';
+import {
+  CONTENT_FAILURE_MESSAGES,
+  ContentAcquisitionFailedError,
+} from '../../../../shared/errors/extraction-errors.js';
+import {
+  BLOCKED_STATUSES,
+  HTML_FETCH_HEADERS,
+  looksLikeBlockPage,
+  type FetchLike,
+} from '../../preview/fetch-html.js';
 import { extractAllMeta, parseOpenGraph } from '../../preview/open-graph.js';
+import { pickBestImage } from '../../preview/thumbnails.js';
 import { hasRecipeBody } from '../../domain/structured-recipe.js';
 import type { AcquiredContent, AcquisitionContext, ContentProvider } from '../../domain/types.js';
 import type { BlockedPageFetcher } from './apify-page-fetcher.js';
 import { extractPageText, PAGE_TEXT_LIMIT } from './page-text.js';
 import { parseStructuredRecipe } from './structured-recipe-parser.js';
 
-const DEFAULT_TIMEOUT_MS = 15_000;
+const DEFAULT_TIMEOUT_MS = 12_000;
 const MAX_HTML_CHARS = 3_000_000;
 /** Structured data already carries the recipe; page text is only supporting context then. */
 const PAGE_TEXT_LIMIT_WITH_STRUCTURED = 4_000;
-
-/** Statuses sites use to turn away scrapers (Dotdash Meredith answers 402, Cloudflare 403/503). */
-const BLOCKED_STATUSES = new Set([401, 402, 403, 429, 503]);
 
 export interface GenericWebContentProviderOptions {
   fetchImpl?: FetchLike;
@@ -37,7 +43,9 @@ export class GenericWebContentProvider implements ContentProvider {
     const fetcher = this.options.blockedPageFetcher;
     const blockedError = (cause?: unknown): ContentAcquisitionFailedError =>
       new ContentAcquisitionFailedError({
-        message: `This website blocks recipe imports (status ${String(status)})`,
+        message: `${CONTENT_FAILURE_MESSAGES.BLOCKED} (status ${String(status)})`,
+        reason: 'BLOCKED',
+        httpStatus: status,
         ...(cause ? { cause } : {}),
       });
 
@@ -70,6 +78,17 @@ export class GenericWebContentProvider implements ContentProvider {
         { ...fields, durationMs: Date.now() - startedAt, err: error },
         'web.fetch-fallback failed',
       );
+      // The browser reached the site and it said the page is gone: that is not a block.
+      const detail = error instanceof Error ? error.message : '';
+      const upstream = /status (\d{3})/.exec(detail)?.[1];
+      if (upstream === '404' || upstream === '410') {
+        throw new ContentAcquisitionFailedError({
+          message: CONTENT_FAILURE_MESSAGES.NOT_FOUND,
+          reason: 'NOT_FOUND',
+          httpStatus: Number(upstream),
+          cause: error,
+        });
+      }
       throw blockedError(error);
     }
   }
@@ -94,10 +113,7 @@ export class GenericWebContentProvider implements ContentProvider {
     try {
       response = await fetchImpl(url, {
         signal: AbortSignal.timeout(timeoutMs),
-        headers: {
-          'User-Agent': HTML_FETCH_USER_AGENT,
-          Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.5',
-        },
+        headers: HTML_FETCH_HEADERS,
       });
     } catch (error: unknown) {
       log?.error(
@@ -129,6 +145,10 @@ export class GenericWebContentProvider implements ContentProvider {
         log?.error(fetchFields, 'web.fetch failed: non-2xx status');
         throw new ContentAcquisitionFailedError({
           message: `Web fetch failed with status ${String(response.status)}`,
+          httpStatus: response.status,
+          ...(response.status === 404 || response.status === 410
+            ? { reason: 'NOT_FOUND' as const }
+            : {}),
         });
       }
 
@@ -144,6 +164,12 @@ export class GenericWebContentProvider implements ContentProvider {
         { ...fetchFields, htmlChars: rawHtml.length, truncated: rawHtml.length > MAX_HTML_CHARS },
         'web.fetch completed',
       );
+      // A 200 that is really a captcha / "access issue" page: go to the fallback now instead of
+      // letting the model read a block page.
+      if (looksLikeBlockPage(rawHtml)) {
+        log?.warn(fetchFields, 'web.fetch returned a block page');
+        rawHtml = await this.fetchBlockedPage(url, response.status, ctx);
+      }
     }
     const html = rawHtml.slice(0, MAX_HTML_CHARS);
 
@@ -171,7 +197,7 @@ export class GenericWebContentProvider implements ContentProvider {
     const title = extractAllMeta(html, 'og:title')[0] ?? structured?.name ?? og.title ?? undefined;
     const description = og.description ?? structured?.description;
     const images = dedupe([...og.images, ...(structured?.images ?? [])]);
-    const thumbnailUrl = images[0];
+    const thumbnailUrl = pickBestImage(images);
     const language = structured?.language ?? htmlLang(html);
 
     return {

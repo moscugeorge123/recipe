@@ -113,3 +113,75 @@ export function dedupeExactUrls(urls: string[]): { url: string }[] {
   }
   return result;
 }
+
+/** Query parameters CDNs use to ask for a smaller copy of an image. */
+const RESIZE_PARAMS = ['resize', 'w', 'width', 'h', 'height', 'fit', 'crop', 'quality', 'q'];
+
+/** Largest width an image URL announces ("?w=1200", "resize=440,230", "_1600x900", "/food_16x9_1600/"). */
+export function declaredImageWidth(url: string): number | null {
+  const widths: number[] = [];
+  try {
+    const parsed = new URL(url);
+    for (const key of ['w', 'width']) {
+      const value = Number(parsed.searchParams.get(key));
+      if (Number.isFinite(value) && value > 0) widths.push(value);
+    }
+    const resize = parsed.searchParams.get('resize');
+    const resizeWidth = Number(resize?.split(/[,x]/)[0]);
+    if (Number.isFinite(resizeWidth) && resizeWidth > 0) widths.push(resizeWidth);
+  } catch {
+    return null;
+  }
+  const path = url.split('?')[0] ?? url;
+  const pathMatches = [
+    ...path.matchAll(/[_-](\d{3,4})x(\d{2,4})(?=[._/-]|$)/g),
+    ...path.matchAll(/[_/-](\d{3,4})(?=[./_])/g),
+  ];
+  for (const match of pathMatches) {
+    const value = Number(match[1]);
+    if (value >= 200 && value <= 6000) widths.push(value);
+  }
+  return widths.length > 0 ? Math.max(...widths) : null;
+}
+
+/** The same image without the resize query that makes the site serve a thumbnail-sized copy. */
+export function stripResizeParams(url: string): string {
+  try {
+    const parsed = new URL(url);
+    // A signed URL covers its query string: changing it would break the image.
+    if (['sig', 'signature', 'token', 'hmac', 'expires', 's'].some((key) => parsed.searchParams.has(key))) {
+      return url;
+    }
+    let changed = false;
+    for (const key of RESIZE_PARAMS) {
+      if (parsed.searchParams.has(key)) {
+        parsed.searchParams.delete(key);
+        changed = true;
+      }
+    }
+    return changed ? parsed.toString() : url;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Picks the sharpest hero image from a page's og:image / JSON-LD candidates: the one announcing
+ * the largest width (first one wins a tie or when none announce a size), without resize params.
+ */
+export function pickBestImage(candidates: string[]): string | undefined {
+  const urls = candidates.filter((url) => url.trim().length > 0);
+  if (urls.length === 0) return undefined;
+  const first = urls[0];
+  if (first === undefined) return undefined;
+  let best = first;
+  let bestWidth = declaredImageWidth(best) ?? 0;
+  for (const url of urls.slice(1)) {
+    const width = declaredImageWidth(url) ?? 0;
+    if (width > bestWidth) {
+      best = url;
+      bestWidth = width;
+    }
+  }
+  return stripResizeParams(best);
+}
