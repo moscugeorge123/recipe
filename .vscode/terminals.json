@@ -4,23 +4,38 @@
     {
       "name": "Mobile",
       "focus": true,
-      "command": "npm run dev:mobile"
+      "commands": [
+        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-dev-servers.ps1",
+        "npm run dev:mobile"
+      ]
     },
     {
       "name": "API",
-      "command": "npm run dev:api"
+      "commands": [
+        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-dev-servers.ps1",
+        "npm run dev:api"
+      ]
     },
     {
       "name": "Dashboard",
-      "command": "npm run dev:dashboard"
+      "commands": [
+        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-dev-servers.ps1",
+        "npm run dev:dashboard"
+      ]
     },
     {
       "name": "Dashboard Fixtures",
-      "command": "npm run dev:dashboard:fixtures"
+      "commands": [
+        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-dev-servers.ps1",
+        "npm run dev:dashboard:fixtures"
+      ]
     },
     {
       "name": "Worker",
-      "command": "npm run dev:worker"
+      "commands": [
+        "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-dev-servers.ps1",
+        "npm run dev:worker"
+      ]
     }
   ]
 }
