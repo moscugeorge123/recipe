@@ -16,6 +16,8 @@ Finding IDs (`F15`, `F09`, …) match [QA_REPORT.md](QA_REPORT.md).
 * The test account `qa.tortie.test1@example.com` was created in the real Firebase project `tortie-recipe`; delete it when done.
 * **Re-testing:** the emulator + Metro + API/worker setup is described in [QA_REPORT.md §1](QA_REPORT.md). Use `adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT '<url>' -n com.tortie.com/.MainActivity` to exercise the share flow. Quote the whole text with single quotes inside `adb shell "..."` or spaces split it.
 
+**Running tasks with agents:** see [AGENT-GROUPS.md](AGENT-GROUPS.md), which regroups all tasks by code area (one agent per area) and shows which groups can run in parallel.
+
 ## Index
 
 Severity: 🔴 high · 🟠 medium · 🟡 low. Tick the box when the task is done.
@@ -51,6 +53,31 @@ Severity: 🔴 high · 🟠 medium · 🟡 low. Tick the box when the task is do
 - [ ] 🟠 [Q20. Console errors: empty-id query, Reanimated warning](Q20-console-errors.md) (F06, F07)
 - [ ] 🟡 [Q21. Dark mode: implement it or lock to light](Q21-dark-mode.md) (F77)
 - [ ] 🟠 [Q22. Auth and session: sign-out screen, imports ledger, API URL](Q22-auth-session-and-ledger.md) (F78 + 2)
+
+### Group F: Reported after the QA pass (product owner, 2026-10-17)
+Findings F80–F86 come from device use, not the emulator pass. Two more reports map onto existing tasks: the share-screen progress row overlapping the text is **F34** ([Q07](Q07-import-progress-truthful.md) item 3), and the Today recommendation rule is an extension of **F21/F38/F54** ([Q06](Q06-meal-type-and-tonight-hero.md)): next planned meal for the coming part of the day, otherwise a recipe chosen from cooking history and imports, instead of "newest recipe".
+- [ ] 🔴 [Q26. Share-to-import while a video step or cook mode is open leaves it stuck over the new recipe](Q26-share-open-recipe-stuck-layers.md) (F80)
+- [ ] 🔴 [Q23. No alarm sound when a cooking timer finishes](Q23-timer-alarm-sound.md) (F81)
+- [ ] 🟠 [Q24. A finished timer keeps showing on other screens](Q24-finished-timer-shown-elsewhere.md) (F82)
+- [ ] 🟠 [Q25. Back during a shared import cancels the recipe](Q25-share-back-cancels-import.md) (F83)
+- [ ] 🟠 [Q27. The same recipe is sometimes imported twice](Q27-duplicate-imports.md) (F85)
+- [ ] 🟡 [Q28. The Add-recipe sheet keeps the previous link](Q28-add-sheet-stale-link.md) (F86)
+- [ ] 🟡 [Q29. Call "Method" "Steps"](Q29-rename-method-to-steps.md) (F84)
+
+### Group G: Settings, language and layout requests (product owner, 2026-10-17)
+Findings F87–F99. "Help → Take the tour has no working icon" is already **F08/F63 in [Q14](Q14-icon-glyphs.md)** (name `tour`, still used in `profile.tsx`), so it has no new task.
+- [ ] 🔴 [Q30. The app is not fully translated into the selected language](Q30-app-translation-coverage.md) (F87)
+- [ ] 🟠 [Q31. The recipe language must apply to every AI response](Q31-recipe-language-in-ai-responses.md) (F88)
+- [ ] 🟠 [Q33. Default servings must be used when a recipe is generated](Q33-default-servings-at-generation.md) (F90, extends Q18)
+- [ ] 🟠 [Q34. Metric still shows tsp / tbsp / lb](Q34-metric-shows-spoon-and-pound-units.md) (F91, extends Q16)
+- [ ] 🟠 [Q37. Choose a profile picture](Q37-profile-picture.md) (F94)
+- [ ] 🟠 [Q39. Recipe detail: tab height and long descriptions](Q39-recipe-detail-tab-height-and-description.md) (F96, F97)
+- [ ] 🟠 [Q40. A focused field in a sheet leaves a gap above the keyboard](Q40-sheet-keyboard-gap.md) (F98)
+- [ ] 🟡 [Q32. App and recipe language as dropdowns](Q32-language-dropdowns.md) (F89)
+- [ ] 🟡 [Q35. Remove dietary preferences](Q35-remove-dietary-preferences.md) (F92, resolves the diet half of Q18)
+- [ ] 🟡 [Q36. Remove the empty-state cards from Plan](Q36-plan-remove-empty-state-cards.md) (F93, makes F10 moot)
+- [ ] 🟡 [Q38. Profile button on every tab](Q38-profile-button-on-all-tabs.md) (F95)
+- [ ] 🟡 [Q41. Notes sheet empty state layout](Q41-notes-empty-state-layout.md) (F99)
 
 ## Suggested order
 1. **Q01, Q02**: they decide whether an imported recipe can be cooked at all.
