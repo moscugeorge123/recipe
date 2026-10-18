@@ -21,7 +21,12 @@ import { hueOf } from '@/tortie/color';
 import { cancelImport, retryImport } from '@/tortie/data/import-engine';
 import { useFrame } from '@/tortie/frame';
 import { useImports } from '@/tortie/import-store';
-import { afterMotion, toast, useNav } from '@/tortie/nav-store';
+import {
+  afterMotion,
+  openImportedRecipe,
+  toast,
+  useNav,
+} from '@/tortie/nav-store';
 import { BASE_D, C, CSS_EASE, SH } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { EmptyState } from '@/tortie/ui/empty-state';
@@ -332,10 +337,7 @@ function DoneRow({ job }: { job: ImportJob }) {
   const open = () => {
     const id = job.recipeId;
     if (!id) return;
-    useNav.getState().closeImports();
-    afterMotion(Math.round(BASE_D * 1.1), () =>
-      useNav.getState().openRecipe(id),
-    );
+    openImportedRecipe(id, Math.round(BASE_D * 1.1));
   };
   return (
     <Press

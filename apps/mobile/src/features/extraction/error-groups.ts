@@ -11,7 +11,10 @@ export const RATE_LIMIT_COUNTDOWN_S = 15;
 const GROUP_BY_CODE: Record<string, ImportErrorGroup> = {
   NOT_A_RECIPE: 'not_recipe',
   UNSUPPORTED_SOURCE: 'unsupported',
-  INVALID_URL: 'unsupported',
+  INVALID_URL: 'cant_open',
+  HOST_NOT_FOUND: 'cant_open',
+  BLOCKED: 'cant_open',
+  NOT_FOUND: 'cant_open',
   CONTENT_ACQUISITION_FAILED: 'cant_open',
   TOO_MANY_REQUESTS: 'rate_limited',
   PROVIDER_RATE_LIMITED: 'rate_limited',
@@ -51,8 +54,8 @@ export function importErrorCopy(
       return {
         icon: 'link_off',
         warn: false,
-        message: `${source ? `${source} links aren’t` : 'That link isn’t'} supported yet`,
-        sub: 'Try a website, Instagram or YouTube link — or scan a page instead.',
+        message: `${source ? `${source} links` : 'That kind of link'} can’t be imported yet`,
+        sub: 'Try a recipe website, Instagram or YouTube link — or scan a page instead.',
         primary: { label: 'Try another link', action: 'another' },
         secondary: { label: 'Scan a page', action: 'scan' },
       };
@@ -60,7 +63,7 @@ export function importErrorCopy(
       return {
         icon: 'public_off',
         warn: false,
-        message: 'Couldn’t open that link — check it and try again',
+        message: 'We couldn’t reach that link — check it and try again',
         sub: 'The page may be private, or the address may have a typo.',
         primary: { label: 'Try again', action: 'retry' },
         secondary: { label: 'Edit link', action: 'edit' },

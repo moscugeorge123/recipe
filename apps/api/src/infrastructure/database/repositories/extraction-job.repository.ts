@@ -56,6 +56,35 @@ export class PrismaExtractionJobRepository implements IExtractionJobRepository {
     });
   }
 
+  findActiveBySourceId(
+    recipeSourceId: string,
+    userId: string,
+    since: Date,
+  ): Promise<ExtractionJob | null> {
+    return this.db.extractionJob.findFirst({
+      where: {
+        recipeSourceId,
+        requestedByUserId: userId,
+        createdAt: { gte: since },
+        status: {
+          in: [
+            'QUEUED',
+            'ACQUIRING_CONTENT',
+            'CONTENT_ACQUIRED',
+            'PROCESSING_MEDIA',
+            'TRANSCRIBING',
+            'ANALYZING_FRAMES',
+            'RUNNING_OCR',
+            'EXTRACTING_RECIPE',
+            'NORMALIZING_RECIPE',
+            'VALIDATING_RECIPE',
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async clearRecipeIdExcept(recipeId: string, jobId: string): Promise<void> {
     await this.db.extractionJob.updateMany({
       where: { recipeId, id: { not: jobId } },

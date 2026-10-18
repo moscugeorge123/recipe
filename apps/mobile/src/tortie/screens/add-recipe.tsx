@@ -5,13 +5,15 @@ import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
 import type { ImportErrorAction } from '@/features/extraction/error-groups';
 import { useLinkPreview } from '@/features/link-preview/hooks/use-link-preview';
+import { supportOf } from '@/features/share/sources';
+import { PLATFORMS } from '@/features/share/url';
 import { brandNameOf, runningJobs } from '@/features/extraction/import-jobs';
 import { startImport, retryImport } from '@/tortie/data/import-engine';
 import { useTRecipe } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { useImports } from '@/tortie/import-store';
-import { afterMotion, useNav } from '@/tortie/nav-store';
-import { C, CSS_EASE } from '@/tortie/theme';
+import { afterMotion, openImportedRecipe, useNav } from '@/tortie/nav-store';
+import { BASE_D, C, CSS_EASE } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { BRAND_COLOR, BrandLogo, type Brand } from '@/tortie/ui/brand';
 import { Grabber } from '@/tortie/ui/controls';
@@ -27,13 +29,18 @@ import { em, sans, serif, T } from '@/tortie/ui/text';
 type Plat = { k: Brand; n: string; re: RegExp };
 type Found = Plat | { k: 'web'; n: 'Website' };
 
-const PLATS: Plat[] = [
-  { k: 'instagram', n: 'Instagram', re: /instagram\.com|instagr\.am/i },
-  { k: 'tiktok', n: 'TikTok', re: /tiktok\.com/i },
-  { k: 'youtube', n: 'YouTube', re: /youtube\.com|youtu\.be/i },
-  { k: 'pinterest', n: 'Pinterest', re: /pinterest\.|pin\.it/i },
-  { k: 'facebook', n: 'Facebook', re: /facebook\.com|fb\.watch/i },
-];
+/** The same platform list the share screen uses, so both recognise the same links. */
+const PLATS: Plat[] = PLATFORMS.map((p) => ({
+  k: p.kind,
+  n: p.name,
+  re: p.re,
+}));
+/** Only sources the importer really handles get a logo in the strip. */
+const ADVERTISED = PLATS.filter((p) => supportOf(p.k) === 'supported');
+
+/** A recognised platform the importer rejects (TikTok, Facebook). */
+const unsupportedPlat = (f: Found | null): Plat | null =>
+  f && f.k !== 'web' && supportOf(f.k) === 'unsupported' ? f : null;
 
 function platOf(raw: string | null | undefined): Found | null {
   const u = (raw ?? '').trim();
@@ -81,6 +88,13 @@ export function AddRecipeSheet() {
         ? 2
         : 3;
   const impP = job?.pct ?? 0;
+  const head =
+    imp === 2 && job?.duplicate
+      ? ([
+          'Already in your cookbook',
+          'Tap it to open, or import another.',
+        ] as const)
+      : HEADER[imp];
 
   const { r } = useTRecipe(job?.status === 'done' ? job.recipeId : null);
   const preview = useLinkPreview(imp === 1 ? job?.url : undefined);
@@ -96,6 +110,23 @@ export function AddRecipeSheet() {
     const { addJobId } = useNav.getState();
     useImports.getState().setFocus(addJobId);
     if (addJobId) useNav.setState({ addJobId: null });
+    // Back from the camera the field is as the user left it. Any other open starts empty.
+    if (!wasCam.current) {
+      setUrl('');
+      setClip(null);
+    }
+  }, [open]);
+
+  // Closing for good clears the field and the clipboard suggestion too, once the sheet has
+  // slid away, so a half-closed frame never loses its text. Going to the camera keeps them.
+  useEffect(() => {
+    if (open) return;
+    const t = afterMotion(BASE_D * 1.2, () => {
+      if (useNav.getState().cam) return;
+      setUrl('');
+      setClip(null);
+    });
+    return () => clearTimeout(t);
   }, [open]);
 
   useEffect(() => {
@@ -118,8 +149,10 @@ export function AddRecipeSheet() {
 
   const startImportFor = (raw?: string) => {
     const u = (raw ?? url).trim();
-    if (!platOf(u)) return;
-    if (raw != null) setUrl(raw);
+    const found = platOf(u);
+    if (!found || unsupportedPlat(found)) return;
+    // The suggestion is used up; whatever the user typed stays where it was.
+    if (raw != null) setClip(null);
     setFocus(startImport(withScheme(u)));
   };
 
@@ -134,7 +167,7 @@ export function AddRecipeSheet() {
     setUrl('');
     setClip(null);
     setFocus(null);
-    if (id) afterMotion(260, () => useNav.getState().openRecipe(id));
+    if (id) openImportedRecipe(id, 260);
   };
 
   const onErrorAction = (action: ImportErrorAction) => {
@@ -162,20 +195,29 @@ export function AddRecipeSheet() {
 
   const pl = platOf(url);
   const cp = platOf(clip);
-  const clipOn = !!cp && clip !== url && imp === 0;
+  const blockedPlat = unsupportedPlat(pl);
+  const blocked = !!blockedPlat;
+  const clipOn = !!cp && !unsupportedPlat(cp) && clip !== url && imp === 0;
   const brand = pl && pl.k !== 'web' ? pl.k : null;
   const bd = pl ? (brand ? BRAND_COLOR[brand] + '80' : '#32533c80') : C.line;
-  const hint = pl
-    ? pl.k === 'web'
-      ? 'Recipe site detected'
-      : pl.n + ' detected'
-    : 'Works with recipe sites and';
-  const cta = brand ? 'Import from ' + pl!.n : 'Import recipe';
+  const hint = blockedPlat
+    ? blockedPlat.n +
+      ' links can’t be imported yet. Try the creator’s recipe page.'
+    : pl
+      ? pl.k === 'web'
+        ? 'Recipe site detected'
+        : pl.n + ' detected'
+      : 'Works with recipe sites and';
+  const cta = blocked
+    ? 'Not supported yet'
+    : brand
+      ? 'Import from ' + pl!.n
+      : 'Import recipe';
   const field = useAnimatedStyle(() => ({
     borderColor: tw(bd, 250, CSS_EASE),
   }));
   const go = useAnimatedStyle(() => ({
-    opacity: tw(pl ? 1 : 0.4, 250, CSS_EASE),
+    opacity: tw(pl && !blocked ? 1 : 0.4, 250, CSS_EASE),
   }));
 
   return (
@@ -190,11 +232,9 @@ export function AddRecipeSheet() {
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <T style={[serif(26, 500), { letterSpacing: em(26, -0.01) }]}>
-            {HEADER[imp][0]}
+            {head[0]}
           </T>
-          <T style={[sans(14, 400, C.ink2), { marginTop: 2 }]}>
-            {HEADER[imp][1]}
-          </T>
+          <T style={[sans(14, 400, C.ink2), { marginTop: 2 }]}>{head[1]}</T>
         </View>
         <ImportsButton running={running} />
       </View>
@@ -269,22 +309,24 @@ export function AddRecipeSheet() {
                 paddingHorizontal: 16,
               }}
             >
-              <T style={sans(12, 600, C.ink2)}>{hint}</T>
-              <View
-                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
-              >
-                {PLATS.map((p) => (
-                  <PlatLogo key={p.k} brand={p.k} on={!pl || pl.k === p.k} />
-                ))}
-              </View>
+              <T style={[sans(12, 600, C.ink2), { flexShrink: 1 }]}>{hint}</T>
+              {blocked ? null : (
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
+                >
+                  {ADVERTISED.map((p) => (
+                    <PlatLogo key={p.k} brand={p.k} on={!pl || pl.k === p.k} />
+                  ))}
+                </View>
+              )}
             </View>
             <Press
               onPress={() => startImportFor()}
-              disabled={!pl}
+              disabled={!pl || blocked}
               scale={0.97}
               easing={CSS_EASE}
               accessibilityLabel={cta}
-              accessibilityState={{ disabled: !pl }}
+              accessibilityState={{ disabled: !pl || blocked }}
               animatedStyle={go}
               style={{
                 height: 52,
@@ -443,6 +485,7 @@ export function AddRecipeSheet() {
                 : null
           }
           recipeId={job.recipeId ?? null}
+          duplicate={job.duplicate}
           src={job.src}
           onOpen={openImported}
           onAnother={importAnother}

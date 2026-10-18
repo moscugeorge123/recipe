@@ -55,17 +55,26 @@ describe('mapUserError', () => {
   });
 
   test('picks an import toast from the failed job error code', () => {
-    expect(importFailureToast(errorCodeOf({ message: 'x', code: 'NOT_A_RECIPE' }))).toBe(
-      'That link doesn’t look like a food recipe',
-    );
+    expect(
+      importFailureToast(errorCodeOf({ message: 'x', code: 'NOT_A_RECIPE' })),
+    ).toBe('That link doesn’t look like a food recipe');
     expect(importFailureToast('UNSUPPORTED_SOURCE', 'TikTok')).toMatch(
-      /^TikTok links aren’t supported yet/,
+      /^TikTok links can’t be imported yet/,
     );
-    expect(importFailureToast('UNSUPPORTED_SOURCE')).toMatch(/^That link isn’t supported yet/);
+    expect(importFailureToast('UNSUPPORTED_SOURCE')).toMatch(
+      /^That kind of link can’t be imported yet/,
+    );
+    expect(importFailureToast('INVALID_URL')).toMatch(/valid link/);
+    expect(importFailureToast('HOST_NOT_FOUND')).toMatch(/find that site/);
+    expect(importFailureToast('CONTENT_ACQUISITION_FAILED')).toMatch(
+      /reach that link/,
+    );
     expect(importFailureToast('EXTRACTION_FAILED')).toBe(
       'Couldn’t read a recipe from that link',
     );
-    expect(importFailureToast(undefined, undefined, 'fallback')).toBe('fallback');
+    expect(importFailureToast(undefined, undefined, 'fallback')).toBe(
+      'fallback',
+    );
   });
 
   test('uses preview copy for unknown offline failures', () => {

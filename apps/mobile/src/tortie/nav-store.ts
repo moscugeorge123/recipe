@@ -37,6 +37,8 @@ type Nav = {
   shareUrl: string | null;
   shareTitle: string | null;
   shareNonce: number;
+  /** The import (in the imports ledger) the share screen is showing. */
+  shareJobId: string | null;
   /** Imports history screen. */
   imports: boolean;
   /** Camera scan. */
@@ -125,12 +127,23 @@ type Nav = {
   /** Red error icon, shown longer. */
   toastErr: boolean;
   toastNonce: number;
+  /** Optional button on the toast ("Open"). */
+  toastAction: ToastAction | null;
+  /** Epoch ms when the toast is due to go. The toast view re-checks it after a background. */
+  toastUntil: number;
 };
 
 type Actions = {
   set: (p: Partial<Nav>) => void;
   goTab: (t: TabKey) => void;
   openRecipe: (id: string) => void;
+  /**
+   * Closes every layer that would sit over (or hide) a recipe about to open: the step clip
+   * viewer, notes, sheets, editor, camera, Add sheet, welcome and cook mode. Cook mode closes
+   * through its normal path, so the session is kept. `pushed` also closes the profile and
+   * Imports screens.
+   */
+  closeOverlays: (pushed?: boolean) => void;
   closeRecipe: () => void;
   openProfile: () => void;
   closeProfile: () => void;
@@ -174,10 +187,39 @@ type Actions = {
   closeAuth: () => void;
   openWelcome: () => void;
   closeWelcome: () => void;
-  toastShow: (msg: string, kind?: ToastKind) => void;
+  toastShow: (msg: string, kind?: ToastKind, action?: ToastAction) => void;
+  toastHide: () => void;
 };
 
 export type ToastKind = 'ok' | 'error';
+export type ToastAction = { label: string; run: () => void };
+
+/** Every overlay flag that `closeOverlays` clears. */
+const OVERLAYS_CLOSED = {
+  addSheet: false,
+  addJobId: null,
+  cam: false,
+  menu: false,
+  menuBulk: false,
+  sel: null,
+  nc: false,
+  fs: false,
+  cal: false,
+  pedOn: false,
+  gedOn: false,
+  grocEdit: false,
+  grocPickOn: false,
+  notesOn: false,
+  clipOn: false,
+  edit: false,
+  cookOpen: false,
+  welcome: false,
+} satisfies Partial<Nav>;
+
+/** How long a toast stays: errors longer, and one with a button longer still. */
+export function toastDuration(error: boolean, hasAction: boolean): number {
+  return error ? 3800 : hasAction ? 4200 : 2400;
+}
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 let bulkExit: ReturnType<typeof setTimeout> | null = null;
@@ -202,6 +244,7 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   shareUrl: null,
   shareTitle: null,
   shareNonce: 0,
+  shareJobId: null,
   imports: false,
   cam: false,
   scanUri: null,
@@ -250,6 +293,8 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   toastOn: false,
   toastErr: false,
   toastNonce: 0,
+  toastAction: null,
+  toastUntil: 0,
 
   set: (p) => set(p),
   goTab: (t) => {
@@ -270,6 +315,14 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
       detailOpen: true,
       detailNonce: s.detailNonce + 1,
     })),
+  closeOverlays: (pushed = false) => {
+    cancelBulkExit();
+    set(
+      pushed
+        ? { ...OVERLAYS_CLOSED, prof: false, imports: false }
+        : OVERLAYS_CLOSED,
+    );
+  },
   closeRecipe: () => set({ detailOpen: false, menu: false, menuBulk: false }),
   openProfile: () => set((s) => ({ prof: true, profNonce: s.profNonce + 1 })),
   closeProfile: () => set({ prof: false }),
@@ -282,6 +335,7 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
       shareUrl: url,
       shareTitle: title,
       shareNonce: s.shareNonce + 1,
+      shareJobId: null,
     })),
   closeShare: () => set({ shareOpen: false }),
   openImports: () => set({ addSheet: false, imports: true }),
@@ -394,23 +448,47 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   openWelcome: () =>
     set((s) => ({ welcome: true, welcomeNonce: s.welcomeNonce + 1 })),
   closeWelcome: () => set({ welcome: false }),
-  toastShow: (msg, kind = 'ok') => {
+  toastShow: (msg, kind = 'ok', action) => {
     if (toastTimer) clearTimeout(toastTimer);
     const err = kind === 'error';
+    const ms = toastDuration(err, !!action);
     set((s) => ({
       toast: msg,
       toastOn: true,
       toastErr: err,
       toastNonce: s.toastNonce + 1,
+      toastAction: action ?? null,
+      toastUntil: Date.now() + ms,
     }));
-    toastTimer = setTimeout(() => set({ toastOn: false }), err ? 3800 : 2400);
+    toastTimer = setTimeout(() => {
+      toastTimer = null;
+      set({ toastOn: false });
+    }, ms);
+  },
+  toastHide: () => {
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = null;
+    set({ toastOn: false });
   },
 }));
 
-export const toast = (msg: string, kind?: ToastKind) =>
-  useNav.getState().toastShow(msg, kind);
+export const toast = (msg: string, kind?: ToastKind, action?: ToastAction) =>
+  useNav.getState().toastShow(msg, kind, action);
 
 /** `setTimeout` scaled by the motion multiplier (sheet → sheet hand-offs). */
 export function afterMotion(ms: number, fn: () => void) {
   return setTimeout(fn, Math.round(ms * motionMultiplier()));
+}
+
+/**
+ * Opens a recipe that was just imported so that it is the top thing on screen: every layer
+ * above the detail closes first, then the recipe slides in once they are gone.
+ */
+export function openImportedRecipe(id: string, delayMs = 0) {
+  useNav.getState().closeOverlays(true);
+  if (delayMs <= 0) {
+    useNav.getState().openRecipe(id);
+    return;
+  }
+  afterMotion(delayMs, () => useNav.getState().openRecipe(id));
 }

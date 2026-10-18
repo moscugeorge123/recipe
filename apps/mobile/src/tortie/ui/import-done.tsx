@@ -27,12 +27,15 @@ type DoneRecipe = {
 export function ImportDone({
   recipe,
   recipeId,
+  duplicate = false,
   src,
   onOpen,
   onAnother,
 }: {
   recipe: DoneRecipe | null;
   recipeId: string | null;
+  /** The link was already in the Cookbook. */
+  duplicate?: boolean;
   src?: ImportSrc;
   onOpen: () => void;
   onAnother: () => void;
@@ -97,7 +100,9 @@ export function ImportDone({
           </Twinkle>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <T style={sans(12, 700, C.green)}>Added to Cookbook</T>
+          <T style={sans(12, 700, C.green)}>
+            {duplicate ? 'Already in your Cookbook' : 'Added to Cookbook'}
+          </T>
           <T numberOfLines={2} style={[serif(19, 600), { marginTop: 3 }]}>
             {recipe?.title ?? ''}
           </T>

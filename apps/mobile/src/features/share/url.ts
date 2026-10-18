@@ -12,7 +12,7 @@ export type LinkSource = {
   name: string;
 };
 
-const PLATFORMS: { kind: Brand; name: string; re: RegExp }[] = [
+export const PLATFORMS: { kind: Brand; name: string; re: RegExp }[] = [
   { kind: 'instagram', name: 'Instagram', re: /instagram\.com|instagr\.am/i },
   { kind: 'tiktok', name: 'TikTok', re: /tiktok\.com/i },
   { kind: 'youtube', name: 'YouTube', re: /youtube\.com|youtu\.be/i },
@@ -73,6 +73,67 @@ export function sourceFromPreview(type: LinkPreview['sourceType']): LinkSource {
 export function hostOf(url: string): string {
   const bare = url.replace(/^https?:\/\/(www\.)?/i, '').split(/[/?#]/)[0];
   return bare || url;
+}
+
+/** Query parameters that share sheets and ad tools add; they never change which page it is. */
+const TRACKING_PARAMS = new Set([
+  'si',
+  'igsh',
+  'igshid',
+  'fbclid',
+  'gclid',
+  'feature',
+  'pp',
+  'ref',
+  'ref_',
+  'mc_cid',
+  'mc_eid',
+  '_ga',
+  '_r',
+  '_t',
+]);
+
+const YOUTUBE_ID = /^[\w-]{6,}$/;
+const YOUTUBE_HOSTS = new Set([
+  'youtube.com',
+  'm.youtube.com',
+  'music.youtube.com',
+  'youtube-nocookie.com',
+]);
+
+/**
+ * A stable key for "the same link": two shares of one page give one key, whatever
+ * tracking parameters, `www.`/`m.` prefix, scheme or YouTube URL shape they came in. Used
+ * to avoid starting a second import of a link that is already importing.
+ */
+export function importKeyOf(raw: string): string {
+  const text = raw.trim();
+  let u: URL;
+  try {
+    u = new URL(/^https?:\/\//i.test(text) ? text : 'https://' + text);
+  } catch {
+    return text.toLowerCase();
+  }
+  const host = u.hostname.toLowerCase().replace(/^www\./, '');
+  const parts = u.pathname.split('/').filter(Boolean);
+
+  let videoId: string | null = null;
+  if (host === 'youtu.be') videoId = parts[0] ?? null;
+  else if (YOUTUBE_HOSTS.has(host)) {
+    if (parts[0] === 'watch') videoId = u.searchParams.get('v');
+    else if (['shorts', 'embed', 'live', 'v'].includes(parts[0] ?? ''))
+      videoId = parts[1] ?? null;
+  }
+  if (videoId && YOUTUBE_ID.test(videoId)) {
+    return 'youtube.com/watch?v=' + videoId;
+  }
+
+  const query = [...u.searchParams.entries()]
+    .filter(([k]) => !TRACKING_PARAMS.has(k.toLowerCase()) && !/^utm_/i.test(k))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([k, v]) => encodeURIComponent(k) + '=' + encodeURIComponent(v))
+    .join('&');
+  return host + '/' + parts.join('/') + (query ? '?' + query : '');
 }
 
 function normalizeUrl(raw: string | null | undefined): string | null {

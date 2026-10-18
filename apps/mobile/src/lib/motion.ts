@@ -248,7 +248,10 @@ export function usePopScale(
       return;
     }
     scale.value = withSequence(
-      withTiming(1.06, { duration: duration.instant, easing: reanimatedEasing }),
+      withTiming(1.06, {
+        duration: duration.instant,
+        easing: reanimatedEasing,
+      }),
       withTiming(1, { duration: duration.fast, easing: reanimatedEasing }),
     );
   };

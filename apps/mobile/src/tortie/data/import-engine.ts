@@ -7,6 +7,7 @@ import {
   RATE_LIMIT_COUNTDOWN_S,
   errorGroupOf,
 } from '@/features/extraction/error-groups';
+import { targetProgress } from '@/features/extraction/import-stages';
 import {
   brandNameOf,
   importSrcOf,
@@ -17,12 +18,14 @@ import { getRecipe } from '@/features/recipes/api';
 import { queryClient } from '@/lib/query-client';
 import {
   errorCodeOf,
+  importErrorCodeOf,
   importFailureToast,
   isAbortError,
 } from '@/lib/user-error';
 import { ApiError } from '@/services/api-client';
 import { useImports } from '@/tortie/import-store';
-import { toast, useNav } from '@/tortie/nav-store';
+import { importKeyOf } from '@/features/share/url';
+import { openImportedRecipe, toast, useNav } from '@/tortie/nav-store';
 
 /**
  * Link imports that outlive the Add sheet. The store holds what the UI shows;
@@ -32,6 +35,9 @@ import { toast, useNav } from '@/tortie/nav-store';
 
 const TICK_MS = 100;
 const POLL_MS = 4000;
+/** Poll quickly at first: a rejected link should reach the error in about a second. */
+const POLL_FAST_MS = 1000;
+const POLL_FAST_WINDOW_MS = 10_000;
 const RATE_LIMIT_BACKOFF_MS = 5000;
 const POLL_FAILURES_BEFORE_GIVING_UP = 3;
 /** Creep time constants: a retry from history runs slower than a live import. */
@@ -53,8 +59,12 @@ type Runtime = {
   pollFailures: number;
   /** Latest poll result. */
   serverProgress: number;
+  /** Job status from the latest poll; keeps the bar inside that stage. */
+  serverStatus?: string;
   /** Set once the API says the recipe is saved; the bar then runs to 100. */
   recipeId?: string;
+  /** The API answered with a recipe that was already in the Cookbook. */
+  duplicate?: boolean;
   doneAt?: number;
   lastTick: number;
 };
@@ -67,6 +77,25 @@ function shownInSheet(id: string): boolean {
   return useNav.getState().addSheet && useImports.getState().focusId === id;
 }
 
+/** The share screen is open on this import and reports it itself. */
+function shownInShare(id: string): boolean {
+  const nav = useNav.getState();
+  return nav.shareOpen && nav.shareJobId === id;
+}
+
+/** The running import of the same link (same page, whatever the tracking parameters), if any. */
+export function findRunningImport(url: string) {
+  const key = importKeyOf(url);
+  return useImports
+    .getState()
+    .jobs.find(
+      (j) =>
+        j.status === 'running' &&
+        runtimes.has(j.id) &&
+        importKeyOf(j.url) === key,
+    );
+}
+
 /**
  * Starts an import and returns its local id. Pass `slow` for a retry from
  * history, which creeps more gently.
@@ -75,6 +104,9 @@ export function startImport(
   url: string,
   opts: { slow?: boolean; src?: ImportSrc; thumbnail?: string } = {},
 ): string {
+  // The same link is never imported twice at once: join the running import instead.
+  const running = findRunningImport(url);
+  if (running) return running.id;
   const id = `imp-${Date.now().toString(36)}-${++seq}`;
   const src = opts.src ?? importSrcOf(url);
   const ctrl = new AbortController();
@@ -91,7 +123,7 @@ export function startImport(
     t0: now,
     slow: !!opts.slow,
     ctrl,
-    nextPollAt: now + POLL_MS,
+    nextPollAt: now + POLL_FAST_MS,
     polling: false,
     pollFailures: 0,
     serverProgress: 0,
@@ -111,14 +143,15 @@ export function startImport(
       }
       if (res.recipeId && (res.deduplicated || res.status === 'completed')) {
         rt.recipeId = res.recipeId;
+        rt.duplicate = !!res.deduplicated;
         return;
       }
       rt.serverJobId = res.jobId;
-      rt.nextPollAt = Date.now() + POLL_MS;
+      rt.nextPollAt = Date.now() + pollEvery(rt);
     })
     .catch((e) => {
       if (!runtimes.has(id) || isAbortError(e)) return;
-      fail(id, errorCodeOf(e) ?? 'EXTRACTION_FAILED');
+      fail(id, importErrorCodeOf(e) ?? 'EXTRACTION_FAILED');
     });
 
   return id;
@@ -145,6 +178,11 @@ export function retryImport(
   if (!job || job.status !== 'failed') return null;
   useImports.getState().remove(id);
   return startImport(job.url, { src: job.src, slow: opts.slow });
+}
+
+/** Time to the next poll: fast while the job is young, slower after. */
+function pollEvery(rt: Runtime): number {
+  return Date.now() - rt.t0 < POLL_FAST_WINDOW_MS ? POLL_FAST_MS : POLL_MS;
 }
 
 function ensureTicker() {
@@ -186,28 +224,44 @@ function fail(id: string, code: string) {
   stopTickerIfIdle();
 }
 
-function complete(id: string, recipeId: string) {
+function complete(id: string, recipeId: string, duplicate: boolean) {
   if (!runtimes.delete(id)) return;
   useImports.getState().patch(id, {
     status: 'done',
     pct: 100,
     recipeId,
+    ...(duplicate ? { duplicate: true } : {}),
     finishedAt: Date.now(),
   });
   queryClient
     .invalidateQueries({ queryKey: recipeKeys.all })
     .catch(() => undefined);
-  const quiet = shownInSheet(id);
+  const quiet = shownInSheet(id) || shownInShare(id);
+  const open = { label: 'Open', run: () => openImportedRecipe(recipeId) };
   // The history row wants a title and photo, and the toast wants the title.
   getRecipe(recipeId)
     .then((r) => {
       useImports
         .getState()
         .patch(id, { title: r.title, thumb: r.thumbnailUrl ?? null });
-      if (!quiet) toast(`${r.title} added to Cookbook`);
+      if (!quiet) {
+        toast(
+          duplicate
+            ? `Already in your cookbook — ${r.title}`
+            : `${r.title} added to Cookbook`,
+          'ok',
+          open,
+        );
+      }
     })
     .catch(() => {
-      if (!quiet) toast('Recipe added to Cookbook');
+      if (!quiet) {
+        toast(
+          duplicate ? 'Already in your cookbook' : 'Recipe added to Cookbook',
+          'ok',
+          open,
+        );
+      }
     });
   stopTickerIfIdle();
 }
@@ -221,8 +275,9 @@ function poll(id: string, rt: Runtime) {
       if (!runtimes.has(id)) return;
       rt.polling = false;
       rt.pollFailures = 0;
-      rt.nextPollAt = Date.now() + POLL_MS;
+      rt.nextPollAt = Date.now() + pollEvery(rt);
       rt.serverProgress = job.progress;
+      rt.serverStatus = job.status;
       if (job.status === 'COMPLETED' && job.recipeId) {
         rt.recipeId = job.recipeId;
       } else if (job.status === 'COMPLETED') {
@@ -247,7 +302,7 @@ function poll(id: string, rt: Runtime) {
         return;
       }
       rt.pollFailures += 1;
-      rt.nextPollAt = Date.now() + POLL_MS;
+      rt.nextPollAt = Date.now() + pollEvery(rt);
       if (rt.pollFailures >= POLL_FAILURES_BEFORE_GIVING_UP) {
         fail(id, LOST_TRACK);
       }
@@ -269,7 +324,7 @@ function tick() {
       continue;
     }
     if (rt.doneAt) {
-      if (now >= rt.doneAt) complete(id, rt.recipeId!);
+      if (now >= rt.doneAt) complete(id, rt.recipeId!, !!rt.duplicate);
       continue;
     }
     const creep =
@@ -277,7 +332,7 @@ function tick() {
       (1 - Math.exp(-(now - rt.t0) / (rt.slow ? CREEP_MS_SLOW : CREEP_MS)));
     const target = rt.recipeId
       ? 100
-      : Math.min(94, Math.max(rt.serverProgress, creep));
+      : targetProgress(rt.serverStatus, rt.serverProgress, creep);
     const stepMax = STEP_PER_MS * dt * (rt.slow ? 0.5 : 1);
     const next = Math.min(Math.max(job.pct, target), job.pct + stepMax, 100);
     if (next - job.pct >= 0.25 || (next >= 100 && job.pct < 100)) {
