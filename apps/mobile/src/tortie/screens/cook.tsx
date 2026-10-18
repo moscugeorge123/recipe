@@ -24,6 +24,7 @@ import {
   MIN_TIMER_MINUTES,
   clampMinutes,
   dockTimerKeys,
+  isAlerting,
   stepMinutes,
 } from '@/tortie/timer-clock';
 import { useCookSessionSync } from '@/tortie/data/cook-session';
@@ -50,6 +51,12 @@ import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { StepNotes, useNotesFor } from '@/tortie/screens/recipe-notes';
 import { StepClipChip } from '@/tortie/screens/step-clip';
+import {
+  overClock,
+  useFlash,
+  useNow,
+  useSnoozeLabel,
+} from '@/tortie/screens/timer-alert';
 import type { RecipeNoteDto } from '@/features/recipes/schemas';
 import { em, sans, serif, T } from '@/tortie/ui/text';
 
@@ -668,6 +675,7 @@ function StepPage({
             tkey={key}
             m={st.m}
             title={st.t}
+            detail={st.d}
             recipeTitle={r.title}
             T0={timer}
           />
@@ -682,12 +690,14 @@ function TimerCard({
   tkey,
   m,
   title,
+  detail,
   recipeTitle,
   T0,
 }: {
   tkey: string;
   m: number;
   title: string;
+  detail: string;
   recipeTitle: string;
   T0: StepTimer;
 }) {
@@ -704,21 +714,43 @@ function TimerCard({
         : 'Start';
   const cook = useCook.getState;
   const [panel, setPanel] = useState(false);
+  const alert = isAlerting(T0);
+  const now = useNow(1000, alert);
+  const flash = useFlash(alert);
+  const snoozeLabel = useSnoozeLabel();
+  const glow = useAnimatedStyle(() => ({ opacity: flash.value }));
   return (
     <RevealBox
       style={{
         marginTop: 20,
         backgroundColor: C.white,
         borderWidth: 1,
-        borderColor: C.line,
+        borderColor: alert ? C.terra : C.line,
         borderRadius: 22,
         padding: 10,
         boxShadow: '0 12px 28px -20px rgba(44,52,45,.25)',
       }}
     >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          {
+            position: 'absolute',
+            left: -1,
+            top: -1,
+            right: -1,
+            bottom: -1,
+            borderRadius: 22,
+            borderWidth: 2,
+            borderColor: C.terra,
+            backgroundColor: C.terraWash2,
+          },
+          glow,
+        ]}
+      />
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <Press
-          onPress={() => cook().toggle(tkey, m, title, recipeTitle)}
+          onPress={() => cook().toggle(tkey, m, title, recipeTitle, detail)}
           accessibilityLabel={label}
           scale={0.92}
           easing={CSS_EASE}
@@ -752,14 +784,25 @@ function TimerCard({
         </Press>
         <View style={{ flex: 1, minWidth: 0 }}>
           <T
-            style={serif(26, 600, C.ink, {
+            style={serif(26, 600, alert ? C.terra : C.ink, {
               lineHeight: 26,
               fontVariant: ['tabular-nums'],
               letterSpacing: em(26, -0.01),
             })}
           >
-            {clock(T0.rem)}
+            {alert ? overClock(T0, now) : clock(T0.rem)}
           </T>
+          {alert ? (
+            <T
+              style={sans(11, 700, C.terra, {
+                letterSpacing: em(11, 0.08),
+                textTransform: 'uppercase',
+                marginTop: 4,
+              })}
+            >
+              Time’s up
+            </T>
+          ) : null}
         </View>
         <RoundIcon
           icon="restart_alt"
@@ -773,27 +816,42 @@ function TimerCard({
           onPress={() => setPanel((v) => !v)}
         />
       </View>
-      <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
-        <MiniBtn
-          label="−1 min"
-          dim={T0.rem <= 60}
-          onPress={() => cook().shift(tkey, -1, m, title, recipeTitle)}
-        />
-        <MiniBtn
-          label="+1 min"
-          onPress={() => cook().bump(tkey, m, title, recipeTitle)}
-        />
-        <MiniBtn
-          label="+5 min"
-          onPress={() => cook().shift(tkey, 5, m, title, recipeTitle)}
-        />
-      </View>
+      {alert ? (
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+          <AlertBtn label={snoozeLabel} onPress={() => cook().snooze(tkey)} />
+          <AlertBtn
+            label="Stop"
+            a11y="Stop timer"
+            solid
+            onPress={() => cook().stop(tkey)}
+          />
+        </View>
+      ) : (
+        <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
+          <MiniBtn
+            label="−1 min"
+            dim={T0.rem <= 60}
+            onPress={() =>
+              cook().shift(tkey, -1, m, title, recipeTitle, detail)
+            }
+          />
+          <MiniBtn
+            label="+1 min"
+            onPress={() => cook().bump(tkey, m, title, recipeTitle, detail)}
+          />
+          <MiniBtn
+            label="+5 min"
+            onPress={() => cook().shift(tkey, 5, m, title, recipeTitle, detail)}
+          />
+        </View>
+      )}
       {panel ? (
         <TimerPanel
           key={Math.round(T0.total / 60)}
           tkey={tkey}
           initial={Math.round(T0.total / 60)}
           title={title}
+          detail={detail}
           recipeTitle={recipeTitle}
           onApplied={() => setPanel(false)}
         />
@@ -866,17 +924,55 @@ function MiniBtn({
   );
 }
 
+/** Snooze / Stop on a finished timer's card. */
+function AlertBtn({
+  label,
+  a11y,
+  solid,
+  onPress,
+}: {
+  label: string;
+  a11y?: string;
+  solid?: boolean;
+  onPress: () => void;
+}) {
+  return (
+    <Press
+      onPress={onPress}
+      accessibilityLabel={a11y ?? label}
+      scale={0.95}
+      easing={CSS_EASE}
+      style={{
+        flex: 1,
+        height: 44,
+        borderRadius: 99,
+        borderWidth: solid ? 0 : 1.5,
+        borderColor: C.terra,
+        backgroundColor: solid ? C.terra : C.white,
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}
+    >
+      <T numberOfLines={1} style={sans(14, 700, solid ? C.white : C.terra)}>
+        {label}
+      </T>
+    </Press>
+  );
+}
+
 /** Settings under the timer card: set the duration (− / typed / +) and apply it. */
 function TimerPanel({
   tkey,
   initial,
   title,
+  detail,
   recipeTitle,
   onApplied,
 }: {
   tkey: string;
   initial: number;
   title: string;
+  detail: string;
   recipeTitle: string;
   onApplied: () => void;
 }) {
@@ -961,7 +1057,9 @@ function TimerPanel({
       </View>
       <Press
         onPress={() => {
-          useCook.getState().setDuration(tkey, mins, title, recipeTitle);
+          useCook
+            .getState()
+            .setDuration(tkey, mins, title, recipeTitle, detail);
           onApplied();
         }}
         scale={0.97}
@@ -1252,7 +1350,10 @@ function easeOutCubic(p: number) {
   return 1 - Math.pow(1 - p, 3);
 }
 
-/** Timer dock: running / partly used timers except the one on the visible step. */
+/**
+ * Timer dock: running / partly used timers except the one on the visible step.
+ * A timer that finishes on another step opens its pill with Snooze / Stop.
+ */
 function Dock({
   open,
   cookId,
@@ -1286,19 +1387,23 @@ function Dock({
   }
 
   const keys = dockTimerKeys(timers, visibleKey).sort((a, b) => {
-      const [ia, sa] = splitKey(a);
-      const [ib, sb] = splitKey(b);
-      return (
-        (ia === cookId ? 0 : 1) - (ib === cookId ? 0 : 1) ||
-        ia.localeCompare(ib) ||
-        sa - sb
-      );
-    });
+    const [ia, sa] = splitKey(a);
+    const [ib, sb] = splitKey(b);
+    return (
+      (ia === cookId ? 0 : 1) - (ib === cookId ? 0 : 1) ||
+      ia.localeCompare(ib) ||
+      sa - sb
+    );
+  });
 
+  const pillW = () => (dockW ? Math.min(420, dockW - 28) : 362);
   const expand = (k: string, idx: number) => {
-    const W = dockW ? Math.min(420, dockW - 28) : 362;
+    const W = pillW();
     setTExp(k);
     setTExpW(W);
+    scrollToPill(idx, W);
+  };
+  const scrollToPill = (idx: number, W: number) => {
     if (!dockW) return;
     const contentW = 28 + W + (keys.length - 1) * 154;
     const to = Math.min(idx * 154, Math.max(0, contentW - dockW));
@@ -1315,6 +1420,25 @@ function Dock({
     };
     raf.current = requestAnimationFrame(tick);
   };
+  // A newly finished timer (or reopening cook mode on one) opens its pill.
+  const alertKey = open
+    ? (keys.find((k) => isAlerting(timers[k]!)) ?? null)
+    : null;
+  const [alertShown, setAlertShown] = useState<string | null>(null);
+  if (alertKey !== alertShown) {
+    setAlertShown(alertKey);
+    if (alertKey) {
+      setTExp(alertKey);
+      setTExpW(pillW());
+    }
+  }
+  const alertIdx = alertKey ? keys.indexOf(alertKey) : -1;
+  useEffect(() => {
+    if (alertKey) scrollToPill(alertIdx, pillW());
+    // Scroll once per newly opened alert, not every time the index or width moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alertKey]);
+  const snoozeLabel = useSnoozeLabel();
 
   return (
     <View
@@ -1372,6 +1496,12 @@ function Dock({
               onToggle={() =>
                 cook().toggle(k, t.total / 60, t.title, t.recipeTitle)
               }
+              snoozeLabel={snoozeLabel}
+              onSnooze={() => cook().snooze(k)}
+              onStop={() => {
+                cook().stop(k);
+                setTExp(null);
+              }}
               onGo={() => {
                 setTExp(null);
                 onGo(id, si);
@@ -1396,6 +1526,9 @@ function DockPill({
   onDismiss,
   onPlus,
   onToggle,
+  snoozeLabel,
+  onSnooze,
+  onStop,
   onGo,
 }: {
   t: StepTimer;
@@ -1409,11 +1542,19 @@ function DockPill({
   onDismiss: () => void;
   onPlus: () => void;
   onToggle: () => void;
+  snoozeLabel: string;
+  onSnooze: () => void;
+  onStop: () => void;
   onGo: () => void;
 }) {
   const done = t.rem === 0;
+  const alert = isAlerting(t);
+  const now = useNow(1000, alert);
+  const flash = useFlash(alert);
+  const glow = useAnimatedStyle(() => ({ opacity: 0.2 * flash.value }));
   const th = t.run ? RUN : done ? DONE : PAUSED;
   const lbl = t.run ? 'left' : done ? 'Done' : 'Paused';
+  const time = alert ? overClock(t, now) : clock(t.rem);
   const box = useAnimatedStyle(() => ({
     width: tw(exp ? ew : 146, 440, EASE),
     height: tw(exp ? 158 : 44, 440, EASE),
@@ -1447,6 +1588,20 @@ function DockPill({
         box,
       ]}
     >
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          {
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: C.white,
+          },
+          glow,
+        ]}
+      />
       <Animated.View
         pointerEvents={exp ? 'none' : 'auto'}
         style={[{ position: 'absolute', left: 0, bottom: 0 }, cA]}
@@ -1488,7 +1643,7 @@ function DockPill({
             numberOfLines={1}
             style={sans(15, 700, th.col, { fontVariant: ['tabular-nums'] })}
           >
-            {clock(t.rem)}
+            {time}
           </T>
           <T numberOfLines={1} style={sans(11, 600, th.col, { opacity: 0.8 })}>
             {lbl}
@@ -1525,7 +1680,7 @@ function DockPill({
                 textTransform: 'uppercase',
               })}
             >
-              {kicker}
+              {alert ? 'Time’s up · ' + kicker : kicker}
             </T>
             <T
               numberOfLines={2}
@@ -1560,53 +1715,95 @@ function DockPill({
             }}
           >
             <T
+              numberOfLines={1}
               style={serif(34, 600, th.col, {
                 lineHeight: 34,
                 fontVariant: ['tabular-nums'],
                 letterSpacing: em(34, -0.01),
               })}
             >
-              {clock(t.rem)}
+              {time}
             </T>
-            <T style={sans(12, 600, th.sub)}>{lbl}</T>
+            {alert ? null : <T style={sans(12, 600, th.sub)}>{lbl}</T>}
           </View>
-          <Press
-            onPress={onPlus}
-            scale={0.94}
-            easing={CSS_EASE}
-            style={{
-              height: 44,
-              paddingHorizontal: 14,
-              borderRadius: 99,
-              backgroundColor: th.btn2,
-              justifyContent: 'center',
-            }}
-          >
-            <T numberOfLines={1} style={sans(13, 700, th.col)}>
-              +1 min
-            </T>
-          </Press>
-          <Press
-            onPress={onToggle}
-            accessibilityLabel={t.run ? 'Pause timer' : 'Start timer'}
-            scale={0.92}
-            easing={CSS_EASE}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              backgroundColor: th.col,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Glyph
-              name={t.run ? 'pause' : done ? 'replay' : 'play_arrow'}
-              size={22}
-              color={th.bg}
-              fill
-            />
-          </Press>
+          {alert ? (
+            <>
+              <Press
+                onPress={onSnooze}
+                accessibilityLabel={snoozeLabel}
+                scale={0.94}
+                easing={CSS_EASE}
+                style={{
+                  height: 44,
+                  paddingHorizontal: 14,
+                  borderRadius: 99,
+                  backgroundColor: th.btn2,
+                  justifyContent: 'center',
+                }}
+              >
+                <T numberOfLines={1} style={sans(13, 700, th.col)}>
+                  {snoozeLabel}
+                </T>
+              </Press>
+              <Press
+                onPress={onStop}
+                accessibilityLabel="Stop timer"
+                scale={0.94}
+                easing={CSS_EASE}
+                style={{
+                  height: 44,
+                  paddingHorizontal: 16,
+                  borderRadius: 99,
+                  backgroundColor: th.col,
+                  justifyContent: 'center',
+                }}
+              >
+                <T numberOfLines={1} style={sans(13, 700, th.bg)}>
+                  Stop
+                </T>
+              </Press>
+            </>
+          ) : (
+            <>
+              <Press
+                onPress={onPlus}
+                scale={0.94}
+                easing={CSS_EASE}
+                style={{
+                  height: 44,
+                  paddingHorizontal: 14,
+                  borderRadius: 99,
+                  backgroundColor: th.btn2,
+                  justifyContent: 'center',
+                }}
+              >
+                <T numberOfLines={1} style={sans(13, 700, th.col)}>
+                  +1 min
+                </T>
+              </Press>
+              <Press
+                onPress={onToggle}
+                accessibilityLabel={t.run ? 'Pause timer' : 'Start timer'}
+                scale={0.92}
+                easing={CSS_EASE}
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 22,
+                  backgroundColor: th.col,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <Glyph
+                  name={t.run ? 'pause' : done ? 'replay' : 'play_arrow'}
+                  size={22}
+                  color={th.bg}
+                  fill
+                />
+              </Press>
+            </>
+          )}
           <Press
             onPress={onGo}
             accessibilityLabel="Go to step"

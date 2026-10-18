@@ -23,6 +23,8 @@ type TortiePrefs = {
   recipeLanguage: RecipeLanguagePref;
   voice: boolean;
   timerAlerts: boolean;
+  /** Minutes the "Snooze" button on a finished timer adds. */
+  snoozeMinutes: number;
   keepAwake: boolean;
   snappy: boolean;
   /** The first-run tour was finished or skipped on this device. */
@@ -40,6 +42,7 @@ export const useTortiePrefs = create<TortiePrefs>()(
       recipeLanguage: 'original',
       voice: true,
       timerAlerts: true,
+      snoozeMinutes: 1,
       keepAwake: true,
       snappy: false,
       welcomed: false,

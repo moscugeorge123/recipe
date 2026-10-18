@@ -350,7 +350,7 @@ function CookingNow({ on }: { on: boolean }) {
             {st.m > 0 ? (
               <Press
                 onPress={() =>
-                  useCook.getState().toggle(key, st.m, st.t, r.title)
+                  useCook.getState().toggle(key, st.m, st.t, r.title, st.d)
                 }
                 scale={0.96}
                 easing={CSS_EASE}

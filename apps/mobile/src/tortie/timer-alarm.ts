@@ -10,6 +10,7 @@ import {
   armSignature,
   alarmId,
   diffAlarms,
+  isAlerting,
   scheduledAlarmFrom,
   splitTimerKey,
   type AlarmCommand,
@@ -28,6 +29,12 @@ type NotificationResponse = import('expo-notifications').NotificationResponse;
  * the module and rings.
  */
 const KIND = 'cook-timer';
+/** Notification buttons: Stop silences without opening Tortie, Go to step opens the step. */
+const CATEGORY = 'cook-timer-alarm';
+const ACTION_STOP = 'stop';
+const ACTION_GO = 'go-to-step';
+/** Keeps the expanded notification readable on long steps. */
+const MAX_BODY = 400;
 const OPEN_RECENT_MS = 60_000;
 const VIBRATE = [0, 500, 200, 500, 200, 800];
 const inExpoGo =
@@ -40,6 +47,7 @@ const opened = new Set<string>();
 const trusted = new Map<string, number>();
 let askedPermission = false;
 let channelReady: Promise<void> | null = null;
+let categoryReady: Promise<void> | null = null;
 let chain: Promise<void> = Promise.resolve();
 let notificationsModule: Promise<NotificationsModule> | null = null;
 let warnedExpoGo = false;
@@ -49,9 +57,10 @@ function loadNotifications(): Promise<NotificationsModule | null> {
   if (!alarmsSupported) return Promise.resolve(null);
   notificationsModule ??= import('expo-notifications').then((mod) => {
     mod.setNotificationHandler({
-      // Open app: the in-app alarm rings, so the notification stays silent.
+      // Open app: the in-app alarm rings and the alert screen shows, so the
+      // notification only lands in the list.
       handleNotification: async () => ({
-        shouldShowBanner: true,
+        shouldShowBanner: AppState.currentState !== 'active',
         shouldShowList: true,
         shouldPlaySound: AppState.currentState !== 'active',
         shouldSetBadge: false,
@@ -192,6 +201,35 @@ async function reconcile() {
 }
 
 function prepare(notifications: NotificationsModule): Promise<void> {
+  return Promise.all([
+    prepareCategory(notifications),
+    prepareChannel(notifications),
+  ]).then(() => undefined);
+}
+
+function prepareCategory(notifications: NotificationsModule): Promise<void> {
+  categoryReady ??= notifications
+    .setNotificationCategoryAsync(CATEGORY, [
+      {
+        identifier: ACTION_STOP,
+        buttonTitle: 'Stop',
+        options: { opensAppToForeground: false },
+      },
+      {
+        identifier: ACTION_GO,
+        buttonTitle: 'Go to step',
+        options: { opensAppToForeground: true },
+      },
+    ])
+    .then(() => undefined)
+    .catch((error: unknown) => {
+      categoryReady = null;
+      throw error;
+    });
+  return categoryReady;
+}
+
+function prepareChannel(notifications: NotificationsModule): Promise<void> {
   if (Platform.OS !== 'android') return Promise.resolve();
   channelReady ??= notifications
     .setNotificationChannelAsync(channelId(), {
@@ -256,9 +294,10 @@ async function schedule(
   await notifications.scheduleNotificationAsync({
     identifier: alarmId(command.key),
     content: {
-      title: "Time's up",
+      title: "Time's up" + (parts ? ' · Step ' + (parts.step + 1) : ''),
       ...(command.recipeTitle ? { subtitle: command.recipeTitle } : {}),
-      body: command.title || command.recipeTitle || 'Cooking timer',
+      body: alarmBody(command),
+      categoryIdentifier: CATEGORY,
       sound: contentSound(),
       interruptionLevel: 'timeSensitive',
       priority: notifications.AndroidNotificationPriority.MAX,
@@ -269,6 +308,7 @@ async function schedule(
         key: command.key,
         recipeId: parts?.recipeId ?? '',
         step: String(parts?.step ?? 0),
+        endsAt: String(command.endsAt),
       },
     },
     trigger: {
@@ -279,15 +319,38 @@ async function schedule(
   });
 }
 
+/** Step title, then its instructions, for the expanded notification. */
+function alarmBody(
+  command: Extract<AlarmCommand, { type: 'schedule' }>,
+): string {
+  const head = command.title || command.recipeTitle || 'Cooking timer';
+  const detail = command.detail?.trim();
+  if (!detail) return head;
+  const text = head + '\n' + detail;
+  return text.length > MAX_BODY ? text.slice(0, MAX_BODY - 1) + '…' : text;
+}
+
 function openFrom(response: NotificationResponse, recentOnly: boolean) {
   const notification = response.notification;
-  const token = `${notification.request.identifier}:${notification.date}`;
+  const token = `${notification.request.identifier}:${notification.date}:${response.actionIdentifier}`;
   if (opened.has(token)) return;
+  const data = notification.request.content.data;
+  if (!data || data.kind !== KIND) return;
+  if (response.actionIdentifier === ACTION_STOP) {
+    // Can arrive late (Tortie was closed when it was pressed): only stop the
+    // run this notification was for, never a later one.
+    opened.add(token);
+    stopFrom(data);
+    void loadNotifications().then((mod) =>
+      mod
+        ?.dismissNotificationAsync(notification.request.identifier)
+        .catch(() => undefined),
+    );
+    return;
+  }
   const at =
     notification.date < 1e12 ? notification.date * 1000 : notification.date;
   if (recentOnly && Date.now() - at > OPEN_RECENT_MS) return;
-  const data = notification.request.content.data;
-  if (!data || data.kind !== KIND) return;
   const recipeId = data.recipeId;
   const step = Number(data.step);
   if (
@@ -299,10 +362,32 @@ function openFrom(response: NotificationResponse, recentOnly: boolean) {
     return;
   }
   opened.add(token);
+  // A plain tap on a timer still waiting for Stop / Snooze: the alert screen
+  // (or cook mode's card and dock) shows it with the step, so stay put.
+  // "Go to step" always opens the step, where the card shows Snooze / Stop.
+  if (response.actionIdentifier !== ACTION_GO) {
+    useCook.getState().tick();
+    const key = typeof data.key === 'string' ? data.key : null;
+    const timer = key ? useCook.getState().timers[key] : undefined;
+    if (timer && isAlerting(timer)) return;
+  }
+  useNav.getState().set({ timerHeld: null });
   const cook = useCook.getState();
   cook.begin(recipeId);
   cook.setStep(step);
   useNav.getState().openCook(recipeId);
+}
+
+function stopFrom(data: Record<string, unknown>) {
+  const key = typeof data.key === 'string' ? data.key : null;
+  if (!key) return;
+  const cook = useCook.getState();
+  cook.tick();
+  const timer = cook.timers[key];
+  if (!timer || !isAlerting(timer)) return;
+  const endsAt = Number(data.endsAt);
+  if (Number.isFinite(endsAt) && timer.doneAt !== endsAt) return;
+  cook.stop(key);
 }
 
 function usesBundledAlarm(): boolean {

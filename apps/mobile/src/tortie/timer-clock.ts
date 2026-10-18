@@ -4,17 +4,30 @@ export type StepTimer = {
   rem: number;
   total: number;
   run: boolean;
-  /** Step title, for the "Timer done — …" toast and the dock. */
+  /** Step title, for the dock and the alarm notification. */
   title: string;
   recipeTitle: string;
+  /** Step instructions, shown in the expanded alarm notification. */
+  detail?: string;
   /** Epoch ms when a running timer hits zero. Null while paused. */
   endsAt: number | null;
   /** The user saw this timer reach zero (or opened its step after). Missing = false. */
   seen?: boolean;
+  /**
+   * Epoch ms the timer hit zero, kept until the cook presses Stop or Snooze.
+   * While set the timer is alerting and its clock counts past zero.
+   */
+  doneAt?: number | null;
 };
 
 /** Toast only when the timer finishes while the app is actually open. */
 export const FINISH_TOAST_MS = 5_000;
+
+/** An alert nobody answered for this long is stopped on its own (e.g. app reopened next day). */
+export const ALERT_MAX_MS = 2 * 60 * 60_000;
+
+export const MIN_SNOOZE_MINUTES = 1;
+export const MAX_SNOOZE_MINUTES = 30;
 
 export const ALARM_ID_PREFIX = 'cook-timer-';
 export const ALARM_SOUND = 'cook_alarm.wav';
@@ -33,6 +46,7 @@ export type AlarmCommand =
       endsAt: number;
       title: string;
       recipeTitle: string;
+      detail?: string;
     };
 
 export function alarmId(key: string): string {
@@ -68,8 +82,16 @@ export function withRun(
   now: number,
 ): StepTimer {
   const rem = remainingSec(timer, now);
-  if (!run || rem <= 0) return { ...timer, rem, run: false, endsAt: null };
-  return { ...timer, rem, run: true, endsAt: now + rem * 1000, seen: false };
+  if (!run || rem <= 0)
+    return { ...timer, rem, run: false, endsAt: null, doneAt: null };
+  return {
+    ...timer,
+    rem,
+    run: true,
+    endsAt: now + rem * 1000,
+    seen: false,
+    doneAt: null,
+  };
 }
 
 /**
@@ -97,6 +119,7 @@ export function addMinute(
     run,
     endsAt: run ? now + remMs : null,
     seen: false,
+    doneAt: null,
   };
 }
 
@@ -142,6 +165,7 @@ export function shiftMinutes(
     rem,
     total: Math.max(rem, timer.total + minutes * 60),
     seen: false,
+    doneAt: null,
     endsAt: timer.run && timer.endsAt != null ? now + rem * 1000 : null,
   };
 }
@@ -156,7 +180,57 @@ export function withDuration(timer: StepTimer, minutes: number): StepTimer {
     run: false,
     endsAt: null,
     seen: false,
+    doneAt: null,
   };
+}
+
+/** Snooze: run again for `minutes` and end the alert. */
+export function snoozed(
+  timer: StepTimer,
+  now: number,
+  minutes: number,
+): StepTimer {
+  const sec = clampSnooze(minutes) * 60;
+  return {
+    ...timer,
+    rem: sec,
+    total: sec,
+    run: true,
+    endsAt: now + sec * 1000,
+    seen: false,
+    doneAt: null,
+  };
+}
+
+/** Stop: end the alert; the timer stays finished and leaves the dock. */
+export function stopped(timer: StepTimer): StepTimer {
+  return { ...timer, doneAt: null, seen: true };
+}
+
+export function clampSnooze(minutes: number): number {
+  if (!Number.isFinite(minutes)) return MIN_SNOOZE_MINUTES;
+  return Math.min(
+    MAX_SNOOZE_MINUTES,
+    Math.max(MIN_SNOOZE_MINUTES, Math.round(minutes)),
+  );
+}
+
+export const isAlerting = (t: StepTimer) =>
+  isFinishedTimer(t) && t.doneAt != null;
+
+/** Whole seconds past zero for an alerting timer, else 0. */
+export function overSec(t: StepTimer, now: number): number {
+  if (!isAlerting(t)) return 0;
+  return Math.max(0, Math.floor((now - t.doneAt!) / 1000));
+}
+
+/** Alerting timer keys, the one that finished first first. */
+export function alertingKeys(timers: Record<string, StepTimer>): string[] {
+  return Object.keys(timers)
+    .filter((k) => isAlerting(timers[k]!))
+    .sort(
+      (a, b) => timers[a]!.doneAt! - timers[b]!.doneAt! || (a < b ? -1 : 1),
+    );
 }
 
 /**
@@ -181,6 +255,9 @@ export function projectTimers(
     const timer = timers[key]!;
     const projected = projectOne(timer, now);
     let out = projected.timer;
+    if (isAlerting(out) && now - out.doneAt! > ALERT_MAX_MS) {
+      out = { ...out, doneAt: null };
+    }
     if (projected.finished) {
       finished.push(out);
       if (key === visibleKey) {
@@ -207,7 +284,10 @@ export function markSeen(
   return { ...timers, [key]: { ...t, seen: true } };
 }
 
-/** Dock pills: running or partly used timers, minus the visible step and finished ones the user saw. */
+/**
+ * Dock pills: running or partly used timers, minus the visible step and
+ * finished ones the user saw. An alerting timer stays until Stop or Snooze.
+ */
 export function dockTimerKeys(
   timers: Record<string, StepTimer>,
   visibleKey: string | null,
@@ -215,7 +295,7 @@ export function dockTimerKeys(
   return Object.keys(timers).filter((k) => {
     const t = timers[k]!;
     if (k === visibleKey) return false;
-    if (isFinishedTimer(t) && t.seen) return false;
+    if (isFinishedTimer(t) && t.seen && !isAlerting(t)) return false;
     return t.run || t.rem < t.total;
   });
 }
@@ -334,6 +414,7 @@ function scheduleCommand(key: string, timer: StepTimer): AlarmCommand {
     endsAt: timer.endsAt!,
     title: timer.title,
     recipeTitle: timer.recipeTitle,
+    ...(timer.detail ? { detail: timer.detail } : {}),
   };
 }
 
@@ -353,6 +434,7 @@ function projectOne(
     rem,
     run: !done,
     endsAt: done ? null : endsAt,
+    ...(done ? { doneAt: endsAt } : {}),
   };
   if (
     updated.rem === timer.rem &&

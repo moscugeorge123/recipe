@@ -2,7 +2,6 @@ import { AppState } from 'react-native';
 
 import { startAlarm, stopAlarm } from '@/tortie/alarm-player';
 import { useCook } from '@/tortie/cook-store';
-import { toast } from '@/tortie/nav-store';
 import { useTortiePrefs } from '@/tortie/prefs-store';
 import {
   addMinute,
@@ -17,7 +16,6 @@ jest.mock('@/tortie/alarm-player', () => ({
   startAlarm: jest.fn(),
   stopAlarm: jest.fn(),
 }));
-jest.mock('@/tortie/nav-store', () => ({ toast: jest.fn() }));
 
 const START = 1_700_000_000_000;
 
@@ -97,18 +95,17 @@ describe('useCook.tick alarm', () => {
   });
   afterEach(() => jest.restoreAllMocks());
 
-  test('rings and toasts for a timer finishing off-screen', () => {
+  test('rings for a timer finishing off-screen and leaves it alerting', () => {
     useCook.setState({ timers: { 'a:1': timer() }, visibleKey: 'a:2' });
     useCook.getState().tick();
     expect(startAlarm).toHaveBeenCalledTimes(1);
-    expect(toast).toHaveBeenCalledTimes(1);
+    expect(useCook.getState().timers['a:1']!.doneAt).toBe(START + 60_000);
   });
 
-  test('rings but does not toast when finished on the visible step', () => {
+  test('rings when finished on the visible step and marks it seen', () => {
     useCook.setState({ timers: { 'a:1': timer() }, visibleKey: 'a:1' });
     useCook.getState().tick();
     expect(startAlarm).toHaveBeenCalledTimes(1);
-    expect(toast).not.toHaveBeenCalled();
     expect(useCook.getState().timers['a:1']!.seen).toBe(true);
   });
 
@@ -128,13 +125,15 @@ describe('useCook.tick alarm', () => {
     expect(startAlarm).not.toHaveBeenCalled();
   });
 
-  test('dismiss and opening the step stop the alarm', () => {
+  test('opening the step keeps ringing; dismiss stops the alarm', () => {
     useCook.setState({
-      timers: { 'a:1': timer({ rem: 0, run: false, endsAt: null }) },
+      timers: {
+        'a:1': timer({ rem: 0, run: false, endsAt: null, doneAt: START }),
+      },
     });
     useCook.getState().setVisibleKey('a:1');
-    expect(stopAlarm).toHaveBeenCalledTimes(1);
+    expect(stopAlarm).not.toHaveBeenCalled();
     useCook.getState().dismiss('a:1');
-    expect(stopAlarm).toHaveBeenCalledTimes(2);
+    expect(stopAlarm).toHaveBeenCalledTimes(1);
   });
 });
