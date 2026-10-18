@@ -25,16 +25,16 @@ Severity: 🔴 high · 🟠 medium · 🟡 low. Tick the box when the task is do
 ### Group A: Imported recipe quality (API)
 - [ ] 🔴 [Q01. Keep units and ranges when the model puts them in `quantity`](Q01-ingredient-units-and-ranges.md) (F15, F42, F44)
 - [ ] 🔴 [Q02. Step order and step title/body split](Q02-step-order-and-title-split.md) (F39, F69, F25, F29)
-- [ ] 🟠 [Q03. Title casing and the "by Website" byline](Q03-title-casing-and-byline.md) (F36, F19)
-- [ ] 🟠 [Q04. Ingredient fidelity, groups, servings and validation noise](Q04-ingredient-fidelity-and-groups.md) (F37, F40, F41, F75, F17)
-- [ ] 🟠 [Q05. Blocked sites, slow failures and low-res thumbnails](Q05-site-access-and-failures.md) (F73, F74, F43)
-- [ ] 🟡 [Q06. Meal-type tag and the "Tonight's dinner" hero](Q06-meal-type-and-tonight-hero.md) (F21, F38, F54)
+- [x] 🟠 [Q03. Title casing and the "by Website" byline](Q03-title-casing-and-byline.md) (F36, F19)
+- [x] 🟠 [Q04. Ingredient fidelity, groups, servings and validation noise](Q04-ingredient-fidelity-and-groups.md) (F37, F40, F41, F75, F17)
+- [x] 🟠 [Q05. Blocked sites, slow failures and low-res thumbnails](Q05-site-access-and-failures.md) (F73, F74, F43)
+- [ ] 🟡 [Q06. Meal-type tag and the "Tonight's dinner" hero](Q06-meal-type-and-tonight-hero.md) (F21, F38, F54). *API half done and verified in the PR #20 manual test; the Today hero half is still open.*
 
 ### Group B: Import flow and Share-from-another-app
 - [ ] 🔴 [Q07. Import progress must reflect the real job](Q07-import-progress-truthful.md) (F72, F46, F45, F34)
 - [ ] 🟠 [Q08. Advertised vs supported sources; preview and error copy](Q08-supported-sources-and-error-copy.md) (F50, F05, F12, F47, F52, F53)
 - [ ] 🟠 [Q09. Toasts: overlap, truncation and a stuck toast](Q09-toasts.md) (F51, F79)
-- [ ] 🟡 [Q10. YouTube letter-boxed thumbnails](Q10-letterboxed-thumbnails.md) (F33, F37, F56)
+- [x] 🟡 [Q10. YouTube letter-boxed thumbnails](Q10-letterboxed-thumbnails.md) (F33, F37, F56)
 - [ ] 🟡 [Q11. Dev placeholder text in the UI](Q11-placeholder-text.md) (F18)
 
 ### Group C: UI defects
@@ -78,6 +78,16 @@ Findings F87–F99. "Help → Take the tour has no working icon" is already **F0
 - [ ] 🟡 [Q36. Remove the empty-state cards from Plan](Q36-plan-remove-empty-state-cards.md) (F93, makes F10 moot)
 - [ ] 🟡 [Q38. Profile button on every tab](Q38-profile-button-on-all-tabs.md) (F95)
 - [ ] 🟡 [Q41. Notes sheet empty state layout](Q41-notes-empty-state-layout.md) (F99)
+
+### Group H: Found in the manual test of PR #20 (2026-10-18)
+Live API and app test of the G1 extraction fixes. Q03, Q04, Q05 and Q10 passed (ticked above). Q01 (ranges) could not be exercised live: none of the imported pages had a range.
+- [ ] 🟠 [Q42. An optional "rest" step is hoisted in front of the step that makes the batter](Q42-rest-step-hoisted-before-mixing.md) (extends Q02)
+- [ ] 🟠 [Q43. "piece" unit shown on ingredients that have no quantity](Q43-piece-unit-without-quantity.md) (extends Q01)
+- [ ] 🟡 [Q44. A dead page on a scraper-blocking site takes ~30 s to fail](Q44-dead-page-takes-30s-to-fail.md) (extends Q05)
+- [ ] 🟡 [Q45. A domain that does not resolve fails with no `reason`](Q45-unresolvable-domain-has-no-reason.md) (extends Q05, Q08)
+- [ ] 🟡 [Q46. Brand names are lower-cased in ingredient names](Q46-brand-name-lower-cased-in-ingredients.md) (extends Q03)
+- [ ] 🟡 [Q47. SERVINGS_SUSPECT fires on a normal 16-serving cake](Q47-servings-suspect-false-positive.md) (extends Q04)
+- [ ] 🟡 [Q48. Serious Eats bolognese imports with a placeholder instead of a photo](Q48-serious-eats-recipe-has-no-thumbnail.md) (extends Q05)
 
 ## Suggested order
 1. **Q01, Q02**: they decide whether an imported recipe can be cooked at all.
