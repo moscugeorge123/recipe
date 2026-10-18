@@ -1,6 +1,12 @@
 import type { SourceType } from '@prisma/client';
 
-import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
+import { chooseYouTubeThumbnail } from '../../preview/youtube-poster.js';
+import { extractYouTubeVideoId } from '../../preview/youtube-mapper.js';
+import {
+  CONTENT_FAILURE_MESSAGES,
+  ContentAcquisitionFailedError,
+  classifyAcquisitionFailure,
+} from '../../../../shared/errors/extraction-errors.js';
 import { logStep } from '../../../../infrastructure/logging/log-step.js';
 import { downloadMedia, type FetchLike } from '../../../../shared/utils/download-media.js';
 import type {
@@ -18,6 +24,8 @@ export interface YouTubeProviderOptions {
   /** Set false to skip fetching captions (Whisper transcribes the audio instead). */
   fetchCaptions?: boolean;
   fetchImpl?: FetchLike;
+  /** HEAD-probe poster files so a hero never ends up a letter-boxed 4:3 image (production only). */
+  probeThumbnails?: boolean;
 }
 
 export class YouTubeContentProvider implements ContentProvider {
@@ -46,8 +54,11 @@ export class YouTubeContentProvider implements ContentProvider {
         ? await logStep(log, 'youtube.metadata', { url }, () => this.ytdlp.fetchMetadata(url))
         : await this.ytdlp.fetchMetadata(url);
     } catch (error: unknown) {
+      const detail = error instanceof Error ? error.message : 'Failed to acquire YouTube metadata';
+      const reason = classifyAcquisitionFailure(detail);
       throw new ContentAcquisitionFailedError({
-        message: error instanceof Error ? error.message : 'Failed to acquire YouTube metadata',
+        message: reason ? CONTENT_FAILURE_MESSAGES[reason] : detail,
+        ...(reason ? { reason } : {}),
         cause: error,
       });
     }
@@ -65,9 +76,14 @@ export class YouTubeContentProvider implements ContentProvider {
       log?.warn({ step: 'youtube.download', url, err: error }, 'youtube.download failed');
     }
 
-    const images = metadata.thumbnail
-      ? [{ url: metadata.thumbnail, mimeType: 'image/jpeg' as const }]
-      : [];
+    const thumbnail = await chooseYouTubeThumbnail({
+      videoId: extractYouTubeVideoId(metadata.webpage_url ?? url),
+      thumbnails: metadata.thumbnails,
+      thumbnail: metadata.thumbnail,
+      ...(this.options.fetchImpl ? { fetchImpl: this.options.fetchImpl } : {}),
+      probe: this.options.probeThumbnails === true,
+    });
+    const images = thumbnail ? [{ url: thumbnail, mimeType: 'image/jpeg' as const }] : [];
     const captions =
       this.options.fetchCaptions === false ? undefined : await this.fetchCaptions(metadata, ctx);
     const chapters = formatChapters(metadata.chapters);
@@ -84,7 +100,7 @@ export class YouTubeContentProvider implements ContentProvider {
       ...(metadata.language ? { language: metadata.language } : {}),
       ...(videoLocalPath ? { videoLocalPath, videos: [{ localPath: videoLocalPath }] } : {}),
       ...(captions ? { captions } : {}),
-      ...(metadata.thumbnail ? { thumbnailUrl: metadata.thumbnail } : {}),
+      ...(thumbnail ? { thumbnailUrl: thumbnail } : {}),
       images,
       metadata: {
         provider: 'yt-dlp',

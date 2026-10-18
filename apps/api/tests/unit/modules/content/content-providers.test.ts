@@ -81,7 +81,8 @@ describe('InstagramContentProvider', () => {
       provider.acquire('https://www.instagram.com/reel/private/', ctx),
     ).rejects.toMatchObject({
       name: 'ContentAcquisitionFailedError',
-      message: expect.stringContaining('Empty or private data for provided input'),
+      message: 'This post is private or needs a login',
+      reason: 'PRIVATE',
     });
   });
 

@@ -2,7 +2,11 @@ import path from 'node:path';
 
 import type { SourceType } from '@prisma/client';
 
-import { ContentAcquisitionFailedError } from '../../../../shared/errors/extraction-errors.js';
+import {
+  CONTENT_FAILURE_MESSAGES,
+  ContentAcquisitionFailedError,
+  classifyAcquisitionFailure,
+} from '../../../../shared/errors/extraction-errors.js';
 import { downloadMediaToFile, type FetchLike } from '../../../../shared/utils/download-media.js';
 import { logStep } from '../../../../infrastructure/logging/log-step.js';
 import type {
@@ -54,8 +58,11 @@ export class InstagramContentProvider implements ContentProvider {
           throw error;
         }
         const detail = error instanceof Error ? error.message : 'Unknown Apify error';
+        const reason = classifyAcquisitionFailure(detail);
         throw new ContentAcquisitionFailedError({
-          message: `Failed to acquire Instagram content: ${detail}`,
+          // The detail is already in the message; the cause is kept for the logs only.
+          message: reason ? CONTENT_FAILURE_MESSAGES[reason] : `Failed to acquire Instagram content: ${detail}`,
+          ...(reason ? { reason } : {}),
           cause: error,
         });
       }

@@ -1,6 +1,6 @@
 import { GARDEN_PLATE_COLOR_TOKENS } from '../../normalization/domain/presentation.js';
 
-export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v10';
+export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v15';
 
 const OUTPUT_LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
@@ -59,6 +59,8 @@ Rules:
 - The JSON field description is a short recipe summary in the output language. Never copy the original Instagram/YouTube caption or post text into description unless that text is already in the output language. Translate it.
 - Keep numeric values as digits (for example 200, 2, 1/2). Translate unit words and quantity phrases (for example "tbsp" → the output-language word for tablespoon, "cloves" → the output-language word for cloves, "a pinch" → the output-language equivalent).
 - Put the numeric amount in quantity and the translated unit in unit. Do not leave names, units, description, or steps in the source language.
+- quantity is a number or a numeric range only ("2", "1/4", "1 1/2", "2 to 4"). Never put the unit word in quantity: it always goes in unit. Examples: "1/4 teaspoon kosher salt" → quantity "1/4", unit "teaspoon". "2 to 4 tablespoons minced red onion" → quantity "2 to 4", unit "tablespoons". "1 to 2 serrano chilis" → quantity "1 to 2", unit null. Keep a range as a range; do not pick one end.
+- When the source gives no amount ("lemon wedges, to serve"), set quantity null and unit null. Do not invent a unit such as "piece" for an ingredient with no amount.
 - Nutrition is always required. Return calories (kcal per serving) and nutrition { proteinGrams, carbsGrams, fatGrams } per serving. If the evidence states them, use the stated values and set nutritionSource "stated". Otherwise estimate them from the ingredients, their quantities, and servings using standard food composition values, and set nutritionSource "estimated". Never return null for calories or macros.
 - Servings: use the stated servings. If not stated, estimate a sensible number of servings from the quantities.
 - Difficulty: use the source's stated difficulty. Otherwise judge Easy, Medium, or Hard from technique, number of steps, and active time.
@@ -73,20 +75,26 @@ Rules:
 - In the step instruction field, write every temperature and length in both systems with the source unit first, for example "bake at 180°C (350°F)" and "cut into 2 cm (¾ in) cubes". Do not put temperatures, lengths, or times in the step title.
 - ingredientIndexes lists the 0-based positions in the ingredients array of the ingredients a step uses. Use [] when a step uses none.
 - Only include ingredients and steps that are supported by the evidence
+- Keep the specific ingredient wording of the source. If the description says "orecchiette", "cherry tomatoes", "pancetta" or "Robiola", write exactly that, not "pasta", "tomatoes", "bacon" or "soft cheese". Never generalise an ingredient name.
+- When the ingredient list has headings ("For the sponge", "For the buttercream"), set group on every ingredient to its heading and keep each ingredient once per group. Use null when the list has no headings.
+- Servings are the number of people the dish feeds, not the number of items it makes. "Makes 12 pancakes" for a family breakfast is about 4 servings. calories is per serving and must match the ingredients divided by servings.
 - Set sourceLanguage to the original language of the source evidence, not the output language
-- Capitalize the recipe title and each ingredient name in sentence case in the output language (first letter capital, remaining letters lowercase). Examples: "wholemeal pitta" → "Wholemeal pitta", "tuna" → "Tuna", "recipe name" → "Recipe name"
+- Write each ingredient name in sentence case in the output language (first letter capital, remaining letters lowercase). Examples: "wholemeal pitta" → "Wholemeal pitta", "tuna" → "Tuna".
+- Keep the recipe title exactly as the source writes it, including its capitalization, proper nouns, brands and acronyms ("Nonna's BBQ Ribs"). Do not lower-case it and do not rewrite the wording.
 - Include provenance references where possible (caption, description, transcript, ocr, vision)
 - Do not invent ingredients or ingredient quantities that are not present in evidence
 - Set cuisine from evidence of a cuisine style (for example Italian, Korean). Do not guess from unrelated words. Use null if unknown.
 - Set each ingredient category from the ingredient itself. Allowed values: Produce, Meat, Dairy, Pantry, Spices, Frozen.
 - Set each ingredient emoji to exactly one relevant emoji grapheme and colorToken to one Garden Plate token: paprikaSoft, basilSoft, honey50, peach, linen, steamedMilk, chili50.
-- Categorize the recipe with one or more stable categorySlugs. Allowed values: breakfast, lunch, dinner, sweet.
+- Set categorySlugs to the meal types the recipe clearly fits. Allowed values: breakfast, lunch, dinner, sweet. Use the source's own recipe category when it states one. Return an empty list when you are not sure or the dish fits none of them (a dip, a side, a snack, a drink); do not default to dinner.
 - Set each step stage from the instruction: mise en place → PREP, heat/simmer → COOK, finish sauce → FINISH, plate → SERVE. Allowed values: PREP, COOK, FINISH, SERVE. Steps with ahead true are PREP.
 - Each step has a short title and a separate instruction.
-  - title is a simple imperative label of 2–6 words, with no period. Examples: "Boil the pasta", "Roast the chicken", "Soak the rice".
-  - instruction is the rest: technique, doneness, temperatures, and lengths. Do not repeat the title. Use an empty string when the title already says the whole step.
+  - title is a simple imperative label of 2–5 words, with no period. Examples: "Boil the pasta", "Roast the chicken", "Soak the rice".
+  - instruction is the rest: technique, doneness, temperatures, and lengths. Use an empty string when the title already says the whole step.
+  - Never take words out of the instruction to build the title. The instruction must be a complete sentence (or sentences) that starts with a capital letter. Wrong: title "Cut the avocados", instruction "in half. Remove the pit." Right: title "Cut the avocados", instruction "Cut the avocados in half and remove the pit."
+- Keep the steps in the order of the source. Do not reorder them.
 - durationMinutes is the cook timer, in whole minutes. Set it only when the cook waits and can leave the step until time is up: boiling, simmering, baking, roasting, resting, cooling, chilling, proofing, soaking, or marinating. Examples: boil pasta 10 minutes → 10; something in the oven 25 minutes → 25; soak for 4 hours → 240. Set null for hands-on work even when it takes time, such as chopping, mixing, seasoning, stirring, or frying while staying at the pan. "Sauté for 2 minutes" is hands-on: null.
-- ahead is true only for a pre-step: work that has to happen before the cooking session, not chopping or measuring once you start. Examples: "soak rice in water for 4 hours" (ahead true, durationMinutes 240); "take the meat out and let it rest for 30 minutes" before cooking (ahead true, durationMinutes 30); marinate overnight; brine; proof dough overnight; chill a component the day before. A rest in the middle of cooking, such as resting a steak before slicing, is ahead false and still gets a timer. Put every ahead step before the session steps. Do not drop pre-steps from the method.
+- ahead is true only for a pre-step: work that has to happen before the cooking session, not chopping or measuring once you start. Examples: "soak rice in water for 4 hours" (ahead true, durationMinutes 240); "take the meat out and let it rest for 30 minutes" before cooking (ahead true, durationMinutes 30); marinate overnight; brine; proof dough overnight; chill a component the day before. A rest in the middle of cooking, such as resting a steak before slicing, is ahead false and still gets a timer. A rest that is optional ("if you have time") or that comes after a mixing step is NOT ahead: resting pancake batter happens after "Make the batter" and keeps its place with a 30-minute timer. Put genuine ahead steps first, and keep every other step in source order. Do not drop pre-steps from the method.
 - prepTimeMinutes is hands-on prep during the session. Long ahead waits belong on those steps' durationMinutes and in totalTimeMinutes, not in prepTimeMinutes.
 - Return valid JSON matching the schema exactly`;
 
@@ -128,7 +136,6 @@ export const RECIPE_EXTRACTION_SCHEMA = {
     categorySlugs: {
       type: 'array',
       items: { type: 'string', enum: ['breakfast', 'lunch', 'dinner', 'sweet'] },
-      minItems: 1,
     },
     ingredients: {
       type: 'array',
@@ -138,6 +145,10 @@ export const RECIPE_EXTRACTION_SCHEMA = {
           name: { type: 'string' },
           quantity: { type: ['string', 'null'] },
           unit: { type: ['string', 'null'] },
+          group: {
+            type: ['string', 'null'],
+            description: 'List heading the ingredient is under, such as "For the buttercream". Null when the list has no headings.',
+          },
           metric: MEASUREMENT_SCHEMA,
           imperial: MEASUREMENT_SCHEMA,
           preparation: { type: ['string', 'null'] },
@@ -158,6 +169,7 @@ export const RECIPE_EXTRACTION_SCHEMA = {
           'name',
           'quantity',
           'unit',
+          'group',
           'metric',
           'imperial',
           'preparation',

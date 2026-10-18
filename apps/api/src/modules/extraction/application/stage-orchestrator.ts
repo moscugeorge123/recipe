@@ -10,13 +10,19 @@ import { logStep } from '../../../infrastructure/logging/log-step.js';
 import { DEFAULT_PROFILE_ID } from '../../profiles/domain/profile.js';
 import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
 import { isAppError } from '../../../shared/errors/app-error.js';
-import { ExtractionFailedError } from '../../../shared/errors/extraction-errors.js';
+import {
+  ContentAcquisitionFailedError,
+  ExtractionFailedError,
+} from '../../../shared/errors/extraction-errors.js';
 import type { ContentAcquisitionService } from '../../content/application/content-acquisition.service.js';
 import type { AcquiredContent } from '../../content/domain/types.js';
 import { EvidenceBuilder } from '../../evidence/application/evidence-builder.js';
 import type { EvidenceItem } from '../../evidence/domain/types.js';
 import { ConfidenceCalculator } from '../../confidence/application/confidence-calculator.js';
-import { RecipeNormalizer } from '../../normalization/application/recipe-normalizer.js';
+import {
+  RecipeNormalizer,
+  mealSlugsFromRecipeCategory,
+} from '../../normalization/application/recipe-normalizer.js';
 import {
   assertExtractedRecipeHasContent,
   assertFoodRecipe,
@@ -510,6 +516,11 @@ export function createDefaultStageHandlers(
         );
         throw error;
       }
+      // The page's own recipeCategory beats the model's guess at a meal type.
+      const sourceSlugs = mealSlugsFromRecipeCategory(
+        ctx.acquiredContent?.structuredRecipe?.category ?? [],
+      );
+      if (sourceSlugs.length > 0) normalized.categorySlugs = sourceSlugs;
       const validation = recipeValidator.validate(normalized);
       normalized.warnings = validation.warnings as unknown as Prisma.InputJsonValue;
       normalized.confidence = confidenceCalculator.calculate(normalized);
@@ -582,7 +593,7 @@ export function createDefaultStageHandlers(
         warnings: normalized.warnings,
         promptVersion,
         rawExtraction: rawExtraction as unknown as Prisma.InputJsonValue,
-        categorySlugs: normalized.categorySlugs ?? ['dinner'],
+        categorySlugs: normalized.categorySlugs ?? [],
         reviewState:
           validation.valid && validation.warnings.length === 0 && normalized.confidence >= 0.8
             ? ('READY' as const)
@@ -591,7 +602,9 @@ export function createDefaultStageHandlers(
           name: ing.name,
           canonicalName: ing.canonicalName,
           quantity: ing.quantity,
+          quantityMax: ing.quantityMax ?? null,
           unit: ing.unit,
+          group: ing.group ?? null,
           metricQuantity: ing.metricQuantity ?? null,
           metricUnit: ing.metricUnit ?? null,
           imperialQuantity: ing.imperialQuantity ?? null,
@@ -781,6 +794,7 @@ const STDERR_LIMIT = 500;
 export function serializeStageError(error: unknown): {
   message: string;
   code?: string;
+  reason?: string;
   cause?: string;
 } {
   const message = error instanceof Error ? error.message : 'Stage failed';
@@ -799,10 +813,16 @@ export function serializeStageError(error: unknown): {
     depth += 1;
   }
 
+  // "Post does not exist" as the message and again as its cause is one fact, not two.
+  const lowerMessage = message.toLowerCase();
+  const distinct = parts.filter((part) => !lowerMessage.includes(part.trim().toLowerCase()));
+  const reason = error instanceof ContentAcquisitionFailedError ? error.reason : undefined;
+
   return {
     message,
     ...(code ? { code } : {}),
-    ...(parts.length > 0 ? { cause: parts.join(' | ') } : {}),
+    ...(reason ? { reason } : {}),
+    ...(distinct.length > 0 ? { cause: distinct.join(' | ') } : {}),
   };
 }
 

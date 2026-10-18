@@ -91,11 +91,21 @@ export function sourceHost(url: string | null | undefined): string | null {
   return m ? m[1]!.replace(/^www\./i, '').toLowerCase() : null;
 }
 
+/** Labels the API falls back to when a source has no author; never shown as a name. */
+const GENERIC_CREATORS = new Set(['website', 'video', 'link', 'web']);
+
 /** The API has no "user-written" flag, so a web source URL stands in for "imported". */
 export function bylineOf(
-  r: Pick<AnyRecipe, 'creator' | 'originalUrl'>,
+  r: Pick<AnyRecipe, 'creator' | 'originalUrl'> & { sourceLabel?: string | null },
 ): string {
-  return sourceHost(r.originalUrl) ? `by ${r.creator}` : 'by you';
+  const host = sourceHost(r.originalUrl);
+  if (!host) return 'by you';
+  const creator = r.creator?.trim() ?? '';
+  const generic =
+    !creator ||
+    GENERIC_CREATORS.has(creator.toLowerCase()) ||
+    creator === r.sourceLabel;
+  return `by ${generic ? host : creator}`;
 }
 
 /** Real total time only; the detail mapper's `minutes` defaults to 30 when the API has none. 0 = unknown. */

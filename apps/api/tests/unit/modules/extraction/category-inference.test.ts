@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   RecipeNormalizer,
+  mealSlugsFromRecipeCategory,
   normalizeRecipeCategorySlugs,
 } from '../../../../src/modules/normalization/application/recipe-normalizer.js';
 
@@ -11,10 +12,7 @@ describe('extraction category and ingredient presentation fallback', () => {
       'sweet',
       'breakfast',
     ]);
-    expect(normalizeRecipeCategorySlugs(['invalid'], 'Chocolate cake', null)).toEqual([
-      'sweet',
-      'dinner',
-    ]);
+    expect(normalizeRecipeCategorySlugs(['invalid'], 'Chocolate cake', null)).toEqual(['sweet']);
     expect(normalizeRecipeCategorySlugs(undefined, 'Eggs for brunch', null)).toEqual(['breakfast']);
   });
 
@@ -40,6 +38,24 @@ describe('extraction category and ingredient presentation fallback', () => {
       colorToken: 'basilSoft',
       category: 'Produce',
     });
+  });
+
+  it('does not default an unrecognised dish to dinner', () => {
+    expect(normalizeRecipeCategorySlugs([], 'Perfect guacamole', 'A creamy avocado dip')).toEqual([]);
+    expect(normalizeRecipeCategorySlugs(undefined, 'Roast chicken', null)).toEqual([]);
+    expect(normalizeRecipeCategorySlugs(['dinner'], 'Roast chicken', null)).toEqual(['dinner']);
+  });
+
+  it.each([
+    [['Main Course'], ['dinner']],
+    [['Dessert'], ['sweet']],
+    [['Breakfast', 'Brunch'], ['breakfast']],
+    [['Lunch', 'Main Dish'], ['lunch', 'dinner']],
+    [['Appetizer', 'Side Dish', 'Snack', 'Dip'], []],
+    [[], []],
+    [['Drinks'], []],
+  ])('maps the page recipeCategory %j to %j', (categories, expected) => {
+    expect(mealSlugsFromRecipeCategory(categories)).toEqual(expected);
   });
 
   it('accepts exactly one emoji grapheme from the same extraction request', () => {

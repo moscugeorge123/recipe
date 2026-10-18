@@ -413,13 +413,29 @@ export function reconcileMeasurements(
   modelImperial?: unknown,
 ): IngredientMeasurements {
   const asWritten: Measurement = { quantity: original.quantity, unit: original.unit };
-  if (original.quantity === null || isCountUnit(original.unit)) {
+  if (original.quantity === null) {
     return { metric: asWritten, imperial: asWritten };
   }
 
   const metricCandidate = usableIn(measurementOrNull(modelMetric), 'metric');
   const imperialCandidate = usableIn(measurementOrNull(modelImperial), 'imperial');
-  const unit = resolveUnit(original.unit);
+
+  // No unit on the row: a model amount that restates the same number with a real unit means the
+  // unit was dropped ("0.25" + metric 0.25 tsp), so use it. A different number is a conversion
+  // of a bare count ("2 avocados" → 400 g) and must not replace the count.
+  const amount = original.quantity;
+  let originalUnit = original.unit;
+  if (!originalUnit?.trim()) {
+    const restated = [metricCandidate, imperialCandidate].find(
+      (candidate) =>
+        candidate?.quantity != null && Math.abs(candidate.quantity - amount) <= amount * 0.01,
+    );
+    originalUnit = restated?.unit ?? null;
+  }
+  if (isCountUnit(originalUnit)) {
+    return { metric: asWritten, imperial: asWritten };
+  }
+  const unit = resolveUnit(originalUnit);
 
   if (unit) {
     const source: Measurement = { quantity: original.quantity, unit };
@@ -610,4 +626,46 @@ export function addDualMeasurements(text: string): string {
       return converted ? `${base} (${converted})${paren ?? ''}` : match;
     },
   );
+}
+
+const PAREN_AMOUNT = new RegExp(
+  String.raw`\(\s*(${NUMBER})\s*(fl\.?\s*oz|oz|lbs?|kg|g|ml|l|cups?|tbsp|tsp)\b\.?\s*\)`,
+  'gi',
+);
+const SPACE_BEFORE_PAREN = new RegExp(String.raw`(${NUMBER})(kg|g|ml|l)(\s*\()`, 'gi');
+const DURATION_UNIT = String.raw`(?:hours?|hrs?|minutes?|mins?|seconds?|secs?)`;
+const DUPLICATE_DURATION = new RegExp(
+  String.raw`(${NUMBER})\s*(${DURATION_UNIT})\b\.?(\s*\(\s*(${NUMBER})\s*(${DURATION_UNIT})\b\.?\s*\))`,
+  'gi',
+);
+
+/**
+ * Cleans the conversions a model writes into step text: "100g (3.53 oz)" → "100 g (3½ oz)",
+ * "(10.14 fl oz)" → "(10 fl oz)", and "1 min (1 min)" → "1 min". Runs before
+ * `addDualMeasurements`, which only adds temperatures and lengths.
+ */
+export function tidyInlineMeasurements(text: string): string {
+  return text
+    .replace(
+      DUPLICATE_DURATION,
+      (
+        match: string,
+        low: string,
+        lowUnit: string,
+        _paren: string,
+        high: string,
+        highUnit: string,
+      ) =>
+        num(low) === num(high) &&
+        lowUnit.toLowerCase().charAt(0) === highUnit.toLowerCase().charAt(0)
+          ? `${low} ${lowUnit}`
+          : match,
+    )
+    .replace(SPACE_BEFORE_PAREN, '$1 $2$3')
+    .replace(PAREN_AMOUNT, (match: string, value: string, rawUnit: string) => {
+      const unit = resolveUnit(rawUnit.replace(/\s+/g, ' ').replace(/\./g, ''));
+      if (!unit) return match;
+      const rounded = roundForUnit(num(value), unit);
+      return `(${formatQuantity(rounded, unit)} ${unit})`;
+    });
 }

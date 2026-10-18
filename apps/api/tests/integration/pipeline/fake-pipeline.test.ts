@@ -49,7 +49,7 @@ describe.skipIf(!dbAvailable)('fake extraction pipeline', () => {
     expect(stages).toHaveLength(8);
 
     const recipe = await container.repositories.recipe.findById(status.recipeId!);
-    expect(recipe?.title).toBe('Fake pasta recipe');
+    expect(recipe?.title).toBe('Fake Pasta Recipe');
   });
 
   it('deduplicates completed extractions for the same URL', async () => {
@@ -91,6 +91,6 @@ describe.skipIf(!dbAvailable)('fake extraction pipeline', () => {
     expect(refreshedStatus.recipeId).toBe(firstStatus.recipeId);
 
     const recipe = await container.repositories.recipe.findById(refreshedStatus.recipeId!);
-    expect(recipe?.title).toBe('Fake pasta recipe');
+    expect(recipe?.title).toBe('Fake Pasta Recipe');
   });
 });

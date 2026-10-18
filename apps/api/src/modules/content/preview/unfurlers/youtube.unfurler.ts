@@ -10,6 +10,7 @@ import {
   type FetchLike,
 } from '../fetch-html.js';
 import { collapseYouTubeThumbnails } from '../thumbnails.js';
+import { posterNameOf, probeYouTubePoster } from '../youtube-poster.js';
 import type { LinkPreview, LinkUnfurler } from '../types.js';
 import {
   extractYouTubeVideoId,
@@ -19,6 +20,8 @@ import {
 
 const YOUTUBE_HOSTS = ['youtube.com', 'www.youtube.com', 'youtu.be', 'm.youtube.com'];
 const OEMBED_URL = 'https://www.youtube.com/oembed';
+/** 4:3 poster files with the 16:9 picture letter-boxed inside. */
+const BOXED_POSTERS = new Set(['hqdefault', 'sddefault']);
 
 export interface YouTubeUnfurlerOptions {
   timeoutMs?: number;
@@ -111,6 +114,10 @@ export class YouTubeLinkUnfurler implements LinkUnfurler {
       thumbnail_url?: string;
     };
     const mapped = mapYouTubeOembed(body);
+    const videoId = extractYouTubeVideoId(url);
+    const thumbnails = youtubeFallbackThumbnails(videoId, mapped.thumbnailUrl);
+    // oEmbed and the hqdefault fallback are 4:3 files with black bars: lead with a full-frame poster.
+    const poster = videoId ? await probeYouTubePoster(videoId, this.fetchImpl) : null;
 
     return {
       url,
@@ -118,7 +125,9 @@ export class YouTubeLinkUnfurler implements LinkUnfurler {
       title: mapped.title,
       author: mapped.author,
       description: null,
-      thumbnails: youtubeFallbackThumbnails(extractYouTubeVideoId(url), mapped.thumbnailUrl),
+      thumbnails: poster
+        ? [{ url: poster }, ...thumbnails.filter((thumb) => !BOXED_POSTERS.has(posterNameOf(thumb.url) ?? ''))]
+        : thumbnails,
     };
   }
 }

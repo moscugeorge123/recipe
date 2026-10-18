@@ -16,7 +16,9 @@ export interface CreateRecipeIngredientInput {
   name: string;
   canonicalName?: string | null;
   quantity?: Prisma.Decimal | null;
+  quantityMax?: Prisma.Decimal | null;
   unit?: string | null;
+  group?: string | null;
   metricQuantity?: Prisma.Decimal | null;
   metricUnit?: string | null;
   imperialQuantity?: Prisma.Decimal | null;
@@ -172,7 +174,9 @@ export interface EffectiveRecipeRecord {
     name: string;
     canonicalName: string | null;
     quantity: Prisma.Decimal | null;
+    quantityMax?: Prisma.Decimal | null;
     unit: string | null;
+    group?: string | null;
     metricQuantity: Prisma.Decimal | null;
     metricUnit: string | null;
     imperialQuantity: Prisma.Decimal | null;
@@ -237,7 +241,9 @@ export interface RevisionSnapshotInput {
     name: string;
     canonicalName: string | null;
     quantity: Prisma.Decimal | null;
+    quantityMax?: Prisma.Decimal | null;
     unit: string | null;
+    group?: string | null;
     metricQuantity?: Prisma.Decimal | null;
     metricUnit?: string | null;
     imperialQuantity?: Prisma.Decimal | null;

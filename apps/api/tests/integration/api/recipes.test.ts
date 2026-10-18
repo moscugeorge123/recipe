@@ -138,7 +138,7 @@ describe.skipIf(!dbAvailable)('recipe API endpoints', () => {
 
       expect(response.statusCode).toBe(200);
       const recipe = response.json().data;
-      expect(recipe.title).toBe('Fake pasta recipe');
+      expect(recipe.title).toBe('Fake Pasta Recipe');
       expect(recipe.revisionNumber).toBe(0);
       expect(recipe.categories.length).toBeGreaterThan(0);
       expect(recipe.ingredients.length).toBeGreaterThan(0);
@@ -223,7 +223,7 @@ describe.skipIf(!dbAvailable)('recipe API endpoints', () => {
 
       expect(response.statusCode).toBe(200);
       expect(response.json().data.length).toBeGreaterThan(0);
-      expect(response.json().data[0].title).toBe('Fake pasta recipe');
+      expect(response.json().data[0].title).toBe('Fake Pasta Recipe');
     });
 
     it('returns recipes whose ingredient matches q', async () => {

@@ -21,9 +21,9 @@ interface RagWebBrowserItem {
 
 const APIFY_BASE = 'https://api.apify.com/v2';
 const ACTOR_ID = 'apify~rag-web-browser';
-/** Headless Chrome through Apify Proxy; the page itself gets 60 s, the whole run 120 s. */
-const PAGE_TIMEOUT_SECS = 60;
-const RUN_TIMEOUT_SECS = 120;
+/** Headless Chrome through Apify Proxy; the page itself gets 40 s, the whole run 60 s. */
+const PAGE_TIMEOUT_SECS = 40;
+const RUN_TIMEOUT_SECS = 60;
 
 /**
  * Renders a page in Apify's `rag-web-browser` (Playwright + Apify Proxy).
@@ -56,7 +56,7 @@ export class ApifyPageFetcher implements BlockedPageFetcher {
           removeCookieWarnings: true,
           requestTimeoutSecs: PAGE_TIMEOUT_SECS,
         }),
-        signal: AbortSignal.timeout((RUN_TIMEOUT_SECS + 15) * 1000),
+        signal: AbortSignal.timeout((RUN_TIMEOUT_SECS + 10) * 1000),
       },
     );
 

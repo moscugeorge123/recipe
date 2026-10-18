@@ -5,7 +5,15 @@ import { isEnglishOutputLanguage } from '../../recipes/prompts/recipe-extraction
 import { toSentenceCase } from '../domain/casing.js';
 import { reconcileMeasurements, type Measurement } from '../domain/measurement-conversion.js';
 import { resolveIngredientPresentation } from '../domain/presentation.js';
-import { normalizeIngredientName, normalizeUnit, parseQuantity } from '../domain/units.js';
+import {
+  normalizeIngredientName,
+  normalizeUnit,
+  parseQuantity,
+  splitQuantityPhrase,
+} from '../domain/units.js';
+
+/** Count units that only make sense next to a number; without an amount they are dropped. */
+const COUNT_ONLY_UNITS = new Set(['piece', 'pieces', 'slice', 'slices', 'buc', 'bucata', 'bucati']);
 
 export { isOneEmoji } from '../domain/presentation.js';
 
@@ -22,7 +30,9 @@ export class IngredientNormalizer {
     name: string;
     canonicalName: string;
     quantity: Prisma.Decimal | null;
+    quantityMax: Prisma.Decimal | null;
     unit: string | null;
+    group: string | null;
     metricQuantity: Prisma.Decimal | null;
     metricUnit: string | null;
     imperialQuantity: Prisma.Decimal | null;
@@ -42,17 +52,25 @@ export class IngredientNormalizer {
     const canonicalName = isEnglishOutputLanguage(outputLanguage)
       ? normalizeIngredientName(trimmedName)
       : trimmedName.toLocaleLowerCase();
-    const unit = isEnglishOutputLanguage(outputLanguage)
-      ? normalizeUnit(ingredient.unit)
-      : ingredient.unit?.trim() || null;
-    const qty = parseQuantity(ingredient.quantity);
+    const english = isEnglishOutputLanguage(outputLanguage);
+    // The model sometimes writes the whole phrase in `quantity` ("2 to 4 tablespoons").
+    const phrase = splitQuantityPhrase(ingredient.quantity);
+    const explicitUnit = english ? normalizeUnit(ingredient.unit) : ingredient.unit?.trim() || null;
+    let unit = explicitUnit ?? (english ? phrase.unit : (phrase.unitText ?? phrase.unit));
+    const qty = phrase.min ?? parseQuantity(ingredient.quantity);
+    const qtyMax = qty !== null && phrase.max !== null && phrase.max > qty ? phrase.max : null;
 
-    if (ingredient.quantity && qty === null) {
+    if (ingredient.quantity && qty === null && !phrase.unit) {
       warnings.push(`Could not parse quantity "${ingredient.quantity}"`);
     }
 
     if (!ingredient.quantity && !ingredient.optional) {
       warnings.push('Missing quantity');
+    }
+
+    // "Lemon wedges, to serve" has no amount: a bare "piece" label would read as an amount.
+    if (qty === null && unit !== null && COUNT_ONLY_UNITS.has(unit.toLowerCase())) {
+      unit = null;
     }
 
     const presentation = resolveIngredientPresentation({
@@ -72,7 +90,9 @@ export class IngredientNormalizer {
       name: toSentenceCase(ingredient.name),
       canonicalName,
       quantity: toDecimal(qty),
+      quantityMax: toDecimal(qtyMax),
       unit,
+      group: ingredient.group?.trim() || null,
       ...measurementColumns(measurements.metric, measurements.imperial),
       preparation: ingredient.preparation?.trim() ?? null,
       optional: ingredient.optional ?? false,

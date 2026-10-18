@@ -11,6 +11,8 @@ export interface LinkPreview {
   author: string | null;
   description: string | null;
   thumbnails: LinkPreviewThumbnail[];
+  /** The site refused the preview request; importing may still work through the fallback. */
+  blocked?: boolean;
 }
 
 export interface LinkUnfurler {

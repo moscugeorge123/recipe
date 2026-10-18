@@ -188,7 +188,11 @@ export function createContentRegistry(appConfig: AppConfig): ContentProviderRegi
       maxDownloadBytes: appConfig.extraction.maxMediaDownloadBytes,
     }),
   );
-  registry.register(new YouTubeContentProvider(new YtDlpClient(appConfig.providers.ytdlpPath)));
+  registry.register(
+    new YouTubeContentProvider(new YtDlpClient(appConfig.providers.ytdlpPath), {
+      probeThumbnails: true,
+    }),
+  );
   registry.register(new FacebookContentProvider());
   registry.register(new TikTokContentProvider());
   registry.register(new FakeContentProvider());

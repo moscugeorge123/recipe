@@ -190,7 +190,9 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         where: { userId: ownerUserId, slug: { in: requestedSlugs } },
         orderBy: { sortOrder: 'asc' },
       });
-      if (categories.length === 0) {
+      // Only a create that said nothing about categories gets the Dinner default; an empty list
+      // means the extractor was not sure, and an unguessed meal type is better than a wrong one.
+      if (categories.length === 0 && input.categorySlugs === undefined) {
         const dinner = await tx.category.findUnique({
           where: { userId_slug: { userId: ownerUserId, slug: 'dinner' } },
         });
@@ -769,7 +771,9 @@ export class PrismaRecipeRepository implements IRecipeRepository {
                   name: item.name,
                   canonicalName: item.canonicalName,
                   quantity: item.quantity,
+                  quantityMax: item.quantityMax ?? null,
                   unit: item.unit,
+                  group: item.group ?? null,
                   metricQuantity: item.metricQuantity,
                   metricUnit: item.metricUnit,
                   imperialQuantity: item.imperialQuantity,
@@ -1019,7 +1023,9 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         name: ingredient.name,
         canonicalName: ingredient.canonicalName,
         quantity: ingredient.quantity,
+        quantityMax: ingredient.quantityMax ?? null,
         unit: ingredient.unit,
+        group: ingredient.group ?? null,
         metricQuantity: ingredient.metricQuantity,
         metricUnit: ingredient.metricUnit,
         imperialQuantity: ingredient.imperialQuantity,
