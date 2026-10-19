@@ -27,6 +27,7 @@ import { useFrame } from '@/tortie/frame';
 import { motionMultiplier } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
 import { useTortiePrefs, type DietKey } from '@/tortie/prefs-store';
+import { clampSnooze } from '@/tortie/timer-clock';
 import { C, CSS_EASE, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { BrandLogo } from '@/tortie/ui/brand';
@@ -777,6 +778,53 @@ function SignedIn({
               <Switch value={v} onChange={fn} accessibilityLabel={l} />
             </View>
           ))}
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 14,
+              paddingVertical: 12,
+              borderTopWidth: 1,
+              borderTopColor: C.surface3,
+            }}
+          >
+            <Glyph name="schedule" size={22} color={C.green} />
+            <RowText l="Snooze" sub="Added when a finished timer is snoozed" />
+            <View
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
+            >
+              <StepBtn
+                icon="remove"
+                label="Shorter snooze"
+                onPress={() =>
+                  prefs.set({
+                    snoozeMinutes: clampSnooze(prefs.snoozeMinutes - 1),
+                  })
+                }
+              />
+              <T
+                style={[
+                  sans(16, 700),
+                  {
+                    minWidth: 44,
+                    textAlign: 'center',
+                    fontVariant: ['tabular-nums'],
+                  },
+                ]}
+              >
+                {prefs.snoozeMinutes + ' min'}
+              </T>
+              <StepBtn
+                icon="add"
+                label="Longer snooze"
+                onPress={() =>
+                  prefs.set({
+                    snoozeMinutes: clampSnooze(prefs.snoozeMinutes + 1),
+                  })
+                }
+              />
+            </View>
+          </View>
         </View>
       </Stagger>
 

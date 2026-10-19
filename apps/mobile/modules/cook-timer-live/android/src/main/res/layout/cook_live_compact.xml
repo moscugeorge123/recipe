@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Running timer, collapsed: one row that fits the collapsed notification height. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:gravity="center_vertical"
+  android:orientation="horizontal">
+
+  <Chronometer
+    android:id="@+id/cook_clock"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:fontFeatureSettings="tnum"
+    android:includeFontPadding="false"
+    android:maxLines="1"
+    android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+    android:textSize="24sp" />
+
+  <TextView
+    android:id="@+id/cook_frozen"
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:fontFeatureSettings="tnum"
+    android:includeFontPadding="false"
+    android:maxLines="1"
+    android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+    android:textSize="24sp"
+    android:visibility="gone" />
+
+  <TextView
+    android:id="@+id/cook_title"
+    android:layout_width="0dp"
+    android:layout_height="wrap_content"
+    android:layout_marginStart="10dp"
+    android:layout_weight="1"
+    android:ellipsize="end"
+    android:maxLines="1"
+    android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+    android:fontFamily="sans-serif-medium"
+    android:textSize="14sp" />
+
+  <ImageButton
+    android:id="@+id/cook_toggle"
+    android:layout_width="36dp"
+    android:layout_height="36dp"
+    android:layout_marginStart="8dp"
+    android:background="@drawable/cook_live_btn_ring"
+    android:scaleType="center"
+    android:src="@drawable/cook_live_pause" />
+
+  <ImageButton
+    android:id="@+id/cook_close"
+    android:layout_width="36dp"
+    android:layout_height="36dp"
+    android:layout_marginStart="8dp"
+    android:background="@drawable/cook_live_btn_neutral"
+    android:scaleType="center"
+    android:src="@drawable/cook_live_close" />
+</LinearLayout>

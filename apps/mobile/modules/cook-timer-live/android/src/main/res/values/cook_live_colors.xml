@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <color name="cook_live_accent">#A23E18</color>
+  <color name="cook_live_on_accent">#FFFFFF</color>
+  <color name="cook_live_neutral">#F1ECE8</color>
+  <color name="cook_live_on_neutral">#1C1B1A</color>
+  <color name="cook_live_secondary">#5E5A56</color>
+</resources>

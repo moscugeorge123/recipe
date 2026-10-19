@@ -109,6 +109,12 @@ type Nav = {
   cookId: string | null;
   cookNonce: number;
 
+  /**
+   * Timer the full-screen alert keeps showing after Stop, with how far past
+   * zero it was stopped, until the cook closes it or goes to the step.
+   */
+  timerHeld: { key: string; over: number } | null;
+
   /** First-run tour. */
   welcome: boolean;
   welcomeNonce: number;
@@ -281,6 +287,7 @@ export const useNav = create<Nav & Actions>()((set, get) => ({
   cookOpen: false,
   cookId: null,
   cookNonce: 0,
+  timerHeld: null,
   welcome: false,
   welcomeNonce: 0,
   au: false,

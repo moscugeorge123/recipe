@@ -7,7 +7,8 @@
       "commands": [
         "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/kill-dev-servers.ps1",
         "npm run dev:mobile"
-      ]
+      ],
+      "autorun": false
     },
     {
       "name": "API",

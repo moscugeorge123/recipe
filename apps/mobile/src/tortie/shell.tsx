@@ -17,6 +17,7 @@ import Animated, {
 import { firstName, useTortieAuth } from '@/tortie/auth-store';
 import { startCookTicker } from '@/tortie/cook-store';
 import { startTimerAlarms } from '@/tortie/timer-alarm';
+import { startLiveTimers } from '@/tortie/timer-live';
 import { useMotion } from '@/tortie/motion';
 import { TAB_ORDER, toast, useNav, type TabKey } from '@/tortie/nav-store';
 import { AddRecipeSheet } from '@/tortie/screens/add-recipe';
@@ -45,6 +46,7 @@ import { RecipeDetail, RecipeMenuSheet } from '@/tortie/screens/recipe-detail';
 import { ScanCamera } from '@/tortie/screens/scan-camera';
 import { SharePreview } from '@/tortie/screens/share-preview';
 import { SignInFlow } from '@/tortie/screens/sign-in';
+import { TimerAlert, timerAlertBack } from '@/tortie/screens/timer-alert';
 import { TodayScreen } from '@/tortie/screens/today';
 import {
   finishWelcome,
@@ -124,7 +126,7 @@ function SignedOutGate() {
  * One viewport, layered like the prototype (NAVIGATION.md §1):
  * tabs 1–2 · tab bar 20 · dim 30 · recipe 35 · profile 36 · sheets 40–43 ·
  * editor 45 · cook 50 · welcome 55 · sign in 56 · step clip 57 · camera 60 ·
- * share 65 · toast 70.
+ * share 65 · timer alert 68 · toast 70.
  */
 function SignedInShell() {
   const rootRef = useRef<View>(null);
@@ -158,10 +160,12 @@ function SignedInShell() {
     const t = setTimeout(() => set({ mounted: true }), 60);
     const stopTick = startCookTicker();
     const stopAlarm = startTimerAlarms();
+    const stopLive = startLiveTimers();
     return () => {
       clearTimeout(t);
       stopTick();
       stopAlarm();
+      stopLive();
     };
   }, [set]);
 
@@ -296,6 +300,7 @@ function SignedInShell() {
         <SharePreview />
       </Animated.View>
 
+      <TimerAlert />
       <ToastView />
       <StatusBar style={cam && !shareOpen ? 'light' : 'dark'} />
     </View>
@@ -329,6 +334,7 @@ function TabLayer({ tab, children }: { tab: TabKey; children: ReactNode }) {
  */
 function popTopLayer(): boolean {
   const s = useNav.getState();
+  if (timerAlertBack()) return true;
   if (s.shareOpen) return (s.closeShare(), true);
   if (s.cam) return (s.closeCam(true), true);
   if (s.clipOn) return (s.closeClip(), true);

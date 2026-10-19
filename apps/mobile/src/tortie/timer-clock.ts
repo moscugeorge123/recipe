@@ -4,15 +4,30 @@ export type StepTimer = {
   rem: number;
   total: number;
   run: boolean;
-  /** Step title, for the "Timer done — …" toast and the dock. */
+  /** Step title, for the dock and the alarm notification. */
   title: string;
   recipeTitle: string;
+  /** Step instructions, shown in the expanded alarm notification. */
+  detail?: string;
   /** Epoch ms when a running timer hits zero. Null while paused. */
   endsAt: number | null;
+  /** The user saw this timer reach zero (or opened its step after). Missing = false. */
+  seen?: boolean;
+  /**
+   * Epoch ms the timer hit zero, kept until the cook presses Stop or Snooze.
+   * While set the timer is alerting and its clock counts past zero.
+   */
+  doneAt?: number | null;
 };
 
 /** Toast only when the timer finishes while the app is actually open. */
 export const FINISH_TOAST_MS = 5_000;
+
+/** An alert nobody answered for this long is stopped on its own (e.g. app reopened next day). */
+export const ALERT_MAX_MS = 2 * 60 * 60_000;
+
+export const MIN_SNOOZE_MINUTES = 1;
+export const MAX_SNOOZE_MINUTES = 30;
 
 export const ALARM_ID_PREFIX = 'cook-timer-';
 export const ALARM_SOUND = 'cook_alarm.wav';
@@ -31,6 +46,7 @@ export type AlarmCommand =
       endsAt: number;
       title: string;
       recipeTitle: string;
+      detail?: string;
     };
 
 export function alarmId(key: string): string {
@@ -66,8 +82,16 @@ export function withRun(
   now: number,
 ): StepTimer {
   const rem = remainingSec(timer, now);
-  if (!run || rem <= 0) return { ...timer, rem, run: false, endsAt: null };
-  return { ...timer, rem, run: true, endsAt: now + rem * 1000 };
+  if (!run || rem <= 0)
+    return { ...timer, rem, run: false, endsAt: null, doneAt: null };
+  return {
+    ...timer,
+    rem,
+    run: true,
+    endsAt: now + rem * 1000,
+    seen: false,
+    doneAt: null,
+  };
 }
 
 /**
@@ -94,6 +118,8 @@ export function addMinute(
     total: timer.total + 60,
     run,
     endsAt: run ? now + remMs : null,
+    seen: false,
+    doneAt: null,
   };
 }
 
@@ -138,6 +164,8 @@ export function shiftMinutes(
     ...timer,
     rem,
     total: Math.max(rem, timer.total + minutes * 60),
+    seen: false,
+    doneAt: null,
     endsAt: timer.run && timer.endsAt != null ? now + rem * 1000 : null,
   };
 }
@@ -145,24 +173,210 @@ export function shiftMinutes(
 /** Apply from the settings panel: a fresh, paused timer of that length. */
 export function withDuration(timer: StepTimer, minutes: number): StepTimer {
   const sec = clampMinutes(minutes) * 60;
-  return { ...timer, rem: sec, total: sec, run: false, endsAt: null };
+  return {
+    ...timer,
+    rem: sec,
+    total: sec,
+    run: false,
+    endsAt: null,
+    seen: false,
+    doneAt: null,
+  };
 }
 
+/** Snooze: run again for `minutes` and end the alert. */
+export function snoozed(
+  timer: StepTimer,
+  now: number,
+  minutes: number,
+): StepTimer {
+  const sec = clampSnooze(minutes) * 60;
+  return {
+    ...timer,
+    rem: sec,
+    total: sec,
+    run: true,
+    endsAt: now + sec * 1000,
+    seen: false,
+    doneAt: null,
+  };
+}
+
+/** Stop: end the alert; the timer stays finished and leaves the dock. */
+export function stopped(timer: StepTimer): StepTimer {
+  return { ...timer, doneAt: null, seen: true };
+}
+
+export function clampSnooze(minutes: number): number {
+  if (!Number.isFinite(minutes)) return MIN_SNOOZE_MINUTES;
+  return Math.min(
+    MAX_SNOOZE_MINUTES,
+    Math.max(MIN_SNOOZE_MINUTES, Math.round(minutes)),
+  );
+}
+
+export const isAlerting = (t: StepTimer) =>
+  isFinishedTimer(t) && t.doneAt != null;
+
+/** Whole seconds past zero for an alerting timer, else 0. */
+export function overSec(t: StepTimer, now: number): number {
+  if (!isAlerting(t)) return 0;
+  return Math.max(0, Math.floor((now - t.doneAt!) / 1000));
+}
+
+/** Alerting timer keys, the one that finished first first. */
+export function alertingKeys(timers: Record<string, StepTimer>): string[] {
+  return Object.keys(timers)
+    .filter((k) => isAlerting(timers[k]!))
+    .sort(
+      (a, b) => timers[a]!.doneAt! - timers[b]!.doneAt! || (a < b ? -1 : 1),
+    );
+}
+
+/**
+ * `visibleKey` is the timer whose step the cook is looking at. A timer that
+ * finishes there is marked seen and reported in `seenKeys`, so the caller can
+ * skip the toast (the alarm still rings for everything in `finished`).
+ */
 export function projectTimers(
   timers: Record<string, StepTimer>,
   now: number,
-): { timers: Record<string, StepTimer>; finished: StepTimer[] } {
+  visibleKey: string | null = null,
+): {
+  timers: Record<string, StepTimer>;
+  finished: StepTimer[];
+  seenKeys: string[];
+} {
   let changed = false;
   const next: Record<string, StepTimer> = {};
   const finished: StepTimer[] = [];
+  const seenKeys: string[] = [];
   for (const key of Object.keys(timers)) {
     const timer = timers[key]!;
     const projected = projectOne(timer, now);
-    next[key] = projected.timer;
-    if (projected.timer !== timer) changed = true;
-    if (projected.finished) finished.push(projected.timer);
+    let out = projected.timer;
+    if (isAlerting(out) && now - out.doneAt! > ALERT_MAX_MS) {
+      out = { ...out, doneAt: null };
+    }
+    if (projected.finished) {
+      finished.push(out);
+      if (key === visibleKey) {
+        out = { ...out, seen: true };
+        seenKeys.push(key);
+      }
+    }
+    next[key] = out;
+    if (out !== timer) changed = true;
   }
-  return { timers: changed ? next : timers, finished };
+  return { timers: changed ? next : timers, finished, seenKeys };
+}
+
+export const isFinishedTimer = (t: StepTimer) =>
+  !t.run && t.rem === 0 && t.total > 0;
+
+/** Marks a finished timer seen (opening its step). Returns the same object when nothing changes. */
+export function markSeen(
+  timers: Record<string, StepTimer>,
+  key: string | null,
+): Record<string, StepTimer> {
+  const t = key ? timers[key] : undefined;
+  if (!key || !t || !isFinishedTimer(t) || t.seen) return timers;
+  return { ...timers, [key]: { ...t, seen: true } };
+}
+
+/**
+ * Dock pills: running or partly used timers, minus the visible step and
+ * finished ones the user saw. An alerting timer stays until Stop or Snooze.
+ */
+export function dockTimerKeys(
+  timers: Record<string, StepTimer>,
+  visibleKey: string | null,
+): string[] {
+  return Object.keys(timers).filter((k) => {
+    const t = timers[k]!;
+    if (k === visibleKey) return false;
+    if (isFinishedTimer(t) && t.seen && !isAlerting(t)) return false;
+    return t.run || t.rem < t.total;
+  });
+}
+
+/**
+ * Timers that get a notification card while Tortie is closed: running ones,
+ * soonest first, then paused ones part-way through. Never-started timers don't.
+ */
+export function liveTimerKeys(
+  timers: Record<string, StepTimer>,
+  now: number,
+): string[] {
+  const keys = Object.keys(timers).sort();
+  const running = keys
+    .filter((k) => {
+      const t = timers[k]!;
+      return t.run && t.endsAt != null && t.endsAt > now;
+    })
+    .sort((a, b) => timers[a]!.endsAt! - timers[b]!.endsAt!);
+  const paused = keys.filter((k) => {
+    const t = timers[k]!;
+    return !t.run && t.rem > 0 && t.rem < t.total;
+  });
+  return [...running, ...paused];
+}
+
+/** A button pressed on a timer notification while Tortie was closed (Android). */
+export type TimerAction = {
+  type: 'pause' | 'resume' | 'dismiss' | 'stop';
+  key: string;
+  /** Epoch ms of the press. */
+  at: number;
+  /** Stop: the run the alarm was for. */
+  endsAt?: number;
+};
+
+/**
+ * Replays notification presses, oldest first, at the time each happened, so
+ * the timers match what the cards showed. × on a running card removes the
+ * timer; Stop only ends the run its alarm was for.
+ */
+export function applyTimerActions(
+  timers: Record<string, StepTimer>,
+  actions: readonly TimerAction[],
+  now: number,
+): Record<string, StepTimer> {
+  let next = timers;
+  for (const action of actions) {
+    const timer = next[action.key];
+    if (!timer) continue;
+    let out: StepTimer | null = timer;
+    if (action.type === 'pause') {
+      if (timer.run) out = withRun(timer, false, action.at);
+    } else if (action.type === 'resume') {
+      if (!timer.run && timer.rem > 0) out = withRun(timer, true, action.at);
+    } else if (action.type === 'dismiss') {
+      out = null;
+    } else {
+      const projected = projectTimers({ [action.key]: timer }, now).timers[
+        action.key
+      ]!;
+      out =
+        isAlerting(projected) && projected.doneAt === action.endsAt
+          ? stopped(projected)
+          : projected;
+    }
+    if (out === timer) continue;
+    next = { ...next };
+    if (out) next[action.key] = out;
+    else delete next[action.key];
+  }
+  return next;
+}
+
+/** The alarm rings in-app only while the app is open and alerts are on. */
+export function shouldRing(
+  finished: readonly unknown[],
+  timerAlerts: boolean,
+  appState: string,
+): boolean {
+  return finished.length > 0 && timerAlerts && appState === 'active';
 }
 
 /**
@@ -270,6 +484,7 @@ function scheduleCommand(key: string, timer: StepTimer): AlarmCommand {
     endsAt: timer.endsAt!,
     title: timer.title,
     recipeTitle: timer.recipeTitle,
+    ...(timer.detail ? { detail: timer.detail } : {}),
   };
 }
 
@@ -289,6 +504,7 @@ function projectOne(
     rem,
     run: !done,
     endsAt: done ? null : endsAt,
+    ...(done ? { doneAt: endsAt } : {}),
   };
   if (
     updated.rem === timer.rem &&
