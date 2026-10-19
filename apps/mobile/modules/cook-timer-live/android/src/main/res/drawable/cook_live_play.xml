@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="15dp" android:height="17dp" android:viewportWidth="20" android:viewportHeight="22">
+  <path android:fillColor="@color/cook_live_accent"
+    android:pathData="M4,2.5v17a1.5,1.5 0,0 0,2.3 1.3l13,-8.5a1.5,1.5 0,0 0,0 -2.6l-13,-8.5A1.5,1.5 0,0 0,4 2.5z" />
+</vector>

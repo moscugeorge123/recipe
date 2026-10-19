@@ -25,6 +25,9 @@ expo-env.d.ts
 /android
 apps/mobile/ios
 apps/mobile/android
+apps/mobile/modules/**/build/
+apps/mobile/modules/**/.cxx/
+apps/mobile/modules/**/.gradle/
 
 # Metro
 .metro-health-check*

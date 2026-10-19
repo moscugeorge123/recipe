@@ -15,6 +15,7 @@ import {
   splitTimerKey,
   type AlarmCommand,
 } from '@/tortie/timer-clock';
+import { cookTimerNative } from '@/tortie/timer-native';
 
 type NotificationsModule = typeof import('expo-notifications');
 type NotificationResponse = import('expo-notifications').NotificationResponse;
@@ -27,6 +28,9 @@ type NotificationResponse = import('expo-notifications').NotificationResponse;
  * removed remote push, and the package registers a push listener on import).
  * Alarms stay off there so the app can still open. A development build loads
  * the module and rings.
+ *
+ * On Android with the native timer cards (timer-live.ts) those ring instead,
+ * and this only asks for the permission and clears alarms left from before.
  */
 const KIND = 'cook-timer';
 /** Notification buttons: Stop silences without opening Tortie, Go to step opens the step. */
@@ -159,8 +163,19 @@ async function reconcile() {
 
   let timers = useCook.getState().timers;
   let alerts = useTortiePrefs.getState().timerAlerts;
-  let commands = diffAlarms(timers, alerts, existing, Date.now(), trusted);
-  if (commands.some((command) => command.type === 'schedule')) {
+  // Android's native timer cards ring on their own: only clear old alarms here.
+  const expoAlarms = (on: boolean) => on && !cookTimerNative;
+  let commands = diffAlarms(
+    timers,
+    expoAlarms(alerts),
+    existing,
+    Date.now(),
+    trusted,
+  );
+  const needsPermission =
+    commands.some((command) => command.type === 'schedule') ||
+    (!!cookTimerNative && Object.values(timers).some((timer) => timer.run));
+  if (needsPermission) {
     const allowed = await ensurePermission(notifications);
     if (stamp() !== before) return;
     if (!allowed) {
@@ -181,7 +196,13 @@ async function reconcile() {
     }
     timers = useCook.getState().timers;
     alerts = useTortiePrefs.getState().timerAlerts;
-    commands = diffAlarms(timers, alerts, existing, Date.now(), trusted);
+    commands = diffAlarms(
+      timers,
+      expoAlarms(alerts),
+      existing,
+      Date.now(),
+      trusted,
+    );
   }
 
   for (const command of commands) {
@@ -294,8 +315,9 @@ async function schedule(
   await notifications.scheduleNotificationAsync({
     identifier: alarmId(command.key),
     content: {
-      title: "Time's up" + (parts ? ' · Step ' + (parts.step + 1) : ''),
-      ...(command.recipeTitle ? { subtitle: command.recipeTitle } : {}),
+      title:
+        "Time's up · " +
+        (command.title || command.recipeTitle || 'Cooking timer'),
       body: alarmBody(command),
       categoryIdentifier: CATEGORY,
       sound: contentSound(),
@@ -319,14 +341,12 @@ async function schedule(
   });
 }
 
-/** Step title, then its instructions, for the expanded notification. */
+/** The step's instructions (the title names the step), else the recipe. */
 function alarmBody(
   command: Extract<AlarmCommand, { type: 'schedule' }>,
 ): string {
-  const head = command.title || command.recipeTitle || 'Cooking timer';
-  const detail = command.detail?.trim();
-  if (!detail) return head;
-  const text = head + '\n' + detail;
+  const text =
+    command.detail?.trim() || (command.title ? command.recipeTitle : '');
   return text.length > MAX_BODY ? text.slice(0, MAX_BODY - 1) + '…' : text;
 }
 
@@ -378,11 +398,13 @@ function openFrom(response: NotificationResponse, recentOnly: boolean) {
   useNav.getState().openCook(recipeId);
 }
 
-function stopFrom(data: Record<string, unknown>) {
+export function stopFrom(data: Record<string, unknown>) {
   const key = typeof data.key === 'string' ? data.key : null;
   if (!key) return;
+  // JS timers are paused in the background, so the timer may only reach
+  // zero in this tick: read the store after it, not before.
+  useCook.getState().tick();
   const cook = useCook.getState();
-  cook.tick();
   const timer = cook.timers[key];
   if (!timer || !isAlerting(timer)) return;
   const endsAt = Number(data.endsAt);

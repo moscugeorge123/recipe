@@ -17,6 +17,7 @@ import Animated, {
 import { firstName, useTortieAuth } from '@/tortie/auth-store';
 import { startCookTicker } from '@/tortie/cook-store';
 import { startTimerAlarms } from '@/tortie/timer-alarm';
+import { startLiveTimers } from '@/tortie/timer-live';
 import { useMotion } from '@/tortie/motion';
 import { TAB_ORDER, toast, useNav, type TabKey } from '@/tortie/nav-store';
 import { AddRecipeSheet } from '@/tortie/screens/add-recipe';
@@ -159,10 +160,12 @@ function SignedInShell() {
     const t = setTimeout(() => set({ mounted: true }), 60);
     const stopTick = startCookTicker();
     const stopAlarm = startTimerAlarms();
+    const stopLive = startLiveTimers();
     return () => {
       clearTimeout(t);
       stopTick();
       stopAlarm();
+      stopLive();
     };
   }, [set]);
 

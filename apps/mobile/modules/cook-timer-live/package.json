@@ -1,0 +1,6 @@
+{
+  "name": "cook-timer-live",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ongoing Android notification that counts a running cooking timer down"
+}

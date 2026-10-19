@@ -4,6 +4,7 @@ import {
   alarmId,
   armSignature,
   diffAlarms,
+  liveTimerKeys,
   projectTimers,
   scheduledAlarmFrom,
   triggerEndsAt,
@@ -277,5 +278,22 @@ describe('cook store deadlines', () => {
       endsAt: null,
     });
     expect(useCook.getState().timers['other:0']!.run).toBe(true);
+  });
+
+  test('live notifications: running soonest first, then paused part-way', () => {
+    const timers = {
+      'soup:2': timer({ endsAt: START + 300_000 }),
+      'soup:0': timer({ endsAt: START + 60_000 }),
+      'soup:1': timer({ run: false, endsAt: null, rem: 30 }),
+      'soup:3': timer({ endsAt: START - 1_000 }),
+      'soup:4': timer({ run: false, endsAt: null, rem: 0 }),
+      'soup:5': timer({ run: false, endsAt: null }),
+    };
+    // soup:5 was never started (rem === total), soup:4 is finished.
+    expect(liveTimerKeys(timers, START)).toEqual([
+      'soup:0',
+      'soup:2',
+      'soup:1',
+    ]);
   });
 });

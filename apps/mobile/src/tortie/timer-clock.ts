@@ -300,6 +300,76 @@ export function dockTimerKeys(
   });
 }
 
+/**
+ * Timers that get a notification card while Tortie is closed: running ones,
+ * soonest first, then paused ones part-way through. Never-started timers don't.
+ */
+export function liveTimerKeys(
+  timers: Record<string, StepTimer>,
+  now: number,
+): string[] {
+  const keys = Object.keys(timers).sort();
+  const running = keys
+    .filter((k) => {
+      const t = timers[k]!;
+      return t.run && t.endsAt != null && t.endsAt > now;
+    })
+    .sort((a, b) => timers[a]!.endsAt! - timers[b]!.endsAt!);
+  const paused = keys.filter((k) => {
+    const t = timers[k]!;
+    return !t.run && t.rem > 0 && t.rem < t.total;
+  });
+  return [...running, ...paused];
+}
+
+/** A button pressed on a timer notification while Tortie was closed (Android). */
+export type TimerAction = {
+  type: 'pause' | 'resume' | 'dismiss' | 'stop';
+  key: string;
+  /** Epoch ms of the press. */
+  at: number;
+  /** Stop: the run the alarm was for. */
+  endsAt?: number;
+};
+
+/**
+ * Replays notification presses, oldest first, at the time each happened, so
+ * the timers match what the cards showed. × on a running card removes the
+ * timer; Stop only ends the run its alarm was for.
+ */
+export function applyTimerActions(
+  timers: Record<string, StepTimer>,
+  actions: readonly TimerAction[],
+  now: number,
+): Record<string, StepTimer> {
+  let next = timers;
+  for (const action of actions) {
+    const timer = next[action.key];
+    if (!timer) continue;
+    let out: StepTimer | null = timer;
+    if (action.type === 'pause') {
+      if (timer.run) out = withRun(timer, false, action.at);
+    } else if (action.type === 'resume') {
+      if (!timer.run && timer.rem > 0) out = withRun(timer, true, action.at);
+    } else if (action.type === 'dismiss') {
+      out = null;
+    } else {
+      const projected = projectTimers({ [action.key]: timer }, now).timers[
+        action.key
+      ]!;
+      out =
+        isAlerting(projected) && projected.doneAt === action.endsAt
+          ? stopped(projected)
+          : projected;
+    }
+    if (out === timer) continue;
+    next = { ...next };
+    if (out) next[action.key] = out;
+    else delete next[action.key];
+  }
+  return next;
+}
+
 /** The alarm rings in-app only while the app is open and alerts are on. */
 export function shouldRing(
   finished: readonly unknown[],

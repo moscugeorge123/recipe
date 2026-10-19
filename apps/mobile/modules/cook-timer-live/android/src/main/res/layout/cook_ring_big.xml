@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Time is up, expanded: step title, then 00:00 left, go to step and stop right. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+  android:layout_width="match_parent"
+  android:layout_height="wrap_content"
+  android:orientation="vertical"
+  android:paddingVertical="4dp">
+
+  <TextView
+    android:id="@+id/cook_title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:ellipsize="end"
+    android:maxLines="2"
+    android:textAppearance="@android:style/TextAppearance.Material.Notification.Title"
+    android:fontFamily="sans-serif-medium"
+    android:textSize="14sp" />
+
+  <LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginTop="8dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <LinearLayout
+      android:layout_width="0dp"
+      android:layout_height="wrap_content"
+      android:layout_weight="1"
+      android:orientation="vertical">
+
+      <TextView
+        android:id="@+id/cook_zero"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:fontFeatureSettings="tnum"
+        android:includeFontPadding="false"
+        android:textColor="@color/cook_live_accent"
+        android:textSize="36sp" />
+
+      <TextView
+        android:id="@+id/cook_status"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:textColor="@color/cook_live_secondary"
+        android:textSize="14sp" />
+    </LinearLayout>
+
+    <ImageButton
+      android:id="@+id/cook_go"
+      android:layout_width="44dp"
+      android:layout_height="44dp"
+      android:background="@drawable/cook_live_btn_accent"
+      android:scaleType="center"
+      android:src="@drawable/cook_live_arrow" />
+
+    <ImageButton
+      android:id="@+id/cook_close"
+      android:layout_width="44dp"
+      android:layout_height="44dp"
+      android:layout_marginStart="10dp"
+      android:background="@drawable/cook_live_btn_neutral"
+      android:scaleType="center"
+      android:src="@drawable/cook_live_close" />
+  </LinearLayout>
+</LinearLayout>
