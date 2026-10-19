@@ -40,6 +40,8 @@ describe('cookbook multi-select', () => {
           ings: [
             { n: 'garlic, sliced', q: 2, u: 'cloves', category: 'Produce' },
             { n: 'olive oil', q: 1, u: 'tbsp', category: 'Pantry' },
+            { n: 'saffron', q: 1, u: 'pinch', category: 'Spices', emoji: '🌼' },
+            { n: 'zzxq', q: 1, u: null },
           ],
         },
         {
@@ -53,15 +55,17 @@ describe('cookbook multi-select', () => {
       ],
       ['Fresh garlic'],
     );
-    expect(add.map((item) => item.name)).toEqual(['Olive oil', 'Lemon']);
+    expect(add.map((item) => item.name)).toEqual(['Olive oil', 'Saffron', 'Zzxq', 'Lemon']);
     expect(add[0]).toMatchObject({
       quantity: 1,
       unit: 'tbsp',
-      emoji: '🛒',
+      emoji: '🫒',
       sourceRecipeId: 'r1',
       category: 'Pantry',
     });
-    expect(add[1]).toMatchObject({ sourceRecipeId: 'r2', emoji: '🛒' });
+    expect(add[1]).toMatchObject({ emoji: '🌼' });
+    expect(add[2]).toMatchObject({ emoji: '🛒' });
+    expect(add[3]).toMatchObject({ sourceRecipeId: 'r2' });
   });
 
   test('groceries skips a key that contains a name already on the list', () => {

@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useMemo } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
@@ -7,6 +8,8 @@ import { addUtcDays, localTodayIso } from '@/features/meal-plan/week';
 import { mondayOfWeek } from '@/features/meal-plan/types';
 import { useCook } from '@/tortie/cook-store';
 import { useCookbook } from '@/tortie/data/cookbook';
+import { useMissingFromList } from '@/tortie/data/groceries';
+import { presentGroceryPick } from '@/tortie/data/grocery-pick';
 import {
   currentMonday,
   daysBetween,
@@ -66,7 +69,12 @@ export function PlanScreen() {
   const wk = usePlan((s) => s.wk);
   const day = usePlan((s) => s.day);
   const monday = mondayAt(wk);
-  const { planned, week, isLoading: weekLoading } = usePlanWeek(monday);
+  const {
+    planned,
+    week,
+    recipeIds,
+    isLoading: weekLoading,
+  } = usePlanWeek(monday);
   const dayHasRecipe = MEAL_KEYS.some((k) => week[day]?.[k]);
   return (
     <TabScroll
@@ -92,7 +100,7 @@ export function PlanScreen() {
             Nothing was planned that week.
           </T>
         ) : null}
-        {dayHasRecipe ? <ShopCard on={on} /> : null}
+        {dayHasRecipe ? <ShopCard on={on} recipeIds={recipeIds} /> : null}
       </PlanDaySwipe>
     </TabScroll>
   );
@@ -621,7 +629,10 @@ function EmptySlot({
  * Planning a meal adds its ingredients to the shopping list automatically (the
  * API does it), so this card points at the list instead of offering to add.
  */
-function ShopCard({ on }: { on: boolean }) {
+function ShopCard({ on, recipeIds }: { on: boolean; recipeIds: string[] }) {
+  const client = useQueryClient();
+  const missing = useMissingFromList(recipeIds);
+  const gone = missing != null && missing > 0;
   return (
     <Stagger
       i={3}
@@ -634,14 +645,22 @@ function ShopCard({ on }: { on: boolean }) {
       }}
     >
       <T style={[serif(21, 500, C.bg), { lineHeight: 25.2 }]}>
-        Your week’s ingredients are on your list
+        {gone
+          ? 'Some ingredients aren’t on your list'
+          : 'Your week’s ingredients are on your list'}
       </T>
       <T style={[sans(14, 400, '#c5eacc'), { lineHeight: 21, marginTop: 6 }]}>
-        Planning a meal adds its ingredients to Groceries. Duplicates across
-        recipes are merged, and removing a meal takes them off again.
+        {gone
+          ? missing + (missing === 1 ? ' ingredient' : ' ingredients') +
+            ' from this week’s meals were removed from Groceries.'
+          : 'Planning a meal adds its ingredients to Groceries. Duplicates across recipes are merged, and removing a meal takes them off again.'}
       </T>
       <Press
-        onPress={() => useNav.getState().goTab('groceries')}
+        onPress={() =>
+          gone
+            ? void presentGroceryPick(client, recipeIds, { onlyMissing: true })
+            : useNav.getState().goTab('groceries')
+        }
         scale={0.97}
         easing={CSS_EASE}
         style={{
@@ -657,7 +676,9 @@ function ShopCard({ on }: { on: boolean }) {
         }}
       >
         <Glyph name="shopping_basket" size={20} color="#32533C" />
-        <T style={sans(14, 700, '#32533C')}>Review groceries</T>
+        <T style={sans(14, 700, '#32533C')}>
+          {gone ? 'Add to groceries' : 'Review groceries'}
+        </T>
       </Press>
     </Stagger>
   );
