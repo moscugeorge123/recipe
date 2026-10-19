@@ -49,6 +49,12 @@ export function groceryListOrder<T extends { createdAt: string; id: string }>(
   });
 }
 
+/** Toast shown after planning a meal grew the (automatic) shopping list. */
+export function groceriesAddedMessage(added: number): string | null {
+  if (added <= 0) return null;
+  return `Added ${added} ${added === 1 ? 'ingredient' : 'ingredients'} to your groceries`;
+}
+
 export function groupByAisle<T extends { category?: string | null }>(
   items: T[],
 ): { category: GroceryCategory; label: string; items: T[] }[] {

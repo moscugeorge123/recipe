@@ -1,6 +1,6 @@
 import { parsePantryText } from '@recipe/contracts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useQueryClient, type QueryClient } from '@tanstack/react-query';
+import { useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -44,7 +44,7 @@ import {
 } from '@/tortie/data/pantry-extras';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
-import { lexOf, parseLocal, plz } from '@/tortie/lib/fmt';
+import { AISLES, lexOf, noAmountLabel, parseLocal, plz } from '@/tortie/lib/fmt';
 import { motionMultiplier } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
 
@@ -114,10 +114,10 @@ export function toTGroc(
   return {
     id: v.id,
     n: cap(v.name),
-    q: formatGroceryQty(amount.quantity, amount.unit),
+    q: formatGroceryQty(amount.quantity, amount.unit) || noAmountLabel(v.name),
     src,
     a:
-      aisle != null && aisle >= 0 && aisle <= 5
+      aisle != null && aisle >= 0 && aisle < AISLES.length
         ? aisle
         : aisleIndexOf(v.name, v.category),
     e: emojiFor(v.name, v.emoji),
@@ -156,6 +156,38 @@ export function useRecipeTitle() {
 export function useGroceriesLeft(): number {
   const q = useShoppingList();
   return (q.data?.items ?? []).filter((i) => !i.done).length;
+}
+
+/**
+ * How many of these recipes' ingredients (minus what the pantry covers) are
+ * missing from the live list. `null` until the recipes and list have loaded.
+ */
+export function useMissingFromList(recipeIds: string[]): number | null {
+  const shop = useShoppingList();
+  const pantry = usePantryItems();
+  const recipes = useQueries({
+    queries: recipeIds.map((id) => ({
+      queryKey: recipeKeys.detail(id),
+      queryFn: ({ signal }: { signal: AbortSignal }) => getRecipe(id, signal),
+      staleTime: QUERY_FRESHNESS.recipeDetail,
+    })),
+  });
+  const loaded = recipes.every((r) => r.data) && !!shop.data && !pantry.isLoading;
+  const dataKey = recipes.map((r) => r.dataUpdatedAt).join();
+  return useMemo(() => {
+    if (!loaded) return null;
+    const have = pantryKeysFrom({ items: pantry.data?.items ?? [] });
+    const listed = (shop.data?.items ?? []).map((g) => g.name.toLowerCase());
+    let missing = 0;
+    for (const r of recipes) {
+      for (const ing of partitionByPantry(r.data?.ingredients ?? [], have).need) {
+        const k = ing.name.split(',')[0]!.trim().toLowerCase();
+        if (!listed.some((g) => g.includes(k) || k.includes(g))) missing++;
+      }
+    }
+    return missing;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded, dataKey, shop.data, pantry.data]);
 }
 
 /* ───────────── Pantry ───────────── */

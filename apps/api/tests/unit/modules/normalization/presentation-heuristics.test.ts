@@ -18,6 +18,12 @@ describe('categorizeIngredient', () => {
     expect(categorizeIngredient('olive oil')).toBe('Pantry');
   });
 
+  it('puts pepper in Spices and radish or jicama in Produce', () => {
+    expect(categorizeIngredient('Black pepper')).toBe('Spices');
+    expect(categorizeIngredient('Pepper')).toBe('Spices');
+    expect(categorizeIngredient('Red radish or jicama')).toBe('Produce');
+  });
+
   it('prefers spices over produce for chilli flakes', () => {
     expect(categorizeIngredient('chilli flakes')).toBe('Spices');
   });

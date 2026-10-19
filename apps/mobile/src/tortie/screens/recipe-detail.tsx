@@ -862,10 +862,10 @@ export function RecipeMenuSheet() {
     },
     {
       icon: 'add_shopping_cart',
-      l: 'Add ingredients to groceries',
+      l: missing.length ? 'Add ingredients to groceries' : 'On your list ✓',
       sub: missing.length
         ? missing.length + ' not on your list yet'
-        : 'Everything’s already on your list',
+        : 'Every ingredient is already on it',
       trail: 'chevron_right',
       ic: C.terra,
       on: () => {

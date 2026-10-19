@@ -80,6 +80,8 @@ type CookbookState = {
   setRF: (p: Partial<RF> | ((rf: RF) => Partial<RF>)) => void;
   setCF: (p: Partial<CF>) => void;
   resetRF: () => void;
+  /** Search text and quick chip back to their defaults (sort/refine stay). */
+  resetBrowse: () => void;
   resetCF: () => void;
   goCollections: () => void;
   openColl: (id: string) => void;
@@ -124,6 +126,7 @@ export const useCookbook = create<CookbookState>()((set, get) => ({
   },
   setCF: (p) => set((s) => ({ cf: { ...s.cf, ...p } })),
   resetRF: () => set((s) => ({ rf: { ...RF0, view: s.rf.view } })),
+  resetBrowse: () => set({ q: '', filter: 'all' }),
   resetCF: () => set((s) => ({ cf: { ...CF0, view: s.cf.view } })),
   goCollections: () => {
     set({ q: '' });

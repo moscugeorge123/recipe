@@ -1,5 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Platform, useWindowDimensions, View } from 'react-native';
+import {
+  Platform,
+  useWindowDimensions,
+  View,
+  type ScrollView,
+} from 'react-native';
 
 import {
   useAddShoppingItems,
@@ -12,6 +17,7 @@ import {
   groceryAddsForPick,
   groceryPickGroups,
   groceryPickLines,
+  lineEmoji,
   grocerySelectionToast,
 } from '@/tortie/data/selection';
 import { useFrame } from '@/tortie/frame';
@@ -62,16 +68,36 @@ export function GroceryPickSheet() {
   const allOn =
     lines.length > 0 && lines.every((line) => selectedSet.has(line.id));
 
+  const onlyMissing = pick?.onlyMissing ?? false;
+
   useEffect(() => {
     if (!open) return;
     if (seenNonce.current !== nonce) {
       seenNonce.current = nonce;
       setTouched(false);
-      setSelected(defaultGrocerySelection(lines));
+      setSelected(defaultGrocerySelection(lines, onlyMissing));
       return;
     }
-    if (!touched) setSelected(defaultGrocerySelection(lines));
-  }, [open, nonce, lines, touched]);
+    if (!touched) setSelected(defaultGrocerySelection(lines, onlyMissing));
+  }, [open, nonce, lines, touched, onlyMissing]);
+
+  const scrollRef = useRef<ScrollView>(null);
+  const groupY = useRef<Record<string, number>>({});
+  const rowY = useRef<Record<string, number>>({});
+  const scrolledNonce = useRef(0);
+  const firstMissing = onlyMissing
+    ? lines.find((line) => !line.onList)?.id
+    : undefined;
+
+  const scrollToMissing = () => {
+    if (!open || !firstMissing || scrolledNonce.current === nonce) return;
+    const line = lines.find((l) => l.id === firstMissing);
+    const gy = line ? groupY.current[line.recipeId] : undefined;
+    const ry = rowY.current[firstMissing];
+    if (gy == null || ry == null) return;
+    scrolledNonce.current = nonce;
+    scrollRef.current?.scrollTo({ y: Math.max(0, gy + ry - 8), animated: true });
+  };
 
   useEffect(() => {
     if (!open || Platform.OS !== 'web') return;
@@ -159,6 +185,8 @@ export function GroceryPickSheet() {
         </View>
       </View>
       <SheetScroll
+        ref={scrollRef}
+        onContentSizeChange={scrollToMissing}
         style={{
           flexGrow: 0,
           flexShrink: 1,
@@ -170,6 +198,10 @@ export function GroceryPickSheet() {
         {groups.map((group, gi) => (
           <View
             key={group.recipeId}
+            onLayout={(e) => {
+              groupY.current[group.recipeId] = e.nativeEvent.layout.y;
+              scrollToMissing();
+            }}
             style={{ marginTop: gi && recipes.length > 1 ? 18 : 0 }}
           >
             {recipes.length > 1 ? (
@@ -188,6 +220,10 @@ export function GroceryPickSheet() {
               return (
                 <Press
                   key={line.id}
+                  onLayout={(e) => {
+                    rowY.current[line.id] = e.nativeEvent.layout.y;
+                    scrollToMissing();
+                  }}
                   onPress={() => toggle(line.id)}
                   accessibilityRole="checkbox"
                   accessibilityState={{ checked: on }}
@@ -214,7 +250,7 @@ export function GroceryPickSheet() {
                     }}
                   >
                     <T style={{ fontSize: 18, textAlign: 'center' }}>
-                      {emo.emo}
+                      {lineEmoji(line)}
                     </T>
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>

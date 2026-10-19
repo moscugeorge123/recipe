@@ -26,6 +26,7 @@ function scaledIngredient(
         q: amount.quantity == null ? null : amount.quantity * scale,
         u: amount.unit,
         category: ing.category,
+        emoji: ing.emoji,
       };
     }),
   };
@@ -72,7 +73,7 @@ function hasNamedIngredient(recipe: BulkRecipe): boolean {
 export async function presentGroceryPick(
   client: QueryClient,
   recipeIds: string[],
-  opts?: { markWeekMonday?: string | null },
+  opts?: { markWeekMonday?: string | null; onlyMissing?: boolean },
 ): Promise<boolean> {
   const ids = [...new Set(recipeIds)];
   if (!ids.length) {
@@ -95,6 +96,7 @@ export async function presentGroceryPick(
   useNav.getState().openGroceryPick({
     recipes: picked,
     markWeekMonday: opts?.markWeekMonday ?? null,
+    ...(opts?.onlyMissing ? { onlyMissing: true } : {}),
   });
   return true;
 }

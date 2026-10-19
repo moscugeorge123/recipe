@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useMemo, useRef } from 'react';
+import { useMemo } from 'react';
 import { View } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 
@@ -8,6 +8,7 @@ import { addUtcDays, localTodayIso } from '@/features/meal-plan/week';
 import { mondayOfWeek } from '@/features/meal-plan/types';
 import { useCook } from '@/tortie/cook-store';
 import { useCookbook } from '@/tortie/data/cookbook';
+import { useMissingFromList } from '@/tortie/data/groceries';
 import { presentGroceryPick } from '@/tortie/data/grocery-pick';
 import {
   currentMonday,
@@ -26,7 +27,7 @@ import {
   weekRange,
   type MealKey,
 } from '@/tortie/data/plan';
-import { findSlotRecipeEntry } from '@/tortie/data/plan-slot';
+import { emptySlotAction, findSlotRecipeEntry } from '@/tortie/data/plan-slot';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { DAYLETTERS, DAYNAMES, fmtT, MON } from '@/tortie/lib/fmt';
@@ -42,10 +43,10 @@ import { PlanDaySwipe } from '@/tortie/screens/plan-day-swipe';
 import { C, CSS_EASE, EASE, SH } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Grabber } from '@/tortie/ui/controls';
-import { EmptyState } from '@/tortie/ui/empty-state';
 import { Glyph } from '@/tortie/ui/icon';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
+import { ProfileButton } from '@/tortie/ui/profile-button';
 import { Sheet } from '@/tortie/ui/sheet';
 import { Stagger } from '@/tortie/ui/stagger';
 import { TabScroll } from '@/tortie/ui/tab-scroll';
@@ -57,6 +58,9 @@ const SLOTS: [MealKey, string, string][] = [
   ['d', 'Dinner', 'dark_mode'],
 ];
 
+/** Shown when a slot is tapped before any recipe is saved. */
+export const SAVE_FIRST_TOAST = 'Save a recipe first';
+
 const usePlanOn = () => useNav((s) => s.tab === 'plan' && s.mounted);
 
 export function PlanScreen() {
@@ -65,11 +69,12 @@ export function PlanScreen() {
   const wk = usePlan((s) => s.wk);
   const day = usePlan((s) => s.day);
   const monday = mondayAt(wk);
-  const { planned, week, isLoading: weekLoading } = usePlanWeek(monday);
-  const recipes = useTRecipes();
-  const noRecipes =
-    !recipes.isLoading && !recipes.isError && recipes.list.length === 0;
-  const blankWeek = !noRecipes && !weekLoading && planned === 0;
+  const {
+    planned,
+    week,
+    recipeIds,
+    isLoading: weekLoading,
+  } = usePlanWeek(monday);
   const dayHasRecipe = MEAL_KEYS.some((k) => week[day]?.[k]);
   return (
     <TabScroll
@@ -84,84 +89,36 @@ export function PlanScreen() {
       <PlanDaySwipe>
         <WeekControls on={on} />
         <DayStrip on={on} />
-        {noRecipes ? (
-          <NothingToPlan on={on} />
-        ) : (
-          <>
-            {blankWeek ? <BlankWeek on={on} /> : null}
-            <DayContent on={on} />
-          </>
-        )}
-        {dayHasRecipe ? <ShopCard on={on} /> : null}
+        <DayContent on={on} />
+        {wk < 0 && planned === 0 && !weekLoading ? (
+          <T
+            style={[
+              sans(12, 400, C.ink3),
+              { marginTop: 16, textAlign: 'center' },
+            ]}
+          >
+            Nothing was planned that week.
+          </T>
+        ) : null}
+        {dayHasRecipe ? <ShopCard on={on} recipeIds={recipeIds} /> : null}
       </PlanDaySwipe>
     </TabScroll>
   );
 }
 
-/** No recipes saved: every slot would lead to an empty Cookbook. */
-function NothingToPlan({ on }: { on: boolean }) {
-  return (
-    <Stagger i={2} on={on} style={{ marginTop: 24 }}>
-      <EmptyState
-        icons={['restaurant', 'calendar_month', 'shopping_basket']}
-        kicker="An open week"
-        title="Nothing to plan with yet"
-        body="Save a few recipes first, then drop them onto any day. Your grocery list builds itself from the plan."
-        action={{
-          label: 'Add a recipe',
-          icon: 'add',
-          onPress: () => useNav.getState().openAdd(),
-        }}
-        secondary={{
-          label: 'Take the tour',
-          onPress: () => useNav.getState().openWelcome(),
-        }}
-      />
-    </Stagger>
-  );
-}
-
-/** Recipes exist but this week has none planned: point at the easiest start. */
-function BlankWeek({ on }: { on: boolean }) {
-  const wk = usePlan((s) => s.wk);
-  const day = usePlan((s) => s.day);
-  const tonight = wk === 0 && day === todayIndex();
-  return (
-    <Stagger i={2} on={on} style={{ marginTop: 20 }}>
-      <EmptyState
-        variant="wash"
-        compact
-        icons={['restaurant', 'edit_calendar', 'shopping_basket']}
-        title={
-          wk === 0
-            ? 'A blank week'
-            : wk < 0
-              ? 'Nothing was planned that week'
-              : 'Nothing planned that week yet'
-        }
-        body={
-          wk < 0
-            ? 'Past weeks show what you planned. Head back to this week to plan ahead.'
-            : 'Pick a recipe for any meal below. Planned meals turn into one grocery list.'
-        }
-        action={
-          wk < 0
-            ? undefined
-            : {
-                label: tonight
-                  ? 'Plan tonight’s dinner'
-                  : `Plan ${DAYNAMES[day]}’s dinner`,
-                icon: 'dark_mode',
-                onPress: () => startSlotPick(day, 'd', 'Dinner'),
-              }
-        }
-      />
-    </Stagger>
-  );
-}
-
 /** Opens the Cookbook in pick mode for one meal slot. */
-function startSlotPick(day: number, meal: MealKey, label: string) {
+function startSlotPick(
+  day: number,
+  meal: MealKey,
+  label: string,
+  noRecipes = false,
+) {
+  if (emptySlotAction(noRecipes) === 'add') {
+    // No recipes yet: an empty picker is a dead end, so explain and offer Add.
+    toast(SAVE_FIRST_TOAST);
+    useNav.getState().openAdd();
+    return;
+  }
   useCookbook.getState().setCbSeg('recipes');
   usePlan.getState().startPick(day, meal, label);
   useNav.getState().goTab('cookbook');
@@ -193,17 +150,26 @@ function PlanHeader({
   return (
     <Stagger i={0} on={on}>
       <Animated.View style={pad}>
-        <Animated.Text allowFontScaling={false} style={[serif(36, 500), title]}>
-          Meal plan
-        </Animated.Text>
-        <Animated.View style={[{ overflow: 'hidden' }, subA]}>
-          <T
-            numberOfLines={1}
-            style={[sans(14, 400, C.ink2), { lineHeight: 20 }]}
-          >
-            {sub}
-          </T>
-        </Animated.View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Animated.Text
+              allowFontScaling={false}
+              numberOfLines={1}
+              style={[serif(36, 500), title]}
+            >
+              Meal plan
+            </Animated.Text>
+            <Animated.View style={[{ overflow: 'hidden' }, subA]}>
+              <T
+                numberOfLines={1}
+                style={[sans(14, 400, C.ink2), { lineHeight: 20 }]}
+              >
+                {sub}
+              </T>
+            </Animated.View>
+          </View>
+          <ProfileButton compact={compact} />
+        </View>
       </Animated.View>
     </Stagger>
   );
@@ -631,9 +597,12 @@ function EmptySlot({
   label: string;
   day: number;
 }) {
+  const recipes = useTRecipes();
+  const noRecipes =
+    !recipes.isLoading && !recipes.isError && recipes.list.length === 0;
   return (
     <Press
-      onPress={() => startSlotPick(day, meal, label)}
+      onPress={() => startSlotPick(day, meal, label, noRecipes)}
       scale={0.98}
       easing={CSS_EASE}
       bg="transparent"
@@ -656,35 +625,14 @@ function EmptySlot({
   );
 }
 
-function ShopCard({ on }: { on: boolean }) {
-  const wk = usePlan((s) => s.wk);
-  const addedWeek = usePlan((s) => s.addedWeek);
-  const monday = mondayAt(wk);
-  const { recipeIds, planned } = usePlanWeek(monday);
+/**
+ * Planning a meal adds its ingredients to the shopping list automatically (the
+ * API does it), so this card points at the list instead of offering to add.
+ */
+function ShopCard({ on, recipeIds }: { on: boolean; recipeIds: string[] }) {
   const client = useQueryClient();
-  const busy = useRef(false);
-  const added = wk === 0 && addedWeek === currentMonday();
-
-  const addWeek = async () => {
-    if (busy.current) return;
-    if (added) {
-      useNav.getState().goTab('groceries');
-      return;
-    }
-    if (!planned || !recipeIds.length) {
-      toast('Nothing planned that week yet');
-      return;
-    }
-    busy.current = true;
-    try {
-      await presentGroceryPick(client, recipeIds, {
-        markWeekMonday: wk === 0 ? monday : null,
-      });
-    } finally {
-      busy.current = false;
-    }
-  };
-
+  const missing = useMissingFromList(recipeIds);
+  const gone = missing != null && missing > 0;
   return (
     <Stagger
       i={3}
@@ -697,13 +645,22 @@ function ShopCard({ on }: { on: boolean }) {
       }}
     >
       <T style={[serif(21, 500, C.bg), { lineHeight: 25.2 }]}>
-        Shop for the whole week
+        {gone
+          ? 'Some ingredients aren’t on your list'
+          : 'Your week’s ingredients are on your list'}
       </T>
       <T style={[sans(14, 400, '#c5eacc'), { lineHeight: 21, marginTop: 6 }]}>
-        Choose which ingredients to add. Duplicates across recipes are merged.
+        {gone
+          ? missing + (missing === 1 ? ' ingredient' : ' ingredients') +
+            ' from this week’s meals were removed from Groceries.'
+          : 'Planning a meal adds its ingredients to Groceries. Duplicates across recipes are merged, and removing a meal takes them off again.'}
       </T>
       <Press
-        onPress={addWeek}
+        onPress={() =>
+          gone
+            ? void presentGroceryPick(client, recipeIds, { onlyMissing: true })
+            : useNav.getState().goTab('groceries')
+        }
         scale={0.97}
         easing={CSS_EASE}
         style={{
@@ -718,13 +675,9 @@ function ShopCard({ on }: { on: boolean }) {
           gap: 6,
         }}
       >
-        <Glyph
-          name={added ? 'check' : 'add_shopping_cart'}
-          size={20}
-          color="#32533C"
-        />
+        <Glyph name="shopping_basket" size={20} color="#32533C" />
         <T style={sans(14, 700, '#32533C')}>
-          {added ? 'Added to groceries' : 'Add week to groceries'}
+          {gone ? 'Add to groceries' : 'Review groceries'}
         </T>
       </Press>
     </Stagger>

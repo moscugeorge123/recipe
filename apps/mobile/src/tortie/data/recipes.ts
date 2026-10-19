@@ -196,11 +196,8 @@ export function toTDetail(v: RecipeView, units: Units = 'metric'): TDetail {
   const ings: TIng[] = v.ingredients.map((x) => {
     const n = [x.name, x.preparation].filter(Boolean).join(', ');
     const e = emoOf(x.name);
-    const emo = lexOf(x.name)
-      ? e.emo
-      : x.emoji && x.emoji !== '🥣'
-        ? x.emoji
-        : e.emo;
+    // The recipe's own emoji wins; the lexicon only fills the placeholder.
+    const emo = x.emoji && x.emoji !== '🥣' ? x.emoji : e.emo;
     const amount = ingredientAmount(x, units);
     return { q: amount.quantity, u: amount.unit ?? '', n, emo, tint: e.tint };
   });

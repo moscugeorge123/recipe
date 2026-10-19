@@ -1,6 +1,7 @@
 import {
   AISLE_DISPLAY,
   formatGroceryQty,
+  groceriesAddedMessage,
   groceryListOrder,
   groupByAisle,
   shoppingListShareText,
@@ -68,5 +69,20 @@ describe('aisle display map', () => {
     expect(text).toContain('Fresh Produce');
     expect(text).toContain('Lemon — 2');
     expect(text).not.toContain('Onions');
+  });
+});
+
+describe('groceriesAddedMessage', () => {
+  test('is null when nothing was added', () => {
+    expect(groceriesAddedMessage(0)).toBeNull();
+    expect(groceriesAddedMessage(-2)).toBeNull();
+  });
+  test('pluralizes', () => {
+    expect(groceriesAddedMessage(1)).toBe(
+      'Added 1 ingredient to your groceries',
+    );
+    expect(groceriesAddedMessage(10)).toBe(
+      'Added 10 ingredients to your groceries',
+    );
   });
 });

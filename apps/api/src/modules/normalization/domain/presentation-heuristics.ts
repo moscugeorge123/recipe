@@ -40,6 +40,8 @@ const PRODUCE = [
   'thyme',
   'chilli',
   'chili',
+  'radish',
+  'jicama',
 ];
 const DAIRY = [
   'butter',
@@ -71,6 +73,9 @@ export function categorizeIngredient(name: string): IngredientCategory {
   }
   if (DAIRY.some((word) => n.includes(word))) {
     return 'Dairy';
+  }
+  if (n.includes('bell pepper') || n.includes('capsicum')) {
+    return 'Produce';
   }
   if (SPICES.some((word) => n.includes(word))) {
     return 'Spices';

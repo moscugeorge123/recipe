@@ -1,5 +1,7 @@
 import type { ShoppingListWriteItem } from '@/features/shopping-list/types';
+import { isOneEmoji } from '@/features/recipes/emoji';
 import { isGroceryCategory } from '@/features/shopping-list/aisle';
+import { lexOf } from '@/tortie/lib/fmt';
 
 /**
  * Cookbook multi-select (handoff §2). `null` means the mode is off.
@@ -34,6 +36,7 @@ export type BulkIng = {
   q: number | null;
   u: string | null;
   category?: string | null;
+  emoji?: string | null;
 };
 
 export type BulkRecipe = {
@@ -47,6 +50,8 @@ export type GroceryPickRequest = {
   recipes: BulkRecipe[];
   /** When set, confirming marks this week as added to groceries. */
   markWeekMonday: string | null;
+  /** Start with only the ingredients missing from the list selected, and scroll to the first. */
+  onlyMissing?: boolean;
 };
 
 /** One ingredient row in the add-to-groceries sheet. */
@@ -64,6 +69,7 @@ export type GroceryPickLine = {
   quantity: number | null;
   unit: string | null;
   category?: string | null;
+  emoji?: string | null;
   /** Name is already on the shopping list (substring either way). */
   onList: boolean;
 };
@@ -102,6 +108,7 @@ export function groceryPickLines(
         quantity: ing.q,
         unit: ing.u,
         category: ing.category,
+        emoji: ing.emoji,
         onList: nameOnList(parts.key, existingNames),
       });
     });
@@ -112,8 +119,11 @@ export function groceryPickLines(
 /** Every ingredient is checked when the sheet opens. */
 export function defaultGrocerySelection(
   lines: readonly GroceryPickLine[],
+  onlyMissing = false,
 ): string[] {
-  return lines.map((line) => line.id);
+  return lines
+    .filter((line) => !onlyMissing || !line.onList)
+    .map((line) => line.id);
 }
 
 export type GroceryPickGroup = {
@@ -140,6 +150,12 @@ export function groceryPickGroups(
   return groups;
 }
 
+/** The recipe's own emoji (🥣 is the generic placeholder), then the name lexicon, then a cart. */
+export function lineEmoji(line: GroceryPickLine): string {
+  if (line.emoji && line.emoji !== '🥣' && isOneEmoji(line.emoji)) return line.emoji;
+  return lexOf(line.name)?.[1] ?? '🛒';
+}
+
 /**
  * Shopping-list rows for the checked ingredients.
  * The same name in a later recipe is skipped so the batch stays unique.
@@ -161,7 +177,7 @@ export function groceryAddsForPick(
       ...(line.category && isGroceryCategory(line.category)
         ? { category: line.category }
         : {}),
-      emoji: '🛒',
+      emoji: lineEmoji(line),
       sourceRecipeId: line.recipeId,
     });
   }

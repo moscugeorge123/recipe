@@ -45,6 +45,7 @@ import { Glyph } from '@/tortie/ui/icon';
 import { PulseDot } from '@/tortie/ui/keyframes';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
+import { ProfileButton } from '@/tortie/ui/profile-button';
 import { Stagger } from '@/tortie/ui/stagger';
 import { FirstRecipeHero, LibraryNotice } from '@/tortie/ui/first-recipe';
 import { Byline, TimeChip } from '@/tortie/ui/time-chip';
@@ -111,7 +112,6 @@ export function TodayScreen() {
 function TodayHeader({ compact, on }: { compact: boolean; on: boolean }) {
   const authed = useTortieAuth((s) => s.authed);
   const user = useTortieAuth((s) => s.user);
-  const openProfile = useNav((s) => s.openProfile);
   const now = useNow(60_000);
   const d = new Date(now);
   const greet = authed ? `${greeting(d)}, ${firstName(user)}` : greeting(d);
@@ -173,52 +173,7 @@ function TodayHeader({ compact, on }: { compact: boolean; on: boolean }) {
             {greet}
           </Animated.Text>
         </View>
-        <Press
-          onPress={openProfile}
-          scale={0.88}
-          ms={220}
-          easing={SPRING}
-          accessibilityLabel="Profile"
-          style={{ borderRadius: 99 }}
-        >
-          {authed ? (
-            <Animated.View
-              style={[
-                {
-                  borderRadius: 99,
-                  backgroundColor: C.green,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  boxShadow: SH.avatarRing,
-                },
-                logo,
-              ]}
-            >
-              <T
-                style={[
-                  sans(initials.length > 1 ? 13 : 16, 700, C.bg),
-                  { textAlign: 'center', width: '100%' },
-                ]}
-              >
-                {initials}
-              </T>
-            </Animated.View>
-          ) : (
-            <Animated.View
-              style={[
-                {
-                  borderRadius: 99,
-                  backgroundColor: C.surface3,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                },
-                logo,
-              ]}
-            >
-              <Glyph name="person" size={22} color={C.green} fill />
-            </Animated.View>
-          )}
-        </Press>
+        <ProfileButton compact={compact} />
       </Animated.View>
     </Stagger>
   );
