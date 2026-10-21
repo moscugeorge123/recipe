@@ -20,9 +20,10 @@ export interface ThirdPartyCharge {
 export const THIRD_PARTY_RATES: Record<string, ThirdPartyRate> = {
   INSTAGRAM: { provider: 'apify', operation: 'instagram-scraper', usdPerUnit: 0.0027 },
   YOUTUBE: { provider: 'yt-dlp', operation: 'video-download', usdPerUnit: 0 },
-  FACEBOOK: { provider: 'meta', operation: 'content.acquire', usdPerUnit: 0 },
+  FACEBOOK: { provider: 'apify', operation: 'facebook-posts-scraper', usdPerUnit: 0.0025 },
   TIKTOK: { provider: 'tiktok', operation: 'content.acquire', usdPerUnit: 0 },
   GENERIC_WEB: { provider: 'http', operation: 'page-fetch', usdPerUnit: 0 },
+  PHOTO: { provider: 'upload', operation: 'photo-import', usdPerUnit: 0 },
 };
 
 function roundUsd(amount: number): number {

@@ -10,6 +10,8 @@ export interface ContentImage {
    * index are treated as recipe content and sent to OCR/vision; thumbnails/covers omit it.
    */
   slideIndex?: number;
+  /** The file is already in storage (uploaded photos); `url` is not fetched. */
+  storageKey?: string;
 }
 
 export interface ContentVideo {

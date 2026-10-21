@@ -19,6 +19,26 @@ export const createExtractionJobBodySchema = z
   })
   .strict();
 
+/** Base64 of a 10 MB photo is about 13.4 million characters. */
+const MAX_PHOTO_BASE64_CHARS = 14 * 1024 * 1024;
+
+export const createPhotoExtractionBodySchema = z
+  .object({
+    images: z
+      .array(
+        z
+          .object({
+            /** Base64 file contents; a `data:image/...;base64,` prefix is accepted. */
+            data: z.string().min(1).max(MAX_PHOTO_BASE64_CHARS),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(6),
+    outputLanguage: z.string().min(2).max(10).default('en'),
+  })
+  .strict();
+
 export const previewLinkBodySchema = z
   .object({
     url: z.url('url must be a valid URL'),
@@ -80,4 +100,5 @@ export const cancelJobResponseSchema = z.object({
 });
 
 export type CreateExtractionJobBody = z.infer<typeof createExtractionJobBodySchema>;
+export type CreatePhotoExtractionBody = z.infer<typeof createPhotoExtractionBodySchema>;
 export type PreviewLinkBody = z.infer<typeof previewLinkBodySchema>;

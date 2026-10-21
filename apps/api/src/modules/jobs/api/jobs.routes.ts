@@ -9,6 +9,7 @@ import { createJobsController } from './jobs.controller.js';
 import {
   cancelJobResponseSchema,
   createExtractionJobBodySchema,
+  createPhotoExtractionBodySchema,
   extractionJobResponseSchema,
   jobIdParamsSchema,
   jobListItemSchema,
@@ -17,6 +18,9 @@ import {
   listJobsQuerySchema,
   previewLinkBodySchema,
 } from './jobs.schema.js';
+
+/** Up to six photos of about 10 MB each, base64-encoded in a JSON body. */
+export const PHOTO_IMPORT_BODY_LIMIT_BYTES = 64 * 1024 * 1024;
 
 export interface JobsRoutesOptions {
   extractionJobService: ExtractionJobService;
@@ -51,6 +55,28 @@ export const jobsRoutes: FastifyPluginAsyncZod<JobsRoutesOptions> = async (app, 
       },
     },
     controller.createJob,
+  );
+
+  app.post(
+    '/recipes/extract/photos',
+    {
+      config: { rateLimit: extractRateLimit },
+      bodyLimit: PHOTO_IMPORT_BODY_LIMIT_BYTES,
+      schema: {
+        tags: ['extraction'],
+        summary: 'Create extraction job from photos',
+        description:
+          'Reads a recipe from photos of a cookbook page, recipe card or handwritten note. ' +
+          'Send 1 to 6 JPEG, PNG or WebP images (base64) in reading order. Always queues a new job; ' +
+          'poll `GET /recipes/extract/jobs/:id` like any other import.',
+        body: createPhotoExtractionBodySchema,
+        response: {
+          202: dataResponseSchema(extractionJobResponseSchema),
+          ...standardErrorResponses,
+        },
+      },
+    },
+    controller.createPhotoJob,
   );
 
   app.post(

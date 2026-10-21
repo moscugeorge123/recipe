@@ -39,6 +39,9 @@ export interface ProcessVideoResult {
 export interface PostImageInput {
   url: string;
   slideIndex: number;
+  /** Already stored (an uploaded photo): read it from storage instead of fetching `url`. */
+  storageKey?: string;
+  mimeType?: string;
 }
 
 export interface ProcessImagesInput {
@@ -182,13 +185,7 @@ export class MediaProcessingService {
           log,
           'media.download-image',
           { slideIndex: image.slideIndex },
-          () =>
-            downloadMedia(image.url, {
-              maxBytes: Math.min(this.config.extraction.maxMediaDownloadBytes, 25 * 1024 * 1024),
-              timeoutMs: 60_000,
-              acceptContentTypes: ['image/', 'application/octet-stream', 'binary/octet-stream'],
-              ...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
-            }),
+          () => this.loadImage(image),
         );
         const mimeType = downloaded.contentType.startsWith('image/')
           ? downloaded.contentType
@@ -202,7 +199,10 @@ export class MediaProcessingService {
           storageKey: key,
           mimeType,
           sizeBytes: BigInt(stored.sizeBytes),
-          metadata: { slideIndex: image.slideIndex, sourceUrl: image.url },
+          metadata: {
+            slideIndex: image.slideIndex,
+            ...(image.storageKey ? { uploadedKey: image.storageKey } : { sourceUrl: image.url }),
+          },
         });
         keys.push(key);
       } catch (error: unknown) {
@@ -214,6 +214,21 @@ export class MediaProcessingService {
     }
 
     return keys;
+  }
+
+  private async loadImage(image: PostImageInput): Promise<{ data: Buffer; contentType: string }> {
+    if (image.storageKey) {
+      return {
+        data: await this.storage.download(image.storageKey),
+        contentType: image.mimeType ?? 'image/jpeg',
+      };
+    }
+    return downloadMedia(image.url, {
+      maxBytes: Math.min(this.config.extraction.maxMediaDownloadBytes, 25 * 1024 * 1024),
+      timeoutMs: 60_000,
+      acceptContentTypes: ['image/', 'application/octet-stream', 'binary/octet-stream'],
+      ...(this.fetchImpl ? { fetchImpl: this.fetchImpl } : {}),
+    });
   }
 
   private async extractAudio(

@@ -47,7 +47,9 @@ import { ContentAcquisitionService } from '../../modules/content/application/con
 import type { ProviderChargeRecorder } from '../../modules/content/application/content-acquisition.service.js';
 import { DashboardService } from '../../modules/dashboard/application/dashboard.service.js';
 import { FakeContentProvider } from '../../modules/content/providers/fake/fake-content-provider.js';
+import { HttpApifyFacebookClient } from '../../modules/content/providers/facebook/apify-facebook-client.js';
 import { FacebookContentProvider } from '../../modules/content/providers/facebook/facebook-content-provider.js';
+import { PhotoContentProvider } from '../../modules/content/providers/photo/photo-content-provider.js';
 import { ApifyPageFetcher } from '../../modules/content/providers/generic/apify-page-fetcher.js';
 import { GenericWebContentProvider } from '../../modules/content/providers/generic/generic-web-content-provider.js';
 import { HttpApifyClient } from '../../modules/content/providers/instagram/apify-client.js';
@@ -193,8 +195,20 @@ export function createContentRegistry(appConfig: AppConfig): ContentProviderRegi
       probeThumbnails: true,
     }),
   );
-  registry.register(new FacebookContentProvider());
+  registry.register(
+    new FacebookContentProvider(
+      appConfig.providers.apifyApiToken
+        ? new HttpApifyFacebookClient(appConfig.providers.apifyApiToken)
+        : undefined,
+      new YtDlpClient(appConfig.providers.ytdlpPath),
+      {
+        maxVideos: appConfig.extraction.maxPostVideos,
+        maxDownloadBytes: appConfig.extraction.maxMediaDownloadBytes,
+      },
+    ),
+  );
   registry.register(new TikTokContentProvider());
+  registry.register(new PhotoContentProvider());
   registry.register(new FakeContentProvider());
   const { apifyApiToken, webBlockedFallback } = appConfig.providers;
   registry.register(
@@ -368,6 +382,7 @@ export function createContainer(options: CreateContainerOptions = {}): AppContai
     contentRegistry,
     queue,
     log,
+    storage,
   );
 
   const categoryService = new CategoryService(prisma);

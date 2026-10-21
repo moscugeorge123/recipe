@@ -3,6 +3,9 @@ import type { ExtractionJob, JobStatus, Prisma } from '@prisma/client';
 import type { AppLogger } from '../../../infrastructure/logging/logger.js';
 import { silentLogger } from '../../../infrastructure/logging/logger.js';
 import { assertSafeUrl } from '../../../infrastructure/security/ssrf-guard.js';
+import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
+import { AppError } from '../../../shared/errors/app-error.js';
+import { ErrorCode } from '../../../shared/errors/error-codes.js';
 import type { QueueProvider } from '../../../infrastructure/queues/bullmq/queue-provider.js';
 import {
   JobAlreadyCompletedError,
@@ -11,6 +14,13 @@ import {
 } from '../../../shared/errors/extraction-errors.js';
 import { hashUrl, legacyNormalizeUrl, normalizeUrl } from '../../../shared/utils/url.js';
 import type { ContentProviderRegistry } from '../../content/domain/types.js';
+import {
+  buildPhotoSourceUrl,
+  newPhotoImportId,
+  photoStorageKey,
+  sniffImageType,
+  type PhotoMimeType,
+} from '../../content/providers/photo/photo-source.js';
 import { DEFAULT_PROFILE_ID } from '../../profiles/domain/profile.js';
 import { parseJobOptions } from '../domain/job-options.js';
 import { JobStateMachine } from '../domain/job-state-machine.js';
@@ -31,6 +41,16 @@ export interface CreateExtractionJobInput {
   forceRefresh?: boolean;
   options?: Prisma.InputJsonValue;
 }
+
+export interface CreatePhotoJobInput {
+  /** Decoded image files, one per page, in reading order. */
+  images: Buffer[];
+  outputLanguage?: string;
+}
+
+/** Pages per photo import: a cookbook spread or a few cards, not a whole book. */
+export const MAX_PHOTO_PAGES = 6;
+export const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
 
 export interface CreateExtractionJobResult {
   jobId: string;
@@ -73,6 +93,7 @@ export class ExtractionJobService {
     private readonly registry: ContentProviderRegistry,
     private readonly queue: QueueProvider,
     private readonly log: AppLogger = silentLogger(),
+    private readonly storage?: StorageProvider,
   ) {}
 
   async createJob(
@@ -101,6 +122,81 @@ export class ExtractionJobService {
     } finally {
       this.inFlight.delete(key);
     }
+  }
+
+  /**
+   * Queues an import from photos of a cookbook page, recipe card or handwritten note. The pages
+   * are checked, stored, and read by the same pipeline as every other source. Each upload is its
+   * own import: photos are never de-duplicated against earlier ones.
+   */
+  async createPhotoJob(
+    userId: string,
+    input: CreatePhotoJobInput,
+  ): Promise<CreateExtractionJobResult> {
+    if (!this.storage) {
+      throw new AppError({
+        code: ErrorCode.SERVICE_UNAVAILABLE,
+        statusCode: 503,
+        message: 'Photo import is not available',
+      });
+    }
+    if (input.images.length === 0 || input.images.length > MAX_PHOTO_PAGES) {
+      throw new AppError({
+        code: ErrorCode.VALIDATION_ERROR,
+        statusCode: 400,
+        message: `Send between 1 and ${String(MAX_PHOTO_PAGES)} photos`,
+      });
+    }
+
+    const types: PhotoMimeType[] = [];
+    for (const [position, data] of input.images.entries()) {
+      if (data.byteLength > MAX_PHOTO_BYTES) {
+        throw new AppError({
+          code: ErrorCode.PAYLOAD_TOO_LARGE,
+          statusCode: 413,
+          message: `Photo ${String(position + 1)} is larger than ${String(MAX_PHOTO_BYTES / (1024 * 1024))} MB`,
+        });
+      }
+      const type = sniffImageType(data);
+      if (!type) {
+        throw new AppError({
+          code: ErrorCode.UNSUPPORTED_MEDIA_TYPE,
+          statusCode: 415,
+          message: `Photo ${String(position + 1)} must be a JPEG, PNG or WebP image`,
+        });
+      }
+      types.push(type);
+    }
+
+    const importId = newPhotoImportId();
+    const originalUrl = buildPhotoSourceUrl(importId, types);
+    for (const [position, data] of input.images.entries()) {
+      const type = types[position] as PhotoMimeType;
+      await this.storage.upload(photoStorageKey(importId, position + 1, type), data, {
+        contentType: type,
+      });
+    }
+
+    const normalizedUrl = originalUrl;
+    const source = await this.sourceRepo.findOrCreate({
+      sourceType: 'PHOTO',
+      originalUrl,
+      normalizedUrl,
+      urlHash: hashUrl(normalizedUrl),
+    });
+    const job = await this.jobRepo.create({
+      recipeSourceId: source.id,
+      requestedByUserId: userId,
+      outputLanguage: input.outputLanguage ?? 'en',
+      options: { extractImages: true },
+    });
+    await this.queue.enqueue(EXTRACTION_JOB_NAME, { jobId: job.id });
+    this.log.info(
+      { step: 'queue.enqueue', jobId: job.id, sourceType: 'PHOTO', pages: input.images.length },
+      'queue.enqueue completed',
+    );
+
+    return { jobId: job.id, status: 'queued' };
   }
 
   private async createJobFor(

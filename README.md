@@ -109,7 +109,8 @@ npm run e2e -w mobile
 
 ## Known limitations
 
-- Facebook and TikTok extraction remain stubs (`UNSUPPORTED_SOURCE`).
+- TikTok extraction remains a stub (`UNSUPPORTED_SOURCE`). Facebook import needs `APIFY_API_TOKEN` (posts and photos) and `yt-dlp` (reels and videos); only public posts can be read.
+- Photo import reads up to six JPEG, PNG or WebP pages per scan (cookbook pages, recipe cards, handwriting). It needs an OpenAI/DeepSeek key for OCR; without one the job fails visibly.
 - No login yet; all devices talking to one API share the singleton profile.
 - Recipe detail **Original source** is still a “coming soon” toast; revision history and edit work.
 - You → Cooking history is a prototype stub.

@@ -59,7 +59,16 @@ export function createMediaStageHandlers(
       const videos: ContentVideo[] =
         content?.videos ?? (content?.videoLocalPath ? [{ localPath: content.videoLocalPath }] : []);
       const slideImages = (content?.images ?? []).flatMap((image) =>
-        image.slideIndex !== undefined ? [{ url: image.url, slideIndex: image.slideIndex }] : [],
+        image.slideIndex !== undefined
+          ? [
+              {
+                url: image.url,
+                slideIndex: image.slideIndex,
+                ...(image.storageKey ? { storageKey: image.storageKey } : {}),
+                ...(image.mimeType ? { mimeType: image.mimeType } : {}),
+              },
+            ]
+          : [],
       );
 
       if (!deps.mediaProcessing || (videos.length === 0 && slideImages.length === 0)) {

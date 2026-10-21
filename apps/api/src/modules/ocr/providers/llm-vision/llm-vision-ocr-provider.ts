@@ -143,7 +143,8 @@ export class LLMVisionOCRProvider implements OCRProvider {
 }
 
 const OCR_SYSTEM_PROMPT = [
-  'Extract all readable text from this image (a recipe video frame, text overlay, or recipe card/slide).',
+  'Extract all readable text from this image (a recipe video frame, text overlay, recipe card/slide, or a photo of a cookbook page or handwritten recipe).',
+  'For handwriting, read each word carefully and give your best reading of unclear words instead of skipping them; leave out crossed-out text.',
   'Return the text exactly as shown, in reading order, preserving line breaks, list bullets, numbers, fractions and units (e.g. "1 ½ cups", "200 g", "350°F").',
   'Omit watermarks, usernames/handles, app UI chrome and like/share counters.',
   'Also return a confidence score between 0 and 1. If there is no readable text, return an empty string and confidence 0.',

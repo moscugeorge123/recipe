@@ -3,13 +3,21 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { dataResponse } from '../../../shared/http/response.js';
 import type { LinkPreviewService } from '../../content/preview/link-preview.service.js';
 import type { ExtractionJobService } from '../application/extraction-job.service.js';
-import type { CreateExtractionJobBody, PreviewLinkBody } from './jobs.schema.js';
+import type {
+  CreateExtractionJobBody,
+  CreatePhotoExtractionBody,
+  PreviewLinkBody,
+} from './jobs.schema.js';
 
 export function createJobsController(
   service: ExtractionJobService,
   linkPreviewService: LinkPreviewService,
 ): {
   createJob: (request: FastifyRequest<{ Body: CreateExtractionJobBody }>, reply: FastifyReply) => Promise<void>;
+  createPhotoJob: (
+    request: FastifyRequest<{ Body: CreatePhotoExtractionBody }>,
+    reply: FastifyReply,
+  ) => Promise<void>;
   previewLink: (request: FastifyRequest<{ Body: PreviewLinkBody }>, reply: FastifyReply) => Promise<void>;
   listJobs: (request: FastifyRequest<{ Querystring: { limit: number } }>, reply: FastifyReply) => Promise<void>;
   getJobStatus: (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => Promise<void>;
@@ -28,6 +36,21 @@ export function createJobsController(
         return;
       }
 
+      reply.status(202).send(dataResponse(result));
+    },
+
+    createPhotoJob: async (
+      request: FastifyRequest<{ Body: CreatePhotoExtractionBody }>,
+      reply: FastifyReply,
+    ): Promise<void> => {
+      request.log.info(
+        { step: 'http.extract.photos', pages: request.body.images.length },
+        'http.extract.photos started',
+      );
+      const result = await service.createPhotoJob(request.profile.userId, {
+        images: request.body.images.map((image) => decodeBase64Image(image.data)),
+        outputLanguage: request.body.outputLanguage,
+      });
       reply.status(202).send(dataResponse(result));
     },
 
@@ -95,4 +118,10 @@ export function createJobsController(
       );
     },
   };
+}
+
+/** Accepts raw base64 or a `data:` URL, as a camera or photo picker may hand over either. */
+function decodeBase64Image(value: string): Buffer {
+  const comma = value.startsWith('data:') ? value.indexOf(',') : -1;
+  return Buffer.from(comma >= 0 ? value.slice(comma + 1) : value, 'base64');
 }

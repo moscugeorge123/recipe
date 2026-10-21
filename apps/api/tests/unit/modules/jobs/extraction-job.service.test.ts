@@ -77,13 +77,22 @@ function makeFakes() {
 
   const queue = { enqueue: vi.fn(async () => undefined) };
   const registry = { detectSourceType: vi.fn(() => 'GENERIC_WEB') };
+  const uploads = new Map<string, Buffer>();
+  const storage = {
+    upload: vi.fn(async (key: string, data: Buffer) => {
+      uploads.set(key, data);
+      return { key, sizeBytes: data.byteLength, contentType: 'image/jpeg' };
+    }),
+  };
   const service = new ExtractionJobService(
     jobRepo,
     sourceRepo,
     registry as never,
     queue as never,
+    undefined,
+    storage as never,
   );
-  return { service, sources, jobs, sourceRepo, jobRepo, queue };
+  return { service, sources, jobs, sourceRepo, jobRepo, queue, uploads };
 }
 
 describe('ExtractionJobService.createJob', () => {
@@ -168,5 +177,63 @@ describe('ExtractionJobService.createJob', () => {
     const res = await f.service.createJob('u1', { url });
     expect(res).toMatchObject({ jobId: 'job-old', recipeId: 'recipe-old', deduplicated: true });
     expect(f.sources).toHaveLength(1);
+  });
+});
+
+const JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3]);
+const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2]);
+
+describe('ExtractionJobService.createPhotoJob', () => {
+  let f: ReturnType<typeof makeFakes>;
+  beforeEach(() => {
+    f = makeFakes();
+  });
+
+  it('stores the pages, creates a PHOTO source and queues a job', async () => {
+    const res = await f.service.createPhotoJob('u1', { images: [JPEG, PNG], outputLanguage: 'ro' });
+
+    expect(res).toEqual({ jobId: 'job-1', status: 'queued' });
+    expect(f.sources).toHaveLength(1);
+    expect(f.sources[0]).toMatchObject({ sourceType: 'PHOTO' });
+    expect(f.sources[0]?.originalUrl).toMatch(/^photo:\/\/[0-9a-f-]{36}\?pages=jpg,png$/);
+    expect([...f.uploads.keys()].map((key) => key.replace(/[0-9a-f-]{36}/, 'ID'))).toEqual([
+      'photo-imports/ID/01.jpg',
+      'photo-imports/ID/02.png',
+    ]);
+    expect(f.jobs[0]).toMatchObject({ requestedByUserId: 'u1' });
+    expect(f.jobRepo.create).toHaveBeenCalledWith(expect.objectContaining({ outputLanguage: 'ro' }));
+    expect(f.queue.enqueue).toHaveBeenCalledWith('extract', { jobId: 'job-1' });
+  });
+
+  it('never de-duplicates: the same photo twice is two imports', async () => {
+    const a = await f.service.createPhotoJob('u1', { images: [JPEG] });
+    const b = await f.service.createPhotoJob('u1', { images: [JPEG] });
+    expect(b.jobId).not.toBe(a.jobId);
+    expect(f.sources).toHaveLength(2);
+  });
+
+  it('rejects files that are not JPEG, PNG or WebP, whatever the client says', async () => {
+    await expect(
+      f.service.createPhotoJob('u1', { images: [Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"/>')] }),
+    ).rejects.toMatchObject({ statusCode: 415 });
+    expect(f.uploads.size).toBe(0);
+    expect(f.queue.enqueue).not.toHaveBeenCalled();
+  });
+
+  it('rejects an empty upload, too many pages and oversized photos', async () => {
+    await expect(f.service.createPhotoJob('u1', { images: [] })).rejects.toMatchObject({ statusCode: 400 });
+    await expect(
+      f.service.createPhotoJob('u1', { images: Array.from({ length: 7 }, () => JPEG) }),
+    ).rejects.toMatchObject({ statusCode: 400 });
+    const huge = Buffer.concat([JPEG, Buffer.alloc(10 * 1024 * 1024)]);
+    await expect(f.service.createPhotoJob('u1', { images: [huge] })).rejects.toMatchObject({
+      statusCode: 413,
+    });
+    expect(f.uploads.size).toBe(0);
+  });
+
+  it('is unavailable without storage', async () => {
+    const service = new ExtractionJobService(f.jobRepo, f.sourceRepo, {} as never, f.queue as never);
+    await expect(service.createPhotoJob('u1', { images: [JPEG] })).rejects.toMatchObject({ statusCode: 503 });
   });
 });
