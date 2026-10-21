@@ -1032,14 +1032,25 @@ export function RecipeEditor() {
                 .map((t, j) => (ks.some((k) => hasKey(t, k)) ? j + 1 : 0))
                 .filter(Boolean);
               const L = lexOf(nm);
+              // Untouched rows keep the recipe's own emoji/tint, as on the detail screen.
+              const orig =
+                x.src != null &&
+                r &&
+                ed0.ings.some((o) => o.k === x.k && o.txt === x.txt)
+                  ? r.ings[x.src]
+                  : undefined;
               return (
                 <IngRow
                   key={x.k}
                   k={x.k}
                   j={i}
                   txt={x.txt}
-                  emo={empty ? '' : L ? L[1] : '🍽️'}
-                  tile={empty ? C.surface2 : tint(AHUE[L ? L[2] : 5]!)}
+                  emo={empty ? '' : (orig?.emo ?? (L ? L[1] : '🍽️'))}
+                  tile={
+                    empty
+                      ? C.surface2
+                      : (orig?.tint ?? tint(AHUE[L ? L[2] : 5]!))
+                  }
                   qty={
                     empty
                       ? 'New ingredient'

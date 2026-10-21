@@ -594,14 +594,12 @@ export function NotesEmpty() {
     <View
       style={{
         flexDirection: 'row',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         gap: 12,
         paddingVertical: 12,
       }}
     >
-      <View style={{ height: 21, justifyContent: 'center' }}>
-        <Glyph name={NOTES_EMPTY_ICON} size={24} color={C.green} />
-      </View>
+      <Glyph name={NOTES_EMPTY_ICON} size={32} color={C.green} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <T style={sans(15, 600, C.ink, { lineHeight: 21 })}>No notes yet</T>
         <T style={sans(13, 400, C.ink2, { lineHeight: 19, marginTop: 2 })}>
