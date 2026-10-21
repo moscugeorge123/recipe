@@ -69,6 +69,7 @@ def build(src, fill, dest, names):
     sub = Subsetter(opts)
     sub.populate(unicodes=[ord(c) for c in CHARS])
     sub.subset(font)
+    font.flavor = None  # a woff2 source would otherwise save woff2 bytes under a .ttf name
     font.save(dest)
     print(dest.name, dest.stat().st_size, "bytes,", len(wanted), "icons")
 
