@@ -19,6 +19,7 @@ import { hapticLight } from '@/lib/haptics';
 import { isOfflineError } from '@/lib/network';
 import { enqueueIdempotent, useKitchenStore } from '@/stores/kitchen-store';
 import { useUiStore } from '@/stores/ui-store';
+import { tNow } from '@/i18n/format';
 
 function applyEngagement(
   client: QueryClient,
@@ -115,8 +116,8 @@ export function useRecipeFavorite(recipe: RecipeView | undefined) {
         enqueueIdempotent(next ? 'favorite.put' : 'favorite.delete', recipe.id);
         showToast({
           text: next
-            ? 'Saved on this device. We’ll sync when you’re back online.'
-            : 'Removed here. We’ll sync when you’re back online.',
+            ? tNow('engage.savedOffline')
+            : tNow('engage.removedOffline'),
           glyph: next ? '♥' : '·',
         });
         return;
@@ -128,7 +129,7 @@ export function useRecipeFavorite(recipe: RecipeView | undefined) {
         );
       }
       showToast({
-        text: 'Couldn’t update your heart. Try again.',
+        text: tNow('engage.heartFailed'),
         glyph: '♡',
       });
     },
@@ -137,7 +138,9 @@ export function useRecipeFavorite(recipe: RecipeView | undefined) {
         applyEngagement(client, engagement);
       }
       showToast({
-        text: next ? 'Saved to your kitchen' : 'Removed from your kitchen',
+        text: next
+          ? tNow('engage.savedToKitchen')
+          : tNow('engage.removedFromKitchen'),
         glyph: next ? '♥' : '·',
       });
     },
@@ -164,7 +167,9 @@ export function useRecipeFavorite(recipe: RecipeView | undefined) {
       }
       toggleSaved(recipe.id);
       showToast({
-        text: next ? 'Saved to your kitchen' : 'Removed from your kitchen',
+        text: next
+          ? tNow('engage.savedToKitchen')
+          : tNow('engage.removedFromKitchen'),
         glyph: next ? '♥' : '·',
       });
       pending.current = false;
@@ -221,7 +226,7 @@ export function useRecipeRating(recipe: RecipeView | undefined) {
     onError: (error, _next, context) => {
       if (isOfflineError(error) && recipe && isMigratableRecipeId(recipe.id)) {
         showToast({
-          text: 'Stars saved on this device. We’ll sync when you’re back online.',
+          text: tNow('engage.starsOffline'),
           glyph: '☆',
         });
         return;
@@ -233,7 +238,7 @@ export function useRecipeRating(recipe: RecipeView | undefined) {
         );
       }
       showToast({
-        text: 'Couldn’t save your stars. Try again.',
+        text: tNow('engage.starsFailed'),
         glyph: '☆',
       });
     },

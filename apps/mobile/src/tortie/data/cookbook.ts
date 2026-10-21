@@ -18,15 +18,16 @@ import {
 } from '@/tortie/data/recipes';
 import { plz, splitEmoji } from '@/tortie/lib/fmt';
 import { useNav } from '@/tortie/nav-store';
+import { lazyAt, tNow } from '@/i18n/format';
 
 export type QuickFilter = 'all' | 'quick' | 'veg' | 'sea' | 'slow' | 'bake';
 export const FILTERS: [QuickFilter, string][] = [
-  ['all', 'All'],
-  ['quick', 'Under 30 min'],
-  ['veg', 'Vegetarian'],
-  ['sea', 'Seafood'],
-  ['slow', 'Slow & weekend'],
-  ['bake', 'Baking'],
+  lazyAt(['all', 'All'], 1, 'filter.all'),
+  lazyAt(['quick', 'Under 30 min'], 1, 'filter.quick'),
+  lazyAt(['veg', 'Vegetarian'], 1, 'filter.veg'),
+  lazyAt(['sea', 'Seafood'], 1, 'filter.sea'),
+  lazyAt(['slow', 'Slow & weekend'], 1, 'filter.slow'),
+  lazyAt(['bake', 'Baking'], 1, 'filter.bake'),
 ];
 
 export type RecipeSortKey = 'recent' | 'az' | 'quick' | 'cooked';
@@ -347,10 +348,14 @@ export function useCookbookView() {
         count,
         view: c,
         meta:
-          (count ? plz(count, 'recipe') : 'Empty') +
+          (count ? plz(count, 'recipe') : tNow('cookbook.emptyMeta')) +
           (cf.sort === 'updated'
             ? ' · ' +
-              (up === 0 ? 'today' : up === 1 ? 'yesterday' : up + ' days ago')
+              (up === 0
+                ? tNow('time.today')
+                : up === 1
+                  ? tNow('time.yesterday')
+                  : tNow('time.daysAgo', { n: up }))
             : ''),
         tiles: [0, 1, 2, 3].map((j) => {
           const rid = c.recipeIds[j];

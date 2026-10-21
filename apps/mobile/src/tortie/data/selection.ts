@@ -2,6 +2,7 @@ import type { ShoppingListWriteItem } from '@/features/shopping-list/types';
 import { isOneEmoji } from '@/features/recipes/emoji';
 import { isGroceryCategory } from '@/features/shopping-list/aisle';
 import { lexOf } from '@/tortie/lib/fmt';
+import { tNow } from '@/i18n/format';
 
 /**
  * Cookbook multi-select (handoff §2). `null` means the mode is off.
@@ -152,7 +153,8 @@ export function groceryPickGroups(
 
 /** The recipe's own emoji (🥣 is the generic placeholder), then the name lexicon, then a cart. */
 export function lineEmoji(line: GroceryPickLine): string {
-  if (line.emoji && line.emoji !== '🥣' && isOneEmoji(line.emoji)) return line.emoji;
+  if (line.emoji && line.emoji !== '🥣' && isOneEmoji(line.emoji))
+    return line.emoji;
   return lexOf(line.name)?.[1] ?? '🛒';
 }
 
@@ -202,9 +204,13 @@ export function bulkGroceryAdds(
 
 /** Handoff §5.3. `n` is the number of selected recipes. */
 export function shareSelectionToast(n: number): string {
-  return n > 1 ? `Links to ${n} recipes copied` : 'Link copied';
+  return n > 1
+    ? tNow('selection.linksCopied', { n })
+    : tNow('detail.linkCopied');
 }
 
 export function grocerySelectionToast(added: number): string {
-  return added ? `${added} items added to groceries` : 'Already on your list';
+  return added
+    ? tNow('selection.itemsAdded', { n: added })
+    : tNow('selection.alreadyOnList');
 }

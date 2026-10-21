@@ -15,6 +15,7 @@ import type { RecipeView } from '@/features/recipes/types';
 import { isOfflineError } from '@/lib/network';
 import { enqueueIdempotent } from '@/stores/kitchen-store';
 import { toast, useNav } from '@/tortie/nav-store';
+import { tNow } from '@/i18n/format';
 
 function patchFavorite(client: QueryClient, id: string, isFavorite: boolean) {
   client.setQueryData<RecipeView>(recipeKeys.detail(id), (cur) =>
@@ -52,7 +53,7 @@ export function useToggleSave() {
         return;
       }
       patchFavorite(client, id, !next);
-      toast('Couldn’t update Saved. Try again.');
+      toast(tNow('saved.couldntUpdateSavedTry'));
     },
     onSettled: (_d, error) => {
       if (error && isOfflineError(error)) return;
@@ -66,7 +67,7 @@ export function useToggleSave() {
       const s = useNav.getState();
       if (!(s.tab === 'cookbook' && !s.detailOpen))
         toast(
-          next ? 'Saved · find it in Cookbook › Saved' : 'Removed from Saved',
+          next ? tNow('saved.savedFindItIn') : tNow('saved.removedFromSaved'),
         );
       mutate({ id, next });
     },

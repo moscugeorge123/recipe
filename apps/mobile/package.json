@@ -93,6 +93,8 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "expo lint",
+    "i18n:audit": "node scripts/i18n-audit.mjs",
+    "i18n:check": "node scripts/i18n-audit.mjs --check",
     "lint:fix": "expo lint --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

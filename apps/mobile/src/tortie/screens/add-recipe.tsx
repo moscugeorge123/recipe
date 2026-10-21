@@ -25,9 +25,11 @@ import { Input, RevealBox } from '@/tortie/ui/input';
 import { Press } from '@/tortie/ui/press';
 import { Sheet } from '@/tortie/ui/sheet';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { lazyHeader, tNow } from '@/i18n/format';
 
 type Plat = { k: Brand; n: string; re: RegExp };
-type Found = Plat | { k: 'web'; n: 'Website' };
+type Found = Plat | { k: 'web'; n: string };
 
 /** The same platform list the share screen uses, so both recognise the same links. */
 const PLATS: Plat[] = PLATFORMS.map((p) => ({
@@ -48,7 +50,7 @@ function platOf(raw: string | null | undefined): Found | null {
   const p = PLATS.find((x) => x.re.test(u));
   if (p) return p;
   return /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/|$)/i.test(u)
-    ? { k: 'web', n: 'Website' }
+    ? { k: 'web', n: tNow('tag.Website') }
     : null;
 }
 
@@ -60,13 +62,14 @@ const withScheme = (u: string) =>
 
 /** Sheet title and subtitle per step: idle · importing · done · failed. */
 const HEADER: Record<0 | 1 | 2 | 3, readonly [string, string]> = {
-  0: ['Add a recipe', 'From a link, a photo, or from scratch.'],
-  1: ['Add a recipe', 'From a link, a photo, or from scratch.'],
-  2: ['Recipe imported', 'Tap it to open, or import another.'],
-  3: ['Import failed', 'Nothing was added to your Cookbook.'],
+  0: lazyHeader('add.headerTitle', 'add.headerSub'),
+  1: lazyHeader('add.headerTitle', 'add.headerSub'),
+  2: lazyHeader('add.importedTitle', 'add.importedSub'),
+  3: lazyHeader('add.failedTitle', 'add.failedSub'),
 };
 
 export function AddRecipeSheet() {
+  const tr = useT();
   const f = useFrame();
   const open = useNav((s) => s.addSheet);
   const cam = useNav((s) => s.cam);
@@ -91,8 +94,8 @@ export function AddRecipeSheet() {
   const head =
     imp === 2 && job?.duplicate
       ? ([
-          'Already in your cookbook',
-          'Tap it to open, or import another.',
+          tNow('common.alreadyInYourCookbook'),
+          tNow('add.importedSub'),
         ] as const)
       : HEADER[imp];
 
@@ -201,18 +204,17 @@ export function AddRecipeSheet() {
   const brand = pl && pl.k !== 'web' ? pl.k : null;
   const bd = pl ? (brand ? BRAND_COLOR[brand] + '80' : '#32533c80') : C.line;
   const hint = blockedPlat
-    ? blockedPlat.n +
-      ' links can’t be imported yet. Try the creator’s recipe page.'
+    ? tNow('add.blockedLinks', { name: blockedPlat.n })
     : pl
       ? pl.k === 'web'
-        ? 'Recipe site detected'
-        : pl.n + ' detected'
-      : 'Works with recipe sites and';
+        ? tNow('add.recipeSiteDetected')
+        : tNow('add.detected', { name: pl.n })
+      : tNow('add.worksWith');
   const cta = blocked
-    ? 'Not supported yet'
+    ? tNow('share.notSupportedYet')
     : brand
-      ? 'Import from ' + pl!.n
-      : 'Import recipe';
+      ? tNow('add.importFrom', { name: pl!.n })
+      : tNow('add.importRecipe');
   const field = useAnimatedStyle(() => ({
     borderColor: tw(bd, 250, CSS_EASE),
   }));
@@ -270,7 +272,7 @@ export function AddRecipeSheet() {
                 value={url}
                 onChangeText={setUrl}
                 onSubmitEditing={() => startImportFor()}
-                placeholder="Paste a recipe link"
+                placeholder={tr('add.pasteARecipeLink')}
                 placeholderTextColor={C.ink3}
                 inputMode="url"
                 keyboardType="url"
@@ -287,7 +289,7 @@ export function AddRecipeSheet() {
               {url ? (
                 <Press
                   onPress={() => setUrl('')}
-                  accessibilityLabel="Clear link"
+                  accessibilityLabel={tr('add.clearLink')}
                   style={{
                     width: 32,
                     height: 32,
@@ -353,7 +355,7 @@ export function AddRecipeSheet() {
             }}
           >
             <View style={{ flex: 1, height: 1, backgroundColor: C.line }} />
-            <T style={sans(12, 600, '#727971')}>or</T>
+            <T style={sans(12, 600, '#727971')}>{tNow('common.or')}</T>
             <View style={{ flex: 1, height: 1, backgroundColor: C.line }} />
           </View>
           <View
@@ -367,8 +369,8 @@ export function AddRecipeSheet() {
           >
             <OptionRow
               icon="photo_camera"
-              title="Scan a page"
-              sub="Cookbook or handwritten card"
+              title={tr('common.scanAPage')}
+              sub={tr('add.cookbookOrHandwrittenCard')}
               onPress={() => useNav.getState().openCam()}
             />
             <View
@@ -376,8 +378,8 @@ export function AddRecipeSheet() {
             />
             <OptionRow
               icon="edit"
-              title="Write it yourself"
-              sub="Blank page — Tortie can draft it with you"
+              title={tr('add.writeItYourself')}
+              sub={tr('add.blankPageTortieCan')}
               onPress={() => useNav.getState().openNewRecipe()}
             />
           </View>
@@ -402,9 +404,9 @@ export function AddRecipeSheet() {
               )}
               <View style={{ flex: 1, minWidth: 0 }}>
                 <T style={sans(13, 700, C.green)}>
-                  {'Detected ' +
-                    (cp.k === 'web' ? 'recipe site' : cp.n) +
-                    ' link'}
+                  {tNow('add.detectedLink', {
+                    source: cp.k === 'web' ? tNow('add.recipeSite') : cp.n,
+                  })}
                 </T>
                 <T
                   numberOfLines={1}
@@ -426,7 +428,7 @@ export function AddRecipeSheet() {
                   justifyContent: 'center',
                 }}
               >
-                <T style={sans(13, 700, C.bg)}>Import</T>
+                <T style={sans(13, 700, C.bg)}>{tr('add.import')}</T>
               </Press>
             </View>
           ) : null}
@@ -441,7 +443,7 @@ export function AddRecipeSheet() {
           url={job.url}
           title={preview.data?.title?.trim() || null}
           thumb={previewThumb}
-          hint="Keep browsing — it’ll finish in the background"
+          hint={tr('add.keepBrowsingItllFinish')}
         />
       ) : null}
 
@@ -450,7 +452,7 @@ export function AddRecipeSheet() {
           onPress={importAnother}
           scale={0.97}
           easing={CSS_EASE}
-          accessibilityLabel="Import another recipe"
+          accessibilityLabel={tr('common.importAnotherRecipe')}
           style={{
             height: 50,
             marginTop: 14,
@@ -465,7 +467,7 @@ export function AddRecipeSheet() {
           }}
         >
           <Glyph name="add_link" size={20} color={C.green} />
-          <T style={sans(15, 600)}>Import another recipe</T>
+          <T style={sans(15, 600)}>{tr('common.importAnotherRecipe')}</T>
         </Press>
       ) : null}
 
@@ -564,13 +566,16 @@ function OptionRow({
 
 /** Header button: opens the Imports screen; the badge counts running imports. */
 function ImportsButton({ running }: { running: number }) {
+  const tr = useT();
   return (
     <Press
       onPress={() => useNav.getState().openImports()}
       scale={0.95}
       easing={CSS_EASE}
       accessibilityLabel={
-        running ? `Imports, ${running} in progress` : 'Imports'
+        running
+          ? tNow('add.importsInProgress', { n: running })
+          : tr('common.imports')
       }
       style={{
         flexShrink: 0,
@@ -587,7 +592,7 @@ function ImportsButton({ running }: { running: number }) {
       }}
     >
       <Glyph name="history" size={18} color={C.ink2} />
-      <T style={sans(13, 600)}>Imports</T>
+      <T style={sans(13, 600)}>{tr('common.imports')}</T>
       {running ? (
         <View
           style={{

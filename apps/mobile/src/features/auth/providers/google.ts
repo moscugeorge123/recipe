@@ -2,6 +2,7 @@ import { GoogleAuthProvider, type AuthCredential } from 'firebase/auth';
 
 import { getGoogleWebClientId } from '@/constants/env';
 import { AuthError } from '@/features/auth/errors';
+import { tNow } from '@/i18n/format';
 
 type GoogleSigninModule =
   typeof import('@react-native-google-signin/google-signin');
@@ -52,7 +53,7 @@ export async function getGoogleCredential(): Promise<AuthCredential> {
     }
     throw new AuthError({
       kind: 'error',
-      message: 'Google sign-in failed. Try again.',
+      message: tNow('auth.errProviderFailed', { provider: 'Google' }),
     });
   }
   const {
@@ -71,7 +72,7 @@ export async function getGoogleCredential(): Promise<AuthCredential> {
     if (!isSuccessResponse(response) || !response.data.idToken) {
       throw new AuthError({
         kind: 'error',
-        message: 'Google did not return a sign-in token. Try again.',
+        message: tNow('auth.errProviderToken', { provider: 'Google' }),
       });
     }
     return GoogleAuthProvider.credential(response.data.idToken);
@@ -86,20 +87,18 @@ export async function getGoogleCredential(): Promise<AuthCredential> {
         case statusCodes.IN_PROGRESS:
           throw new AuthError({
             kind: 'error',
-            message:
-              'Google sign-in is already open. Finish it or close it, then try again.',
+            message: tNow('auth.errGoogleInProgress'),
           });
         case statusCodes.PLAY_SERVICES_NOT_AVAILABLE:
           throw new AuthError({
             kind: 'error',
-            message:
-              'Google Play services is missing or out of date on this device.',
+            message: tNow('auth.errPlayServices'),
           });
       }
     }
     throw new AuthError({
       kind: 'error',
-      message: 'Google sign-in failed. Try again.',
+      message: tNow('auth.errProviderFailed', { provider: 'Google' }),
     });
   }
 }

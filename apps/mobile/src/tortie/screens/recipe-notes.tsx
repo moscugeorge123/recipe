@@ -39,6 +39,8 @@ import { Input, RevealBox } from '@/tortie/ui/input';
 import { Press } from '@/tortie/ui/press';
 import { Sheet } from '@/tortie/ui/sheet';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tNow } from '@/i18n/format';
 
 const EMPTY: RecipeNoteDto[] = [];
 
@@ -68,6 +70,7 @@ export function NotesRow({
   notes: readonly RecipeNoteDto[];
   onPress: () => void;
 }) {
+  const tr = useT();
   const count = notes.length;
   const preview = notePreview(notes);
   return (
@@ -77,7 +80,9 @@ export function NotesRow({
       easing={CSS_EASE}
       accessibilityRole="button"
       accessibilityLabel={
-        count ? `Notes, ${count}. Open notes` : 'Notes. Add a note'
+        count
+          ? tNow('notes.notesCount', { n: count })
+          : tr('notes.notesAddANote')
       }
       style={{
         flexDirection: 'row',
@@ -104,7 +109,7 @@ export function NotesRow({
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <T style={sans(15, 700, C.ink)}>Notes</T>
+          <T style={sans(15, 700, C.ink)}>{tr('notes.notes')}</T>
           {count ? (
             <View
               style={{
@@ -127,7 +132,7 @@ export function NotesRow({
           numberOfLines={1}
           style={sans(13, 400, preview ? C.ink2 : C.ink3, { marginTop: 2 })}
         >
-          {preview || 'Add tweaks, swaps and reminders'}
+          {preview || tr('notes.addTweaksSwapsAnd')}
         </T>
       </View>
       <Glyph name={count ? 'chevron_right' : 'add'} size={22} color={C.ink3} />
@@ -154,6 +159,7 @@ export function StepNotes({
   /** Cook mode sizing. */
   large?: boolean;
 }) {
+  const tr = useT();
   const [open, setOpen] = useState(false);
   const [clipped, setClipped] = useState(false);
   const ordered = useMemo(() => orderNotes(notes), [notes]);
@@ -168,7 +174,7 @@ export function StepNotes({
         onPress={onAdd}
         scale={0.96}
         easing={CSS_EASE}
-        accessibilityLabel="Add note"
+        accessibilityLabel={tr('notes.addNote')}
         style={{
           alignSelf: 'flex-start',
           flexDirection: 'row',
@@ -179,7 +185,7 @@ export function StepNotes({
         }}
       >
         <Glyph name="add" size={large ? 18 : 16} color={C.green} />
-        <T style={link}>Add note</T>
+        <T style={link}>{tr('notes.addNote')}</T>
       </Press>
     );
   }
@@ -203,7 +209,7 @@ export function StepNotes({
             textTransform: 'uppercase',
           })}
         >
-          {label ?? 'Your notes'}
+          {label ?? tr('notes.yourNotes')}
         </T>
       </View>
       {open ? (
@@ -244,10 +250,10 @@ export function StepNotes({
           >
             <T style={link}>
               {open
-                ? 'Show less'
+                ? tr('common.showLess')
                 : ordered.length > 1
-                  ? `Show all ${ordered.length}`
-                  : 'Show more'}
+                  ? tNow('notes.showAllN', { n: ordered.length })
+                  : tr('common.showMore')}
             </T>
           </Press>
         ) : (
@@ -258,11 +264,11 @@ export function StepNotes({
           scale={0.96}
           easing={CSS_EASE}
           hitSlop={8}
-          accessibilityLabel="Add note"
+          accessibilityLabel={tr('notes.addNote')}
           style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}
         >
           <Glyph name="add" size={large ? 18 : 16} color={C.green} />
-          <T style={link}>Add</T>
+          <T style={link}>{tr('common.add')}</T>
         </Press>
       </View>
     </View>
@@ -274,6 +280,7 @@ export function StepNotes({
 type WebKeyEvent = TextInputKeyPressEventData & { shiftKey?: boolean };
 
 export function RecipeNotesSheet() {
+  const tr = useT();
   const f = useFrame();
   const open = useNav((s) => s.notesOn);
   const id = useNav((s) => s.notesId);
@@ -367,15 +374,15 @@ export function RecipeNotesSheet() {
       if (editing) {
         await api.update.mutateAsync({ noteId: editing.id, body, stepIndex });
         finishEdit();
-        toast('Note updated');
+        toast(tr('notes.noteUpdated'));
       } else {
         await api.create.mutateAsync({ body, stepIndex });
         setText('');
         void clearNoteDraft(id);
-        toast('Note added');
+        toast(tr('notes.noteAdded'));
       }
     } catch {
-      toast('Couldn’t save that note. Try again.', 'error');
+      toast(tr('notes.couldntSaveThatNote'), 'error');
     }
   };
 
@@ -384,9 +391,9 @@ export function RecipeNotesSheet() {
     if (editing?.id === n.id) finishEdit();
     try {
       await api.remove.mutateAsync({ noteId: n.id, confirmed: true });
-      toast('Note deleted');
+      toast(tr('notes.noteDeleted'));
     } catch {
-      toast('Couldn’t delete that note. Try again.', 'error');
+      toast(tr('notes.couldntDeleteThatNote'), 'error');
     }
   };
 
@@ -422,15 +429,15 @@ export function RecipeNotesSheet() {
         >
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
             <Glyph name="edit" size={16} color={C.terra} />
-            <T style={sans(13, 700, C.terra)}>Editing note</T>
+            <T style={sans(13, 700, C.terra)}>{tr('notes.editingNote')}</T>
           </View>
           <Press
             onPress={finishEdit}
             scale={0.96}
             hitSlop={8}
-            accessibilityLabel="Cancel editing"
+            accessibilityLabel={tr('notes.cancelEditing')}
           >
-            <T style={sans(13, 700, C.ink2)}>Cancel</T>
+            <T style={sans(13, 700, C.ink2)}>{tr('auth.cancel')}</T>
           </Press>
         </View>
       ) : null}
@@ -444,7 +451,7 @@ export function RecipeNotesSheet() {
         contentContainerStyle={{ gap: 8 }}
       >
         <Pill
-          label="General"
+          label={tr('notes.general')}
           on={sameTarget(target, GENERAL)}
           height={34}
           size={13}
@@ -453,7 +460,7 @@ export function RecipeNotesSheet() {
         {Array.from({ length: stepCount }, (_, i) => (
           <Pill
             key={i}
-            label={`Step ${i + 1}`}
+            label={tNow('common.stepN', { n: i + 1 })}
             on={sameTarget(target, stepTarget(i))}
             height={34}
             size={13}
@@ -486,8 +493,8 @@ export function RecipeNotesSheet() {
           maxLength={4000}
           placeholder={
             target.kind === 'step'
-              ? `A note for step ${target.index + 1}…`
-              : 'A note for this recipe…'
+              ? tNow('notes.aNoteForStep', { n: target.index + 1 })
+              : tr('notes.aNoteForThis')
           }
           placeholderTextColor={C.ink3}
           allowFontScaling={false}
@@ -513,7 +520,9 @@ export function RecipeNotesSheet() {
           disabled={!has || busy}
           scale={0.9}
           easing={CSS_EASE}
-          accessibilityLabel={editing ? 'Save note' : 'Add note'}
+          accessibilityLabel={
+            editing ? tr('notes.saveNote') : tr('notes.addNote')
+          }
           style={{
             width: 40,
             height: 40,
@@ -547,7 +556,7 @@ export function RecipeNotesSheet() {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <T style={serif(26, 500, C.ink, { letterSpacing: em(26, -0.01) })}>
-            Notes
+            {tr('notes.notes')}
           </T>
           <T numberOfLines={1} style={sans(13, 400, C.ink2, { marginTop: 2 })}>
             {r?.title ?? ''}
@@ -559,7 +568,7 @@ export function RecipeNotesSheet() {
 
       {!syncable ? (
         <T style={sans(14, 400, C.ink2, { marginTop: 24, lineHeight: 21 })}>
-          Notes are available once this recipe is saved to your account.
+          {tr('notes.notesAreAvailableOnce')}
         </T>
       ) : (
         <>
@@ -590,6 +599,7 @@ export function RecipeNotesSheet() {
 
 /** Left-aligned empty row: icon beside the text, no card, so the composer above stays in view. */
 export function NotesEmpty() {
+  const tr = useT();
   return (
     <View
       style={{
@@ -601,10 +611,11 @@ export function NotesEmpty() {
     >
       <Glyph name={NOTES_EMPTY_ICON} size={32} color={C.green} />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <T style={sans(15, 600, C.ink, { lineHeight: 21 })}>No notes yet</T>
+        <T style={sans(15, 600, C.ink, { lineHeight: 21 })}>
+          {tr('notes.noNotesYet')}
+        </T>
         <T style={sans(13, 400, C.ink2, { lineHeight: 19, marginTop: 2 })}>
-          Jot down tweaks, swaps or what the table said. They’ll be here next
-          time you cook it.
+          {tr('notes.jotDownTweaksSwaps')}
         </T>
       </View>
     </View>
@@ -633,6 +644,7 @@ function NoteItem({
   onCancelDelete: () => void;
   onDelete: () => void;
 }) {
+  const tr = useT();
   return (
     <View
       style={{
@@ -653,14 +665,24 @@ function NoteItem({
               borderRadius: 99,
             }}
           >
-            <T style={sans(11, 700, C.terraInk)}>{`Step ${step + 1}`}</T>
+            <T style={sans(11, 700, C.terraInk)}>
+              {tNow('common.stepN', { n: step + 1 })}
+            </T>
           </View>
         ) : null}
         <View style={{ flex: 1 }} />
         {!confirming ? (
           <>
-            <IconBtn icon="edit" label="Edit note" onPress={onEdit} />
-            <IconBtn icon="delete" label="Delete note" onPress={onAskDelete} />
+            <IconBtn
+              icon="edit"
+              label={tr('notes.editNote')}
+              onPress={onEdit}
+            />
+            <IconBtn
+              icon="delete"
+              label={tr('notes.deleteNote')}
+              onPress={onAskDelete}
+            />
           </>
         ) : null}
       </View>
@@ -676,7 +698,9 @@ function NoteItem({
             marginTop: 10,
           }}
         >
-          <T style={sans(13, 600, C.ink2, { flex: 1 })}>Delete this note?</T>
+          <T style={sans(13, 600, C.ink2, { flex: 1 })}>
+            {tr('notes.deleteThisNote')}
+          </T>
           <Press
             onPress={onCancelDelete}
             scale={0.95}
@@ -689,7 +713,7 @@ function NoteItem({
               justifyContent: 'center',
             }}
           >
-            <T style={sans(13, 700, C.ink)}>Keep</T>
+            <T style={sans(13, 700, C.ink)}>{tr('notes.keep')}</T>
           </Press>
           <Press
             onPress={onDelete}
@@ -703,7 +727,7 @@ function NoteItem({
               justifyContent: 'center',
             }}
           >
-            <T style={sans(13, 700, C.bg)}>Delete</T>
+            <T style={sans(13, 700, C.bg)}>{tr('notes.delete')}</T>
           </Press>
         </View>
       ) : null}

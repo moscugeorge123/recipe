@@ -1,4 +1,5 @@
 import type { RecipeNoteDto } from '@/features/recipes/schemas';
+import { localizedMonths, tNow } from '@/i18n/format';
 
 /** Where a note is attached: the whole recipe, or one step (zero-based). */
 export type NoteTarget = { kind: 'general' } | { kind: 'step'; index: number };
@@ -26,9 +27,7 @@ export function orderNotes(notes: readonly RecipeNoteDto[]): RecipeNoteDto[] {
 }
 
 /** Notes that belong to no step. */
-export function generalNotes(
-  notes: readonly RecipeNoteDto[],
-): RecipeNoteDto[] {
+export function generalNotes(notes: readonly RecipeNoteDto[]): RecipeNoteDto[] {
   return orderNotes(notes.filter((n) => n.stepIndex == null));
 }
 
@@ -60,10 +59,10 @@ export function relativeDay(iso: string, now: number = Date.now()): string {
   const startOf = (d: Date) =>
     new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const days = Math.round((startOf(today) - startOf(at)) / 86_400_000);
-  if (days <= 0) return 'Today';
-  if (days === 1) return 'Yesterday';
-  if (days < 7) return `${days} days ago`;
-  const month = at.toLocaleString('en-US', { month: 'short' });
+  if (days <= 0) return tNow('common.today');
+  if (days === 1) return tNow('common.yesterday');
+  if (days < 7) return tNow('time.daysAgo', { n: days });
+  const month = localizedMonths[at.getMonth()] ?? '';
   const sameYear = at.getFullYear() === today.getFullYear();
   return sameYear
     ? `${month} ${at.getDate()}`

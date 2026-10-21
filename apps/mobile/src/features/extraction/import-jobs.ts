@@ -1,6 +1,7 @@
 import { hostOf, sourceOf } from '@/features/share/url';
 import type { ImportErrorGroup } from '@/features/extraction/error-groups';
 import type { Brand } from '@/tortie/ui/brand';
+import { tNow } from '@/i18n/format';
 
 /** Where an import came from: a platform, any website, or a scanned page. */
 export type ImportSrc = {
@@ -49,7 +50,7 @@ export function importSrcOf(url: string): ImportSrc {
   const found = sourceOf(url);
   const host = hostOf(url);
   if (!found || found.kind === 'web') {
-    return { kind: 'web', name: 'Website', host };
+    return { kind: 'web', name: tNow('tag.Website'), host };
   }
   return { kind: found.kind, name: found.name, host };
 }
@@ -80,7 +81,9 @@ export function averageProgress(jobs: ImportJob[]): number {
 }
 
 export function pillLabel(running: number): string {
-  return running === 1 ? 'Importing a recipe' : `Importing ${running} recipes`;
+  return running === 1
+    ? tNow('import.pillOne')
+    : tNow('import.pillMany', { n: running });
 }
 
 /** Keeps every running job and the newest `limit` finished ones. */

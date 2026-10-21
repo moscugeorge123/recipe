@@ -7,6 +7,8 @@ import { Glyph } from '@/tortie/ui/icon';
 import { PulseDot } from '@/tortie/ui/keyframes';
 import { Press } from '@/tortie/ui/press';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tNow } from '@/i18n/format';
 
 /** Camera · skillet · link cards fanned out: the three ways into the kitchen. */
 export function KitchenMark({ scale = 1 }: { scale?: number }) {
@@ -20,12 +22,13 @@ const KITCHEN_ICONS = ['photo_camera', 'skillet', 'link'] as const;
  * sheet (paste a link, scan a page or write one all live there).
  */
 export function FirstRecipeHero({
-  title = 'Add your first recipe',
+  title = tNow('welcome.p4Title'),
   style,
 }: {
   title?: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  const t = useT();
   return (
     <View
       style={[
@@ -62,13 +65,13 @@ export function FirstRecipeHero({
           { lineHeight: 20, marginTop: 6, textAlign: 'center' },
         ]}
       >
-        Paste a link and Tortie does the rest.
+        {t('firstRecipe.pasteALinkAnd')}
       </T>
       <Press
         onPress={() => useNav.getState().openAdd()}
         scale={0.96}
         easing={CSS_EASE}
-        accessibilityLabel="Import a recipe"
+        accessibilityLabel={t('firstRecipe.importARecipe')}
         style={{
           alignSelf: 'stretch',
           marginTop: 20,
@@ -83,7 +86,7 @@ export function FirstRecipeHero({
         }}
       >
         <Glyph name="download" size={21} color={C.white} />
-        <T style={sans(15, 700, C.white)}>Import a recipe</T>
+        <T style={sans(15, 700, C.white)}>{t('firstRecipe.importARecipe')}</T>
       </Press>
     </View>
   );
@@ -103,6 +106,7 @@ export function LibraryNotice({
   onRetry: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
+  const t = useT();
   const slow = kind === 'slow';
   return (
     <View
@@ -131,8 +135,8 @@ export function LibraryNotice({
       )}
       <T style={[sans(13, 600, C.ink2), { flex: 1, lineHeight: 18 }]}>
         {slow
-          ? 'Checking for your saved recipes…'
-          : 'Couldn’t reach your saved recipes.'}
+          ? t('firstRecipe.checkingForYourSaved')
+          : t('firstRecipe.couldntReachYourSaved')}
       </T>
       {slow ? null : (
         <Press
@@ -150,7 +154,7 @@ export function LibraryNotice({
             justifyContent: 'center',
           }}
         >
-          <T style={sans(13, 700, C.green)}>Try again</T>
+          <T style={sans(13, 700, C.green)}>{t('recipe.translationRetry')}</T>
         </Press>
       )}
     </View>

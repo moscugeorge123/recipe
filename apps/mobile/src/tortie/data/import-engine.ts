@@ -34,6 +34,7 @@ import { ApiError } from '@/services/api-client';
 import { useImports } from '@/tortie/import-store';
 import { importKeyOf } from '@/features/share/url';
 import { openImportedRecipe, toast, useNav } from '@/tortie/nav-store';
+import { tNow } from '@/i18n/format';
 
 /**
  * Link imports that outlive the Add sheet. The store holds what the UI shows;
@@ -209,7 +210,7 @@ export function cancelImport(id: string): void {
   rt.ctrl.abort();
   if (rt.serverJobId) cancelExtraction(rt.serverJobId).catch(() => undefined);
   useImports.getState().remove(id);
-  toast('Import cancelled');
+  toast(tNow('imports.importCancelled'));
   stopTickerIfIdle();
 }
 
@@ -261,7 +262,7 @@ function fail(id: string, code: string) {
   if (!shownInSheet(id)) {
     toast(
       code === LOST_TRACK
-        ? 'Lost track of that import — try again'
+        ? tNow('imports.lostTrackOfThat')
         : job.src.kind === 'scan'
           ? scanFailureToast(code)
           : importFailureToast(code, brandNameOf(job.src)),
@@ -284,7 +285,10 @@ function complete(id: string, recipeId: string, duplicate: boolean) {
     .invalidateQueries({ queryKey: recipeKeys.all })
     .catch(() => undefined);
   const quiet = shownInSheet(id) || shownInShare(id);
-  const open = { label: 'Open', run: () => openImportedRecipe(recipeId) };
+  const open = {
+    label: tNow('imports.open'),
+    run: () => openImportedRecipe(recipeId),
+  };
   // The history row wants a title and photo, and the toast wants the title.
   getRecipe(recipeId)
     .then((r) => {
@@ -294,8 +298,8 @@ function complete(id: string, recipeId: string, duplicate: boolean) {
       if (!quiet) {
         toast(
           duplicate
-            ? `Already in your cookbook — ${r.title}`
-            : `${r.title} added to Cookbook`,
+            ? tNow('imports.alreadyInCookbookTitle', { title: r.title })
+            : tNow('imports.titleAddedToCookbook', { title: r.title }),
           'ok',
           open,
         );
@@ -304,7 +308,9 @@ function complete(id: string, recipeId: string, duplicate: boolean) {
     .catch(() => {
       if (!quiet) {
         toast(
-          duplicate ? 'Already in your cookbook' : 'Recipe added to Cookbook',
+          duplicate
+            ? tNow('common.alreadyInYourCookbook')
+            : tNow('imports.recipeAddedToCookbook'),
           'ok',
           open,
         );

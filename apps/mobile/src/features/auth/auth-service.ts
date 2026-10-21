@@ -35,6 +35,7 @@ import {
 import { resetUserData } from '@/features/auth/reset-user-data';
 import { apiClient } from '@/services/api-client';
 import { useTortieAuth } from '@/tortie/auth-store';
+import { tNow } from '@/i18n/format';
 
 export { AuthError } from '@/features/auth/errors';
 export type { AuthFailure } from '@/features/auth/errors';
@@ -71,7 +72,7 @@ function requireUser(): User {
   if (!user) {
     throw new AuthError({
       kind: 'error',
-      message: 'You’re signed out. Sign in and try again.',
+      message: tNow('auth.errSignedOut'),
     });
   }
   return user;
@@ -247,8 +248,7 @@ export const authService = {
       if (!(Date.now() - lastSignIn < RECENT_SIGN_IN_MS)) {
         throw new AuthError({
           kind: 'error',
-          message:
-            'For your security, sign in again, then delete your account.',
+          message: tNow('auth.errReauthDelete'),
         });
       }
       await apiClient.delete('/me');
@@ -262,8 +262,7 @@ export const authService = {
         if (code === 'auth/requires-recent-login') {
           throw new AuthError({
             kind: 'error',
-            message:
-              'For your security, sign in again, then delete your account.',
+            message: tNow('auth.errReauthDelete'),
           });
         }
         // The API already removed the Firebase user when it has admin access.

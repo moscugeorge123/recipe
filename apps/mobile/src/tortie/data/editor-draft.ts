@@ -8,6 +8,7 @@ import type { TDetail } from '@/tortie/data/recipes';
 import { detectMin, emoOf, parseIng, qTxt } from '@/tortie/lib/fmt';
 import { useNav } from '@/tortie/nav-store';
 import { useTortiePrefs } from '@/tortie/prefs-store';
+import { lazyList, tNow } from '@/i18n/format';
 
 /** Editor rows (prototype `ed.ings` / `ed.steps`); `src` points at the loaded recipe's row. */
 export type EdIng = { k: string; txt: string; src?: number };
@@ -56,13 +57,13 @@ export const SUGG: [string, RegExp][] = [
   ['honey', /\bhoney\b/],
 ];
 
-export const AI_CHIPS = [
-  'Make it vegetarian',
-  'Halve the recipe',
-  'Tighten the wording',
-  'Add a finishing step',
-  'Make it dairy-free',
-];
+export const AI_CHIPS = lazyList([
+  'ai.chipVeg',
+  'ai.chipHalve',
+  'ai.chipTighten',
+  'ai.chipFinish',
+  'ai.chipDairyFree',
+]);
 
 export const uid = () => Math.random().toString(36).slice(2, 8);
 
@@ -240,14 +241,13 @@ export function toRecipePatch(
     });
 
   if (!ingredients.length || !steps.length)
-    return { error: 'Add at least one ingredient and one step' };
+    return { error: tNow('editor.errNeedIngStep') };
   const categoryIds = base.categoryIds.length
     ? base.categoryIds
     : fallbackCategoryId
       ? [fallbackCategoryId]
       : [];
-  if (!categoryIds.length)
-    return { error: 'Couldn’t save — this recipe needs a category first' };
+  if (!categoryIds.length) return { error: tNow('editor.errNeedCategory') };
 
   return {
     body: {

@@ -53,6 +53,8 @@ import {
   SkipPreviousIcon,
 } from '@/tortie/ui/svg-icons';
 import { sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tNow } from '@/i18n/format';
 
 const EMPTY: StepClip[] = [];
 const PLAYER_BG = '#191c19';
@@ -83,6 +85,7 @@ export function WatchStepChip({
   large?: boolean;
   onPress: () => void;
 }) {
+  const tr = useT();
   const disc = large ? 38 : 26;
   return (
     <Press
@@ -90,7 +93,7 @@ export function WatchStepChip({
       scale={large ? 0.96 : 0.95}
       easing={CSS_EASE}
       accessibilityRole="button"
-      accessibilityLabel="Watch this step in the source video"
+      accessibilityLabel={tr('clip.watchThisStepIn')}
       style={{
         alignSelf: 'flex-start',
         flexDirection: 'row',
@@ -143,12 +146,13 @@ export function StepClipChip({
   step: number;
   large?: boolean;
 }) {
+  const tr = useT();
   const clip = clipForStep(clips, step);
   if (!clip) return null;
   return (
     <WatchStepChip
       large={large}
-      label={large ? 'Watch this step' : 'Watch step'}
+      label={large ? tr('clip.watchThisStep') : tr('clip.watchStep')}
       time={large ? clipRangeLabel(clip) : clipStartLabel(clip)}
       onPress={() => useNav.getState().openClip(recipeId, step)}
     />
@@ -166,6 +170,7 @@ export function StepClipChip({
  * striped placeholder, like the prototype.
  */
 export function StepClipSheet() {
+  const tr = useT();
   const f = useFrame();
   const open = useNav((s) => s.clipOn);
   const id = useNav((s) => s.clipId);
@@ -341,7 +346,7 @@ export function StepClipSheet() {
               textTransform: 'uppercase',
             })}
           >
-            {[platform?.name ?? 'Video', r?.view.creator]
+            {[platform?.name ?? tNow('clip.video'), r?.view.creator]
               .filter(Boolean)
               .join(' · ')}
           </T>
@@ -349,7 +354,12 @@ export function StepClipSheet() {
             numberOfLines={1}
             style={serif(19, 600, C.ink, { lineHeight: 23, marginTop: 1 })}
           >
-            {clip ? `Step ${clip.step + 1} · ${step?.t ?? ''}` : ''}
+            {clip
+              ? tNow('clip.stepTitle', {
+                  n: clip.step + 1,
+                  title: step?.t ?? '',
+                })
+              : ''}
           </T>
         </View>
         <SheetClose onPress={close} />
@@ -358,7 +368,7 @@ export function StepClipSheet() {
       <Pressable
         onPress={() => p && go(togglePlayback(clips, p), p.ended)}
         accessibilityRole="button"
-        accessibilityLabel={p?.playing ? 'Pause' : 'Play'}
+        accessibilityLabel={p?.playing ? tr('clip.pause') : tr('clip.play')}
         style={{
           marginTop: 14,
           height: vertical ? 340 : 200,
@@ -391,7 +401,11 @@ export function StepClipSheet() {
                   color: VIDEO_LABEL,
                 }}
               >
-                {`video · ${vertical ? 'vertical reel' : 'creator video'}`}
+                {tNow('clip.videoKind', {
+                  kind: tNow(
+                    vertical ? 'clip.verticalReel' : 'clip.creatorVideo',
+                  ),
+                })}
               </T>
             </>
           )}
@@ -432,7 +446,7 @@ export function StepClipSheet() {
               justifyContent: 'center',
             }}
           >
-            <T style={sans(12, 700, C.terraInk2)}>End of step</T>
+            <T style={sans(12, 700, C.terraInk2)}>{tr('clip.endOfStep')}</T>
           </View>
         ) : null}
       </Pressable>
@@ -466,7 +480,7 @@ export function StepClipSheet() {
         <Press
           onPress={() => p && go(moveTo(clips, p, -1))}
           scale={0.97}
-          accessibilityLabel="Previous step clip"
+          accessibilityLabel={tr('clip.previousStepClip')}
           style={{
             flex: 1,
             height: 46,
@@ -486,7 +500,7 @@ export function StepClipSheet() {
         <Press
           onPress={() => go(startPlayback(clips, idx, true))}
           scale={0.92}
-          accessibilityLabel="Replay this step"
+          accessibilityLabel={tr('clip.replayThisStep')}
           style={{
             width: 46,
             height: 46,
@@ -501,7 +515,7 @@ export function StepClipSheet() {
         <Press
           onPress={() => p && go(moveTo(clips, p, 1))}
           scale={0.97}
-          accessibilityLabel="Next step clip"
+          accessibilityLabel={tr('clip.nextStepClip')}
           style={{
             flex: 1,
             height: 46,
@@ -525,7 +539,7 @@ export function StepClipSheet() {
         <Press
           onPress={() => {
             Linking.openURL(link.href).catch(() =>
-              toast('Couldn’t open that link.', 'error'),
+              toast(tr('common.couldntOpenThatLink'), 'error'),
             );
           }}
           scale={0.97}
@@ -616,13 +630,14 @@ function ClipBar({
   segments: BarSegmentProps[];
   onSeek: (e: GestureResponderEvent, width: number) => void;
 }) {
+  const tr = useT();
   const [w, setW] = useState(0);
   return (
     <Pressable
       onPress={(e) => onSeek(e, w)}
       onLayout={(e) => setW(e.nativeEvent.layout.width)}
       accessibilityRole="adjustable"
-      accessibilityLabel="Step clips. Tap to jump."
+      accessibilityLabel={tr('clip.stepClipsTapTo')}
       style={{
         flexDirection: 'row',
         alignItems: 'center',

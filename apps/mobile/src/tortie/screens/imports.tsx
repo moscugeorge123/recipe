@@ -37,9 +37,13 @@ import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { em, sans, serif, T } from '@/tortie/ui/text';
 import { useCountdown } from '@/tortie/ui/use-countdown';
+import { useT } from '@/i18n';
+import { tNow } from '@/i18n/format';
 
 /** Imports: what is importing now, and finished and failed links, newest first. */
 export function ImportsScreen() {
+  const tr = useT();
+  const t = useT();
   const f = useFrame();
   const jobs = useImports((s) => s.jobs);
   const clearHistory = useImports((s) => s.clearHistory);
@@ -58,7 +62,7 @@ export function ImportsScreen() {
   };
   const clear = () => {
     clearHistory();
-    toast('History cleared');
+    toast(t('imports.historyCleared'));
   };
 
   const hdrBg = useAnimatedStyle(() => ({
@@ -83,24 +87,28 @@ export function ImportsScreen() {
         }}
       >
         <T style={[serif(30, 500), { letterSpacing: em(30, -0.01) }]}>
-          Imports
+          {t('common.imports')}
         </T>
         <T style={[sans(14, 400, C.ink2), { marginTop: 2 }]}>
-          Links you’ve sent to Tortie, newest first.
+          {t('imports.linksYouveSentTo')}
         </T>
 
         {!running.length && !history.length ? (
           <EmptyState
             icons={['link', 'cloud_download', 'history']}
-            kicker="All quiet"
-            title="No imports yet"
-            body="Links you send to Tortie show up here while they import, and stay as a history you can come back to."
-            action={{ label: 'Paste a link', icon: 'link', onPress: pasteLink }}
+            kicker={t('imports.allQuiet')}
+            title={t('imports.noImportsYet')}
+            body={t('imports.linksYouSendTo')}
+            action={{
+              label: tr('imports.pasteALink'),
+              icon: 'link',
+              onPress: pasteLink,
+            }}
             style={{ marginTop: 24 }}
           />
         ) : (
           <>
-            <SectionLabel>In progress</SectionLabel>
+            <SectionLabel>{t('imports.inProgress')}</SectionLabel>
             {running.length ? (
               <View style={{ gap: 10 }}>
                 {running.map((j) => (
@@ -111,16 +119,16 @@ export function ImportsScreen() {
               <EmptyState
                 compact
                 icons={['link', 'cloud_done', 'history']}
-                title="Nothing importing right now"
+                title={t('imports.nothingImportingRightNow')}
                 action={{
-                  label: 'Paste a link',
+                  label: tr('imports.pasteALink'),
                   icon: 'link',
                   onPress: pasteLink,
                 }}
               />
             )}
 
-            <SectionLabel>History</SectionLabel>
+            <SectionLabel>{t('imports.history')}</SectionLabel>
             {history.length ? (
               <View style={{ gap: 10 }}>
                 {history.map((j) =>
@@ -135,8 +143,8 @@ export function ImportsScreen() {
               <EmptyState
                 compact
                 icons={['link', 'history', 'check']}
-                title="No history yet"
-                body="Finished and failed imports will show up here."
+                title={t('imports.noHistoryYet')}
+                body={t('imports.finishedAndFailedImports')}
               />
             )}
           </>
@@ -187,7 +195,7 @@ export function ImportsScreen() {
             <Press
               onPress={back}
               scale={0.9}
-              accessibilityLabel="Back"
+              accessibilityLabel={t('auth.back')}
               style={{
                 width: 42,
                 height: 42,
@@ -206,7 +214,9 @@ export function ImportsScreen() {
             pointerEvents="none"
             style={[{ flex: 1, minWidth: 0, alignItems: 'center' }, ttl]}
           >
-            <T style={[sans(15, 700), { lineHeight: 22 }]}>Imports</T>
+            <T style={[sans(15, 700), { lineHeight: 22 }]}>
+              {t('common.imports')}
+            </T>
           </Animated.View>
           <View style={{ width: 104, alignItems: 'flex-end' }}>
             {history.length ? (
@@ -220,7 +230,9 @@ export function ImportsScreen() {
                   justifyContent: 'center',
                 }}
               >
-                <T style={sans(14, 600, C.terra)}>Clear history</T>
+                <T style={sans(14, 600, C.terra)}>
+                  {t('imports.clearHistory')}
+                </T>
               </Press>
             ) : null}
           </View>
@@ -281,7 +293,9 @@ function RunningRow({ job }: { job: ImportJob }) {
       onPress={open}
       scale={0.98}
       easing={CSS_EASE}
-      accessibilityLabel={`Show progress for ${job.src.host}`}
+      accessibilityLabel={tNow('imports.showProgressFor', {
+        host: job.src.host,
+      })}
       style={card()}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -300,7 +314,9 @@ function RunningRow({ job }: { job: ImportJob }) {
         <Press
           onPress={() => cancelImport(job.id)}
           scale={0.9}
-          accessibilityLabel={`Cancel import from ${job.src.host}`}
+          accessibilityLabel={tNow('imports.cancelImportFrom', {
+            host: job.src.host,
+          })}
           style={{
             width: 36,
             height: 36,
@@ -334,6 +350,7 @@ function RunningRow({ job }: { job: ImportJob }) {
 }
 
 function DoneRow({ job }: { job: ImportJob }) {
+  const t = useT();
   const open = () => {
     const id = job.recipeId;
     if (!id) return;
@@ -344,7 +361,9 @@ function DoneRow({ job }: { job: ImportJob }) {
       onPress={open}
       scale={0.98}
       easing={CSS_EASE}
-      accessibilityLabel={`Open ${job.title ?? 'recipe'}`}
+      accessibilityLabel={tNow('imports.openJob', {
+        title: job.title ?? tNow('imports.recipeFallback'),
+      })}
       style={card({ flexDirection: 'row', alignItems: 'center', gap: 12 })}
     >
       <Photo
@@ -355,7 +374,7 @@ function DoneRow({ job }: { job: ImportJob }) {
       />
       <View style={{ flex: 1, minWidth: 0 }}>
         <T numberOfLines={2} style={sans(14, 700)}>
-          {job.title ?? 'Recipe added'}
+          {job.title ?? t('imports.recipeAdded')}
         </T>
         <View
           style={{
@@ -380,6 +399,7 @@ function DoneRow({ job }: { job: ImportJob }) {
 }
 
 function FailedRow({ job }: { job: ImportJob }) {
+  const t = useT();
   const group = job.group ?? 'generic';
   const scan = job.src.kind === 'scan';
   const copy = importErrorCopy(group, brandNameOf(job.src), scan);
@@ -405,7 +425,7 @@ function FailedRow({ job }: { job: ImportJob }) {
         <Press
           onPress={() => useImports.getState().remove(job.id)}
           scale={0.9}
-          accessibilityLabel="Remove from history"
+          accessibilityLabel={t('imports.removeFromHistory')}
           style={{
             width: 36,
             height: 36,
@@ -443,7 +463,11 @@ function FailedRow({ job }: { job: ImportJob }) {
         }}
       >
         <T style={sans(13, 700, locked ? C.ink3 : C.green)}>
-          {locked ? `Retry in ${left}s` : scan ? 'Scan again' : 'Retry'}
+          {locked
+            ? tNow('imports.retryIn', { n: left })
+            : scan
+              ? t('imports.scanAgain')
+              : t('imports.retry')}
         </T>
       </Press>
     </View>

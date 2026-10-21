@@ -28,12 +28,15 @@ import { Checkbox, Grabber } from '@/tortie/ui/controls';
 import { Press } from '@/tortie/ui/press';
 import { Sheet, SheetScroll, useSheetPressCommits } from '@/tortie/ui/sheet';
 import { sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tNow } from '@/i18n/format';
 
 /**
  * Ingredient picker shown before anything is written to the shopping list.
  * Every ingredient starts checked.
  */
 export function GroceryPickSheet() {
+  const t = useT();
   const f = useFrame();
   const { height: winH } = useWindowDimensions();
   const open = useNav((s) => s.grocPickOn);
@@ -96,7 +99,10 @@ export function GroceryPickSheet() {
     const ry = rowY.current[firstMissing];
     if (gy == null || ry == null) return;
     scrolledNonce.current = nonce;
-    scrollRef.current?.scrollTo({ y: Math.max(0, gy + ry - 8), animated: true });
+    scrollRef.current?.scrollTo({
+      y: Math.max(0, gy + ry - 8),
+      animated: true,
+    });
   };
 
   useEffect(() => {
@@ -134,7 +140,7 @@ export function GroceryPickSheet() {
     if (mark) usePlan.getState().markAdded(mark);
     toast(grocerySelectionToast(add.length));
     addItems.mutate(add, {
-      onError: () => toast('Couldn’t add to groceries. Try again.'),
+      onError: () => toast(t('common.couldntAddToGroceries')),
     });
   };
 
@@ -155,7 +161,7 @@ export function GroceryPickSheet() {
     >
       <View style={{ paddingTop: 10, paddingHorizontal: 20 }}>
         <Grabber />
-        <T style={serif(26, 500, C.ink)}>Add to groceries</T>
+        <T style={serif(26, 500, C.ink)}>{t('common.addToGroceries')}</T>
         <View
           style={{
             flexDirection: 'row',
@@ -175,10 +181,12 @@ export function GroceryPickSheet() {
             <Press
               onPress={toggleAll}
               hitSlop={8}
-              accessibilityLabel={allOn ? 'Deselect all' : 'Select all'}
+              accessibilityLabel={
+                allOn ? t('common.deselectAll') : t('common.selectAll')
+              }
             >
               <T style={sans(14, 700, C.green)}>
-                {allOn ? 'Deselect all' : 'Select all'}
+                {allOn ? t('common.deselectAll') : t('common.selectAll')}
               </T>
             </Press>
           ) : null}
@@ -263,11 +271,11 @@ export function GroceryPickSheet() {
                     </T>
                     {line.onList ? (
                       <T style={sans(12, 500, C.ink3, { marginTop: 2 })}>
-                        On your list
+                        {t('groceries.onYourList')}
                       </T>
                     ) : merged ? (
                       <T style={sans(12, 500, C.ink3, { marginTop: 2 })}>
-                        Combined with another recipe
+                        {t('groceries.combinedWithAnotherRecipe')}
                       </T>
                     ) : null}
                   </View>
@@ -298,7 +306,9 @@ export function GroceryPickSheet() {
         <ConfirmAdd
           count={addCount}
           label={
-            addCount ? `Add ${plz(addCount, 'item')}` : 'Add to groceries'
+            addCount
+              ? tNow('groceries.addItems', { items: plz(addCount, 'item') })
+              : t('common.addToGroceries')
           }
           onConfirm={confirm}
         />

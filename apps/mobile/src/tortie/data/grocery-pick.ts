@@ -8,6 +8,7 @@ import { openingServings, useRecipeUi } from '@/tortie/data/recipe-ui';
 import type { BulkRecipe } from '@/tortie/data/selection';
 import { toast, useNav } from '@/tortie/nav-store';
 import { useTortiePrefs } from '@/tortie/prefs-store';
+import { tNow } from '@/i18n/format';
 
 function scaledIngredient(
   view: RecipeView,
@@ -89,7 +90,7 @@ export async function presentGroceryPick(
 ): Promise<boolean> {
   const ids = [...new Set(recipeIds)];
   if (!ids.length) {
-    toast('No ingredients to add');
+    toast(tNow('groceries.noIngredientsToAdd'));
     return false;
   }
   const { recipes, failed } = await loadBulkRecipes(client, ids, {
@@ -101,8 +102,8 @@ export async function presentGroceryPick(
   if (!picked.length) {
     toast(
       failed
-        ? 'Couldn’t add to groceries. Try again.'
-        : 'No ingredients to add',
+        ? tNow('common.couldntAddToGroceries')
+        : tNow('groceries.noIngredientsToAdd'),
     );
     return false;
   }

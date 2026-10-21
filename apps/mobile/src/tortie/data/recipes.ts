@@ -20,6 +20,7 @@ import { hueOf } from '@/tortie/color';
 import { buildClips, type StepClip } from '@/tortie/data/step-clips';
 import { emoOf, fmtIngQty, hasKey, ingKeys } from '@/tortie/lib/fmt';
 import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
+import { tNow } from '@/i18n/format';
 
 /** Design-shaped recipe summary (maps the prototype's RECIPES entries). */
 export type TRecipe = {
@@ -97,16 +98,18 @@ const GENERIC_CREATORS = new Set(['website', 'video', 'link', 'web']);
 
 /** The API has no "user-written" flag, so a web source URL stands in for "imported". */
 export function bylineOf(
-  r: Pick<AnyRecipe, 'creator' | 'originalUrl'> & { sourceLabel?: string | null },
+  r: Pick<AnyRecipe, 'creator' | 'originalUrl'> & {
+    sourceLabel?: string | null;
+  },
 ): string {
   const host = sourceHost(r.originalUrl);
-  if (!host) return 'by you';
+  if (!host) return tNow('data.byYou');
   const creator = r.creator?.trim() ?? '';
   const generic =
     !creator ||
     GENERIC_CREATORS.has(creator.toLowerCase()) ||
     creator === r.sourceLabel;
-  return `by ${generic ? host : creator}`;
+  return `${tNow('detail.by')} ${generic ? host : creator}`;
 }
 
 /** Real total time only; the detail mapper's `minutes` defaults to 30 when the API has none. 0 = unknown. */
@@ -121,7 +124,7 @@ function photoWord(title: string): string {
     .replace(/[^a-z\s&-]/g, '')
     .split(/\s+/)
     .filter((x) => x.length > 3 && !['with', 'and', 'the', 'from'].includes(x));
-  return w[w.length - 1] ?? 'your dish';
+  return w[w.length - 1] ?? tNow('data.yourDish');
 }
 
 export function toTRecipe(r: AnyRecipe): TRecipe {
@@ -158,10 +161,18 @@ export function toTRecipe(r: AnyRecipe): TRecipe {
 }
 
 const STAGE: Record<string, string> = {
-  PREP: 'Prep',
-  COOK: 'Cooking',
-  FINISH: 'Finish',
-  SERVE: 'Serve',
+  get PREP() {
+    return tNow('data.stagePrep');
+  },
+  get COOK() {
+    return tNow('data.stageCooking');
+  },
+  get FINISH() {
+    return tNow('data.stageFinish');
+  },
+  get SERVE() {
+    return tNow('data.stageServe');
+  },
 };
 
 function splitStep(text: string): [string, string] {

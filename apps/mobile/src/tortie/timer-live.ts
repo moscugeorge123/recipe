@@ -9,6 +9,7 @@ import {
   splitTimerKey,
 } from '@/tortie/timer-clock';
 import { cookTimerNative, type CookTimerNative } from '@/tortie/timer-native';
+import { tNow } from '@/i18n/format';
 
 /**
  * Running and paused timers stay on screen while Tortie is closed (Android):
@@ -49,7 +50,7 @@ function handOver(native: CookTimerNative) {
     const timer = timers[key]!;
     return {
       key,
-      title: timer.title || timer.recipeTitle || 'Cooking timer',
+      title: timer.title || timer.recipeTitle || tNow('timer.cookingTimer'),
       endsAt: timer.run ? timer.endsAt! : 0,
       paused: !timer.run,
       remSec: timer.rem,

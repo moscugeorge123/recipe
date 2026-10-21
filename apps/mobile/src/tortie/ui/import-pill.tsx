@@ -15,6 +15,7 @@ import { tw } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { sans, T } from '@/tortie/ui/text';
+import { tNow } from '@/i18n/format';
 
 const RING = 30;
 const STROKE = 3.5;
@@ -72,7 +73,9 @@ export function ImportPill() {
         onPress={() => useNav.getState().openImports()}
         scale={0.96}
         easing={CSS_EASE}
-        accessibilityLabel={`${pillLabel(count)}. Open imports`}
+        accessibilityLabel={tNow('imports.pillOpen', {
+          label: pillLabel(count),
+        })}
         style={{
           flexDirection: 'row',
           alignItems: 'center',

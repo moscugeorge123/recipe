@@ -69,6 +69,7 @@ import {
   lexOf,
   parseIng,
   qTxt,
+  plz,
 } from '@/tortie/lib/fmt';
 import { useMotion } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
@@ -81,6 +82,8 @@ import { Orb, ShimmerText } from '@/tortie/ui/keyframes';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tEnum, tNow } from '@/i18n/format';
 
 const PH = '#a9a9a9';
 const HANDLE = '#a9afa8';
@@ -138,6 +141,7 @@ type DragApi = {
 const LIST_ID: Record<ListKey, number> = { ings: 1, steps: 2 };
 
 export function RecipeEditor() {
+  const tr = useT();
   const open = useNav((s) => s.edit);
   const mode = useNav((s) => s.editMode);
   const editId = useNav((s) => s.editId);
@@ -275,11 +279,11 @@ export function RecipeEditor() {
       return;
     }
     if (ed.isNew) {
-      toast('Saving new recipes isn’t available yet');
+      toast(tr('editor.savingNewRecipesIsnt'));
       return;
     }
     if (!view || !editId || !ready) {
-      toast('Still loading this recipe — try again in a moment');
+      toast(tr('editor.stillLoadingThisRecipe'));
       return;
     }
     if (saveM.isPending) return;
@@ -298,12 +302,12 @@ export function RecipeEditor() {
           return { serv };
         });
         close();
-        toast('Saved · ' + n + ' change' + (n > 1 ? 's' : ''));
+        toast(tNow('editor.savedChanges', { changes: plz(n, 'change') }));
       },
       onError: (e) => {
         if (e instanceof ApiError && e.status === 409)
-          toast('This recipe changed elsewhere — reopen it to edit');
-        else toast('Couldn’t save your changes. Try again.');
+          toast(tr('editor.thisRecipeChangedElsewhere'));
+        else toast(tr('editor.couldntSaveYourChanges'));
       },
     });
   };
@@ -336,7 +340,11 @@ export function RecipeEditor() {
           };
         }, true);
         fresh(rows.map((x) => x.k));
-        toast('Added ' + rows.length + ' ingredients');
+        toast(
+          tNow('editor.addedIngredients', {
+            ingredients: plz(rows.length, 'ingredient'),
+          }),
+        );
         return;
       }
       v = v.replace(/\r?\n/g, ' ');
@@ -387,7 +395,7 @@ export function RecipeEditor() {
       true,
     );
     fresh([k]);
-    toast('Added ' + nm + ' to ingredients');
+    toast(tNow('editor.addedToIngredients', { name: nm }));
   };
 
   // Steps
@@ -410,7 +418,7 @@ export function RecipeEditor() {
     }));
   const rmStep = (i: number) => {
     upEd((d) => ({ ...d, steps: d.steps.filter((_, j) => j !== i) }), true);
-    toast('Step removed — undo to bring it back');
+    toast(tr('editor.stepRemovedUndoTo'));
   };
   const stepTimer = (i: number, dir: -1 | 0 | 1) =>
     upEd(
@@ -617,8 +625,8 @@ export function RecipeEditor() {
         e instanceof ApiError && e.code === 'RECIPE_ASSIST_REJECTED'
           ? e.message
           : e instanceof ApiError && e.status === 429
-            ? 'Tortie needs a moment. Try again shortly.'
-            : 'Tortie couldn’t make that change. Try again.';
+            ? tNow('editor.errBusy')
+            : tNow('editor.errAssist');
       setS((st) => ({ ...st, aiBusy: false, aiFocus: false, aiErr: err }));
       return;
     }
@@ -626,7 +634,7 @@ export function RecipeEditor() {
     const { next, changed } = fromAssistDraft(base, res.recipe);
     if (!changed.length) {
       setS((st) => ({ ...st, aiBusy: false, aiFocus: false, aiQ: '' }));
-      toast('Nothing needed changing');
+      toast(tr('editor.nothingNeededChanging'));
       return;
     }
     setS((st) => {
@@ -640,7 +648,7 @@ export function RecipeEditor() {
         aiFocus: false,
         aiQ: '',
         aiMarks: marks,
-        aiMsg: res.message || 'Tortie updated your recipe',
+        aiMsg: res.message || tNow('editor.aiUpdated'),
         aiEd: next,
       };
     });
@@ -657,11 +665,11 @@ export function RecipeEditor() {
   const hue = r?.hue ?? 95;
   const status = isN
     ? n
-      ? 'Draft · not saved yet'
-      : 'Blank recipe'
+      ? tNow('editor.draftNotSaved')
+      : tNow('editor.blankRecipe')
     : n
-      ? n + ' unsaved change' + (n > 1 ? 's' : '')
-      : 'No changes yet';
+      ? tNow('editor.unsavedChanges', { changes: plz(n, 'change') })
+      : tNow('editor.noChangesYet');
   const barTop = f.pushTop + 58;
   const bottomPad = Math.max(28, f.bottom);
 
@@ -717,9 +725,15 @@ export function RecipeEditor() {
           boxShadow: '0 10px 18px -14px rgba(46,49,46,.25)',
         }}
       >
-        <RoundBtn icon="close" label="Close editor" onPress={cancel} />
+        <RoundBtn
+          icon="close"
+          label={tr('editor.closeEditor')}
+          onPress={cancel}
+        />
         <View style={{ flex: 1, minWidth: 0 }}>
-          <T style={sans(16, 700)}>{isN ? 'New recipe' : 'Edit recipe'}</T>
+          <T style={sans(16, 700)}>
+            {isN ? tr('editor.newRecipe') : tr('common.editRecipe')}
+          </T>
           <Animated.Text
             allowFontScaling={false}
             style={[sans(12, 600), { marginTop: 1 }, stCol]}
@@ -729,7 +743,7 @@ export function RecipeEditor() {
         </View>
         <RoundBtn
           icon="undo"
-          label="Undo"
+          label={tr('editor.undo')}
           onPress={undo}
           animatedStyle={undoA}
         />
@@ -749,7 +763,7 @@ export function RecipeEditor() {
             allowFontScaling={false}
             style={[sans(14, 700), saveT]}
           >
-            Save
+            {tr('common.save')}
           </Animated.Text>
         </Press>
       </View>
@@ -777,7 +791,7 @@ export function RecipeEditor() {
         ]}
       >
         <T style={sans(14, 600, C.bg, { flex: 1, minWidth: 0 })}>
-          {'Discard ' + n + ' change' + (n > 1 ? 's' : '') + '?'}
+          {tNow('editor.discardChanges', { changes: plz(n, 'change') })}
         </T>
         <Press
           onPress={() => setS((st) => ({ ...st, confirm: false }))}
@@ -790,7 +804,7 @@ export function RecipeEditor() {
             justifyContent: 'center',
           }}
         >
-          <T style={sans(13, 700, C.bg)}>Keep editing</T>
+          <T style={sans(13, 700, C.bg)}>{tr('editor.keepEditing')}</T>
         </Press>
         <Press
           onPress={close}
@@ -803,7 +817,7 @@ export function RecipeEditor() {
             justifyContent: 'center',
           }}
         >
-          <T style={sans(13, 700, C.terraInk3)}>Discard</T>
+          <T style={sans(13, 700, C.terraInk3)}>{tr('editor.discard')}</T>
         </Press>
       </Animated.View>
 
@@ -841,7 +855,7 @@ export function RecipeEditor() {
             style={{ height: 176 }}
           >
             <Press
-              onPress={() => toast('Choose a photo from your library')}
+              onPress={() => toast(tr('editor.chooseAPhotoFrom'))}
               style={{
                 position: 'absolute',
                 right: 12,
@@ -856,7 +870,9 @@ export function RecipeEditor() {
               }}
             >
               <Glyph name="photo_camera" size={18} color={C.ink} />
-              <T style={sans(13, 700)}>{isN ? 'Add photo' : 'Replace'}</T>
+              <T style={sans(13, 700)}>
+                {isN ? tr('editor.addPhoto') : tr('editor.replace')}
+              </T>
             </Press>
           </Photo>
 
@@ -868,7 +884,7 @@ export function RecipeEditor() {
             }}
             onFocus={snap}
             marked={!!s.aiMarks[FIELD_MARK.title]}
-            placeholder="Recipe name"
+            placeholder={tr('editor.recipeName')}
             submitBehavior="blurAndSubmit"
             returnKeyType="done"
             style={[
@@ -884,7 +900,7 @@ export function RecipeEditor() {
             onChangeText={(v) => upEd((d) => ({ ...d, desc: v }))}
             onFocus={snap}
             marked={!!s.aiMarks[FIELD_MARK.desc]}
-            placeholder="A line about why it’s good"
+            placeholder={tr('editor.aLineAboutWhy')}
             style={{
               fontFamily: F.serif400i,
               fontSize: 17,
@@ -897,7 +913,7 @@ export function RecipeEditor() {
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}>
             <StepperCell
-              label="Serves"
+              label={tr('common.serves')}
               value={String(ed.base)}
               marked={!!s.aiMarks[FIELD_MARK.base]}
               size={16}
@@ -911,7 +927,7 @@ export function RecipeEditor() {
               upLabel="More servings"
             />
             <StepperCell
-              label="Total time"
+              label={tr('common.totalTime')}
               grow={1.5}
               value={fmtT(ed.time)}
               marked={!!s.aiMarks[FIELD_MARK.time]}
@@ -957,7 +973,7 @@ export function RecipeEditor() {
                 alignItems: 'center',
               }}
             >
-              <T style={sans(11, 400, C.ink2)}>Level</T>
+              <T style={sans(11, 400, C.ink2)}>{tr('editor.level')}</T>
               <View
                 style={{
                   flexDirection: 'row',
@@ -968,7 +984,7 @@ export function RecipeEditor() {
                   marginTop: 2,
                 }}
               >
-                <T style={sans(15, 700)}>{ed.level}</T>
+                <T style={sans(15, 700)}>{tEnum('level', ed.level)}</T>
                 <Glyph name="unfold_more" size={18} color={C.ink3} />
               </View>
             </Press>
@@ -984,10 +1000,13 @@ export function RecipeEditor() {
             <Glyph name="timer" size={16} color={C.terra} fill />
             <T style={sans(12, 400, C.ink2, { flex: 1 })}>
               {sum
-                ? 'Step timers add up to ' +
-                  fmtT(sum) +
-                  (sum > ed.time ? ' — more than the total' : '')
-                : 'No step timers yet'}
+                ? tNow(
+                    sum > ed.time
+                      ? 'editor.timersAddUpMore'
+                      : 'editor.timersAddUp',
+                    { time: fmtT(sum) },
+                  )
+                : tr('editor.noStepTimersYet')}
             </T>
             {sum > ed.time ? (
               <Press
@@ -1002,19 +1021,20 @@ export function RecipeEditor() {
                   justifyContent: 'center',
                 }}
               >
-                <T style={sans(12, 700, C.terra)}>{'Use ' + fmtT(sum)}</T>
+                <T style={sans(12, 700, C.terra)}>
+                  {tNow('editor.useTime', { time: fmtT(sum) })}
+                </T>
               </Press>
             ) : null}
           </View>
 
           <SectionHead
-            title="Ingredients"
-            count={ni + ' item' + (ni === 1 ? '' : 's')}
+            title={tr('common.ingredients')}
+            count={plz(ni, 'item')}
             mt={28}
           />
           <T style={sans(12, 400, C.ink3, { lineHeight: 18, marginTop: 2 })}>
-            Type it how you’d say it — “2 tbsp olive oil”. Return adds a line;
-            paste a whole list at once.
+            {tr('editor.typeItHowYoud')}
           </T>
           <View
             style={{
@@ -1054,19 +1074,19 @@ export function RecipeEditor() {
                   }
                   qty={
                     empty
-                      ? 'New ingredient'
+                      ? tNow('editor.newIngredient')
                       : x.p.q
                         ? qTxt(x.p.q) +
                           (x.p.u ? ' ' + x.p.u : '') +
-                          ' · scales with servings'
-                        : 'No amount · won’t scale'
+                          tNow('editor.scalesWithServings')
+                        : tNow('editor.noAmountWontScale')
                   }
                   use={
                     empty
                       ? ''
                       : used.length
-                        ? 'Step ' + used.join(', ')
-                        : 'Not in any step'
+                        ? tNow('editor.usedInSteps', { steps: used.join(', ') })
+                        : tNow('editor.notInAnyStep')
                   }
                   useCol={used.length ? C.green : C.terra}
                   isFresh={!!s.fresh[x.k] || !!s.aiMarks[x.k]}
@@ -1085,16 +1105,19 @@ export function RecipeEditor() {
               );
             })}
           </View>
-          <DashedAdd label="Add ingredient" onPress={addIng} mt={8} />
+          <DashedAdd
+            label={tr('editor.addIngredient')}
+            onPress={addIng}
+            mt={8}
+          />
 
           <SectionHead
-            title="Steps"
-            count={ns + ' step' + (ns === 1 ? '' : 's')}
+            title={tr('common.steps')}
+            count={plz(ns, 'step')}
             mt={30}
           />
           <T style={sans(12, 400, C.ink3, { lineHeight: 18, marginTop: 2 })}>
-            Write “simmer for 10 minutes” and the timer sets itself. Ingredients
-            you mention are linked for cook mode.
+            {tr('editor.writeSimmerFor10')}
           </T>
           {ed.steps.map((x, i) => {
             const tx = stx[i] ?? '';
@@ -1132,7 +1155,7 @@ export function RecipeEditor() {
               />
             );
           })}
-          <DashedAdd label="Add step" onPress={addStep} mt={10} />
+          <DashedAdd label={tr('editor.addStep')} onPress={addStep} mt={10} />
         </KeyboardScroll>
       </GestureDetector>
 
@@ -1213,6 +1236,7 @@ function RoundBtn({
 }
 
 function Starter({ onClose }: { onClose: () => void }) {
+  const tr = useT();
   return (
     <View
       style={{
@@ -1239,16 +1263,15 @@ function Starter({ onClose }: { onClose: () => void }) {
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <T style={serif(21, 500, C.ink, { lineHeight: 25.2 })}>
-            Start with Tortie
+            {tr('editor.startWithTortie')}
           </T>
           <T style={sans(13, 400, C.ink2, { lineHeight: 19.5, marginTop: 3 })}>
-            Describe a dish or paste rough notes below. Tortie drafts the
-            ingredients, steps and timers — you edit from there.
+            {tr('editor.describeADishOr')}
           </T>
         </View>
         <Press
           onPress={onClose}
-          accessibilityLabel="Dismiss"
+          accessibilityLabel={tr('editor.dismiss')}
           style={{
             width: 32,
             height: 32,
@@ -1537,6 +1560,7 @@ function IngRow({
   onEnter: () => void;
   onBackspace: () => void;
 }) {
+  const tr = useT();
   const move = useDragRow(1, j, sv);
   const bg = useAnimatedStyle(() => ({
     backgroundColor: tw(
@@ -1571,7 +1595,7 @@ function IngRow({
     >
       <GestureDetector gesture={pan}>
         <View
-          accessibilityLabel="Drag to reorder"
+          accessibilityLabel={tr('editor.dragToReorder')}
           style={{
             width: 22,
             height: 40,
@@ -1615,7 +1639,7 @@ function IngRow({
           multiline
           scrollEnabled={false}
           allowFontScaling={false}
-          placeholder="e.g. 2 tbsp olive oil"
+          placeholder={tr('editor.eG2Tbsp')}
           placeholderTextColor={PH}
           style={[
             sans(15, 500),
@@ -1638,7 +1662,7 @@ function IngRow({
       </View>
       <Press
         onPress={onRemove}
-        accessibilityLabel="Remove ingredient"
+        accessibilityLabel={tr('editor.removeIngredient')}
         style={{
           width: 40,
           height: 40,
@@ -1680,6 +1704,7 @@ function StepRow({
   onTimer: (dir: -1 | 0 | 1) => void;
   onSugg: (nm: string) => void;
 }) {
+  const tr = useT();
   const move = useDragRow(2, j, sv);
   const box = useAnimatedStyle(() => ({
     backgroundColor: tw(isFresh ? C.greenWash2 : C.white, 600, CSS_EASE),
@@ -1729,7 +1754,7 @@ function StepRow({
         </View>
         <GestureDetector gesture={pan}>
           <View
-            accessibilityLabel="Drag to reorder"
+            accessibilityLabel={tr('editor.dragToReorder')}
             style={{
               width: 32,
               height: 40,
@@ -1757,7 +1782,7 @@ function StepRow({
             scrollEnabled={false}
             allowFontScaling={false}
             textAlignVertical="top"
-            placeholder="Step title"
+            placeholder={tr('editor.stepTitle')}
             placeholderTextColor={PH}
             style={[
               sans(15, 700, C.ink, { lineHeight: 20.25 }),
@@ -1772,7 +1797,7 @@ function StepRow({
           />
           <Press
             onPress={onRemove}
-            accessibilityLabel="Delete step"
+            accessibilityLabel={tr('editor.deleteStep')}
             style={{
               width: 34,
               height: 34,
@@ -1793,7 +1818,7 @@ function StepRow({
           scrollEnabled={false}
           allowFontScaling={false}
           textAlignVertical="top"
-          placeholder="What to do — mention times and ingredients"
+          placeholder={tr('editor.whatToDoMention')}
           placeholderTextColor={PH}
           style={[
             sans(14, 400, C.ink2, { lineHeight: 21.7 }),
@@ -1822,7 +1847,7 @@ function StepRow({
             >
               <Press
                 onPress={() => onTimer(-1)}
-                accessibilityLabel="Shorter timer"
+                accessibilityLabel={tr('editor.shorterTimer')}
                 style={{
                   width: 28,
                   height: 28,
@@ -1841,7 +1866,7 @@ function StepRow({
               </View>
               <Press
                 onPress={() => onTimer(1)}
-                accessibilityLabel="Longer timer"
+                accessibilityLabel={tr('editor.longerTimer')}
                 style={{
                   width: 28,
                   height: 28,
@@ -1857,7 +1882,7 @@ function StepRow({
           {st.auto && st.m > 0 ? (
             <View style={[chip, { gap: 3 }]}>
               <Glyph name="auto_awesome" size={14} color={C.terra} fill />
-              <T style={sans(11, 700, C.terra)}>from your text</T>
+              <T style={sans(11, 700, C.terra)}>{tr('editor.fromYourText')}</T>
             </View>
           ) : null}
           {!(st.m > 0) ? (
@@ -1876,7 +1901,7 @@ function StepRow({
               ]}
             >
               <Glyph name="timer" size={15} color={C.ink2} />
-              <T style={sans(12, 700, C.ink2)}>Add timer</T>
+              <T style={sans(12, 700, C.ink2)}>{tr('editor.addTimer')}</T>
             </Press>
           ) : null}
           {links.map((l, i) => (
@@ -1933,6 +1958,7 @@ function AINote({
   text: string;
   onDismiss: () => void;
 }) {
+  const tr = useT();
   const err = tone === 'error';
   return (
     <View
@@ -1969,7 +1995,9 @@ function AINote({
       </T>
       <Press
         onPress={onDismiss}
-        accessibilityLabel={err ? 'Dismiss' : 'Dismiss highlights'}
+        accessibilityLabel={
+          err ? tr('editor.dismiss') : tr('editor.dismissHighlights')
+        }
         style={{
           height: 32,
           paddingHorizontal: 12,
@@ -1979,7 +2007,7 @@ function AINote({
         }}
       >
         <T style={sans(12, 700, err ? C.terra : C.green)}>
-          {err ? 'OK' : 'Done'}
+          {err ? tr('editor.ok') : tr('common.done')}
         </T>
       </Press>
     </View>
@@ -2003,6 +2031,7 @@ function AskBar({
   onFocus: (v: boolean) => void;
   onRun: (q?: string) => void;
 }) {
+  const tr = useT();
   const bar = useAnimatedStyle(() => ({
     borderColor: tw(focus || busy ? C.terraBright : C.line, 200, CSS_EASE),
     borderRadius: tw(focus ? 24 : 28, 200, CSS_EASE),
@@ -2098,8 +2127,8 @@ function AskBar({
               textAlignVertical="top"
               placeholder={
                 blank
-                  ? 'Describe a dish or paste notes…'
-                  : 'Ask Tortie to change something…'
+                  ? tr('editor.describeADishOr2')
+                  : tr('editor.askTortieToChange')
               }
               placeholderTextColor={PH}
               style={[
@@ -2123,7 +2152,7 @@ function AskBar({
             />
             <Press
               onPress={() => onRun()}
-              accessibilityLabel="Apply"
+              accessibilityLabel={tr('editor.apply')}
               animatedStyle={send}
               style={{
                 width: 42,

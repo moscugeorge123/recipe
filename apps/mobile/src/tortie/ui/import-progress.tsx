@@ -25,6 +25,7 @@ import { Orb } from '@/tortie/ui/keyframes';
 import { Photo } from '@/tortie/ui/photo';
 import { SlideText } from '@/tortie/ui/slide-text';
 import { sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
 
 const PHOTO_H = 112;
 const CHIP_W = [58, 76, 48, 66, 54, 72, 44, 62];
@@ -64,6 +65,7 @@ export function ImportProgress({
   hint?: string;
   style?: StyleProp<ViewStyle>;
 }) {
+  const t = useT();
   const shown = Math.round(Math.min(100, Math.max(0, pct)));
   const hue = useMemo(() => hueOf(url ?? 'import'), [url]);
   const meta = recipe
@@ -83,7 +85,7 @@ export function ImportProgress({
             {importStageLabel(pct)}
           </SlideText>
           <T style={[sans(12, 400, C.ink2), { marginTop: 1 }]}>
-            Building your recipe
+            {t('imports.buildingYourRecipe')}
           </T>
         </View>
         <T style={[sans(15, 700, C.terra), { fontVariant: ['tabular-nums'] }]}>

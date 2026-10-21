@@ -95,10 +95,13 @@ import {
 import { Sheet, SheetScroll } from '@/tortie/ui/sheet';
 import { em, sans, serif, T } from '@/tortie/ui/text';
 import { TranslationBanner } from '@/tortie/ui/translation-banner';
+import { useT } from '@/i18n';
+import { lazyAt, tEnum, tNow } from '@/i18n/format';
 
 const FROST = 'rgba(248,250,245,.92)';
 
 export function RecipeDetail() {
+  const tr = useT();
   const id = useNav((s) => s.detailId);
   const nonce = useNav((s) => s.detailNonce);
   const f = useFrame();
@@ -202,7 +205,8 @@ export function RecipeDetail() {
   const stepCount = r?.steps.length || r?.stepCount || 0;
   const heroChips: HeroChip[] = [];
   if (r && r.time > 0) heroChips.push({ icon: 'schedule', text: fmtT(r.time) });
-  if (r?.level) heroChips.push({ icon: 'skillet', text: r.level });
+  if (r?.level)
+    heroChips.push({ icon: 'skillet', text: tEnum('level', r.level) });
   if (stepCount > 0)
     heroChips.push({
       icon: 'format_list_numbered',
@@ -211,7 +215,7 @@ export function RecipeDetail() {
   if (r?.view?.calories != null)
     heroChips.push({
       icon: 'local_fire_department',
-      text: Math.round(r.view.calories) + ' kcal',
+      text: tNow('detail.kcal', { n: Math.round(r.view.calories) }),
     });
 
   const cook = () => {
@@ -252,7 +256,7 @@ export function RecipeDetail() {
                 textTransform: 'uppercase',
               })}
             >
-              {r.tag}
+              {tEnum('tag', r.tag)}
             </T>
           ) : null}
           <T
@@ -275,9 +279,9 @@ export function RecipeDetail() {
               }}
             >
               <T style={sans(14, 400, C.ink2)}>
-                by{' '}
+                {tNow('detail.by')}{' '}
                 <T style={sans(14, 700, C.ink)}>
-                  {host ? r.byline.replace(/^by /, '') : 'You'}
+                  {host ? r.byline.replace(/^(by|de|por|par|von) /, '') : tr('detail.you')}
                 </T>
               </T>
               {host && r.originalUrl ? (
@@ -286,11 +290,11 @@ export function RecipeDetail() {
                   <Press
                     onPress={() => {
                       Linking.openURL(r.originalUrl!).catch(() =>
-                        toast('Couldn’t open that link.'),
+                        toast(tr('common.couldntOpenThatLink')),
                       );
                     }}
                     accessibilityRole="link"
-                    accessibilityLabel={'Open original on ' + host}
+                    accessibilityLabel={tNow('detail.openOriginalOn', { host })}
                     style={{
                       flexDirection: 'row',
                       alignItems: 'center',
@@ -322,8 +326,8 @@ export function RecipeDetail() {
               height={40}
               index={seg}
               items={[
-                { label: DETAIL_TABS[0], onPress: () => pickSeg(0) },
-                { label: DETAIL_TABS[1], onPress: () => pickSeg(1) },
+                { label: tr('common.ingredients'), onPress: () => pickSeg(0) },
+                { label: tr('common.steps'), onPress: () => pickSeg(1) },
               ]}
             />
           </View>
@@ -349,13 +353,15 @@ export function RecipeDetail() {
                 style={[{ width, paddingHorizontal: 20 }, o0]}
               >
                 <View style={{ paddingTop: 18, paddingBottom: 8 }}>
-                  <T
-                    style={sans(14, 600, C.ink2)}
-                  >{`${r?.ings.length ?? 0} ingredients${
-                    r && serv !== r.base
-                      ? ` · scaled for ${serv}, original ${r.base}`
-                      : ''
-                  }`}</T>
+                  <T style={sans(14, 600, C.ink2)}>
+                    {r && serv !== r.base
+                      ? tNow('detail.ingredientsScaled', {
+                          ingredients: plz(r.ings.length, 'ingredient'),
+                          serv,
+                          base: r.base,
+                        })
+                      : plz(r?.ings.length ?? 0, 'ingredient')}
+                  </T>
                 </View>
                 {r?.ings.map((x, i) => (
                   <View
@@ -421,7 +427,7 @@ export function RecipeDetail() {
               >
                 {r && Math.abs(scale - 1) > 0.005 ? (
                   <T style={sans(12, 500, C.ink3, { marginTop: 8 })}>
-                    {`Weights and volumes are scaled for ${serv} servings; counts like “2 eggs” are for ${r.base}.`}
+                    {tNow('detail.scaleNote', { serv, base: r.base })}
                   </T>
                 ) : null}
                 {r?.steps.map((st, i) => (
@@ -460,7 +466,7 @@ export function RecipeDetail() {
                             marginBottom: 4,
                           })}
                         >
-                          Before you start
+                          {tr('common.beforeYouStart')}
                         </T>
                       ) : null}
                       <View
@@ -570,7 +576,7 @@ export function RecipeDetail() {
         top={f.pushTop}
         left={16}
         onPress={() => useNav.getState().closeRecipe()}
-        label="Back"
+        label={tr('auth.back')}
       >
         <Glyph name="arrow_back" size={24} color={C.ink} />
       </FrostButton>
@@ -578,7 +584,7 @@ export function RecipeDetail() {
         top={f.pushTop}
         right={66}
         onPress={() => useNav.getState().openEditor(id)}
-        label="Edit recipe"
+        label={tr('common.editRecipe')}
       >
         <Glyph name="edit" size={21} color={C.ink} />
       </FrostButton>
@@ -586,7 +592,7 @@ export function RecipeDetail() {
         top={f.pushTop}
         right={16}
         onPress={() => useNav.getState().openMenu()}
-        label="More actions"
+        label={tr('detail.moreActions')}
       >
         <Glyph name="more_horiz" size={24} color={C.ink} />
       </FrostButton>
@@ -626,7 +632,7 @@ export function RecipeDetail() {
         >
           <StepBtn
             icon="remove"
-            label="Fewer servings"
+            label={tr('detail.fewerServings')}
             onPress={() => setServ(serv - 1)}
           />
           <View style={{ minWidth: 44, alignItems: 'center' }}>
@@ -634,12 +640,12 @@ export function RecipeDetail() {
               {String(serv)}
             </T>
             <T style={sans(10, 700, C.ink2, { lineHeight: 10, marginTop: 2 })}>
-              servings
+              {tNow('detail.servingsLabel')}
             </T>
           </View>
           <StepBtn
             icon="add"
-            label="More servings"
+            label={tr('detail.moreServings')}
             onPress={() => setServ(serv + 1)}
           />
         </View>
@@ -662,7 +668,7 @@ export function RecipeDetail() {
         >
           <Glyph name="play_arrow" size={22} fill color={C.bg} />
           <T style={sans(16, 700, C.bg)}>
-            {resuming ? 'Resume cooking' : 'Start cooking'}
+            {resuming ? tr('common.resumeCooking') : tr('auth.doneStart')}
           </T>
         </Press>
       </View>
@@ -672,6 +678,7 @@ export function RecipeDetail() {
 
 /** Italic description under the byline: 3 lines, with More / Less when there is more. */
 function Description({ text }: { text: string }) {
+  const tr = useT();
   const { m } = useMotion();
   const ms = Math.round(360 * m);
   const [layout, setLayout] = useState<DescLayout | null>(null);
@@ -730,11 +737,15 @@ function Description({ text }: { text: string }) {
         <Press
           onPress={toggle}
           accessibilityRole="button"
-          accessibilityLabel={open ? 'Show less' : 'Show more'}
+          accessibilityLabel={
+            open ? tr('common.showLess') : tr('common.showMore')
+          }
           accessibilityState={{ expanded: open }}
           style={{ alignSelf: 'flex-start', paddingVertical: 6 }}
         >
-          <T style={sans(14, 700, C.green)}>{open ? 'Less' : 'More'}</T>
+          <T style={sans(14, 700, C.green)}>
+            {open ? tr('detail.less') : tr('common.more')}
+          </T>
         </Press>
       ) : null}
     </View>
@@ -910,6 +921,7 @@ type MenuItem = {
 };
 
 export function RecipeMenuSheet() {
+  const tr = useT();
   const f = useFrame();
   const { m } = useMotion();
   const sheetMs = Math.round(520 * m);
@@ -944,9 +956,9 @@ export function RecipeMenuSheet() {
       });
       for (const key of [recipeKeys.all, collectionKeys.all, mealPlanKeys.all])
         client.invalidateQueries({ queryKey: key }).catch(() => undefined);
-      toast('Recipe deleted');
+      toast(tr('detail.recipeDeleted'));
     },
-    onError: () => toast('Couldn’t delete that recipe. Try again.'),
+    onError: () => toast(tr('detail.couldntDeleteThatRecipe')),
   });
 
   const colls = useMemo(
@@ -970,8 +982,8 @@ export function RecipeMenuSheet() {
   const items: MenuItem[] = [
     {
       icon: 'edit',
-      l: 'Edit recipe',
-      sub: 'Title, ingredients, steps & photo',
+      l: tr('common.editRecipe'),
+      sub: tr('detail.titleIngredientsStepsPhoto'),
       trail: 'chevron_right',
       ic: C.green,
       on: () => {
@@ -982,28 +994,30 @@ export function RecipeMenuSheet() {
     },
     {
       icon: 'library_add',
-      l: 'Add to collection',
+      l: tr('detail.addToCollection'),
       sub: inC
-        ? 'In ' + inC + ' collection' + (inC > 1 ? 's' : '')
-        : 'Not in any collection yet',
+        ? tNow('detail.inCollections', { collections: plz(inC, 'collection') })
+        : tr('detail.notInAnyCollection'),
       trail: 'chevron_right',
       ic: C.green,
       on: () => useNav.getState().set({ menuV: 'coll' }),
     },
     {
       icon: 'calendar_add_on',
-      l: 'Add to meal plan',
-      sub: 'Choose a day',
+      l: tr('detail.addToMealPlan'),
+      sub: tr('detail.chooseADay'),
       trail: 'chevron_right',
       ic: C.green,
       on: () => useNav.getState().set({ menuV: 'plan' }),
     },
     {
       icon: 'add_shopping_cart',
-      l: missing.length ? 'Add ingredients to groceries' : 'On your list ✓',
+      l: missing.length
+        ? tr('detail.addIngredientsToGroceries')
+        : tr('detail.onYourListTick'),
       sub: missing.length
-        ? missing.length + ' not on your list yet'
-        : 'Every ingredient is already on it',
+        ? tNow('detail.missingCount', { n: missing.length })
+        : tr('detail.everyIngredientIsAlready'),
       trail: 'chevron_right',
       ic: C.terra,
       on: () => {
@@ -1014,8 +1028,8 @@ export function RecipeMenuSheet() {
     },
     {
       icon: 'ios_share',
-      l: 'Share recipe',
-      sub: 'Send a link or a printable card',
+      l: tr('detail.shareRecipe'),
+      sub: tr('detail.sendALinkOr'),
       trail: '',
       ic: C.green,
       on: () => {
@@ -1023,14 +1037,18 @@ export function RecipeMenuSheet() {
         Clipboard.setStringAsync(r?.originalUrl || r?.title || '').catch(
           () => undefined,
         );
-        toast('Link copied');
+        toast(tr('detail.linkCopied'));
       },
     },
   ];
 
   const nIngs = r ? r.ings.length || r.ingCount : 0;
   const meta = r
-    ? fmtT(r.time) + ' · ' + r.level + ' · ' + nIngs + ' ingredients'
+    ? tNow('detail.metaLine', {
+        time: fmtT(r.time),
+        level: tEnum('level', r.level),
+        ingredients: plz(nIngs, 'ingredient'),
+      })
     : '';
 
   return (
@@ -1154,7 +1172,9 @@ export function RecipeMenuSheet() {
               >
                 <Glyph name="delete" size={20} color={C.terra} />
               </View>
-              <T style={sans(15, 600, C.terra, { flex: 1 })}>Delete recipe</T>
+              <T style={sans(15, 600, C.terra, { flex: 1 })}>
+                {tr('detail.deleteRecipe')}
+              </T>
             </Press>
           </View>
           {panel === 'coll' ? (
@@ -1195,6 +1215,7 @@ function CollectionMenu({
   selIds: string[];
   onClose: () => void;
 }) {
+  const tr = useT();
   const collections = useCollections();
   const addToColl = useAddCollectionRecipe();
   const removeFromColl = useRemoveCollectionRecipe();
@@ -1212,7 +1233,7 @@ function CollectionMenu({
               ? useNav.getState().closeMenu()
               : useNav.getState().set({ menuV: 'main' })
           }
-          accessibilityLabel="Back"
+          accessibilityLabel={tr('auth.back')}
           scale={0.9}
           easing={CSS_EASE}
           style={{
@@ -1230,17 +1251,16 @@ function CollectionMenu({
         </Press>
         <View style={{ flex: 1, minWidth: 0 }}>
           <T style={serif(24, 500, C.ink, { letterSpacing: em(24, -0.01) })}>
-            Add to collection
+            {tr('detail.addToCollection')}
           </T>
           <T style={sans(12, 400, C.ink2, { marginTop: 1 })}>
             {bulk
-              ? selIds.length +
-                ' recipe' +
-                (selIds.length === 1 ? '' : 's') +
-                ' selected'
+              ? tNow('detail.recipesSelected', {
+                  recipes: plz(selIds.length, 'recipe'),
+                })
               : inC
-                ? 'Saved in ' + inC + ' of ' + colls.length
-                : 'Pick one or more'}
+                ? tNow('detail.savedInOf', { n: inC, total: colls.length })
+                : tr('detail.pickOneOrMore')}
           </T>
         </View>
       </View>
@@ -1283,7 +1303,9 @@ function CollectionMenu({
           >
             <Glyph name="add" size={22} color={C.green} />
           </View>
-          <T style={sans(15, 700, C.green, { flex: 1 })}>New collection</T>
+          <T style={sans(15, 700, C.green, { flex: 1 })}>
+            {tr('common.newCollection')}
+          </T>
         </Press>
         {colls.map((c, i) => {
           const member = bulk
@@ -1308,7 +1330,7 @@ function CollectionMenu({
                 { collectionId: c.id, add, remove },
                 {
                   onError: () =>
-                    toast('Couldn’t update that collection. Try again.'),
+                    toast(tr('detail.couldntUpdateThatCollection')),
                 },
               );
               return;
@@ -1375,7 +1397,7 @@ function CollectionMenu({
           justifyContent: 'center',
         }}
       >
-        <T style={sans(15, 700, C.bg)}>Done</T>
+        <T style={sans(15, 700, C.bg)}>{tr('common.done')}</T>
       </Press>
     </View>
   );
@@ -1429,9 +1451,9 @@ const weekStep = {
 };
 
 const PLAN_MEALS: [MealKey, string, string][] = [
-  ['b', 'Breakfast', 'wb_twilight'],
-  ['l', 'Lunch', 'light_mode'],
-  ['d', 'Dinner', 'dark_mode'],
+  lazyAt(['b', '', 'wb_twilight'], 1, 'meal.breakfast'),
+  lazyAt(['l', '', 'light_mode'], 1, 'meal.lunch'),
+  lazyAt(['d', '', 'dark_mode'], 1, 'meal.dinner'),
 ];
 
 /** Horizontal push between the recipe menu and a following page. */
@@ -1549,6 +1571,7 @@ function PlanDayMenu({
   active: boolean;
   onClose: () => void;
 }) {
+  const tr = useT();
   const { m } = useMotion();
   const [wk, setWk] = useState(0);
   const [day, setDay] = useState<number | null>(null);
@@ -1617,11 +1640,11 @@ function PlanDayMenu({
       label.toLowerCase() +
       (wk === 0 ? '' : ', ' + weekName(wk).toLowerCase());
     if (existing === recipeId) {
-      toast('Already planned for ' + when);
+      toast(tNow('detail.alreadyPlannedFor', { when }));
       return;
     }
     if (existing) {
-      toast(when + ' is already planned');
+      toast(tNow('detail.whenAlreadyPlanned', { when }));
       return;
     }
     busy.current = true;
@@ -1633,14 +1656,14 @@ function PlanDayMenu({
         recipeId,
       },
       {
-        onError: () => toast('Couldn’t add it to your plan. Try again.'),
+        onError: () => toast(tr('detail.couldntAddItTo')),
         onSettled: () => {
           busy.current = false;
         },
       },
     );
     onClose();
-    toast('Planned for ' + when);
+    toast(tNow('cookbook.plannedFor', { when }));
   };
 
   return (
@@ -1648,7 +1671,7 @@ function PlanDayMenu({
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <Press
           onPress={back}
-          accessibilityLabel="Back"
+          accessibilityLabel={tr('auth.back')}
           scale={0.9}
           easing={CSS_EASE}
           style={{
@@ -1669,7 +1692,7 @@ function PlanDayMenu({
             numberOfLines={1}
             style={serif(24, 500, C.ink, { letterSpacing: em(24, -0.01) })}
           >
-            Add to meal plan
+            {tr('detail.addToMealPlan')}
           </T>
           <T numberOfLines={1} style={sans(12, 400, C.ink2, { marginTop: 1 })}>
             {weekName(wk) + ' · ' + weekRange(monday)}
@@ -1678,7 +1701,7 @@ function PlanDayMenu({
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <Press
             onPress={() => shiftWeek(-1)}
-            accessibilityLabel="Previous week"
+            accessibilityLabel={tr('common.previousWeek')}
             scale={0.9}
             easing={CSS_EASE}
             style={weekStep}
@@ -1687,7 +1710,7 @@ function PlanDayMenu({
           </Press>
           <Press
             onPress={() => shiftWeek(1)}
-            accessibilityLabel="Next week"
+            accessibilityLabel={tr('week.next')}
             scale={0.9}
             easing={CSS_EASE}
             style={weekStep}
@@ -1715,10 +1738,10 @@ function PlanDayMenu({
           const body = !ready
             ? '…'
             : free.length === 3
-              ? 'Nothing planned'
+              ? tNow('detail.nothingPlanned')
               : free.length === 0
-                ? 'Day is full'
-                : free.join(' · ') + ' open';
+                ? tNow('detail.dayFull')
+                : tNow('detail.freeSlots', { slots: free.join(' · ') });
           const isToday = wk === 0 && i === today;
           const expanded = day === i;
           return (
@@ -1762,7 +1785,9 @@ function PlanDayMenu({
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <T style={sans(15, 600)}>
-                    {DAYNAMES[i] + (isToday ? ' · Today' : '')}
+                    {isToday
+                      ? tNow('detail.dayToday', { day: DAYNAMES[i] ?? '' })
+                      : DAYNAMES[i]}
                   </T>
                   <T
                     numberOfLines={1}
@@ -1784,8 +1809,8 @@ function PlanDayMenu({
                     const slotSub = !ready
                       ? '…'
                       : plannedId
-                        ? (titles.get(plannedId) ?? 'Planned')
-                        : 'Open';
+                        ? (titles.get(plannedId) ?? tNow('detail.planned'))
+                        : tNow('detail.openSlot');
                     return (
                       <Press
                         key={meal}
@@ -1816,7 +1841,7 @@ function PlanDayMenu({
                             numberOfLines={1}
                             style={sans(12, 400, C.ink2, { marginTop: 1 })}
                           >
-                            {mine ? 'This recipe' : slotSub}
+                            {mine ? tr('detail.thisRecipe') : slotSub}
                           </T>
                         </View>
                         {plannedId ? (

@@ -25,6 +25,8 @@ import { tw } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tNow } from '@/i18n/format';
 
 const FLASH_MS = 1100;
 
@@ -74,7 +76,7 @@ export function useFlash(on: boolean): SharedValue<number> {
 }
 
 export const useSnoozeLabel = () =>
-  'Snooze ' + useTortiePrefs((s) => s.snoozeMinutes) + ' min';
+  tNow('timer.snoozeMin', { n: useTortiePrefs((s) => s.snoozeMinutes) });
 
 type NavState = ReturnType<typeof useNav.getState>;
 
@@ -109,6 +111,7 @@ export function timerAlertBack(): boolean {
  * the step. Several finished timers show one after another.
  */
 export function TimerAlert() {
+  const tr = useT();
   const f = useFrame();
   const timers = useCook((s) => s.timers);
   const held = useNav((s) => s.timerHeld);
@@ -157,7 +160,9 @@ export function TimerAlert() {
   const title = st?.t ?? t?.title ?? '';
   const recipeTitle = r?.title ?? t?.recipeTitle ?? '';
   const stepLabel = parts
-    ? (st?.ahead ? 'Before you start' : 'Step ' + (parts.step + 1)) +
+    ? (st?.ahead
+        ? tNow('common.beforeYouStart')
+        : tNow('common.stepN', { n: parts.step + 1 })) +
       (st?.heat ? ' · ' + st.heat : '')
     : '';
   const more = keys.filter((k) => k !== key).length;
@@ -200,7 +205,9 @@ export function TimerAlert() {
               textTransform: 'uppercase',
             })}
           >
-            {more > 0 ? 'Cooking timer · +' + more + ' more' : 'Cooking timer'}
+            {more > 0
+              ? tNow('timer.moreTimers', { n: more })
+              : tr('timer.cookingTimer')}
           </T>
           <T numberOfLines={1} style={serif(17, 600, C.ink)}>
             {recipeTitle}
@@ -209,7 +216,7 @@ export function TimerAlert() {
         {stopped ? (
           <Press
             onPress={close}
-            accessibilityLabel="Close"
+            accessibilityLabel={tr('auth.close')}
             scale={0.9}
             easing={CSS_EASE}
             style={{
@@ -236,7 +243,7 @@ export function TimerAlert() {
               marginTop: 14,
             })}
           >
-            {stopped ? 'Timer stopped' : 'Time’s up'}
+            {stopped ? tr('timer.timerStopped') : tr('common.timesUp')}
           </T>
           <View
             style={{
@@ -247,7 +254,7 @@ export function TimerAlert() {
             }}
           >
             <T
-              accessibilityLabel={over + ' seconds past zero'}
+              accessibilityLabel={tNow('timer.secondsPastZero', { n: over })}
               style={serif(30, 600, stopped ? C.ink3 : C.terra, {
                 fontVariant: ['tabular-nums'],
                 letterSpacing: em(30, -0.01),
@@ -256,7 +263,7 @@ export function TimerAlert() {
               {'−' + clock(over)}
             </T>
             <T style={sans(13, 600, C.ink3)}>
-              {stopped ? 'when stopped' : 'past zero'}
+              {stopped ? tr('timer.whenStopped') : tr('timer.pastZero')}
             </T>
           </View>
         </View>
@@ -318,7 +325,7 @@ export function TimerAlert() {
             />
             <BigBtn
               grow
-              label="Stop"
+              label={tr('common.stop')}
               a11y="Stop timer"
               bg={C.terra}
               col={C.white}
@@ -327,14 +334,19 @@ export function TimerAlert() {
           </View>
         )}
         <BigBtn
-          label="Go to step"
+          label={tr('common.goToStep')}
           icon="arrow_forward"
           bg={C.green}
           col={C.white}
           onPress={goStep}
         />
         {stopped ? (
-          <BigBtn label="Close" bg={C.surface2} col={C.ink} onPress={close} />
+          <BigBtn
+            label={tr('auth.close')}
+            bg={C.surface2}
+            col={C.ink}
+            onPress={close}
+          />
         ) : null}
       </View>
     </Animated.View>

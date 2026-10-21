@@ -18,6 +18,7 @@ import type {
 } from '@/features/recipes/types';
 import { QUERY_FRESHNESS, recipeKeys } from '@/features/query-keys';
 import { useUiStore } from '@/stores/ui-store';
+import { tNow } from '@/i18n/format';
 
 function patchRecipeInCaches(current: unknown, recipe: RecipeView): unknown {
   if (!current || typeof current !== 'object') return current;
@@ -146,7 +147,7 @@ export function useAssignRecipeCategories(recipe: RecipeView | undefined) {
     },
     onError: () => {
       showToast({
-        text: 'Couldn’t update categories. Try again.',
+        text: tNow('engage.categoriesFailed'),
         glyph: '!',
       });
     },

@@ -25,6 +25,8 @@ import { KitchenMark } from '@/tortie/ui/first-recipe';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { em, kicker, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { lazyAt, tNow } from '@/i18n/format';
 
 const LOGO = require('@/assets/tortie/tortie-logo.png');
 
@@ -35,34 +37,37 @@ type PageDef = {
   Art: (p: { on: boolean }) => ReactNode;
 };
 
-const PAGES: PageDef[] = [
-  {
-    kicker: 'Welcome to Tortie',
-    title: 'Every recipe you love, in one kitchen',
-    body: `Save recipes from ${advertisedSourcesText()}. Snap a cookbook page, or write down the one in your head.`,
-    Art: ImportArt,
-  },
-  {
-    kicker: 'Cook mode',
-    title: 'Cook hands-free, one step at a time',
-    body: 'Big, clear steps with timers that keep running while you chop. The screen stays awake, and servings and units change in a tap.',
-    Art: CookArt,
-  },
-  {
-    kicker: 'Plan & shop',
-    title: 'Plan the week, shop in one trip',
-    body: 'Drop recipes onto your week. Tortie turns them into a grocery list sorted by aisle and skips what’s already in your pantry.',
-    Art: PlanArt,
-  },
-  {
-    kicker: 'Ready when you are',
-    title: 'Add your first recipe',
-    body: 'Paste a link, share one from another app, or scan a page. Tortie reads it and sets it up for cooking.',
-    Art: StartArt,
-  },
-];
+/** Built per render so the copy follows the app language. */
+function pagesFor(): PageDef[] {
+  return [
+    {
+      kicker: tNow('welcome.p1Kicker'),
+      title: tNow('welcome.p1Title'),
+      body: tNow('welcome.p1Body', { sources: advertisedSourcesText() }),
+      Art: ImportArt,
+    },
+    {
+      kicker: tNow('welcome.p2Kicker'),
+      title: tNow('welcome.p2Title'),
+      body: tNow('welcome.p2Body'),
+      Art: CookArt,
+    },
+    {
+      kicker: tNow('welcome.p3Kicker'),
+      title: tNow('welcome.p3Title'),
+      body: tNow('welcome.p3Body'),
+      Art: PlanArt,
+    },
+    {
+      kicker: tNow('welcome.p4Kicker'),
+      title: tNow('welcome.p4Title'),
+      body: tNow('welcome.p4Body'),
+      Art: StartArt,
+    },
+  ];
+}
 
-const LAST = PAGES.length - 1;
+const LAST = 3;
 
 /** Marks the tour seen and closes it; `add` then opens the Add sheet. */
 export function finishWelcome(add = false) {
@@ -90,6 +95,9 @@ export function useWelcomeGate() {
 
 /** Full-screen first-run tour (layer 55: over cook mode, under sign-in). */
 export function Welcome() {
+  const PAGES = pagesFor();
+  const tr = useT();
+  const t = useT();
   const f = useFrame();
   const { D } = useMotion();
   const { width } = useWindowDimensions();
@@ -188,7 +196,7 @@ export function Welcome() {
           <Press
             onPress={() => finishWelcome()}
             scale={0.94}
-            accessibilityLabel="Skip the tour"
+            accessibilityLabel={t('welcome.skipTheTour')}
             style={{
               height: 36,
               paddingHorizontal: 16,
@@ -197,7 +205,7 @@ export function Welcome() {
               justifyContent: 'center',
             }}
           >
-            <T style={sans(13, 700, C.ink2)}>Skip</T>
+            <T style={sans(13, 700, C.ink2)}>{t('common.skip')}</T>
           </Press>
         </Animated.View>
       </View>
@@ -219,8 +227,8 @@ export function Welcome() {
               i === LAST && hasRecipes
                 ? {
                     ...pg,
-                    title: 'Add another recipe',
-                    body: 'Paste a link, share one from another app, or scan a page. It lands in your Cookbook, ready to cook.',
+                    title: tr('welcome.addAnotherRecipe'),
+                    body: tr('welcome.pasteALinkShare'),
                   }
                 : pg
             }
@@ -245,14 +253,17 @@ export function Welcome() {
             gap: 6,
             marginBottom: 20,
           }}
-          accessibilityLabel={`Page ${page + 1} of ${PAGES.length}`}
+          accessibilityLabel={tNow('welcome.pageOf', {
+            n: page + 1,
+            total: PAGES.length,
+          })}
         >
           {PAGES.map((pg, i) => (
             <Press
               key={pg.title}
               onPress={() => goTo(i)}
               hitSlop={8}
-              accessibilityLabel={`Go to page ${i + 1}`}
+              accessibilityLabel={tNow('welcome.goToPage', { n: i + 1 })}
             >
               <Dot on={page === i} />
             </Press>
@@ -277,9 +288,9 @@ export function Welcome() {
           <T style={sans(15, 700, C.white)}>
             {last
               ? hasRecipes
-                ? 'Add a recipe'
-                : 'Add my first recipe'
-              : 'Next'}
+                ? t('welcome.addARecipe')
+                : t('welcome.addMyFirstRecipe')
+              : t('welcome.next')}
           </T>
           {last ? null : (
             <Glyph name="arrow_forward" size={20} color={C.white} />
@@ -296,7 +307,9 @@ export function Welcome() {
             }}
           >
             <T style={sans(14, 600, C.green)}>
-              {hasRecipes ? 'Back to my kitchen' : 'I’ll look around first'}
+              {hasRecipes
+                ? t('welcome.backToMyKitchen')
+                : t('welcome.illLookAroundFirst')}
             </T>
           </Press>
         </Animated.View>
@@ -454,6 +467,7 @@ function ImportArt({ on }: { on: boolean }) {
 }
 
 function CookArt({ on }: { on: boolean }) {
+  const t = useT();
   return (
     <View style={{ width: 290, height: 250, justifyContent: 'center' }}>
       <Pop on={on} i={0}>
@@ -471,13 +485,13 @@ function CookArt({ on }: { on: boolean }) {
               { letterSpacing: em(11, 0.05), textTransform: 'uppercase' },
             ]}
           >
-            Step 2 of 5
+            {t('welcome.step2Of5')}
           </T>
           <T style={[serif(21, 600), { lineHeight: 24, marginTop: 4 }]}>
-            Simmer the tomato sauce
+            {t('welcome.simmerTheTomatoSauce')}
           </T>
           <T style={[sans(13, 400, C.ink2), { marginTop: 3 }]}>
-            Low heat · stir now and then
+            {t('welcome.lowHeatStirNow')}
           </T>
           <View style={{ flexDirection: 'row', gap: 4, marginTop: 14 }}>
             {[1, 0.55, 0, 0, 0].map((fr, i) => (
@@ -525,7 +539,7 @@ function CookArt({ on }: { on: boolean }) {
               <T style={[sans(16, 700), { fontVariant: ['tabular-nums'] }]}>
                 07:42
               </T>
-              <T style={sans(12, 600, C.ink2)}>left</T>
+              <T style={sans(12, 600, C.ink2)}>{tNow('welcome.left')}</T>
             </View>
             <View
               style={{
@@ -544,10 +558,10 @@ function CookArt({ on }: { on: boolean }) {
         </View>
       </Pop>
       <Pop on={on} i={2} style={{ position: 'absolute', top: 2, right: -6 }}>
-        <Chip icon="light_mode" label="Screen stays on" />
+        <Chip icon="light_mode" label={t('welcome.screenStaysOn')} />
       </Pop>
       <Pop on={on} i={3} style={{ position: 'absolute', bottom: 0, left: -4 }}>
-        <Chip icon="group" label="Serves 4 · metric" tone="terra" />
+        <Chip icon="group" label={t('welcome.serves4Metric')} tone="terra" />
       </Pop>
     </View>
   );
@@ -595,12 +609,13 @@ const MEALS = [
   [1, 0, 1],
 ];
 const ITEMS: [string, 'done' | 'todo' | 'pantry'][] = [
-  ['Cherry tomatoes', 'done'],
-  ['Fresh basil', 'todo'],
-  ['Parmesan', 'pantry'],
+  lazyAt(['', 'done'] as [string, 'done'], 0, 'welcome.itemTomatoes'),
+  lazyAt(['', 'todo'] as [string, 'todo'], 0, 'welcome.itemBasil'),
+  lazyAt(['', 'pantry'] as [string, 'pantry'], 0, 'welcome.itemParmesan'),
 ];
 
 function PlanArt({ on }: { on: boolean }) {
+  const t = useT();
   return (
     <View style={{ width: 290, height: 260 }}>
       <Pop
@@ -619,7 +634,7 @@ function PlanArt({ on }: { on: boolean }) {
           }}
         >
           <T style={[serif(16, 600), { marginBottom: 8, marginLeft: 2 }]}>
-            This week
+            {t('week.this')}
           </T>
           <View style={{ flexDirection: 'row', gap: 2 }}>
             {WEEK.map((l, i) => {
@@ -723,7 +738,7 @@ function PlanArt({ on }: { on: boolean }) {
                     backgroundColor: C.greenWash,
                   }}
                 >
-                  <T style={sans(11, 700, C.green)}>In pantry</T>
+                  <T style={sans(11, 700, C.green)}>{t('welcome.inPantry')}</T>
                 </View>
               ) : null}
             </View>

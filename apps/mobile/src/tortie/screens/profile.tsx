@@ -43,6 +43,7 @@ import { Select, type SelectOption } from '@/tortie/ui/select';
 import { Sheet } from '@/tortie/ui/sheet';
 import { Stagger } from '@/tortie/ui/stagger';
 import { em, kicker, sans, serif, T } from '@/tortie/ui/text';
+import { tNow } from '@/i18n/format';
 
 /** User-facing text for a failed auth call; `null` when the user backed out. */
 function authMessage(e: unknown, fallback: string): string | null {
@@ -56,6 +57,7 @@ function authMessage(e: unknown, fallback: string): string | null {
 export { initialsOf, nameOf };
 
 export function ProfileScreen() {
+  const tr = useT();
   const f = useFrame();
   const prof = useNav((s) => s.prof);
   const mounted = useNav((s) => s.mounted);
@@ -189,7 +191,7 @@ export function ProfileScreen() {
           <Press
             onPress={closeProfile}
             scale={0.9}
-            accessibilityLabel="Back"
+            accessibilityLabel={tr('auth.back')}
             style={{
               width: 42,
               height: 42,
@@ -217,7 +219,9 @@ export function ProfileScreen() {
                 ttl,
               ]}
             >
-              <T style={[sans(15, 700), { lineHeight: 22 }]}>Profile</T>
+              <T style={[sans(15, 700), { lineHeight: 22 }]}>
+                {tr('common.profile')}
+              </T>
             </Animated.View>
             <Animated.View
               style={[
@@ -249,7 +253,7 @@ export function ProfileScreen() {
             <Press
               onPress={() => setPhotoOpen(true)}
               scale={0.88}
-              accessibilityLabel="Change photo"
+              accessibilityLabel={tr('profile.changePhoto')}
               style={{
                 width: 42,
                 height: 42,
@@ -294,7 +298,7 @@ export function ProfileScreen() {
             },
           ]}
         >
-          <T style={sans(15, 600, C.ink2)}>Signing out…</T>
+          <T style={sans(15, 600, C.ink2)}>{tr('profile.signingOut')}</T>
         </View>
       ) : null}
     </View>
@@ -303,13 +307,18 @@ export function ProfileScreen() {
 
 /** Take, choose or remove the profile picture. */
 function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const tr = useT();
   const f = useFrame();
   const hasPhoto = useTortieAuth((s) => !!s.user?.photoURL);
   const rows: [string, string, 'camera' | 'library' | 'remove'][] = [
-    ['photo_camera', 'Take photo', 'camera'],
-    ['photo_library', 'Choose from library', 'library'],
+    ['photo_camera', tNow('profile.takePhoto'), 'camera'],
+    ['photo_library', tNow('scan.chooseFromLibrary'), 'library'],
     ...(hasPhoto
-      ? ([['delete', 'Remove photo', 'remove']] as [string, string, 'remove'][])
+      ? ([['delete', tNow('profile.removePhoto'), 'remove']] as [
+          string,
+          string,
+          'remove',
+        ][])
       : []),
   ];
   return (
@@ -320,7 +329,9 @@ function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
       style={{ paddingBottom: Math.max(28, f.sheetBottom) }}
     >
       <Grabber />
-      <T style={[serif(24, 500), { marginBottom: 8 }]}>Profile photo</T>
+      <T style={[serif(24, 500), { marginBottom: 8 }]}>
+        {tr('profile.profilePhoto')}
+      </T>
       {rows.map(([icon, label, action]) => (
         <Press
           key={action}
@@ -359,36 +370,38 @@ async function changePhoto(action: 'camera' | 'library' | 'remove') {
   try {
     if (action === 'remove') {
       await removeAvatar();
-      toast('Photo removed');
+      toast(tNow('profile.photoRemoved'));
       return;
     }
     const picked = await pickAvatar(action);
     if (picked.status === 'cancelled') return;
     if (picked.status === 'denied') {
-      Alert.alert(
-        'Camera access is off',
-        'Allow Tortie to use the camera in Settings to take a profile photo.',
-        [
-          { text: 'Not now', style: 'cancel' },
-          { text: 'Open Settings', onPress: () => void Linking.openSettings() },
-        ],
-      );
+      Alert.alert(tNow('profile.cameraOff'), tNow('profile.cameraOffBody'), [
+        { text: tNow('groceries.notNow'), style: 'cancel' },
+        {
+          text: tNow('profile.openSettings'),
+          onPress: () => void Linking.openSettings(),
+        },
+      ]);
       return;
     }
     await uploadAvatar(picked.uri);
-    toast('Profile photo updated');
+    toast(tNow('profile.profilePhotoUpdated'));
   } catch (e) {
     const tooLarge = e instanceof Error && e.message === 'too-large';
     Alert.alert(
-      'Couldn’t update your photo',
+      tNow('profile.photoUpdateFailed'),
       tooLarge
-        ? 'That photo is too large. Pick a smaller one.'
-        : 'Check your connection and try again. Your current photo is unchanged.',
+        ? tNow('profile.photoTooLarge')
+        : tNow('profile.photoUpdateFailedBody'),
       tooLarge
-        ? [{ text: 'OK' }]
+        ? [{ text: tNow('editor.ok') }]
         : [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Retry', onPress: () => void changePhoto(action) },
+            { text: tNow('auth.cancel'), style: 'cancel' },
+            {
+              text: tNow('imports.retry'),
+              onPress: () => void changePhoto(action),
+            },
           ],
     );
   }
@@ -457,13 +470,26 @@ export function aboutLinks(
   },
 ): AboutRow[] {
   const rows: AboutRow[] = [
-    { icon: 'notes', label: 'Version', sub: version || undefined },
+    {
+      icon: 'notes',
+      label: tNow('profile.version'),
+      sub: version || undefined,
+    },
   ];
-  if (env.terms) rows.push({ icon: 'link', label: 'Terms', url: env.terms });
+  if (env.terms)
+    rows.push({ icon: 'link', label: tNow('auth.terms'), url: env.terms });
   if (env.privacy)
-    rows.push({ icon: 'link', label: 'Privacy policy', url: env.privacy });
+    rows.push({
+      icon: 'link',
+      label: tNow('profile.privacyPolicy'),
+      url: env.privacy,
+    });
   if (env.support)
-    rows.push({ icon: 'link', label: 'Support', url: env.support });
+    rows.push({
+      icon: 'link',
+      label: tNow('profile.support'),
+      url: env.support,
+    });
   return rows;
 }
 
@@ -514,6 +540,7 @@ function SignedIn({
   name: string;
   onChangePhoto: () => void;
 }) {
+  const tr = useT();
   const t = useT();
   const prefs = useTortiePrefs();
   const linked = useTortieAuth((s) => s.linked);
@@ -533,39 +560,39 @@ function SignedIn({
   const signOut = async () => {
     try {
       await authService.signOut();
-      toast('Signed out');
+      toast(tr('profile.signedOut'));
     } catch {
-      toast('Couldn’t sign out. Try again.', 'error');
+      toast(tr('profile.couldntSignOutTry'), 'error');
     }
   };
 
   const link = async (k: 'google' | 'facebook') => {
     try {
       await authService.linkProvider(k);
-      toast(`${PROV_NAME[k]} connected`);
+      toast(tNow('profile.providerConnected', { provider: PROV_NAME[k] }));
     } catch (e) {
-      const m = authMessage(e, `Couldn’t connect ${PROV_NAME[k]}. Try again.`);
+      const m = authMessage(
+        e,
+        tNow('profile.couldntConnect', { provider: PROV_NAME[k] }),
+      );
       if (m) toast(m, 'error');
     }
   };
 
   const deleteAccount = () =>
     Alert.alert(
-      'Delete your account?',
-      'This permanently deletes your account, recipes, collections and plans. It can’t be undone.',
+      tNow('profile.deleteAccountTitle'),
+      tNow('profile.deleteAccountBody'),
       [
-        { text: 'Keep account', style: 'cancel' },
+        { text: tr('profile.keepAccount'), style: 'cancel' },
         {
-          text: 'Delete account',
+          text: tr('profile.deleteAccount'),
           style: 'destructive',
           onPress: async () => {
             try {
               await authService.deleteAccount();
             } catch (e) {
-              const m = authMessage(
-                e,
-                'Couldn’t delete your account. Try again.',
-              );
+              const m = authMessage(e, tNow('profile.deleteAccountFailed'));
               if (m) toast(m, 'error');
             }
           },
@@ -575,23 +602,23 @@ function SignedIn({
 
   const prov = user?.prov ?? 'email';
   const stats: [string, string][] = [
-    [String(cooked.data?.meta.total ?? 0), 'meals cooked'],
-    [String(recipes.total), 'recipes'],
-    [String(colls.data?.items.length ?? 0), 'collections'],
+    [String(cooked.data?.meta.total ?? 0), tNow('profile.mealsCooked')],
+    [String(recipes.total), tNow('profile.recipesStat')],
+    [String(colls.data?.items.length ?? 0), tNow('profile.collectionsStat')],
   ];
   const aboutRows = aboutLinks();
   const cookRows: [string, string, string, boolean, () => void][] = [
     [
       'notifications_active',
-      'Timer alerts',
-      'Rings an alarm, even if the app is closed',
+      tNow('profile.timerAlerts'),
+      tNow('profile.timerAlertsSub'),
       prefs.timerAlerts,
       () => prefs.set({ timerAlerts: !prefs.timerAlerts }),
     ],
     [
       'light_mode',
-      'Keep screen awake',
-      'While a recipe is open in cook mode',
+      tNow('profile.keepAwake'),
+      tNow('profile.keepAwakeSub'),
       prefs.keepAwake,
       () => prefs.set({ keepAwake: !prefs.keepAwake }),
     ],
@@ -609,7 +636,7 @@ function SignedIn({
           <Press
             onPress={onChangePhoto}
             scale={0.88}
-            accessibilityLabel="Change photo"
+            accessibilityLabel={tr('profile.changePhoto')}
             style={{
               position: 'absolute',
               right: -4,
@@ -663,8 +690,8 @@ function SignedIn({
           )}
           <T style={sans(12, 700, C.green)}>
             {prov === 'email'
-              ? 'Signed in with email'
-              : `Signed in with ${PROV_NAME[prov]}`}
+              ? tr('profile.signedInWithEmail')
+              : tNow('profile.signedInWith', { provider: PROV_NAME[prov] })}
           </T>
         </View>
       </Stagger>
@@ -711,13 +738,16 @@ function SignedIn({
             }}
           >
             <Glyph name="group" size={22} color={C.green} />
-            <RowText l="Default servings" sub="Recipes open scaled to this" />
+            <RowText
+              l={tNow('profile.defaultServings')}
+              sub={tr('profile.recipesOpenScaledTo')}
+            />
             <View
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
             >
               <StepBtn
                 icon="remove"
-                label="Fewer"
+                label={tr('profile.fewer')}
                 onPress={() =>
                   prefs.set({
                     defaultServings: Math.max(1, prefs.defaultServings - 1),
@@ -738,7 +768,7 @@ function SignedIn({
               </T>
               <StepBtn
                 icon="add"
-                label="More"
+                label={tr('common.more')}
                 onPress={() =>
                   prefs.set({
                     defaultServings: Math.min(12, prefs.defaultServings + 1),
@@ -789,7 +819,7 @@ function SignedIn({
       </Stagger>
 
       <Stagger i={3} on={on}>
-        <SectionLabel>Cook mode</SectionLabel>
+        <SectionLabel>{tr('common.cookMode')}</SectionLabel>
         <View style={CARD}>
           {cookRows.map(([icon, l, sub, v, fn], i) => (
             <View
@@ -819,13 +849,16 @@ function SignedIn({
             }}
           >
             <Glyph name="schedule" size={22} color={C.green} />
-            <RowText l="Snooze" sub="Added when a finished timer is snoozed" />
+            <RowText
+              l={tNow('profile.snooze')}
+              sub={tr('profile.addedWhenAFinished')}
+            />
             <View
               style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}
             >
               <StepBtn
                 icon="remove"
-                label="Shorter snooze"
+                label={tr('profile.shorterSnooze')}
                 onPress={() =>
                   prefs.set({
                     snoozeMinutes: clampSnooze(prefs.snoozeMinutes - 1),
@@ -842,11 +875,11 @@ function SignedIn({
                   },
                 ]}
               >
-                {prefs.snoozeMinutes + ' min'}
+                {tNow('time.min', { n: prefs.snoozeMinutes })}
               </T>
               <StepBtn
                 icon="add"
-                label="Longer snooze"
+                label={tr('profile.longerSnooze')}
                 onPress={() =>
                   prefs.set({
                     snoozeMinutes: clampSnooze(prefs.snoozeMinutes + 1),
@@ -859,7 +892,7 @@ function SignedIn({
       </Stagger>
 
       <Stagger i={4} on={on}>
-        <SectionLabel>Help</SectionLabel>
+        <SectionLabel>{tr('profile.help')}</SectionLabel>
         <Press
           onPress={() => useNav.getState().openWelcome()}
           scale={0.98}
@@ -876,13 +909,16 @@ function SignedIn({
           ]}
         >
           <Glyph name="tour" size={22} color={C.green} />
-          <RowText l="Take the tour" sub="A quick look at what Tortie can do" />
+          <RowText
+            l={tNow('profile.takeTheTour')}
+            sub={tr('profile.aQuickLookAt')}
+          />
           <Glyph name="chevron_right" size={20} color={C.ink3} />
         </Press>
       </Stagger>
 
       <Stagger i={4} on={on}>
-        <SectionLabel>About</SectionLabel>
+        <SectionLabel>{tr('profile.about')}</SectionLabel>
         <View style={CARD}>
           {aboutRows.map((r, i) => (
             <Press
@@ -912,7 +948,7 @@ function SignedIn({
       </Stagger>
 
       <Stagger i={4} on={on}>
-        <SectionLabel>Connected accounts</SectionLabel>
+        <SectionLabel>{tr('profile.connectedAccounts')}</SectionLabel>
         <View style={CARD}>
           {(isFacebookEnabled() || linked.facebook
             ? (['google', 'facebook'] as const)
@@ -948,10 +984,10 @@ function SignedIn({
                   l={n}
                   sub={
                     prov === k
-                      ? 'Used to sign in'
+                      ? tr('profile.usedToSignIn')
                       : isOn
-                        ? 'Connected'
-                        : `Sign in with ${n} too`
+                        ? tr('profile.connected')
+                        : tNow('profile.signInWithToo', { provider: n })
                   }
                 />
                 {isOn ? (
@@ -971,7 +1007,9 @@ function SignedIn({
                       justifyContent: 'center',
                     }}
                   >
-                    <T style={sans(13, 700, C.green)}>Connect</T>
+                    <T style={sans(13, 700, C.green)}>
+                      {tr('profile.connect')}
+                    </T>
                   </Press>
                 )}
               </View>
@@ -998,7 +1036,7 @@ function SignedIn({
           }}
         >
           <Glyph name="logout" size={20} color={C.terraInk} />
-          <T style={sans(15, 700, C.terraInk)}>Sign out</T>
+          <T style={sans(15, 700, C.terraInk)}>{tr('profile.signOut')}</T>
         </Press>
         <Press
           onPress={deleteAccount}
@@ -1016,7 +1054,7 @@ function SignedIn({
           }}
         >
           <Glyph name="delete_forever" size={20} color={C.terraInk} />
-          <T style={sans(15, 700, C.terraInk)}>Delete account</T>
+          <T style={sans(15, 700, C.terraInk)}>{tr('profile.deleteAccount')}</T>
         </Press>
       </Stagger>
     </>

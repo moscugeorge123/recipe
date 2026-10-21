@@ -1,6 +1,7 @@
 import { FacebookAuthProvider, type AuthCredential } from 'firebase/auth';
 
 import { AuthError } from '@/features/auth/errors';
+import { tNow } from '@/i18n/format';
 
 type FacebookSdk = typeof import('react-native-fbsdk-next');
 
@@ -36,7 +37,7 @@ export async function getFacebookCredential(): Promise<AuthCredential> {
   } catch {
     throw new AuthError({
       kind: 'error',
-      message: 'Facebook sign-in failed. Try again.',
+      message: tNow('auth.errProviderFailed', { provider: 'Facebook' }),
     });
   }
   if (isCancelled) {
@@ -46,7 +47,7 @@ export async function getFacebookCredential(): Promise<AuthCredential> {
   if (!token?.accessToken) {
     throw new AuthError({
       kind: 'error',
-      message: 'Facebook did not return a sign-in token. Try again.',
+      message: tNow('auth.errProviderToken', { provider: 'Facebook' }),
     });
   }
   return FacebookAuthProvider.credential(token.accessToken);

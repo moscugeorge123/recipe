@@ -65,42 +65,54 @@ import { Sheet } from '@/tortie/ui/sheet';
 import { Stagger } from '@/tortie/ui/stagger';
 import { TabScroll } from '@/tortie/ui/tab-scroll';
 import { ctl, em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { lazyAt, lazyList, tEnum, tNow } from '@/i18n/format';
 
-const LV = ['', 'Running low', 'Some left', 'Plenty'] as const;
+const LV = lazyList([
+  '',
+  'groceries.runningLowNote',
+  'groceries.someLeft',
+  'groceries.plenty',
+]);
 const LVC = ['', C.terra, C.ink2, C.green] as const;
 const G_CHIPS: [string, string][] = [
-  ['🥛', 'Milk'],
-  ['🥚', 'Eggs'],
-  ['🍞', 'Bread'],
-  ['🍌', 'Bananas'],
-  ['☕', 'Coffee'],
+  lazyAt(['🥛', ''], 1, 'food.milk'),
+  lazyAt(['🥚', ''], 1, 'food.eggs'),
+  lazyAt(['🍞', ''], 1, 'food.bread'),
+  lazyAt(['🍌', ''], 1, 'food.bananas'),
+  lazyAt(['☕', ''], 1, 'food.coffee'),
 ];
 const P_CHIPS: [string, string][] = [
-  ['🫒', 'Olive oil'],
-  ['🧂', 'Sea salt'],
-  ['🍚', 'Rice'],
-  ['🍝', 'Pasta'],
-  ['🧅', 'Onions'],
-  ['🧄', 'Garlic'],
+  lazyAt(['🫒', ''], 1, 'food.oliveOil'),
+  lazyAt(['🧂', ''], 1, 'food.seaSalt'),
+  lazyAt(['🍚', ''], 1, 'food.rice'),
+  lazyAt(['🍝', ''], 1, 'food.pasta'),
+  lazyAt(['🧅', ''], 1, 'food.onions'),
+  lazyAt(['🧄', ''], 1, 'food.garlic'),
 ];
-const BASICS = [
-  'Olive oil',
-  'Sea salt',
-  'Black pepper',
-  'Rice',
-  'Spaghetti',
-  'Onions',
-  'Garlic',
-  'Eggs',
-  'Butter',
-];
+const BASICS = lazyList([
+  'food.oliveOil',
+  'food.seaSalt',
+  'food.blackPepper',
+  'food.rice',
+  'food.spaghetti',
+  'food.onions',
+  'food.garlic',
+  'food.eggs',
+  'food.butter',
+]);
 const INPUT_WEB = { outlineStyle: 'none' } as object;
 
 const stockOf = (p: TPantry) => {
   const a: string[] = [];
   if (p.packs) a.push(plz(p.packs, 'pack'));
-  if (p.items) a.push(p.packs ? p.items + ' pcs' : plz(p.items, 'item'));
-  return a.join(' · ') || 'None left';
+  if (p.items)
+    a.push(
+      p.packs
+        ? tNow('groceries.pcsCount', { n: p.items })
+        : plz(p.items, 'item'),
+    );
+  return a.join(' · ') || tNow('groceries.noneLeft');
 };
 const qtyOf = (p: { amt: number | null; unit: string }) =>
   p.amt != null && !isNaN(+p.amt)
@@ -110,6 +122,7 @@ const qtyOf = (p: { amt: number | null; unit: string }) =>
 const useGrocOn = () => useNav((s) => s.tab === 'groceries' && s.mounted);
 
 export function GroceriesScreen() {
+  const tr = useT();
   const on = useGrocOn();
   const sec = useNav((s) => s.grocSec);
   const isP = sec === 'pantry';
@@ -145,11 +158,12 @@ export function GroceriesScreen() {
 
   const sub = isP
     ? pantry.length
-      ? `${pantry.length} things at home${nLow ? ' · ' + nLow + ' running low' : ''}`
-      : 'Nothing stocked yet'
+      ? tNow('groceries.thingsAtHome', { n: pantry.length }) +
+        (nLow ? ' · ' + tNow('groceries.runningLow', { n: nLow }) : '')
+      : tNow('groceries.nothingStocked')
     : groc.length
-      ? `${gDone} of ${groc.length} in the basket`
-      : 'Your list is clear';
+      ? tNow('groceries.inTheBasket', { done: gDone, total: groc.length })
+      : tNow('groceries.listClear');
 
   const addItem = () => {
     const t = addText.trim();
@@ -245,7 +259,9 @@ export function GroceriesScreen() {
               submitBehavior="submit"
               returnKeyType="done"
               placeholder={
-                isP ? 'What’s in your kitchen?' : 'Add anything — “2 lemons”'
+                isP
+                  ? tr('groceries.whatsInYourKitchen')
+                  : tr('groceries.addAnything2Lemons')
               }
               placeholderTextColor={C.ink3}
               allowFontScaling={false}
@@ -259,7 +275,7 @@ export function GroceriesScreen() {
               onPress={addItem}
               scale={0.9}
               easing={CSS_EASE}
-              accessibilityLabel="Add"
+              accessibilityLabel={tr('common.add')}
               style={{
                 width: 38,
                 height: 38,
@@ -277,7 +293,9 @@ export function GroceriesScreen() {
               onPress={toggleEdit}
               scale={0.9}
               easing={CSS_EASE}
-              accessibilityLabel={editing ? 'Done editing' : 'Edit list'}
+              accessibilityLabel={
+                editing ? tr('groceries.doneEditing') : tr('groceries.editList')
+              }
               accessibilityState={{ selected: editing }}
               animatedStyle={editBg}
               style={{
@@ -330,19 +348,21 @@ export function GroceriesScreen() {
                 }}
               >
                 <Glyph name="touch_app" size={16} color={C.ink2} />
-                <T style={sans(12, 400, C.ink2)}>Tap an item to edit it</T>
+                <T style={sans(12, 400, C.ink2)}>
+                  {tr('groceries.tapAnItemTo')}
+                </T>
               </View>
             ) : null}
             {gEmpty ? (
               <FadeIn i={1} on={on}>
                 <EmptyCard
                   art={<GroceryArt />}
-                  title="Nothing on the list"
-                  body="Type it however it comes to mind — “2 lemons”, “oat milk” — and Tortie tidies it into the right aisle."
+                  title={tr('groceries.nothingOnTheList')}
+                  body={tr('groceries.typeItHoweverIt')}
                   bodyW={270}
                   icon="calendar_month"
                   iconFill={false}
-                  cta="Add from this week’s plan"
+                  cta={tr('groceries.addFromThisWeeks')}
                   onCta={() => void act.fillFromPlan(recipeIds)}
                   or="Or start with"
                   chips={G_CHIPS.filter((c) => !inGroc(c[1]))}
@@ -370,7 +390,7 @@ export function GroceriesScreen() {
                       },
                     ]}
                   >
-                    {a.name}
+                    {tEnum('aisle', a.name)}
                   </T>
                   <T style={sans(12, 600, C.ink2)}>
                     {a.items.filter((g) => g.done).length +
@@ -410,12 +430,12 @@ export function GroceriesScreen() {
             {pEmpty ? (
               <EmptyCard
                 art={<PantryArt />}
-                title="A blank shelf"
-                body="Tell Tortie what’s already in your kitchen. Recipes skip what you have, and anything running low gets a nudge."
+                title={tr('groceries.aBlankShelf')}
+                body={tr('groceries.tellTortieWhatsAlready')}
                 bodyW={280}
                 icon="auto_awesome"
                 iconFill
-                cta="Stock the kitchen basics"
+                cta={tr('groceries.stockTheKitchenBasics')}
                 onCta={addBasics}
                 or="Or add one by one"
                 chips={P_CHIPS.filter((c) => !inPan(c[1]))}
@@ -434,7 +454,7 @@ export function GroceriesScreen() {
               >
                 <Glyph name="touch_app" size={16} color={C.ink2} />
                 <T style={sans(12, 400, C.ink2)}>
-                  Tap an item to edit its count, packets and quantity
+                  {tr('groceries.tapAnItemTo2')}
                 </T>
               </View>
             ) : null}
@@ -460,11 +480,11 @@ export function GroceriesScreen() {
                         },
                       ]}
                     >
-                      {sh.name}
+                      {tEnum('shelf', sh.name)}
                     </T>
                     <T style={sans(12, 600, low ? C.terra : C.ink2)}>
                       {low
-                        ? low + ' running low'
+                        ? tNow('groceries.runningLow', { n: low })
                         : plz(sh.items.length, 'item')}
                     </T>
                   </View>
@@ -515,6 +535,7 @@ function GrocHeader({
   onGroc: () => void;
   onPantry: () => void;
 }) {
+  const tr = useT();
   const [bw, setBw] = useState(0);
   const pad = useAnimatedStyle(() => ({
     paddingTop: tw(compact ? 10 : 8, 220, CSS_EASE),
@@ -553,7 +574,7 @@ function GrocHeader({
             numberOfLines={1}
             style={[serif(36, 500), title]}
           >
-            Groceries
+            {tr('tab.groceries')}
           </Animated.Text>
           <Animated.View style={[{ overflow: 'hidden' }, subA]}>
             <T
@@ -572,9 +593,13 @@ function GrocHeader({
         index={isP ? 1 : 0}
         style={{ marginBottom: 12 }}
         items={[
-          { label: 'Shopping list', badge: String(n0), onPress: onGroc },
           {
-            label: 'Pantry',
+            label: tr('groceries.shoppingList'),
+            badge: String(n0),
+            onPress: onGroc,
+          },
+          {
+            label: tr('groceries.pantry'),
             badge: String(n1),
             badgeOnBg: low ? C.terra : C.green,
             onPress: onPantry,
@@ -599,9 +624,9 @@ function GrocHeader({
   );
 }
 
-const BASKET_ACTS = [
-  ['delete', 'Clear', C.terra],
-  ['kitchen', 'Add to pantry', C.green],
+const BASKET_ACTS: [string, string, string][] = [
+  lazyAt(['delete', '', C.terra], 1, 'groceries.clear'),
+  lazyAt(['kitchen', '', C.green], 1, 'groceries.addToPantry'),
 ] as const;
 
 /**
@@ -844,6 +869,7 @@ function ReviewGroup({
   onAll: () => void;
   onNone: () => void;
 }) {
+  const tr = useT();
   return (
     <View style={{ gap: 8 }}>
       {proposals.length > 1 ? (
@@ -855,12 +881,14 @@ function ReviewGroup({
             paddingHorizontal: 4,
           }}
         >
-          <T style={sans(13, 600, C.ink2)}>{proposals.length} ready to add</T>
+          <T style={sans(13, 600, C.ink2)}>
+            {tNow('groceries.readyToAdd', { n: proposals.length })}
+          </T>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Press
               onPress={onNone}
               scale={0.96}
-              accessibilityLabel="Skip all"
+              accessibilityLabel={tr('groceries.skipAll')}
               style={{
                 height: 32,
                 paddingHorizontal: 12,
@@ -870,12 +898,12 @@ function ReviewGroup({
                 backgroundColor: C.surface2,
               }}
             >
-              <T style={sans(13, 600, C.ink2)}>Not now</T>
+              <T style={sans(13, 600, C.ink2)}>{tr('groceries.notNow')}</T>
             </Press>
             <Press
               onPress={onAll}
               scale={0.96}
-              accessibilityLabel="Add all"
+              accessibilityLabel={tr('groceries.addAll')}
               style={{
                 height: 32,
                 paddingHorizontal: 14,
@@ -885,7 +913,7 @@ function ReviewGroup({
                 backgroundColor: C.green,
               }}
             >
-              <T style={sans(13, 600, C.bg)}>Add all</T>
+              <T style={sans(13, 600, C.bg)}>{tr('groceries.addAll')}</T>
             </Press>
           </View>
         </View>
@@ -950,15 +978,19 @@ function ReviewRow({
           {r.sum
             ? r.sum
             : isP
-              ? 'On the shelf · ' + SHELVES[r.sh]
-              : 'Sorted into ' + AISLES[r.a]}
+              ? tNow('groceries.onTheShelf', {
+                  shelf: tEnum('shelf', SHELVES[r.sh]),
+                })
+              : tNow('groceries.sortedInto', {
+                  aisle: tEnum('aisle', AISLES[r.a]),
+                })}
           {!isP && r.q ? ' · ' + r.q : ''}
         </T>
       </View>
       <Press
         onPress={onDismiss}
         scale={0.92}
-        accessibilityLabel={'Skip ' + r.n}
+        accessibilityLabel={tNow('groceries.skipItem', { name: r.n })}
         style={{
           width: 36,
           height: 36,
@@ -972,7 +1004,7 @@ function ReviewRow({
       <Press
         onPress={onAccept}
         scale={0.92}
-        accessibilityLabel={'Add ' + r.n}
+        accessibilityLabel={tNow('groceries.addItem', { name: r.n })}
         style={{
           width: 36,
           height: 36,
@@ -997,8 +1029,8 @@ function PendingRow({ p, isP }: { p: Pending; isP: boolean }) {
     return () => clearInterval(t);
   }, [r]);
   const STG = [
-    'Recognising the ingredient',
-    isP ? 'Finding its shelf' : 'Finding its aisle',
+    tNow('groceries.stageRecognising'),
+    isP ? tNow('groceries.stageShelf') : tNow('groceries.stageAisle'),
   ];
   const k = Math.min(
     STG.length - 1,
@@ -1073,8 +1105,12 @@ function PendingRow({ p, isP }: { p: Pending; isP: boolean }) {
               ? r.sum
                 ? r.sum
                 : isP
-                  ? 'On the shelf · ' + SHELVES[r.sh]
-                  : 'Sorted into ' + AISLES[r.a]
+                  ? tNow('groceries.onTheShelf', {
+                      shelf: tEnum('shelf', SHELVES[r.sh]),
+                    })
+                  : tNow('groceries.sortedInto', {
+                      aisle: tEnum('aisle', AISLES[r.a]),
+                    })
               : STG[k]}
           </Animated.Text>
           {r ? null : <Dots textStyle={sans(12, 600, C.terra)} />}
@@ -1129,7 +1165,9 @@ function GrocRow({
     <Press
       onPress={onPress}
       accessibilityRole={editing ? 'button' : 'checkbox'}
-      accessibilityLabel={editing ? 'Edit ' + g.n : undefined}
+      accessibilityLabel={
+        editing ? tNow('groceries.editItem', { name: g.n }) : undefined
+      }
       accessibilityState={editing ? { selected: true } : { checked: done }}
       animatedStyle={row}
       style={{
@@ -1220,6 +1258,7 @@ function PantryTile({
   fresh: boolean;
   onRestock: (p: TPantry) => void;
 }) {
+  const tr = useT();
   const { width } = useWindowDimensions();
   const w = (width - 40 - 16) / 3;
   const low = p.lv === 1;
@@ -1292,7 +1331,9 @@ function PantryTile({
             scale={0.88}
             easing={CSS_EASE}
             accessibilityLabel={
-              p.listed ? 'Show on shopping list' : 'Add to shopping list'
+              p.listed
+                ? tr('groceries.showOnShoppingList')
+                : tr('groceries.addToShoppingList')
             }
             style={{ position: 'absolute', top: 8, right: 8 }}
           >
@@ -1370,6 +1411,7 @@ function QtyField({
   value: string;
   onChangeText: (amt: string) => void;
 }) {
+  const tr = useT();
   const ref = useRef<TextInput>(null);
   const [caret, setCaret] = useState<number | null>(null);
   return (
@@ -1392,7 +1434,7 @@ function QtyField({
       keyboardType="decimal-pad"
       placeholder="—"
       placeholderTextColor={C.ink3}
-      accessibilityLabel="Quantity"
+      accessibilityLabel={tr('groceries.quantity')}
       allowFontScaling={false}
       style={[
         sans(16, 700),
@@ -1428,6 +1470,7 @@ function shownQty(
 }
 
 export function EditGrocerySheet() {
+  const tr = useT();
   const f = useFrame();
   const open = useNav((s) => s.gedOn);
   const gedId = useNav((s) => s.gedId);
@@ -1501,7 +1544,7 @@ export function EditGrocerySheet() {
           editShop(client, (items) =>
             items.map((v) => (v.id === id ? prev : v)),
           );
-          toast('Couldn’t update ' + (typed || cur.n) + '. Try again.');
+          toast(tNow('groceries.couldntUpdateItem', { name: typed || cur.n }));
         },
       },
     );
@@ -1515,11 +1558,11 @@ export function EditGrocerySheet() {
     if (last) useNav.getState().set({ grocEdit: false });
     useGroceryAisles.getState().clear(d.id);
     editShop(client, (items) => items.filter((v) => v.id !== d.id));
-    toast(d.e + ' ' + d.n + ' removed from your list');
+    toast(tNow('groceries.removedFromList', { name: d.e + ' ' + d.n }));
     del.mutate(d.id, {
       onError: () => {
         if (gone) editShop(client, (items) => [...items, gone.view]);
-        toast('Couldn’t remove ' + d.n + '. Try again.');
+        toast(tNow('groceries.couldntRemoveItem', { name: d.n }));
       },
     });
   };
@@ -1563,9 +1606,9 @@ export function EditGrocerySheet() {
               value={x.n}
               onChangeText={(n) => up({ n })}
               maxLength={200}
-              placeholder="Name"
+              placeholder={tr('groceries.name')}
               placeholderTextColor={C.ink3}
-              accessibilityLabel="Name"
+              accessibilityLabel={tr('groceries.name')}
               allowFontScaling={false}
               style={[
                 {
@@ -1605,14 +1648,14 @@ export function EditGrocerySheet() {
           },
         ]}
       >
-        Aisle
+        {tr('groceries.aisle')}
       </T>
       <ChipRow>
         {AISLES.map((name, i) => (
           <GridPill
             key={name}
             hug
-            label={name}
+            label={tEnum('aisle', name)}
             on={x.a === i}
             onPress={() => up({ a: i })}
           />
@@ -1634,9 +1677,9 @@ export function EditGrocerySheet() {
         }}
       >
         <View style={{ flex: 1, minWidth: 0 }}>
-          <T style={sans(15, 600)}>Quantity</T>
+          <T style={sans(15, 600)}>{tr('groceries.quantity')}</T>
           <T style={[sans(12, 400, C.ink2), { marginTop: 2 }]}>
-            How much to buy
+            {tr('groceries.howMuchToBuy')}
           </T>
         </View>
         <QtyField value={x.amt} onChangeText={(amt) => up({ amt })} />
@@ -1644,7 +1687,7 @@ export function EditGrocerySheet() {
       <ChipRow>
         <GridPill
           hug
-          label="pcs"
+          label={tNow('groceries.pcs')}
           on={x.unit === ''}
           onPress={() => up({ unit: '' })}
         />
@@ -1663,7 +1706,7 @@ export function EditGrocerySheet() {
           onPress={remove}
           scale={0.92}
           easing={CSS_EASE}
-          accessibilityLabel="Remove from list"
+          accessibilityLabel={tr('groceries.removeFromList')}
           style={{
             width: 54,
             height: 54,
@@ -1690,7 +1733,7 @@ export function EditGrocerySheet() {
             justifyContent: 'center',
           }}
         >
-          <T style={sans(15, 700, C.bg)}>Save</T>
+          <T style={sans(15, 700, C.bg)}>{tr('common.save')}</T>
         </Press>
       </View>
     </Sheet>
@@ -1713,6 +1756,7 @@ type Draft = {
 };
 
 export function EditPantrySheet() {
+  const tr = useT();
   const f = useFrame();
   const open = useNav((s) => s.pedOn);
   const pedId = useNav((s) => s.pedId);
@@ -1782,7 +1826,7 @@ export function EditPantrySheet() {
             editPantry(client, (items) =>
               items.map((v) => (v.id === d.id ? cur.view : v)),
             );
-            toast('Couldn’t rename ' + cur.n + '. Try again.');
+            toast(tNow('groceries.couldntRename', { name: cur.n }));
           },
         },
       );
@@ -1794,12 +1838,12 @@ export function EditPantrySheet() {
     const gone = list.find((p) => p.id === d.id);
     close();
     editPantry(client, (items) => items.filter((v) => v.id !== d.id));
-    toast(d.e + ' ' + d.n + ' removed from pantry');
+    toast(tNow('groceries.removedFromPantry', { name: d.e + ' ' + d.n }));
     del.mutate(d.id, {
       onSuccess: () => usePantryExtras.getState().remove(d.id),
       onError: () => {
         if (gone) editPantry(client, (items) => [...items, gone.view]);
-        toast('Couldn’t remove ' + d.n + '. Try again.');
+        toast(tNow('groceries.couldntRemoveItem', { name: d.n }));
       },
     });
   };
@@ -1835,7 +1879,7 @@ export function EditPantrySheet() {
             value={x.n}
             onChangeText={(n) => up({ n })}
             maxLength={40}
-            accessibilityLabel="Name"
+            accessibilityLabel={tr('groceries.name')}
             allowFontScaling={false}
             style={[
               {
@@ -1858,7 +1902,7 @@ export function EditPantrySheet() {
               },
             ]}
           >
-            {SHELVES[x.sh] ?? ''}
+            {tEnum('shelf', SHELVES[x.sh])}
           </T>
         </View>
       </RevealBox>
@@ -1876,16 +1920,20 @@ export function EditPantrySheet() {
         }}
       >
         <StepRow
-          title="Items"
-          sub="Pieces, tins, bottles or slices"
+          title={tr('groceries.items')}
+          sub={tr('groceries.piecesTinsBottlesOr')}
           value={x.items}
           onDn={() => up({ items: Math.max(0, x.items - 1) })}
           onUp={() => up({ items: x.items + 1 })}
         />
         <View style={{ height: 1, backgroundColor: C.surface3 }} />
         <StepRow
-          title="Packets"
-          sub={x.packs ? 'Sealed or opened packs' : 'Loose — not in a packet'}
+          title={tr('groceries.packets')}
+          sub={
+            x.packs
+              ? tr('groceries.sealedOrOpenedPacks')
+              : tr('groceries.looseNotInA')
+          }
           value={x.packs}
           onDn={() => up({ packs: Math.max(0, x.packs - 1) })}
           onUp={() => up({ packs: x.packs + 1 })}
@@ -1900,9 +1948,9 @@ export function EditPantrySheet() {
           }}
         >
           <View style={{ flex: 1, minWidth: 0 }}>
-            <T style={sans(15, 600)}>Quantity</T>
+            <T style={sans(15, 600)}>{tr('groceries.quantity')}</T>
             <T style={[sans(12, 400, C.ink2), { marginTop: 2 }]}>
-              Total amount on the shelf
+              {tr('groceries.totalAmountOnThe')}
             </T>
           </View>
           <Input
@@ -1911,7 +1959,7 @@ export function EditPantrySheet() {
             keyboardType="decimal-pad"
             placeholder="—"
             placeholderTextColor={C.ink3}
-            accessibilityLabel="Quantity"
+            accessibilityLabel={tr('groceries.quantity')}
             allowFontScaling={false}
             style={[
               sans(16, 700),
@@ -1950,13 +1998,13 @@ export function EditPantrySheet() {
           },
         ]}
       >
-        How much is left
+        {tr('groceries.howMuchIsLeft')}
       </T>
       <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
         {([1, 2, 3] as PantryLevel[]).map((k) => (
           <GridPill
             key={k}
-            label={LV[k]}
+            label={LV[k] ?? ''}
             on={x.lv === k}
             onPress={() => up({ lv: k })}
           />
@@ -1967,7 +2015,7 @@ export function EditPantrySheet() {
           onPress={remove}
           scale={0.92}
           easing={CSS_EASE}
-          accessibilityLabel="Remove from pantry"
+          accessibilityLabel={tr('groceries.removeFromPantry')}
           style={{
             width: 54,
             height: 54,
@@ -1994,7 +2042,7 @@ export function EditPantrySheet() {
             justifyContent: 'center',
           }}
         >
-          <T style={sans(15, 700, C.bg)}>Save</T>
+          <T style={sans(15, 700, C.bg)}>{tr('common.save')}</T>
         </Press>
       </View>
     </Sheet>
@@ -2014,6 +2062,7 @@ function StepRow({
   onDn: () => void;
   onUp: () => void;
 }) {
+  const tr = useT();
   const dn = useAnimatedStyle(() => ({
     opacity: tw(value ? 1 : 0.35, 200, CSS_EASE),
   }));
@@ -2053,7 +2102,7 @@ function StepRow({
           onPress={onDn}
           scale={0.88}
           easing={CSS_EASE}
-          accessibilityLabel="Decrease"
+          accessibilityLabel={tr('groceries.decrease')}
           style={btn}
           animatedStyle={dn}
         >
@@ -2075,7 +2124,7 @@ function StepRow({
           onPress={onUp}
           scale={0.88}
           easing={CSS_EASE}
-          accessibilityLabel="Increase"
+          accessibilityLabel={tr('groceries.increase')}
           style={btn}
         >
           <Glyph name="add" size={20} color={C.ink} />

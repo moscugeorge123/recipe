@@ -52,6 +52,8 @@ import { Byline, TimeChip } from '@/tortie/ui/time-chip';
 import { TabList, TabScroll } from '@/tortie/ui/tab-scroll';
 import { iconText } from '@/tortie/ui/icon-text';
 import { ctl, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tNow } from '@/i18n/format';
 
 export function CookbookScreen() {
   const on = useNav((s) => s.tab === 'cookbook' && s.mounted);
@@ -135,6 +137,7 @@ function Top({
   v: ReturnType<typeof useCookbookView>;
   pick: MealPick | null;
 }) {
+  const tr = useT();
   return (
     <>
       <Stagger i={1} on={on}>
@@ -143,12 +146,12 @@ function Top({
           index={isC ? 1 : 0}
           items={[
             {
-              label: 'Recipes',
+              label: tr('cookbook.recipes'),
               badge: String(v.nAll),
               onPress: () => useCookbook.getState().setCbSeg('recipes'),
             },
             {
-              label: 'Collections',
+              label: tr('cookbook.collections'),
               badge: String(v.nColls),
               onPress: () => useCookbook.getState().goCollections(),
             },
@@ -175,6 +178,7 @@ function CookbookHeader({
   on: boolean;
   sub: string;
 }) {
+  const tr = useT();
   const pad = useAnimatedStyle(() => ({
     paddingTop: tw(compact ? 10 : 8, 220, CSS_EASE),
     paddingBottom: tw(compact ? 10 : 16, 220, CSS_EASE),
@@ -206,7 +210,7 @@ function CookbookHeader({
                 title,
               ]}
             >
-              Cookbook
+              {tr('tab.cookbook')}
             </Animated.Text>
             <Animated.View style={[{ overflow: 'hidden' }, subBox]}>
               <T
@@ -225,6 +229,7 @@ function CookbookHeader({
 }
 
 function SearchBar({ isC, count }: { isC: boolean; count: number }) {
+  const tr = useT();
   const q = useCookbook((s) => s.q);
   const setQ = useCookbook((s) => s.setQ);
   const has = count > 0;
@@ -254,7 +259,9 @@ function SearchBar({ isC, count }: { isC: boolean; count: number }) {
         value={q}
         onChangeText={setQ}
         placeholder={
-          isC ? 'Search collections' : 'Search recipes or ingredients'
+          isC
+            ? tr('cookbook.searchCollections')
+            : tr('cookbook.searchRecipesOrIngredients')
         }
         placeholderTextColor={C.ink3}
         allowFontScaling={false}
@@ -271,7 +278,7 @@ function SearchBar({ isC, count }: { isC: boolean; count: number }) {
       />
       <Press
         onPress={() => useNav.getState().set({ fs: true })}
-        accessibilityLabel="Filter and sort"
+        accessibilityLabel={tr('cookbook.filterAndSort')}
         scale={0.9}
         easing={CSS_EASE}
         style={{
@@ -340,6 +347,7 @@ function RecipesList({
   onRetry: () => void;
   fade: ComponentProps<typeof Animated.View>['style'];
 }) {
+  const tr = useT();
   const filter = useCookbook((s) => s.filter);
   const view = useCookbook((s) => s.rf.view);
   const q = useCookbook((s) => s.q.trim());
@@ -351,7 +359,9 @@ function RecipesList({
     rf.saved ||
     rf.pantry ||
     Object.values(rf.lv).some(Boolean);
-  const summary = collName ? null : showingSummary(book.length, total, narrowed);
+  const summary = collName
+    ? null
+    : showingSummary(book.length, total, narrowed);
   const open = useNav((s) => s.openRecipe);
   const createEntry = useCreateMealPlanEntry();
   const busy = useRef(false);
@@ -369,10 +379,9 @@ function RecipesList({
       usePlan.getState().clearPick();
       useNav.getState().goTab('plan');
       toast(
-        'Planned for ' +
-          DAYNAMES[target.day] +
-          ' ' +
-          target.label.toLowerCase(),
+        tNow('cookbook.plannedFor', {
+          when: DAYNAMES[target.day] + ' ' + target.label.toLowerCase(),
+        }),
       );
       mutate.current(
         {
@@ -382,7 +391,7 @@ function RecipesList({
           recipeId: id,
         },
         {
-          onError: () => toast('Couldn�t add it to your plan. Try again.'),
+          onError: () => toast(tr('cookbook.couldnTAddIt')),
           onSettled: () => {
             busy.current = false;
           },
@@ -449,10 +458,10 @@ function RecipesList({
               useCookbook.getState().resetRF();
             }}
             accessibilityRole="button"
-            accessibilityLabel="Clear search and filters"
+            accessibilityLabel={tr('cookbook.clearSearchAndFilters')}
             hitSlop={10}
           >
-            <T style={sans(13, 700, C.green)}>Clear</T>
+            <T style={sans(13, 700, C.green)}>{tr('cookbook.clear')}</T>
           </Press>
         </View>
       ) : null}
@@ -538,6 +547,7 @@ function GridCell({
 }
 
 function PickBar({ pick }: { pick: MealPick }) {
+  const tr = useT();
   const cancel = () => {
     usePlan.getState().clearPick();
     useNav.getState().goTab('plan');
@@ -566,7 +576,7 @@ function PickBar({ pick }: { pick: MealPick }) {
         onPress={cancel}
         scale={0.96}
         easing={CSS_EASE}
-        accessibilityLabel="Cancel"
+        accessibilityLabel={tr('auth.cancel')}
         style={{
           height: 34,
           paddingHorizontal: 12,
@@ -575,7 +585,7 @@ function PickBar({ pick }: { pick: MealPick }) {
           justifyContent: 'center',
         }}
       >
-        <T style={sans(13, 700, C.green)}>Cancel</T>
+        <T style={sans(13, 700, C.green)}>{tr('auth.cancel')}</T>
       </Press>
     </View>
   );
@@ -635,6 +645,7 @@ const RecipeCard = memo(function RecipeCard({
   item: { r, meta },
   onOpen,
 }: CardProps) {
+  const tr = useT();
   const w = useColW();
   const lp = useRecipeLongPress(r.id);
   const [pressed, setPressed] = useState(false);
@@ -660,7 +671,7 @@ const RecipeCard = memo(function RecipeCard({
       onPress={() => onRecipeCardPress(r.id, onOpen)}
       accessibilityRole="button"
       accessibilityState={selOn ? { selected: isSel } : undefined}
-      accessibilityActions={[{ name: 'select', label: 'Select' }]}
+      accessibilityActions={[{ name: 'select', label: tr('common.select') }]}
       onAccessibilityAction={(e) => {
         if (e.nativeEvent.actionName === 'select') onRecipeSelectAction(r.id);
       }}
@@ -708,6 +719,7 @@ const RecipeRow = memo(function RecipeRow({
   item: { r, meta },
   onOpen,
 }: CardProps) {
+  const tr = useT();
   const lp = useRecipeLongPress(r.id);
   const selOn = useNav((s) => s.sel != null && s.tab === 'cookbook');
   const isSel = useNav((s) => !!s.sel?.includes(r.id));
@@ -724,7 +736,7 @@ const RecipeRow = memo(function RecipeRow({
       easing={CSS_EASE}
       accessibilityRole="button"
       accessibilityState={selOn ? { selected: isSel } : undefined}
-      accessibilityActions={[{ name: 'select', label: 'Select' }]}
+      accessibilityActions={[{ name: 'select', label: tr('common.select') }]}
       onAccessibilityAction={(e) => {
         if (e.nativeEvent.actionName === 'select') onRecipeSelectAction(r.id);
       }}
@@ -750,7 +762,10 @@ const RecipeRow = memo(function RecipeRow({
         style={{ width: 72, height: 72 }}
       />
       <View style={{ flex: 1, minWidth: 0 }}>
-        <T numberOfLines={2} style={serif(17, 600, C.ink, { lineHeight: 20.4 })}>
+        <T
+          numberOfLines={2}
+          style={serif(17, 600, C.ink, { lineHeight: 20.4 })}
+        >
           {r.title}
         </T>
         <Byline text={r.byline} />
@@ -801,6 +816,7 @@ function LibraryEmpty({
   notice: 'slow' | 'unreachable' | null;
   onRetry: () => void;
 }) {
+  const tr = useT();
   return (
     <View style={{ paddingTop: 6, paddingBottom: 24 }}>
       {notice ? (
@@ -809,7 +825,7 @@ function LibraryEmpty({
         </Stagger>
       ) : null}
       <Stagger i={3} on={on}>
-        <FirstRecipeHero title="Your cookbook is empty" />
+        <FirstRecipeHero title={tr('cookbook.yourCookbookIsEmpty')} />
       </Stagger>
     </View>
   );
@@ -817,6 +833,7 @@ function LibraryEmpty({
 
 /** Recipes exist but none survive the search, filters or open collection. */
 function NoMatches({ collName }: { collName: string | null }) {
+  const tr = useT();
   const q = useCookbook((s) => s.q.trim());
   const filter = useCookbook((s) => s.filter);
   const rf = useCookbook((s) => s.rf);
@@ -836,16 +853,16 @@ function NoMatches({ collName }: { collName: string | null }) {
     return (
       <EmptyState
         icons={['menu_book', 'search_off', 'restaurant']}
-        title={`Nothing for “${q}”`}
-        body="Check the spelling, or search for an ingredient you’d like to use."
+        title={tNow('cookbook.nothingFor', { q })}
+        body={tr('cookbook.checkTheSpellingOr')}
         action={{
-          label: 'Clear search',
+          label: tr('cookbook.clearSearch'),
           icon: 'close',
           onPress: () => cb().setQ(''),
         }}
         secondary={
           narrowed || rf.saved
-            ? { label: 'Clear filters too', onPress: clearFilters }
+            ? { label: tr('cookbook.clearFiltersToo'), onPress: clearFilters }
             : undefined
         }
         style={pad}
@@ -856,10 +873,10 @@ function NoMatches({ collName }: { collName: string | null }) {
     return (
       <EmptyState
         icons={['bookmark', 'folder_open', 'add']}
-        title={`${collName} is empty`}
-        body="Open any recipe, tap its menu and choose Add to collection."
+        title={tNow('cookbook.collectionEmpty', { name: collName })}
+        body={tr('cookbook.openAnyRecipeTap')}
         action={{
-          label: 'Browse all recipes',
+          label: tr('cookbook.browseAllRecipes'),
           icon: 'menu_book',
           onPress: () => useNav.getState().set({ cookbookColl: null }),
         }}
@@ -872,10 +889,10 @@ function NoMatches({ collName }: { collName: string | null }) {
       <EmptyState
         icons={['restaurant', 'favorite', 'bookmark']}
         tone="terra"
-        title="No favourites yet"
-        body="Tap the heart on a recipe you love and it’ll wait for you here."
+        title={tr('cookbook.noFavouritesYet')}
+        body={tr('cookbook.tapTheHeartOn')}
         action={{
-          label: 'Show all recipes',
+          label: tr('cookbook.showAllRecipes'),
           onPress: () => cb().setRF({ saved: false }),
         }}
         style={pad}
@@ -886,17 +903,20 @@ function NoMatches({ collName }: { collName: string | null }) {
     return (
       <EmptyState
         icons={['egg', 'kitchen', 'shopping_basket']}
-        title="Nothing to cook from your pantry"
-        body="Tell Tortie what’s at home and it’ll find recipes that use it."
+        title={tr('cookbook.nothingToCookFrom')}
+        body={tr('cookbook.tellTortieWhatsAt')}
         action={{
-          label: 'Stock the pantry',
+          label: tr('cookbook.stockThePantry'),
           icon: 'kitchen',
           onPress: () => {
             useNav.getState().set({ grocSec: 'pantry' });
             useNav.getState().goTab('groceries');
           },
         }}
-        secondary={{ label: 'Clear filters', onPress: clearFilters }}
+        secondary={{
+          label: tr('cookbook.clearFilters'),
+          onPress: clearFilters,
+        }}
         style={pad}
       />
     );
@@ -904,9 +924,13 @@ function NoMatches({ collName }: { collName: string | null }) {
   return (
     <EmptyState
       icons={['tune', 'filter_alt_off', 'restaurant_menu']}
-      title="Nothing matches these filters"
-      body="Loosen a filter or try another category."
-      action={{ label: 'Clear filters', icon: 'close', onPress: clearFilters }}
+      title={tr('cookbook.nothingMatchesTheseFilters')}
+      body={tr('cookbook.loosenAFilterOr')}
+      action={{
+        label: tr('cookbook.clearFilters'),
+        icon: 'close',
+        onPress: clearFilters,
+      }}
       style={pad}
     />
   );
@@ -924,6 +948,7 @@ function CollectionsView({
   on: boolean;
   loading: boolean;
 }) {
+  const tr = useT();
   const view = useCookbook((s) => s.cf.view);
   const newColl = () => useNav.getState().openNewCollection();
   const openColl = (id: string) => useCookbook.getState().openColl(id);
@@ -932,10 +957,14 @@ function CollectionsView({
       <Stagger i={3} on={on} style={{ marginTop: 18 }}>
         <EmptyState
           icons={['cake', 'collections_bookmark', 'dinner_dining']}
-          kicker="Nothing grouped yet"
-          title="Make your first collection"
-          body="Weeknight dinners, holiday baking, Gran’s classics. Group recipes however you like to cook."
-          action={{ label: 'New collection', icon: 'add', onPress: newColl }}
+          kicker={tr('cookbook.nothingGroupedYet')}
+          title={tr('cookbook.makeYourFirstCollection')}
+          body={tr('cookbook.weeknightDinnersHolidayBaking')}
+          action={{
+            label: tr('common.newCollection'),
+            icon: 'add',
+            onPress: newColl,
+          }}
         />
       </Stagger>
     );
@@ -974,7 +1003,7 @@ function CollectionsView({
             }}
           >
             <Glyph name="add" size={22} color={C.green} />
-            <T style={sans(14, 700, C.green)}>New collection</T>
+            <T style={sans(14, 700, C.green)}>{tr('common.newCollection')}</T>
           </Press>
         </View>
       )}
@@ -983,10 +1012,10 @@ function CollectionsView({
           variant="plain"
           compact
           icons={['search', 'search_off', 'tune']}
-          title="No collections match"
-          body="Try another name or change what’s shown in filters."
+          title={tr('cookbook.noCollectionsMatch')}
+          body={tr('cookbook.tryAnotherNameOr')}
           action={{
-            label: 'Clear search and filters',
+            label: tr('cookbook.clearSearchAndFilters'),
             onPress: () => {
               useCookbook.getState().setQ('');
               useCookbook.getState().resetCF();
@@ -1130,6 +1159,7 @@ const CollRow = memo(function CollRow({ c, onOpen }: CollProps) {
 });
 
 function NewCollTile({ onPress }: { onPress: () => void }) {
+  const tr = useT();
   const w = useColW();
   return (
     <Press
@@ -1149,7 +1179,7 @@ function NewCollTile({ onPress }: { onPress: () => void }) {
       }}
     >
       <Glyph name="add" size={28} color={C.green} />
-      <T style={sans(14, 700, C.green)}>New collection</T>
+      <T style={sans(14, 700, C.green)}>{tr('common.newCollection')}</T>
     </Press>
   );
 }

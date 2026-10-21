@@ -1,6 +1,10 @@
 import { parsePantryText } from '@recipe/contracts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useQueries, useQueryClient, type QueryClient } from '@tanstack/react-query';
+import {
+  useQueries,
+  useQueryClient,
+  type QueryClient,
+} from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
@@ -44,9 +48,16 @@ import {
 } from '@/tortie/data/pantry-extras';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
-import { AISLES, lexOf, noAmountLabel, parseLocal, plz } from '@/tortie/lib/fmt';
+import {
+  AISLES,
+  lexOf,
+  noAmountLabel,
+  parseLocal,
+  plz,
+} from '@/tortie/lib/fmt';
 import { motionMultiplier } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
+import { tNow } from '@/i18n/format';
 
 /** Design grocery row (prototype `groc[]`: {id,n,q,src,a,e,done}). */
 export type TGroc = {
@@ -107,10 +118,10 @@ export function toTGroc(
     note ??
     (v.source === 'RECIPE' && v.sourceRecipeId
       ? (recipeTitle?.(v.sourceRecipeId)?.split(' ').slice(0, 2).join(' ') ??
-        'From a recipe')
+        tNow('groceries.fromRecipe'))
       : v.source === 'MEAL_PLAN'
-        ? 'From your plan'
-        : 'Added by you');
+        ? tNow('groceries.fromYourPlan')
+        : tNow('groceries.addedByYou'));
   return {
     id: v.id,
     n: cap(v.name),
@@ -172,7 +183,8 @@ export function useMissingFromList(recipeIds: string[]): number | null {
       staleTime: QUERY_FRESHNESS.recipeDetail,
     })),
   });
-  const loaded = recipes.every((r) => r.data) && !!shop.data && !pantry.isLoading;
+  const loaded =
+    recipes.every((r) => r.data) && !!shop.data && !pantry.isLoading;
   const dataKey = recipes.map((r) => r.dataUpdatedAt).join();
   return useMemo(() => {
     if (!loaded) return null;
@@ -180,7 +192,8 @@ export function useMissingFromList(recipeIds: string[]): number | null {
     const listed = (shop.data?.items ?? []).map((g) => g.name.toLowerCase());
     let missing = 0;
     for (const r of recipes) {
-      for (const ing of partitionByPantry(r.data?.ingredients ?? [], have).need) {
+      for (const ing of partitionByPantry(r.data?.ingredients ?? [], have)
+        .need) {
         const k = ing.name.split(',')[0]!.trim().toLowerCase();
         if (!listed.some((g) => g.includes(k) || k.includes(g))) missing++;
       }
@@ -323,8 +336,7 @@ export const useGroceryAisles = create<AislePick>()(
   persist(
     (set) => ({
       by: {},
-      set: (id, aisle) =>
-        set((s) => ({ by: { ...s.by, [id]: aisle } })),
+      set: (id, aisle) => set((s) => ({ by: { ...s.by, [id]: aisle } })),
       clear: (id) =>
         set((s) => {
           if (!(id in s.by)) return s;
@@ -429,8 +441,6 @@ function qtyParts(q: string): { quantity?: number; unit?: string } {
 const sameName = (a: string, b: string) =>
   a.trim().toLowerCase() === b.trim().toLowerCase();
 
-const PLAN_NOTE = 'From your plan';
-
 /** The create endpoint accepts `storageLocation`; the mobile write type doesn't list it. */
 type PantryWrite = Partial<OrganizedPantryItem> & {
   name: string;
@@ -490,7 +500,9 @@ function unitsSame(
   left: string | null | undefined,
   right: string | null | undefined,
 ): boolean {
-  return (left ?? '').trim().toLowerCase() === (right ?? '').trim().toLowerCase();
+  return (
+    (left ?? '').trim().toLowerCase() === (right ?? '').trim().toLowerCase()
+  );
 }
 
 function shopProposal(
@@ -507,7 +519,14 @@ function shopProposal(
     unitsSame(hit.unit, body.unit);
   const total = canAdd ? hit.quantity! + incoming : null;
   const sum = canAdd
-    ? addedLine(hit.quantity, hit.unit, incoming, body.unit, total, body.unit ?? hit.unit)
+    ? addedLine(
+        hit.quantity,
+        hit.unit,
+        incoming,
+        body.unit,
+        total,
+        body.unit ?? hit.unit,
+      )
     : undefined;
   return {
     key: 's' + index,
@@ -515,7 +534,9 @@ function shopProposal(
     res: {
       n: cap(body.name),
       e: emojiFor(body.name, body.emoji),
-      q: formatGroceryQty(canAdd ? total : incoming, body.unit ?? hit?.unit) || '',
+      q:
+        formatGroceryQty(canAdd ? total : incoming, body.unit ?? hit?.unit) ||
+        '',
       a: aisleIndexOf(body.name, body.category),
       sh: shelfFor(body.name, body.category),
       ...(sum ? { sum } : {}),
@@ -542,14 +563,23 @@ function pantryProposal(
     unitsSame(hit.unit, body.unit);
   const total = canAdd ? hit.quantity! + incoming : null;
   const sum = canAdd
-    ? addedLine(hit.quantity, hit.unit, incoming, body.unit, total, body.unit ?? hit.unit)
+    ? addedLine(
+        hit.quantity,
+        hit.unit,
+        incoming,
+        body.unit,
+        total,
+        body.unit ?? hit.unit,
+      )
     : undefined;
   return {
     key: 'p' + index,
     pantry: body,
     res: {
       ...res,
-      q: formatGroceryQty(canAdd ? total : incoming, body.unit ?? hit?.unit) || res.q,
+      q:
+        formatGroceryQty(canAdd ? total : incoming, body.unit ?? hit?.unit) ||
+        res.q,
       ...(sum ? { sum } : {}),
     },
   };
@@ -563,7 +593,12 @@ function addedLine(
   next: number | null | undefined,
   nextUnit: string | null | undefined,
 ): string | undefined {
-  if (previous == null || incoming == null || next == null || next === previous) {
+  if (
+    previous == null ||
+    incoming == null ||
+    next == null ||
+    next === previous
+  ) {
     return undefined;
   }
   const before = formatGroceryQty(previous, previousUnit);
@@ -593,7 +628,10 @@ export function useGroceryActions() {
     async (raw: string): Promise<OrganizedPantryItem[] | undefined> => {
       try {
         const items = (
-          await withTimeout(organize.mutateAsync({ text: raw }), organizeWait(raw))
+          await withTimeout(
+            organize.mutateAsync({ text: raw }),
+            organizeWait(raw),
+          )
         ).items;
         return items.length ? items : undefined;
       } catch {
@@ -626,7 +664,9 @@ export function useGroceryActions() {
             const body: PantryWrite = {
               ...org,
               name: n,
-              ...(isGroceryCategory(org.category) ? {} : { category: undefined }),
+              ...(isGroceryCategory(org.category)
+                ? {}
+                : { category: undefined }),
               storageLocation: storageFor(sh),
             };
             const res: SmartRes = {
@@ -740,7 +780,10 @@ export function useGroceryActions() {
   );
 
   const classifyGroc = useCallback(
-    async (raw: string, write?: ShoppingListWriteItem): Promise<Classified[]> => {
+    async (
+      raw: string,
+      write?: ShoppingListWriteItem,
+    ): Promise<Classified[]> => {
       const prior = new Map(shopNow(client).map((item) => [item.id, item]));
       let bodies: ShoppingListWriteItem[];
       if (write) {
@@ -810,12 +853,16 @@ export function useGroceryActions() {
       if (!rows.length) throw new Error('empty');
       const out: Classified[] = [];
       const bodies: PantryWrite[] = [];
-      const prior = new Map<number, { quantity: number | null; unit: string | null }>();
+      const prior = new Map<
+        number,
+        { quantity: number | null; unit: string | null }
+      >();
       rows.forEach((row, index) => {
         const hit = pantryNow(client).find(
           (p) =>
             sameName(p.name, row.res.n) ||
-            (!!row.org?.canonicalName && p.canonicalName === row.org.canonicalName),
+            (!!row.org?.canonicalName &&
+              p.canonicalName === row.org.canonicalName),
         );
         if (hit) prior.set(index, { quantity: hit.quantity, unit: hit.unit });
         const e = row.res.e;
@@ -837,7 +884,9 @@ export function useGroceryActions() {
       if (bodies.length) {
         const saved: PantryItemView[] = [];
         for (let i = 0; i < bodies.length; i += 50) {
-          saved.push(...(await savePantry.mutateAsync(bodies.slice(i, i + 50))));
+          saved.push(
+            ...(await savePantry.mutateAsync(bodies.slice(i, i + 50))),
+          );
         }
         saved.forEach((v, index) => {
           if (!v) return;
@@ -889,13 +938,13 @@ export function useGroceryActions() {
           if (!useGrocUi.getState().pending.some((p) => p.id === id)) return;
           if (!proposals.length) {
             dropPending(id);
-            toast('Couldn’t add ' + raw + ' — try again');
+            toast(tNow('groceries.couldntAddRaw', { name: raw }));
             return;
           }
           setPending(id, { proposals });
         } catch {
           dropPending(id);
-          toast('Couldn’t add ' + raw + ' — try again');
+          toast(tNow('groceries.couldntAddRaw', { name: raw }));
         }
         return;
       }
@@ -906,20 +955,22 @@ export function useGroceryActions() {
             ? classifyPantry(raw)
             : classifyGroc(raw, opts?.write)
         ).then((found) => {
-          const holds = found.filter((row) => !row.existed).map((row) => row.id);
+          const holds = found
+            .filter((row) => !row.existed)
+            .map((row) => row.id);
           if (holds.length) setPending(id, { holds });
           return found;
         });
         [rows] = await Promise.all([work, sleep(smartMin())]);
       } catch {
         dropPending(id);
-        toast('Couldn’t add ' + raw + ' — try again');
+        toast(tNow('groceries.couldntAddRaw', { name: raw }));
         return;
       }
       if (!useGrocUi.getState().pending.some((p) => p.id === id)) return;
       if (!rows.length) {
         dropPending(id);
-        toast('Couldn’t add ' + raw + ' — try again');
+        toast(tNow('groceries.couldntAddRaw', { name: raw }));
         return;
       }
       if (rows.length === 1) setPending(id, { res: rows[0]!.res });
@@ -937,9 +988,12 @@ export function useGroceryActions() {
       }
       if (rows.length > 1) {
         toast(
-          rows.length +
-            ' items added to ' +
-            (dest === 'pantry' ? 'your pantry' : 'groceries'),
+          tNow(
+            dest === 'pantry'
+              ? 'groceries.addedToPantry'
+              : 'groceries.addedToGroceries',
+            { items: plz(rows.length, 'item') },
+          ),
         );
       }
     },
@@ -957,7 +1011,9 @@ export function useGroceryActions() {
 
   const acceptProposal = useCallback(
     async (pendingId: string, key: string) => {
-      const group = useGrocUi.getState().pending.find((p) => p.id === pendingId);
+      const group = useGrocUi
+        .getState()
+        .pending.find((p) => p.id === pendingId);
       const proposal = group?.proposals?.find((item) => item.key === key);
       if (!group || !proposal) return;
       const rest = group.proposals?.filter((item) => item.key !== key) ?? [];
@@ -969,11 +1025,13 @@ export function useGroceryActions() {
             : await commitShop([proposal]);
         finishAccepted(rows, group.dest);
       } catch {
-        const current = useGrocUi.getState().pending.find((p) => p.id === pendingId);
+        const current = useGrocUi
+          .getState()
+          .pending.find((p) => p.id === pendingId);
         setPending(pendingId, {
           proposals: [...(current?.proposals ?? []), proposal],
         });
-        toast('Couldn’t add ' + proposal.res.n + ' — try again');
+        toast(tNow('groceries.couldntAddRaw', { name: proposal.res.n }));
         return;
       }
       const left = useGrocUi.getState().pending.find((p) => p.id === pendingId);
@@ -984,7 +1042,9 @@ export function useGroceryActions() {
 
   const acceptAll = useCallback(
     async (pendingId: string) => {
-      const group = useGrocUi.getState().pending.find((p) => p.id === pendingId);
+      const group = useGrocUi
+        .getState()
+        .pending.find((p) => p.id === pendingId);
       const proposals = group?.proposals ?? [];
       if (!group || !proposals.length) return;
       setPending(pendingId, { proposals: [] });
@@ -996,15 +1056,18 @@ export function useGroceryActions() {
         finishAccepted(rows, group.dest);
         if (rows.length > 1 && !rows.some((row) => row.res.sum)) {
           toast(
-            rows.length +
-              ' items added to ' +
-              (group.dest === 'pantry' ? 'your pantry' : 'groceries'),
+            tNow(
+              group.dest === 'pantry'
+                ? 'groceries.addedToPantry'
+                : 'groceries.addedToGroceries',
+              { items: plz(rows.length, 'item') },
+            ),
           );
         }
         dropPending(pendingId);
       } catch {
         setPending(pendingId, { proposals });
-        toast('Couldn’t add these — try again');
+        toast(tNow('groceries.couldntAddTheseTry'));
       }
     },
     [commitPantry, commitShop, finishAccepted],
@@ -1035,7 +1098,7 @@ export function useGroceryActions() {
             editShop(client, (items) =>
               items.map((x) => (x.id === g.id ? { ...x, done: !next } : x)),
             );
-            toast('Couldn’t update your list. Try again.');
+            toast(tNow('groceries.couldntUpdateYourList'));
           },
         },
       );
@@ -1051,14 +1114,14 @@ export function useGroceryActions() {
     basketBusy = true;
     client.cancelQueries({ queryKey: SHOP_KEY }).catch(() => undefined);
     editShop(client, (items) => items.filter((x) => !x.done));
-    toast(plz(dn.length, 'item') + ' removed');
+    toast(tNow('groceries.itemsRemoved', { items: plz(dn.length, 'item') }));
     try {
       await clearDone.mutateAsync();
     } catch {
       client
         .invalidateQueries({ queryKey: shoppingListKeys.all })
         .catch(() => undefined);
-      toast('Couldn’t remove those items. Try again.');
+      toast(tNow('groceries.couldntRemoveThoseItems'));
     } finally {
       basketBusy = false;
     }
@@ -1095,7 +1158,9 @@ export function useGroceryActions() {
     }
     client.cancelQueries({ queryKey: SHOP_KEY }).catch(() => undefined);
     editShop(client, (items) => items.filter((x) => !x.done));
-    toast(plz(dn.length, 'item') + ' moved to your pantry');
+    toast(
+      tNow('groceries.itemsMovedToPantry', { items: plz(dn.length, 'item') }),
+    );
     try {
       for (let i = 0; i < toSave.length; i += 50)
         await savePantry.mutateAsync(toSave.slice(i, i + 50));
@@ -1104,7 +1169,7 @@ export function useGroceryActions() {
       client
         .invalidateQueries({ queryKey: shoppingListKeys.all })
         .catch(() => undefined);
-      toast('Couldn’t add those to your pantry. Try again.');
+      toast(tNow('groceries.couldntAddThoseTo'));
     } finally {
       basketBusy = false;
     }
@@ -1119,7 +1184,7 @@ export function useGroceryActions() {
       }
       const ex = usePantryExtras.getState();
       ex.patch(p.id, { listed: true });
-      toast(p.e + ' ' + p.n + ' added to your list');
+      toast(tNow('groceries.addedToYourList', { name: p.e + ' ' + p.n }));
       addItems
         .mutateAsync([
           { name: p.n, ...(isOneEmoji(p.e) ? { emoji: p.e } : {}) },
@@ -1127,12 +1192,12 @@ export function useGroceryActions() {
         .then(([v]) => {
           if (!v) return;
           editShop(client, (items) => upsert(items, v));
-          ex.note(v.id, 'Running low');
+          ex.note(v.id, tNow('groceries.runningLowNote'));
           flash(v.id);
         })
         .catch(() => {
           ex.patch(p.id, { listed: false });
-          toast('Couldn’t add ' + p.n + ' — try again');
+          toast(tNow('groceries.couldntAddRaw', { name: p.n }));
         });
     },
     [client, addItems],
@@ -1142,7 +1207,7 @@ export function useGroceryActions() {
   const fillFromPlan = useCallback(
     async (recipeIds: string[]) => {
       if (!recipeIds.length) {
-        toast('Nothing planned this week yet');
+        toast(tNow('groceries.nothingPlannedThisWeek'));
         return;
       }
       let recipes;
@@ -1157,7 +1222,7 @@ export function useGroceryActions() {
           ),
         );
       } catch {
-        toast('Couldn’t load this week’s recipes — try again');
+        toast(tNow('groceries.couldntLoadThisWeeks'));
         return;
       }
       const have = pantryKeysFrom({ items: pantryNow(client) });
@@ -1191,13 +1256,16 @@ export function useGroceryActions() {
         }
       }
       if (!queue.length) {
-        toast('This week’s ingredients are already covered');
+        toast(tNow('groceries.thisWeeksIngredientsAre'));
         return;
       }
       queue.forEach((it, i) =>
         setTimeout(
           () =>
-            void addRaw(it.raw, 'groc', { write: it.write, note: PLAN_NOTE }),
+            void addRaw(it.raw, 'groc', {
+              write: it.write,
+              note: tNow('groceries.fromYourPlan'),
+            }),
           i * 380,
         ),
       );

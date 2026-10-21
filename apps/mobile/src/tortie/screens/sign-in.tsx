@@ -9,6 +9,8 @@ import {
   type AuthFailure,
 } from '@/features/auth/auth-service';
 import { isFacebookEnabled } from '@/constants/env';
+import { tNow } from '@/i18n/format';
+import { useT, type MessageKey } from '@/i18n';
 import { firstName, useTortieAuth } from '@/tortie/auth-store';
 import { useFrame } from '@/tortie/frame';
 import { motionMultiplier, useMotion } from '@/tortie/motion';
@@ -26,7 +28,7 @@ import { em, sans, serif, T } from '@/tortie/ui/text';
 
 /** Success-screen button: "back" only makes sense for someone who has been here before. */
 export function doneCtaLabel(returning: boolean): string {
-  return returning ? 'Back to the kitchen' : 'Start cooking';
+  return tNow(returning ? 'auth.doneBack' : 'auth.doneStart');
 }
 
 const RANK: Record<AuthStep, number> = {
@@ -38,20 +40,18 @@ const RANK: Record<AuthStep, number> = {
 };
 const PROV = { google: 'Google', facebook: 'Facebook' } as const;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-const STR: [string, string][] = [
-  ['', C.lineStrong],
-  ['Weak', C.terra],
-  ['Okay', C.terraBright],
-  ['Good', C.greenMid],
-  ['Strong', C.green],
+const STR: [MessageKey | null, string][] = [
+  [null, C.lineStrong],
+  ['auth.strWeak', C.terra],
+  ['auth.strOkay', C.terraBright],
+  ['auth.strGood', C.greenMid],
+  ['auth.strStrong', C.green],
 ];
-
-const FALLBACK = 'Something went wrong. Try again.';
 
 function failureOf(e: unknown): AuthFailure {
   return e instanceof AuthError
     ? e.failure
-    : { kind: 'error', message: FALLBACK };
+    : { kind: 'error', message: tNow('auth.errFallback') };
 }
 
 /** Copy for an email that already belongs to another sign-in method. */
@@ -59,14 +59,20 @@ function collisionCopy(
   f: Extract<AuthFailure, { kind: 'collision' }>,
   attempted?: 'google' | 'facebook',
 ): string {
+  const connect = attempted
+    ? tNow('auth.connectTo', { provider: PROV[attempted] })
+    : '';
   if (f.existingProvider === 'password') {
-    return `This email already has an account with a password. Log in with it${attempted ? ` to connect ${PROV[attempted]}` : ''}.`;
+    return tNow('auth.collisionPassword', { connect });
   }
-  const n = PROV[f.existingProvider];
-  return `This email already has an account with ${n}. Continue with ${n}${attempted ? ` to connect ${PROV[attempted]}` : ''}.`;
+  return tNow('auth.collisionProvider', {
+    existing: PROV[f.existingProvider],
+    connect,
+  });
 }
 
 export function SignInFlow({ required = false }: { required?: boolean }) {
+  const t = useT();
   const f = useFrame();
   const { m } = useMotion();
   const au = useNav((s) => s.au);
@@ -190,7 +196,11 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
       // Required: the shell that takes over shows the welcome toast (see TortieShell).
       if (!required) {
         const first = firstName(useTortieAuth.getState().user);
-        toast(first === 'there' ? 'Welcome to Tortie' : `Welcome, ${first}`);
+        toast(
+          first === 'there'
+            ? t('auth.welcomeToast')
+            : t('auth.welcomeToastName', { name: first }),
+        );
       }
     }
   };
@@ -206,7 +216,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
   const isLogin = mode === 'login';
   const cont = () => {
     if (!emOk) {
-      setErr('Enter a valid email address, like you@example.com.');
+      setErr(t('auth.errEmail'));
       return;
     }
     setErr('');
@@ -217,7 +227,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
   const login = async () => {
     if (busy) return;
     if (pw.length < 6) {
-      setErr('That password doesn’t match this email. Try again or reset it.');
+      setErr(t('auth.errPassword'));
       return;
     }
     const id = ++attempt.current;
@@ -235,11 +245,11 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
   const create = async () => {
     if (busy) return;
     if (!name.trim()) {
-      setErr('Add your name so the people you cook with know it’s you.');
+      setErr(t('auth.errName'));
       return;
     }
     if (pw.length < 8) {
-      setErr('Passwords need at least 8 characters.');
+      setErr(t('auth.errShort'));
       return;
     }
     const id = ++attempt.current;
@@ -264,11 +274,11 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
     const id = attempt.current;
     try {
       await authService.sendPasswordReset(email.trim());
-      toast('Reset link sent to ' + (email.trim() || 'your inbox'));
+      toast(t('auth.resetSent', { to: email.trim() || t('auth.yourInbox') }));
     } catch (e) {
       const f = failureOf(e);
       if (id === attempt.current && f.kind !== 'cancelled') {
-        setErr(f.kind === 'error' ? f.message : FALLBACK);
+        setErr(f.kind === 'error' ? f.message : t('auth.errFallback'));
       }
     } finally {
       resetting.current = false;
@@ -284,13 +294,14 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
       ].filter(Boolean).length
     : 0;
   const scB = pw ? Math.max(1, scN) : 0;
-  const [strLabel, strCol] = STR[scB]!;
+  const [strLabelKey, strCol] = STR[scB]!;
+  const strLabel = strLabelKey ? t(strLabelKey) : '';
   const strHint =
     pw.length < 8
-      ? 'Use 8+ characters'
+      ? t('auth.hintShort')
       : scN < 4
-        ? 'Add a number, capital or symbol'
-        : 'Great password';
+        ? t('auth.hintMore')
+        : t('auth.hintGreat');
 
   const backable = step === 'pw' || step === 'signup' || step === 'oauth';
   const shown = required || au;
@@ -344,7 +355,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           <Press
             onPress={back}
             scale={0.9}
-            accessibilityLabel="Back"
+            accessibilityLabel={t('auth.back')}
             style={{
               width: 42,
               height: 42,
@@ -366,7 +377,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           <Press
             onPress={close}
             scale={0.9}
-            accessibilityLabel="Close"
+            accessibilityLabel={t('auth.close')}
             style={{
               width: 42,
               height: 42,
@@ -393,7 +404,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             { letterSpacing: em(34, -0.02), lineHeight: 36.7, marginTop: 18 },
           ]}
         >
-          {isLogin ? 'Welcome back' : 'Create your account'}
+          {isLogin ? t('auth.welcomeBack') : t('auth.createYourAccount')}
         </T>
         <T
           style={[
@@ -401,20 +412,18 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             { lineHeight: 21, marginTop: 8, minHeight: 42 },
           ]}
         >
-          {isLogin
-            ? 'Log in to pick up where you left off — your plan and groceries are waiting.'
-            : 'Save recipes, plan the week and share collections with the people you cook with.'}
+          {isLogin ? t('auth.loginSub') : t('auth.signupSub')}
         </T>
         <Segmented
           style={{ marginTop: 20 }}
           index={isLogin ? 1 : 0}
           items={[
             {
-              label: 'Sign up',
+              label: t('auth.signUp'),
               onPress: () => (set({ auMode: 'signup' }), setErr('')),
             },
             {
-              label: 'Log in',
+              label: t('auth.logIn'),
               onPress: () => (set({ auMode: 'login' }), setErr('')),
             },
           ]}
@@ -422,12 +431,12 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
         <View style={{ gap: 10, marginTop: 20 }}>
           <OutlineBtn onPress={() => runOauth('google')}>
             <BrandLogo brand="google" size={20} />
-            <T style={sans(15, 700)}>Continue with Google</T>
+            <T style={sans(15, 700)}>{t('auth.google')}</T>
           </OutlineBtn>
           {isFacebookEnabled() && (
             <OutlineBtn onPress={() => runOauth('facebook')}>
               <BrandLogo brand="facebook" size={20} />
-              <T style={sans(15, 700)}>Continue with Facebook</T>
+              <T style={sans(15, 700)}>{t('auth.facebook')}</T>
             </OutlineBtn>
           )}
         </View>
@@ -447,7 +456,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
               { letterSpacing: em(12, 0.08), textTransform: 'uppercase' },
             ]}
           >
-            or with email
+            {t('auth.orEmail')}
           </T>
           <View style={{ flex: 1, height: 1, backgroundColor: C.line }} />
         </View>
@@ -455,11 +464,11 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           value={email}
           onChangeText={(v) => (setEmail(v), setErr(''))}
           onSubmitEditing={cont}
-          placeholder="you@example.com"
+          placeholder={t('auth.emailPlaceholder')}
           autoComplete="email"
           keyboardType="email-address"
           autoCapitalize="none"
-          accessibilityLabel="Email"
+          accessibilityLabel={t('auth.email')}
           error={!!err}
         />
         <ErrorLine err={step === 'start' ? err : ''} />
@@ -468,7 +477,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           opacity={emOk ? 1 : 0.45}
           style={{ marginTop: 12 }}
         >
-          <T style={sans(15, 700, C.bg)}>Continue</T>
+          <T style={sans(15, 700, C.bg)}>{t('auth.continue')}</T>
           <Glyph name="arrow_forward" size={20} color={C.bg} />
         </PrimaryBtn>
         <View style={{ flex: 1, minHeight: 20 }} />
@@ -478,9 +487,17 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             { lineHeight: 18, textAlign: 'center' },
           ]}
         >
-          By continuing you agree to Tortie’s{' '}
-          <T style={sans(12, 400, C.green)}>Terms</T> and{' '}
-          <T style={sans(12, 400, C.green)}>Privacy Policy</T>.
+          {t('auth.agree', { terms: '{terms}', privacy: '{privacy}' })
+            .split(/(\{terms\}|\{privacy\})/)
+            .map((part, i) =>
+              part === '{terms}' || part === '{privacy}' ? (
+                <T key={i} style={sans(12, 400, C.green)}>
+                  {t(part === '{terms}' ? 'auth.terms' : 'auth.privacy')}
+                </T>
+              ) : (
+                part
+              ),
+            )}
         </T>
       </Panel>
 
@@ -491,7 +508,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             { letterSpacing: em(34, -0.02), lineHeight: 36.7 },
           ]}
         >
-          Enter your password
+          {t('auth.enterPassword')}
         </T>
         <Press
           onPress={back}
@@ -527,10 +544,10 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             value={pw}
             onChangeText={(v) => (setPw(v), setErr(''))}
             onSubmitEditing={login}
-            placeholder="Password"
+            placeholder={t('auth.password')}
             autoComplete="current-password"
             secureTextEntry={!show}
-            accessibilityLabel="Password"
+            accessibilityLabel={t('auth.password')}
             error={!!err}
             padRight
           />
@@ -545,14 +562,18 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             paddingHorizontal: 2,
           }}
         >
-          <T style={sans(14, 700, C.green)}>Forgot password?</T>
+          <T style={sans(14, 700, C.green)}>{t('auth.forgot')}</T>
         </Press>
         <PrimaryBtn
           onPress={login}
           opacity={pw ? 1 : 0.45}
           style={{ marginTop: 8 }}
         >
-          {busy ? <ButtonSpinner /> : <T style={sans(15, 700, C.bg)}>Log in</T>}
+          {busy ? (
+            <ButtonSpinner />
+          ) : (
+            <T style={sans(15, 700, C.bg)}>{t('auth.logIn')}</T>
+          )}
         </PrimaryBtn>
       </Panel>
 
@@ -563,34 +584,34 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             { letterSpacing: em(34, -0.02), lineHeight: 36.7 },
           ]}
         >
-          Nearly there
+          {t('auth.nearlyThere')}
         </T>
         <T style={[sans(14, 400, C.ink2), { lineHeight: 21, marginTop: 8 }]}>
-          Creating an account for{' '}
+          {t('auth.creatingFor')}{' '}
           <T style={sans(14, 700, C.ink)}>{email.trim()}</T>
         </T>
         <T style={[sans(13, 700, C.ink2), { marginTop: 24, marginBottom: 8 }]}>
-          Your name
+          {t('auth.yourName')}
         </T>
         <Field
           value={name}
           onChangeText={(v) => (setName(v), setErr(''))}
-          placeholder="What should we call you?"
+          placeholder={t('auth.namePlaceholder')}
           autoComplete="name"
-          accessibilityLabel="Your name"
+          accessibilityLabel={t('auth.yourName')}
         />
         <T style={[sans(13, 700, C.ink2), { marginTop: 18, marginBottom: 8 }]}>
-          Password
+          {t('auth.password')}
         </T>
         <View>
           <Field
             value={pw}
             onChangeText={(v) => (setPw(v), setErr(''))}
             onSubmitEditing={create}
-            placeholder="8 characters or more"
+            placeholder={t('auth.passwordPlaceholder')}
             autoComplete="new-password"
             secureTextEntry={!show}
-            accessibilityLabel="New password"
+            accessibilityLabel={t('auth.newPassword')}
             padRight
           />
           <Eye show={show} onPress={() => setShow((v) => !v)} />
@@ -631,7 +652,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           {busy ? (
             <ButtonSpinner />
           ) : (
-            <T style={sans(15, 700, C.white)}>Create account</T>
+            <T style={sans(15, 700, C.white)}>{t('auth.createAccount')}</T>
           )}
         </Press>
       </Panel>
@@ -652,7 +673,9 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
               textAlign: 'center',
             },
           ]}
-        >{`Connecting to ${PROV[P]}`}</T>
+        >
+          {t('auth.connecting', { provider: PROV[P] })}
+        </T>
         <View
           style={{
             flexDirection: 'row',
@@ -662,7 +685,9 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
           }}
         >
           <T style={sans(15, 600, C.ink2)}>
-            {stage ? 'Confirming it’s you' : `Opening ${PROV[P]}`}
+            {stage
+              ? t('auth.confirming')
+              : t('auth.opening', { provider: PROV[P] })}
           </T>
           <Dots textStyle={sans(15, 600, C.ink2)} />
         </View>
@@ -677,7 +702,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             },
           ]}
         >
-          {`Tortie only sees your name, email and photo. We never post anything to your ${PROV[P]} account.`}
+          {t('auth.oauthNote', { provider: PROV[P] })}
         </T>
         <Press
           onPress={back}
@@ -692,7 +717,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             justifyContent: 'center',
           }}
         >
-          <T style={sans(14, 600)}>Cancel</T>
+          <T style={sans(14, 600)}>{t('auth.cancel')}</T>
         </Press>
       </Panel>
 
@@ -720,7 +745,9 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             },
           ]}
         >
-          {first === 'there' ? 'You’re in' : `You’re in, ${first}`}
+          {first === 'there'
+            ? t('auth.youreIn')
+            : t('auth.youreInName', { name: first })}
         </T>
         <T
           style={[
@@ -733,9 +760,7 @@ export function SignInFlow({ required = false }: { required?: boolean }) {
             },
           ]}
         >
-          {returning
-            ? 'Welcome back. Your recipes, plan and pantry are synced to this phone.'
-            : 'Your kitchen is ready. Import a recipe to get started.'}
+          {returning ? t('auth.doneReturning') : t('auth.doneNew')}
         </T>
         <View style={{ flex: 1 }} />
         <Press
@@ -877,10 +902,11 @@ function Field({
 }
 
 function Eye({ show, onPress }: { show: boolean; onPress: () => void }) {
+  const t = useT();
   return (
     <Press
       onPress={onPress}
-      accessibilityLabel="Show password"
+      accessibilityLabel={t('auth.showPassword')}
       style={{
         position: 'absolute',
         top: 6,

@@ -13,6 +13,7 @@ import { isApiRecipeId } from '@/features/cook-sessions/types';
 import { cookSessionKeys, recipeKeys } from '@/features/query-keys';
 import { useCook } from '@/tortie/cook-store';
 import { toast } from '@/tortie/nav-store';
+import { tNow } from '@/i18n/format';
 
 /** Session creation in flight per recipe, so Finish can wait for the id. */
 const inflight = new Map<string, Promise<string | null>>();
@@ -71,7 +72,7 @@ export function useCookSessionSync() {
           s = await patchCookSession(fresh.id, { status: 'COMPLETED' });
         }
       } catch {
-        toast('Couldn’t log this cook. Check your connection.');
+        toast(tNow('cook-session.couldntLogThisCook'));
       }
       await settle();
       await client

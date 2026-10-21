@@ -1,3 +1,12 @@
+import {
+  count,
+  formatDuration,
+  localizedMonths,
+  localizedWeekdayLetters,
+  localizedWeekdays,
+  tNow,
+  type CountNoun,
+} from '@/i18n/format';
 import { tint } from '@/tortie/color';
 
 /** Ported 1:1 from the prototype helpers. */
@@ -20,40 +29,13 @@ export const SHELVES = [
   'Freezer',
 ] as const;
 export const SHUE = [230, 140, 62, 40, 250] as const;
-export const DAYNAMES = [
-  'Monday',
-  'Tuesday',
-  'Wednesday',
-  'Thursday',
-  'Friday',
-  'Saturday',
-  'Sunday',
-] as const;
-export const DAYLETTERS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'] as const;
-export const MON = [
-  'Jan',
-  'Feb',
-  'Mar',
-  'Apr',
-  'May',
-  'June',
-  'July',
-  'Aug',
-  'Sept',
-  'Oct',
-  'Nov',
-  'Dec',
-] as const;
+/** Follow the app language; indexed Monday = 0. */
+export const DAYNAMES = localizedWeekdays;
+export const DAYLETTERS = localizedWeekdayLetters;
+export const MON = localizedMonths;
 
 /** Minutes → "40 min" / "3 h 30" / "3 days"; "—" when unknown (0). */
-export const fmtT = (t: number) =>
-  t <= 0
-    ? '—'
-    : t < 60
-      ? `${t} min`
-      : t < 1440
-        ? `${Math.floor(t / 60)} h${t % 60 ? ' ' + (t % 60) : ''}`
-        : `${Math.round(t / 1440)} days`;
+export const fmtT = formatDuration;
 
 /** Scaled quantity with kitchen fractions. */
 export function fmtQ(q: number): string {
@@ -296,8 +278,8 @@ export function noAmountLabel(name: string): string {
   return /salt|pepper|spice|oil|vinegar|herb|sauce|seasoning|paprika|cumin|cinnamon/i.test(
     name,
   )
-    ? 'to taste'
-    : 'as needed';
+    ? tNow('fmt.toTaste')
+    : tNow('fmt.asNeeded');
 }
 
 export function lexOf(name: string) {
@@ -346,7 +328,8 @@ export function parseLocal(raw: string) {
   };
 }
 
-export const plz = (n: number, w: string) => n + ' ' + w + (n === 1 ? '' : 's');
+/** "3 recipes" in the app language, with the right plural form. */
+export const plz = (n: number, noun: CountNoun) => count(n, noun);
 
 /** Leading emoji of a string, if any ("⚡ Weeknight wins" → ["⚡", "Weeknight wins"]). */
 export function splitEmoji(name: string): [string, string] {
@@ -359,7 +342,13 @@ export function splitEmoji(name: string): [string, string] {
 /** "Good morning/afternoon/evening". */
 export function greeting(now = new Date()): string {
   const h = now.getHours();
-  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  return tNow(
+    h < 12
+      ? 'greeting.morning'
+      : h < 18
+        ? 'greeting.afternoon'
+        : 'greeting.evening',
+  );
 }
 
 /** "WEDNESDAY · SEPT 23" source text (render uppercase). */

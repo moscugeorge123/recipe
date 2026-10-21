@@ -1,3 +1,4 @@
+import { tNow } from '@/i18n/format';
 import { ApiError } from '@/services/api-client';
 
 export type UserErrorContext =
@@ -24,226 +25,438 @@ type Copy = Omit<UserFacingError, 'code'>;
 
 const CODE_COPY: Record<string, Copy> = {
   TOO_MANY_REQUESTS: {
-    title: 'Slow down a second',
-    message: 'That source is busy. Wait a moment and try again.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.slowDownASecond');
+    },
+    get message() {
+      return tNow('ue.thatSourceIsBusy');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   PROVIDER_RATE_LIMITED: {
-    title: 'Slow down a second',
-    message: 'That source is busy. Wait a moment and try again.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.slowDownASecond');
+    },
+    get message() {
+      return tNow('ue.thatSourceIsBusy');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   SERVICE_UNAVAILABLE: {
-    title: 'Taking a short breather',
-    message: 'Try again in a moment. Nothing you typed was lost.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.takingAShortBreather');
+    },
+    get message() {
+      return tNow('ue.tryAgainInA');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   INTERNAL_SERVER_ERROR: {
-    title: 'Something went sideways',
-    message: 'Try again. Your input is still here.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.somethingWentSideways');
+    },
+    get message() {
+      return tNow('ue.tryAgainYourInput');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   UNSUPPORTED_SOURCE: {
-    title: 'That source isn’t supported yet',
-    message: 'Try a recipe website, Instagram or YouTube link instead.',
-    actionLabel: 'Paste a different link',
+    get title() {
+      return tNow('ue.thatSourceIsntSupported');
+    },
+    get message() {
+      return tNow('ue.tryARecipeWebsite');
+    },
+    get actionLabel() {
+      return tNow('ue.pasteADifferentLink');
+    },
     retryable: false,
   },
   INVALID_URL: {
-    title: 'That doesn’t look like a valid link',
-    message: 'Check the address and try again.',
-    actionLabel: 'Paste a different link',
+    get title() {
+      return tNow('ue.thatDoesntLookLike');
+    },
+    get message() {
+      return tNow('ue.checkTheAddressAnd');
+    },
+    get actionLabel() {
+      return tNow('ue.pasteADifferentLink');
+    },
     retryable: false,
   },
   HOST_NOT_FOUND: {
-    title: 'We couldn’t find that site',
-    message: 'Check the address and try again.',
-    actionLabel: 'Paste a different link',
+    get title() {
+      return tNow('ue.weCouldntFindThat');
+    },
+    get message() {
+      return tNow('ue.checkTheAddressAnd');
+    },
+    get actionLabel() {
+      return tNow('ue.pasteADifferentLink');
+    },
     retryable: false,
   },
   BLOCKED: {
-    title: 'That site won’t let us in',
-    message: 'It blocks automated readers. Try another link, or write it down.',
-    actionLabel: 'Paste a different link',
+    get title() {
+      return tNow('ue.thatSiteWontLet');
+    },
+    get message() {
+      return tNow('ue.itBlocksAutomatedReaders');
+    },
+    get actionLabel() {
+      return tNow('ue.pasteADifferentLink');
+    },
     retryable: false,
   },
   NOT_A_RECIPE: {
-    title: 'That link doesn’t look like a food recipe',
-    message: 'Try a link to a recipe page or a cooking video.',
-    actionLabel: 'Paste a different link',
+    get title() {
+      return tNow('ue.thatLinkDoesntLook');
+    },
+    get message() {
+      return tNow('ue.tryALinkTo');
+    },
+    get actionLabel() {
+      return tNow('ue.pasteADifferentLink');
+    },
     retryable: false,
   },
   EXTRACTION_FAILED: {
-    title: "We couldn't read that one. Try again?",
-    message: 'The extraction failed. Check the link and try again.',
-    actionLabel: 'Try again',
+    get title() {
+      return tNow('ue.weCouldntReadThat');
+    },
+    get message() {
+      return tNow('ue.theExtractionFailedCheck');
+    },
+    get actionLabel() {
+      return tNow('ue.tryAgain');
+    },
     retryable: true,
   },
   CONTENT_ACQUISITION_FAILED: {
-    title: "We couldn't open that link",
-    message: 'Check the link and try again, or paste a different one.',
-    actionLabel: 'Try again',
+    get title() {
+      return tNow('ue.weCouldntOpenThat');
+    },
+    get message() {
+      return tNow('ue.checkTheLinkAnd');
+    },
+    get actionLabel() {
+      return tNow('ue.tryAgain');
+    },
     retryable: true,
   },
   MEDIA_PROCESSING_FAILED: {
-    title: "We couldn't use that media",
-    message: 'Try another photo or link. Your other options are still here.',
-    actionLabel: 'Try again',
+    get title() {
+      return tNow('ue.weCouldntUseThat');
+    },
+    get message() {
+      return tNow('ue.tryAnotherPhotoOr');
+    },
+    get actionLabel() {
+      return tNow('ue.tryAgain');
+    },
     retryable: true,
   },
   JOB_CANCELLED: {
-    title: 'Import stopped',
-    message: 'Nothing was saved. Start again when you’re ready.',
-    actionLabel: 'Try again',
+    get title() {
+      return tNow('ue.importStopped');
+    },
+    get message() {
+      return tNow('ue.nothingWasSavedStart');
+    },
+    get actionLabel() {
+      return tNow('ue.tryAgain');
+    },
     retryable: true,
   },
   JOB_NOT_FOUND: {
-    title: 'That import expired',
-    message: 'Start a new import from the link you wanted.',
-    actionLabel: 'Try again',
+    get title() {
+      return tNow('ue.thatImportExpired');
+    },
+    get message() {
+      return tNow('ue.startANewImport');
+    },
+    get actionLabel() {
+      return tNow('ue.tryAgain');
+    },
     retryable: true,
   },
   NOT_FOUND: {
-    title: 'We couldn’t find that',
-    message: 'It may have been removed. Go back and pick something else.',
-    actionLabel: 'Go back',
+    get title() {
+      return tNow('ue.weCouldntFindThat2');
+    },
+    get message() {
+      return tNow('ue.itMayHaveBeen');
+    },
+    get actionLabel() {
+      return tNow('ue.goBack');
+    },
     retryable: false,
   },
   RECIPE_NOT_FOUND: {
-    title: 'That recipe isn’t here',
-    message: 'It may have been removed. Go back to your kitchen.',
-    actionLabel: 'Go back',
+    get title() {
+      return tNow('ue.thatRecipeIsntHere');
+    },
+    get message() {
+      return tNow('ue.itMayHaveBeen2');
+    },
+    get actionLabel() {
+      return tNow('ue.goBack');
+    },
     retryable: false,
   },
   COLLECTION_NOT_FOUND: {
-    title: 'That collection isn’t here',
-    message: 'Recipes are still in your kitchen. Go back and pick another.',
-    actionLabel: 'Back to kitchen',
+    get title() {
+      return tNow('ue.thatCollectionIsntHere');
+    },
+    get message() {
+      return tNow('ue.recipesAreStillIn');
+    },
+    get actionLabel() {
+      return tNow('ue.backToKitchen');
+    },
     retryable: false,
   },
   COLLECTION_NAME_CONFLICT: {
-    title: 'Name already used',
-    message: 'You already have a collection with that name.',
-    actionLabel: 'Edit name',
+    get title() {
+      return tNow('ue.nameAlreadyUsed');
+    },
+    get message() {
+      return tNow('ue.youAlreadyHaveA');
+    },
+    get actionLabel() {
+      return tNow('ue.editName');
+    },
     retryable: false,
   },
   COLLECTION_RECIPE_CONFLICT: {
-    title: 'Already in that collection',
-    message: 'This recipe is already filed there.',
-    actionLabel: 'OK',
+    get title() {
+      return tNow('ue.alreadyInThatCollection');
+    },
+    get message() {
+      return tNow('ue.thisRecipeIsAlready');
+    },
+    get actionLabel() {
+      return tNow('ue.ok');
+    },
     retryable: false,
   },
   RECIPE_REVISION_CONFLICT: {
-    title: 'This recipe changed elsewhere',
-    message: 'Your draft is safe — choose how to continue.',
-    actionLabel: 'Review changes',
+    get title() {
+      return tNow('ue.thisRecipeChangedElsewhere');
+    },
+    get message() {
+      return tNow('ue.yourDraftIsSafe');
+    },
+    get actionLabel() {
+      return tNow('ue.reviewChanges');
+    },
     retryable: false,
   },
   RECIPE_ENGAGEMENT_CONFLICT: {
-    title: 'That didn’t stick',
-    message: 'The recipe changed. Try the heart or stars again.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.thatDidntStick');
+    },
+    get message() {
+      return tNow('ue.theRecipeChangedTry');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   RECIPE_NOTE_NOT_FOUND: {
-    title: 'That note is gone',
-    message:
-      'It may already have been deleted. Your other notes are still here.',
-    actionLabel: 'OK',
+    get title() {
+      return tNow('ue.thatNoteIsGone');
+    },
+    get message() {
+      return tNow('ue.itMayAlreadyHave');
+    },
+    get actionLabel() {
+      return tNow('ue.ok');
+    },
     retryable: false,
   },
   VALIDATION_ERROR: {
-    title: 'Check that field',
-    message: 'Something in this form needs a quick look.',
-    actionLabel: 'Edit',
+    get title() {
+      return tNow('ue.checkThatField');
+    },
+    get message() {
+      return tNow('ue.somethingInThisForm');
+    },
+    get actionLabel() {
+      return tNow('ue.edit');
+    },
     retryable: false,
   },
   BAD_REQUEST: {
-    title: 'Check that field',
-    message: 'Something in this form needs a quick look.',
-    actionLabel: 'Edit',
+    get title() {
+      return tNow('ue.checkThatField');
+    },
+    get message() {
+      return tNow('ue.somethingInThisForm');
+    },
+    get actionLabel() {
+      return tNow('ue.edit');
+    },
     retryable: false,
   },
   CONFLICT: {
-    title: 'That name is taken',
-    message: 'Try a slightly different name.',
-    actionLabel: 'Edit',
+    get title() {
+      return tNow('ue.thatNameIsTaken');
+    },
+    get message() {
+      return tNow('ue.tryASlightlyDifferent');
+    },
+    get actionLabel() {
+      return tNow('ue.edit');
+    },
     retryable: false,
   },
   PAYLOAD_TOO_LARGE: {
-    title: 'That’s a bit much',
-    message: 'Try a shorter list or a smaller photo.',
-    actionLabel: 'Edit',
+    get title() {
+      return tNow('ue.thatsABitMuch');
+    },
+    get message() {
+      return tNow('ue.tryAShorterList');
+    },
+    get actionLabel() {
+      return tNow('ue.edit');
+    },
     retryable: false,
   },
 };
 
 const CONTEXT_FALLBACK: Record<UserErrorContext, Copy> = {
   generic: {
-    title: 'Couldn’t finish that',
-    message: 'Check your connection and try again. Nothing you typed was lost.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.couldntFinishThat');
+    },
+    get message() {
+      return tNow('ue.checkYourConnectionAnd');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   import: {
-    title: "We couldn't read that one. Try again?",
-    message: 'The extraction failed. Check the link and try again.',
-    actionLabel: 'Try again',
+    get title() {
+      return tNow('ue.weCouldntReadThat');
+    },
+    get message() {
+      return tNow('ue.theExtractionFailedCheck');
+    },
+    get actionLabel() {
+      return tNow('ue.tryAgain');
+    },
     retryable: true,
   },
   preview: {
-    title: 'Preview unavailable',
-    message:
-      "We couldn't unfurl this link. You can still turn it into a recipe.",
-    actionLabel: 'Retry preview',
+    get title() {
+      return tNow('ue.previewUnavailable');
+    },
+    get message() {
+      return tNow('ue.weCouldntUnfurlThis');
+    },
+    get actionLabel() {
+      return tNow('ue.retryPreview');
+    },
     retryable: true,
   },
   home: {
-    title: 'This section didn’t load',
-    message:
-      'We couldn’t load this section. Check your connection and try again.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.thisSectionDidntLoad');
+    },
+    get message() {
+      return tNow('ue.weCouldntLoadThis');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   recipe: {
-    title: 'Recipe',
-    message:
-      'We couldn’t load this recipe. Check your connection and try again.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.recipe');
+    },
+    get message() {
+      return tNow('ue.weCouldntLoadThis2');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   pantry: {
-    title: 'Pantry',
-    message: 'Could not organize right now. Your text is still here.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.pantry');
+    },
+    get message() {
+      return tNow('ue.couldNotOrganizeRight');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   shopping: {
-    title: 'Grocery list',
-    message: 'Could not update your list. Check your connection and try again.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.groceryList');
+    },
+    get message() {
+      return tNow('ue.couldNotUpdateYour');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   mealPlan: {
-    title: 'Meal plan',
-    message: 'Could not update your week. Check your connection and try again.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.mealPlan');
+    },
+    get message() {
+      return tNow('ue.couldNotUpdateYour2');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   notes: {
-    title: 'Notes',
-    message: 'Couldn’t save this note. It’s still here — try again.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.notes');
+    },
+    get message() {
+      return tNow('ue.couldntSaveThisNote');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
   collections: {
-    title: 'Collections',
-    message: 'Could not save that collection. Try again.',
-    actionLabel: 'Retry',
+    get title() {
+      return tNow('ue.collections');
+    },
+    get message() {
+      return tNow('ue.couldNotSaveThat');
+    },
+    get actionLabel() {
+      return tNow('ue.retry');
+    },
     retryable: true,
   },
 };

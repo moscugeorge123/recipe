@@ -1,3 +1,8 @@
+import { tNow } from '@/i18n/format';
+import { MESSAGES, type MessageKey } from '@/i18n/messages';
+
+const MESSAGES_EN = MESSAGES.en;
+
 /** Why an auth call failed, in the shape the sign-in UI renders. */
 export type AuthFailure =
   | { kind: 'cancelled' }
@@ -25,29 +30,24 @@ export class AuthError extends Error {
   }
 }
 
-export const AUTH_FALLBACK_MESSAGE = 'Something went wrong. Try again.';
+/** English fallback, for tests; the app shows `tNow('auth.errFallback')`. */
+export const AUTH_FALLBACK_MESSAGE = MESSAGES_EN['auth.errFallback'];
 
-const WRONG_PASSWORD =
-  'That password doesn’t match this email. Try again or reset it.';
-
-const MESSAGES: Record<string, string> = {
-  'invalid-credential': WRONG_PASSWORD,
-  'wrong-password': WRONG_PASSWORD,
-  'user-not-found': WRONG_PASSWORD,
-  'email-already-in-use':
-    'An account with this email already exists. Log in instead, or reset your password.',
-  'weak-password': 'Passwords need at least 8 characters.',
-  'invalid-email': 'Enter a valid email address, like you@example.com.',
-  'missing-email': 'Enter a valid email address, like you@example.com.',
-  'too-many-requests': 'Too many attempts. Wait a few minutes, then try again.',
-  'network-request-failed': 'No connection. Check your network and try again.',
-  'user-disabled': 'This account has been disabled. Contact support for help.',
-  'requires-recent-login':
-    'For your security, sign in again, then try once more.',
-  'credential-already-in-use':
-    'That account is already connected to another Tortie profile.',
-  'provider-already-linked': 'That account is already connected.',
-  'operation-not-allowed': 'This sign-in method is not available right now.',
+const CODE_KEYS: Record<string, MessageKey> = {
+  'invalid-credential': 'auth.errPassword',
+  'wrong-password': 'auth.errPassword',
+  'user-not-found': 'auth.errPassword',
+  'email-already-in-use': 'auth.errEmailInUse',
+  'weak-password': 'auth.errShort',
+  'invalid-email': 'auth.errEmail',
+  'missing-email': 'auth.errEmail',
+  'too-many-requests': 'auth.errTooMany',
+  'network-request-failed': 'auth.errNetwork',
+  'user-disabled': 'auth.errDisabled',
+  'requires-recent-login': 'auth.errRecentLogin',
+  'credential-already-in-use': 'auth.errCredentialInUse',
+  'provider-already-linked': 'auth.errAlreadyLinked',
+  'operation-not-allowed': 'auth.errNotAllowed',
 };
 
 /** Normalises `auth/invalid-credential` and `invalid-credential` alike. */
@@ -57,10 +57,7 @@ function bareCode(code: string): string {
 
 /** User-facing copy for a Firebase Auth error code. */
 export function authErrorMessage(code: string | undefined | null): string {
-  if (!code) {
-    return AUTH_FALLBACK_MESSAGE;
-  }
-  return MESSAGES[bareCode(code)] ?? AUTH_FALLBACK_MESSAGE;
+  return tNow((code && CODE_KEYS[bareCode(code)]) || 'auth.errFallback');
 }
 
 /** Error codes that mean the user backed out; the UI returns to start silently. */

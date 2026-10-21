@@ -63,7 +63,7 @@ export function Photo({
           contentFit="cover"
           transition={120}
         />
-      ) : caption ? (
+      ) : __DEV__ && caption ? (
         <View
           style={[{ position: 'absolute', left: 12, bottom: 10 }, captionStyle]}
           pointerEvents="none"

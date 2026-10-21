@@ -1,9 +1,30 @@
+import { tNow } from '@/i18n/format';
 /** The four stage captions of the import card, switched by progress. */
 export const IMPORT_STAGES: readonly { at: number; label: string }[] = [
-  { at: 0, label: 'Reading the page' },
-  { at: 34, label: 'Picking out ingredients' },
-  { at: 66, label: 'Writing the steps' },
-  { at: 94, label: 'Plating it up' },
+  {
+    at: 0,
+    get label() {
+      return tNow('import.stage1');
+    },
+  },
+  {
+    at: 34,
+    get label() {
+      return tNow('import.stage2');
+    },
+  },
+  {
+    at: 66,
+    get label() {
+      return tNow('import.stage3');
+    },
+  },
+  {
+    at: 94,
+    get label() {
+      return tNow('import.stage4');
+    },
+  },
 ];
 
 /** Index (0–4) of the stage that `pct` falls in. */
