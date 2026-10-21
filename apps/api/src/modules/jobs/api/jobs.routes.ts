@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 
 import { errorResponseSchema, standardErrorResponses } from '../../../shared/errors/error-response.js';
@@ -10,8 +11,10 @@ import {
   createExtractionJobBodySchema,
   extractionJobResponseSchema,
   jobIdParamsSchema,
+  jobListItemSchema,
   jobStatusResponseSchema,
   linkPreviewResponseSchema,
+  listJobsQuerySchema,
   previewLinkBodySchema,
 } from './jobs.schema.js';
 
@@ -68,6 +71,23 @@ export const jobsRoutes: FastifyPluginAsyncZod<JobsRoutesOptions> = async (app, 
       },
     },
     controller.previewLink,
+  );
+
+  app.get(
+    '/recipes/extract/jobs',
+    {
+      schema: {
+        tags: ['extraction'],
+        summary: 'List extraction jobs',
+        description: 'Recent import jobs of the signed-in account, newest first.',
+        querystring: listJobsQuerySchema,
+        response: {
+          200: dataResponseSchema(z.array(jobListItemSchema)),
+          ...standardErrorResponses,
+        },
+      },
+    },
+    controller.listJobs,
   );
 
   app.get(

@@ -6,7 +6,8 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "recipe",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#f8faf5",
     "ios": {
       "bundleIdentifier": "com.recipe.app",
       "supportsTablet": true,
@@ -82,7 +83,8 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Allow Tortie to pick a photo of a recipe page.",
+          "photosPermission": "Allow Tortie to pick a photo of a recipe page or your profile picture.",
+          "cameraPermission": "Allow Tortie to take a profile picture.",
           "microphonePermission": false
         }
       ],

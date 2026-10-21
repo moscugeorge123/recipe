@@ -7,12 +7,14 @@ import {
   type Auth,
 } from 'firebase/auth';
 import { getFirestore, type Firestore } from 'firebase/firestore';
+import { getStorage, type FirebaseStorage } from 'firebase/storage';
 
 import { getFirebaseConfig } from '@/constants/env';
 
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
+let storage: FirebaseStorage | null = null;
 
 function getFirebaseApp(): FirebaseApp {
   if (!app) {
@@ -48,4 +50,18 @@ export function getFirebaseDb(): Firestore {
     db = getFirestore(getFirebaseApp());
   }
   return db;
+}
+
+/**
+ * Lazy Cloud Storage singleton (profile pictures). The bucket is
+ * `EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET` or the project default.
+ */
+export function getFirebaseStorage(): FirebaseStorage {
+  if (!storage) {
+    const bucket =
+      process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET ||
+      `${getFirebaseConfig().projectId}.firebasestorage.app`;
+    storage = getStorage(getFirebaseApp(), `gs://${bucket}`);
+  }
+  return storage;
 }

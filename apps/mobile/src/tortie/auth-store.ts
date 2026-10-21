@@ -28,6 +28,9 @@ type Auth = {
   authed: boolean;
   user: TortieUser | null;
   linked: Linked;
+  /** True from the tap on Sign out until the sign-in screen replaces the app. */
+  signingOut: boolean;
+  _setSigningOut: (value: boolean) => void;
   /** Internal: called by the auth listener and `authService`, not by screens. */
   _setFirebaseUser: (user: FirebaseUserLike | null) => void;
 };
@@ -65,6 +68,8 @@ export const useTortieAuth = create<Auth>()((set) => ({
   authed: false,
   user: null,
   linked: NO_LINKS,
+  signingOut: false,
+  _setSigningOut: (signingOut) => set({ signingOut }),
   _setFirebaseUser: (firebaseUser) =>
     set(
       firebaseUser
@@ -76,6 +81,7 @@ export const useTortieAuth = create<Auth>()((set) => ({
         : {
             status: 'signedOut',
             authed: false,
+            signingOut: false,
             user: null,
             linked: NO_LINKS,
           },

@@ -1,7 +1,9 @@
+import Constants from 'expo-constants';
 import { BlurView } from 'expo-blur';
 import { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Linking,
   ScrollView,
   StyleSheet,
   View,
@@ -19,25 +21,28 @@ import {
   type RecipeLanguagePref,
 } from '@/i18n/languages';
 import { AuthError, authService } from '@/features/auth/auth-service';
+import { removeAvatar, uploadAvatar } from '@/features/auth/avatar-service';
+import { pickAvatar } from '@/features/auth/pick-avatar';
 import { useCollections } from '@/features/collections/hooks';
 import { useCookSessions } from '@/features/cook-sessions/hooks';
 import { useTortieAuth, type TortieUser } from '@/tortie/auth-store';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
-import { motionMultiplier } from '@/tortie/motion';
+import { initialsOf, nameOf, PROV_NAME } from '@/tortie/lib/user-display';
 import { toast, useNav } from '@/tortie/nav-store';
-import { useTortiePrefs, type DietKey } from '@/tortie/prefs-store';
+import { useTortiePrefs } from '@/tortie/prefs-store';
 import { clampSnooze } from '@/tortie/timer-clock';
 import { C, CSS_EASE, SH, SPRING } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { BrandLogo } from '@/tortie/ui/brand';
-import { Pill, Switch } from '@/tortie/ui/controls';
+import { Avatar } from '@/tortie/ui/avatar';
+import { Grabber, Pill, Switch } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
+import { Select, type SelectOption } from '@/tortie/ui/select';
+import { Sheet } from '@/tortie/ui/sheet';
 import { Stagger } from '@/tortie/ui/stagger';
 import { em, kicker, sans, serif, T } from '@/tortie/ui/text';
-
-const PROV_NAME = { google: 'Google', facebook: 'Facebook' } as const;
 
 /** User-facing text for a failed auth call; `null` when the user backed out. */
 function authMessage(e: unknown, fallback: string): string | null {
@@ -48,24 +53,7 @@ function authMessage(e: unknown, fallback: string): string | null {
   return fallback;
 }
 
-export function initialsOf(name: string): string {
-  return (
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((w) => w[0])
-      .slice(0, 2)
-      .join('')
-      .toUpperCase() || '?'
-  );
-}
-
-/** Display name; OAuth sign-ins have no name until the API supports accounts. */
-export function nameOf(u: TortieUser | null): string {
-  if (!u) return '';
-  if (u.name) return u.name;
-  return u.prov === 'email' ? u.email : `${PROV_NAME[u.prov]} account`;
-}
+export { initialsOf, nameOf };
 
 export function ProfileScreen() {
   const f = useFrame();
@@ -75,6 +63,11 @@ export function ProfileScreen() {
   const profNonce = useNav((s) => s.profNonce);
   const closeProfile = useNav((s) => s.closeProfile);
   const user = useTortieAuth((s) => s.user);
+  const signingOut = useTortieAuth((s) => s.signingOut);
+  // Scoped to one opening: Profile stays mounted, so a sheet left open by Back would reappear.
+  const [photoState, setPhotoState] = useState({ n: profNonce, v: false });
+  const photoOpen = photoState.n === profNonce && photoState.v && prof;
+  const setPhotoOpen = (v: boolean) => setPhotoState({ n: profNonce, v });
   const scrollRef = useRef<ScrollView>(null);
   // Scroll state is scoped to one opening so it resets without an effect.
   const [scrState, setScrState] = useState({ n: profNonce, v: false });
@@ -128,7 +121,13 @@ export function ProfileScreen() {
         }}
       >
         <View style={{ paddingHorizontal: 20 }}>
-          <SignedIn on={on} heroHidden={pAv} user={user} name={name} />
+          <SignedIn
+            on={on}
+            heroHidden={pAv}
+            user={user}
+            name={name}
+            onChangePhoto={() => setPhotoOpen(true)}
+          />
         </View>
       </ScrollView>
       <View
@@ -248,7 +247,7 @@ export function ProfileScreen() {
             }}
           >
             <Press
-              onPress={() => toast('Choose a new profile photo')}
+              onPress={() => setPhotoOpen(true)}
               scale={0.88}
               accessibilityLabel="Change photo"
               style={{
@@ -270,105 +269,202 @@ export function ProfileScreen() {
                   mini,
                 ]}
               >
-                <View
+                <Avatar
+                  size={38}
                   style={{
-                    width: 38,
-                    height: 38,
-                    borderRadius: 19,
-                    backgroundColor: C.green,
-                    alignItems: 'center',
-                    justifyContent: 'center',
                     boxShadow: '0 0 0 2px #f8faf5, 0 0 0 3.5px #c7ecce',
                   }}
-                >
-                  <T style={sans(14, 700, C.bg)}>{initialsOf(name)}</T>
-                </View>
+                />
               </Animated.View>
             </Press>
           </View>
         </View>
       </View>
+      <PhotoSheet open={photoOpen} onClose={() => setPhotoOpen(false)} />
+      {signingOut ? (
+        <View
+          accessibilityLiveRegion="polite"
+          style={[
+            StyleSheet.absoluteFill,
+            {
+              zIndex: 70,
+              backgroundColor: C.bg,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+          ]}
+        >
+          <T style={sans(15, 600, C.ink2)}>Signing out…</T>
+        </View>
+      ) : null}
     </View>
   );
 }
 
-/** App language and recipe language pickers, stored on the device. */
+/** Take, choose or remove the profile picture. */
+function PhotoSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const f = useFrame();
+  const hasPhoto = useTortieAuth((s) => !!s.user?.photoURL);
+  const rows: [string, string, 'camera' | 'library' | 'remove'][] = [
+    ['photo_camera', 'Take photo', 'camera'],
+    ['photo_library', 'Choose from library', 'library'],
+    ...(hasPhoto
+      ? ([['delete', 'Remove photo', 'remove']] as [string, string, 'remove'][])
+      : []),
+  ];
+  return (
+    <Sheet
+      open={open}
+      onClose={onClose}
+      z={60}
+      style={{ paddingBottom: Math.max(28, f.sheetBottom) }}
+    >
+      <Grabber />
+      <T style={[serif(24, 500), { marginBottom: 8 }]}>Profile photo</T>
+      {rows.map(([icon, label, action]) => (
+        <Press
+          key={action}
+          onPress={() => {
+            onClose();
+            void changePhoto(action);
+          }}
+          scale={0.98}
+          bg="transparent"
+          pressedBg={C.surface2}
+          accessibilityRole="button"
+          style={{
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 14,
+            height: 54,
+            borderRadius: 14,
+          }}
+        >
+          <Glyph
+            name={icon}
+            size={22}
+            color={action === 'remove' ? C.terraInk : C.green}
+          />
+          <T style={sans(15, 600, action === 'remove' ? C.terraInk : C.ink)}>
+            {label}
+          </T>
+        </Press>
+      ))}
+    </Sheet>
+  );
+}
+
+/** Runs one photo action. A failed upload keeps the old picture and offers Retry. */
+async function changePhoto(action: 'camera' | 'library' | 'remove') {
+  try {
+    if (action === 'remove') {
+      await removeAvatar();
+      toast('Photo removed');
+      return;
+    }
+    const picked = await pickAvatar(action);
+    if (picked.status === 'cancelled') return;
+    if (picked.status === 'denied') {
+      Alert.alert(
+        'Camera access is off',
+        'Allow Tortie to use the camera in Settings to take a profile photo.',
+        [
+          { text: 'Not now', style: 'cancel' },
+          { text: 'Open Settings', onPress: () => void Linking.openSettings() },
+        ],
+      );
+      return;
+    }
+    await uploadAvatar(picked.uri);
+    toast('Profile photo updated');
+  } catch (e) {
+    const tooLarge = e instanceof Error && e.message === 'too-large';
+    Alert.alert(
+      'Couldn’t update your photo',
+      tooLarge
+        ? 'That photo is too large. Pick a smaller one.'
+        : 'Check your connection and try again. Your current photo is unchanged.',
+      tooLarge
+        ? [{ text: 'OK' }]
+        : [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Retry', onPress: () => void changePhoto(action) },
+          ],
+    );
+  }
+}
+
+/** App language and recipe language dropdowns, stored on the device. */
 function LanguageSection() {
   const t = useT();
   const appLanguage = useTortiePrefs((s) => s.appLanguage);
   const recipeLanguage = useTortiePrefs((s) => s.recipeLanguage);
   const set = useTortiePrefs((s) => s.set);
-  const wrap = {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    paddingTop: 10,
-  } as const;
-  const pill = (label: string, on: boolean, onPress: () => void) => (
-    <Pill
-      key={label}
-      label={label}
-      on={on}
-      onPress={onPress}
-      height={32}
-      paddingH={12}
-      size={12}
-      weight={700}
-    />
-  );
   return (
     <>
       <SectionLabel>{t('profile.language')}</SectionLabel>
       <View style={CARD}>
-        <View style={{ paddingTop: 12, paddingBottom: 14 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Glyph name="language" size={22} color={C.green} />
-            <RowText
-              l={t('profile.appLanguage')}
-              sub={t('profile.appLanguageSub')}
-            />
-          </View>
-          <View style={wrap}>
-            {pill(
-              t('profile.appLanguageSystem'),
-              appLanguage === 'system',
-              () => set({ appLanguage: 'system' satisfies AppLanguagePref }),
-            )}
-            {APP_LANGUAGES.map((l) =>
-              pill(l.name, appLanguage === l.code, () =>
-                set({ appLanguage: l.code }),
-              ),
-            )}
-          </View>
-        </View>
+        <Select<AppLanguagePref>
+          icon="language"
+          label={t('profile.appLanguage')}
+          sub={t('profile.appLanguageSub')}
+          value={appLanguage}
+          options={appLanguageOptions(t('profile.appLanguageSystem'))}
+          onChange={(v) => set({ appLanguage: v })}
+        />
         <View style={DIVIDER} />
-        <View style={{ paddingTop: 12, paddingBottom: 14 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
-            <Glyph name="translate" size={22} color={C.green} />
-            <RowText
-              l={t('profile.recipeLanguage')}
-              sub={t('profile.recipeLanguageSub')}
-            />
-          </View>
-          <View style={wrap}>
-            {pill(
-              t('profile.recipeLanguageOriginal'),
-              recipeLanguage === 'original',
-              () =>
-                set({
-                  recipeLanguage: 'original' satisfies RecipeLanguagePref,
-                }),
-            )}
-            {RECIPE_LANGUAGES.map((l) =>
-              pill(l.name, recipeLanguage === l.code, () =>
-                set({ recipeLanguage: l.code }),
-              ),
-            )}
-          </View>
-        </View>
+        <Select<RecipeLanguagePref>
+          icon="translate"
+          label={t('profile.recipeLanguage')}
+          sub={t('profile.recipeLanguageSub')}
+          value={recipeLanguage}
+          options={recipeLanguageOptions(t('profile.recipeLanguageOriginal'))}
+          onChange={(v) => set({ recipeLanguage: v })}
+        />
       </View>
     </>
   );
+}
+
+/** Device first, then each language under its own name. */
+export function appLanguageOptions(
+  systemLabel: string,
+): SelectOption<AppLanguagePref>[] {
+  return [
+    { value: 'system', label: systemLabel },
+    ...APP_LANGUAGES.map((l) => ({ value: l.code, label: l.name })),
+  ];
+}
+
+export function recipeLanguageOptions(
+  originalLabel: string,
+): SelectOption<RecipeLanguagePref>[] {
+  return [
+    { value: 'original', label: originalLabel },
+    ...RECIPE_LANGUAGES.map((l) => ({ value: l.code, label: l.name })),
+  ];
+}
+
+type AboutRow = { icon: string; label: string; sub?: string; url?: string };
+
+/** Version always; legal and support links only when configured for the build. */
+export function aboutLinks(
+  version = Constants.expoConfig?.version ?? '',
+  env: Record<string, string | undefined> = {
+    terms: process.env.EXPO_PUBLIC_TERMS_URL,
+    privacy: process.env.EXPO_PUBLIC_PRIVACY_URL,
+    support: process.env.EXPO_PUBLIC_SUPPORT_URL,
+  },
+): AboutRow[] {
+  const rows: AboutRow[] = [
+    { icon: 'notes', label: 'Version', sub: version || undefined },
+  ];
+  if (env.terms) rows.push({ icon: 'link', label: 'Terms', url: env.terms });
+  if (env.privacy)
+    rows.push({ icon: 'link', label: 'Privacy policy', url: env.privacy });
+  if (env.support)
+    rows.push({ icon: 'link', label: 'Support', url: env.support });
+  return rows;
 }
 
 function SectionLabel({ children }: { children: string }) {
@@ -410,11 +506,13 @@ function SignedIn({
   heroHidden,
   user,
   name,
+  onChangePhoto,
 }: {
   on: boolean;
   heroHidden: boolean;
   user: TortieUser | null;
   name: string;
+  onChangePhoto: () => void;
 }) {
   const t = useT();
   const prefs = useTortiePrefs();
@@ -432,21 +530,13 @@ function SignedIn({
     ],
   }));
 
-  const signOut = () => {
-    useNav.getState().set({ pfOut: true });
-    setTimeout(
-      async () => {
-        try {
-          await authService.signOut();
-          toast('Signed out');
-        } catch {
-          toast('Couldn’t sign out. Try again.', 'error');
-        } finally {
-          useNav.getState().set({ pfOut: false });
-        }
-      },
-      Math.round(280 * motionMultiplier()),
-    );
+  const signOut = async () => {
+    try {
+      await authService.signOut();
+      toast('Signed out');
+    } catch {
+      toast('Couldn’t sign out. Try again.', 'error');
+    }
   };
 
   const link = async (k: 'google' | 'facebook') => {
@@ -489,21 +579,8 @@ function SignedIn({
     [String(recipes.total), 'recipes'],
     [String(colls.data?.items.length ?? 0), 'collections'],
   ];
-  const DIETS: [DietKey, string][] = [
-    ['veg', 'Vegetarian'],
-    ['pesc', 'Pescatarian'],
-    ['gf', 'Gluten-free'],
-    ['df', 'Dairy-free'],
-    ['nut', 'No nuts'],
-  ];
+  const aboutRows = aboutLinks();
   const cookRows: [string, string, string, boolean, () => void][] = [
-    [
-      'mic',
-      'Voice commands',
-      'Say “next” to move between steps',
-      prefs.voice,
-      () => prefs.set({ voice: !prefs.voice }),
-    ],
     [
       'notifications_active',
       'Timer alerts',
@@ -524,21 +601,13 @@ function SignedIn({
     <>
       <Stagger i={0} on={on} style={{ alignItems: 'center', paddingTop: 14 }}>
         <Animated.View style={hero}>
-          <View
-            style={{
-              width: 96,
-              height: 96,
-              borderRadius: 48,
-              backgroundColor: C.green,
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 0 0 4px #f8faf5, 0 0 0 6px #c7ecce',
-            }}
-          >
-            <T style={serif(38, 500, C.bg)}>{initialsOf(name)}</T>
-          </View>
+          <Avatar
+            size={96}
+            serifInitials
+            style={{ boxShadow: '0 0 0 4px #f8faf5, 0 0 0 6px #c7ecce' }}
+          />
           <Press
-            onPress={() => toast('Choose a new profile photo')}
+            onPress={onChangePhoto}
             scale={0.88}
             accessibilityLabel="Change photo"
             style={{
@@ -712,45 +781,6 @@ function SignedIn({
               />
             </View>
           </View>
-          <View style={DIVIDER} />
-          <View style={{ paddingTop: 12, paddingBottom: 14 }}>
-            <View
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}
-            >
-              <Glyph name="eco" size={22} color={C.green} />
-              <RowText
-                l="Dietary preferences"
-                sub="Tortie flags recipes that don’t fit"
-              />
-            </View>
-            <View
-              style={{
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                gap: 8,
-                marginTop: 12,
-              }}
-            >
-              {DIETS.map(([k, l]) => {
-                const v = !!prefs.diet[k];
-                return (
-                  <Pill
-                    key={k}
-                    label={l}
-                    on={v}
-                    icon={v ? 'check' : undefined}
-                    iconSize={16}
-                    onPress={() =>
-                      prefs.set({ diet: { ...prefs.diet, [k]: !v } })
-                    }
-                    height={34}
-                    paddingH={12}
-                    style={{ gap: 4 }}
-                  />
-                );
-              })}
-            </View>
-          </View>
         </View>
       </Stagger>
 
@@ -852,6 +882,36 @@ function SignedIn({
       </Stagger>
 
       <Stagger i={4} on={on}>
+        <SectionLabel>About</SectionLabel>
+        <View style={CARD}>
+          {aboutRows.map((r, i) => (
+            <Press
+              key={r.label}
+              onPress={() => r.url && void Linking.openURL(r.url)}
+              disabled={!r.url}
+              scale={0.98}
+              bg={C.white}
+              pressedBg={C.surface2}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 14,
+                paddingVertical: 12,
+                borderTopWidth: i ? 1 : 0,
+                borderTopColor: C.surface3,
+              }}
+            >
+              <Glyph name={r.icon} size={22} color={C.green} />
+              <RowText l={r.label} sub={r.sub} />
+              {r.url ? (
+                <Glyph name="chevron_right" size={20} color={C.ink3} />
+              ) : null}
+            </Press>
+          ))}
+        </View>
+      </Stagger>
+
+      <Stagger i={4} on={on}>
         <SectionLabel>Connected accounts</SectionLabel>
         <View style={CARD}>
           {(isFacebookEnabled() || linked.facebook
@@ -922,7 +982,7 @@ function SignedIn({
 
       <Stagger i={5} on={on}>
         <Press
-          onPress={signOut}
+          onPress={() => void signOut()}
           scale={0.97}
           style={{
             height: 54,

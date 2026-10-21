@@ -1,8 +1,10 @@
 import {
   cancelJobSchema,
+  jobListItemSchema,
   extractionJobCreateSchema,
   jobStatusSchema,
   type ExtractionJobCreate,
+  type JobListItemDto,
   type JobStatusDto,
 } from '@/features/extraction/schemas';
 import { apiClient, unwrapData } from '@/services/api-client';
@@ -48,6 +50,18 @@ export async function getExtractionJob(
     signal,
   });
   return jobStatusSchema.parse(unwrapData(parsed));
+}
+
+/** The account's recent import jobs, newest first. */
+export async function listExtractionJobs(
+  limit = 20,
+  signal?: AbortSignal,
+): Promise<JobListItemDto[]> {
+  const parsed = await apiClient.get<unknown>(
+    `/recipes/extract/jobs?limit=${limit}`,
+    { signal },
+  );
+  return jobListItemSchema.array().parse(unwrapData(parsed));
 }
 
 export async function cancelExtraction(

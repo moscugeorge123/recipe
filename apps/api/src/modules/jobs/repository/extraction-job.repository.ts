@@ -20,9 +20,21 @@ export interface UpdateExtractionJobInput {
   completedAt?: Date | null;
 }
 
+/** A job with the pieces the import history shows. */
+export type ExtractionJobWithSource = ExtractionJob & {
+  recipeSource: { originalUrl: string };
+  recipe: { title: string } | null;
+};
+
 export interface IExtractionJobRepository {
   create(input: CreateExtractionJobInput): Promise<ExtractionJob>;
   findById(id: string): Promise<ExtractionJob | null>;
+  /** The account's jobs, newest first. `includeLegacy` adds jobs created before accounts existed. */
+  listByRequester(
+    userId: string,
+    limit: number,
+    includeLegacy: boolean,
+  ): Promise<ExtractionJobWithSource[]>;
   update(id: string, input: UpdateExtractionJobInput): Promise<ExtractionJob>;
   findLatestCompletedBySourceId(recipeSourceId: string): Promise<ExtractionJob | null>;
   /**

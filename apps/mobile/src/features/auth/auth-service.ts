@@ -16,6 +16,7 @@ import {
 } from 'firebase/auth';
 
 import { deleteAccountDoc, syncAccountDoc } from '@/features/auth/account-doc';
+import { deleteStoredAvatar } from '@/features/auth/avatar-service';
 import {
   AuthError,
   authErrorMessage,
@@ -154,6 +155,9 @@ async function clearSession(): Promise<void> {
   } catch {
     // Keep going: local data must be wiped either way.
   }
+  // Show the sign-in screen now. The wipe below can take a while, and the
+  // signed-in screens would otherwise sit there half empty.
+  useTortieAuth.getState()._setFirebaseUser(null);
   await signOutOfGoogle();
   signOutOfFacebook();
   await resetUserData();
@@ -223,7 +227,15 @@ export const authService = {
     });
   },
 
-  signOut: clearSession,
+  /** Sign-in screen first, then the account's local data is wiped. */
+  async signOut(): Promise<void> {
+    useTortieAuth.getState()._setSigningOut(true);
+    try {
+      await clearSession();
+    } finally {
+      useTortieAuth.getState()._setSigningOut(false);
+    }
+  },
 
   /** Deletes server data, then the Firebase account. */
   async deleteAccount(): Promise<void> {
@@ -242,6 +254,7 @@ export const authService = {
       await apiClient.delete('/me');
       // Firestore rules only let the owner delete it, so this runs before the auth user goes.
       await deleteAccountDoc(user.uid);
+      await deleteStoredAvatar(user.uid);
       try {
         await user.delete();
       } catch (error) {

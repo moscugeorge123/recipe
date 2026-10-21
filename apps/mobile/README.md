@@ -39,10 +39,10 @@ npm install
 `.env` is gitignored. `EXPO_PUBLIC_API_URL` is already set in `.env.example` to the Recipe API, including the `/api/v1` prefix:
 
 ```
-EXPO_PUBLIC_API_URL=http://localhost:3000/api/v1
+EXPO_PUBLIC_API_URL=http://10.0.2.2:3000/api/v1
 ```
 
-Android emulator: `http://10.0.2.2:3000/api/v1`.
+That default reaches the API from the Android emulator. For the iOS simulator use `http://localhost:3000/api/v1`. In development a `localhost` or `10.0.2.2` host is replaced by the host serving Metro, so a physical phone on the same Wi-Fi works without editing `.env` (the API must listen on `0.0.0.0`). Over USB you can instead run `adb reverse tcp:3000 tcp:3000` and use `localhost`.
 
 ## Development
 

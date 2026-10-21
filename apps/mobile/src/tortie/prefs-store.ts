@@ -6,7 +6,6 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import type { AppLanguagePref, RecipeLanguagePref } from '@/i18n/languages';
 
 export type Units = 'metric' | 'imperial';
-export type DietKey = 'veg' | 'pesc' | 'gf' | 'df' | 'nut';
 
 /**
  * Device-local preferences shown on Profile and in Cook mode.
@@ -16,12 +15,10 @@ type TortiePrefs = {
   defaultServings: number;
   /** Ingredient amounts, step heat, in-step measurements and grocery amounts. */
   units: Units;
-  diet: Partial<Record<DietKey, boolean>>;
   /** Language of the app's own menus and messages; 'system' follows the device. */
   appLanguage: AppLanguagePref;
   /** Language recipes are shown in; 'original' keeps each recipe as saved. */
   recipeLanguage: RecipeLanguagePref;
-  voice: boolean;
   timerAlerts: boolean;
   /** Minutes the "Snooze" button on a finished timer adds. */
   snoozeMinutes: number;
@@ -32,15 +29,27 @@ type TortiePrefs = {
   set: (patch: Partial<Omit<TortiePrefs, 'set'>>) => void;
 };
 
+/** Bump when a stored field is removed or renamed. */
+export const PREFS_VERSION = 1;
+
+/** v0 stored `diet` and `voice` settings that nothing read; drop them. */
+export function migratePrefs(stored: unknown, _version: number) {
+  if (!stored || typeof stored !== 'object') return stored as TortiePrefs;
+  const {
+    diet: _diet,
+    voice: _voice,
+    ...rest
+  } = stored as Record<string, unknown>;
+  return rest as unknown as TortiePrefs;
+}
+
 export const useTortiePrefs = create<TortiePrefs>()(
   persist(
     (set) => ({
       defaultServings: 2,
       units: 'metric',
-      diet: { veg: true },
       appLanguage: 'system',
       recipeLanguage: 'original',
-      voice: true,
       timerAlerts: true,
       snoozeMinutes: 1,
       keepAwake: true,
@@ -51,6 +60,8 @@ export const useTortiePrefs = create<TortiePrefs>()(
     {
       name: 'tortie-prefs',
       storage: createJSONStorage(() => AsyncStorage),
+      version: PREFS_VERSION,
+      migrate: migratePrefs,
       partialize: ({ set: _set, ...rest }) => rest,
     },
   ),
