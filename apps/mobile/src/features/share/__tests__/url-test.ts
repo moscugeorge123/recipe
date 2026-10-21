@@ -49,6 +49,10 @@ describe('sourceOf', () => {
       'TikTok',
     );
     expect(sourceOf('https://pin.it/abc')?.kind).toBe('pinterest');
+    expect(sourceOf('https://fb.watch/abc')?.kind).toBe('facebook');
+    expect(sourceOf('https://fb.com/chef/posts/1')?.kind).toBe('facebook');
+    expect(sourceOf('https://m.facebook.com/reel/1')?.kind).toBe('facebook');
+    expect(sourceOf('https://notfb.com/recipe')?.kind).toBe('web');
     expect(sourceOf('https://cooking.nytimes.com/recipes/1')?.kind).toBe('web');
   });
 });

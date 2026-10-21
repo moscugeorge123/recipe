@@ -44,16 +44,19 @@ export function ErrorTile({
 export function ImportErrorCard({
   group,
   source,
+  scan = false,
   retryAt,
   onAction,
 }: {
   group: ImportErrorGroup;
   /** Platform name for the "TikTok links aren't supported" line. */
   source?: string;
+  /** The import was a photo, so the copy talks about the photo, not a link. */
+  scan?: boolean;
   retryAt?: number;
   onAction: (action: ImportErrorAction) => void;
 }) {
-  const copy = importErrorCopy(group, source);
+  const copy = importErrorCopy(group, source, scan);
   const left = useCountdown(group === 'rate_limited' ? retryAt : undefined);
   const locked = copy.primary.action === 'retry' && left > 0;
   const primary = locked

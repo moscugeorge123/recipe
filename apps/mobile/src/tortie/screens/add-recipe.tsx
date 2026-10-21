@@ -38,7 +38,7 @@ const PLATS: Plat[] = PLATFORMS.map((p) => ({
 /** Only sources the importer really handles get a logo in the strip. */
 const ADVERTISED = PLATS.filter((p) => supportOf(p.k) === 'supported');
 
-/** A recognised platform the importer rejects (TikTok, Facebook). */
+/** A recognised platform the importer rejects (TikTok). */
 const unsupportedPlat = (f: Found | null): Plat | null =>
   f && f.k !== 'web' && supportOf(f.k) === 'unsupported' ? f : null;
 
@@ -496,6 +496,7 @@ export function AddRecipeSheet() {
         <ImportErrorCard
           group={job.group ?? 'generic'}
           source={brandNameOf(job.src)}
+          scan={job.src.kind === 'scan'}
           retryAt={job.retryAt}
           onAction={onErrorAction}
         />

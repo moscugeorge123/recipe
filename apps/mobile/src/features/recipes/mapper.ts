@@ -23,6 +23,7 @@ const SOURCE_LABELS: Record<string, string> = {
   TIKTOK: 'TikTok',
   FACEBOOK: 'Facebook',
   GENERIC_WEB: 'Website',
+  PHOTO: 'Photo',
 };
 
 const CUISINE_WORDS: Record<string, string> = {

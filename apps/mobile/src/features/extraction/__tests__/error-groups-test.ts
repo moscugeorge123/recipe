@@ -57,3 +57,23 @@ describe('import error groups', () => {
     expect(retrySecondsLeft(undefined, t0)).toBe(0);
   });
 });
+
+describe('photo import error copy', () => {
+  test('talks about the photo, never a link', () => {
+    for (const group of [
+      'not_recipe',
+      'unsupported',
+      'cant_open',
+      'rate_limited',
+      'generic',
+    ] as const) {
+      const copy = importErrorCopy(group, undefined, true);
+      expect(`${copy.message} ${copy.sub}`).not.toMatch(/link/i);
+      expect(copy.primary.action).toBe('scan');
+      expect(copy.secondary.action).toBe('write');
+    }
+    expect(importErrorCopy('not_recipe', undefined, true).message).toBe(
+      'That photo doesn’t look like a recipe',
+    );
+  });
+});

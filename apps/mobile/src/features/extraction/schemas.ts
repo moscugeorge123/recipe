@@ -13,6 +13,14 @@ export const createExtractionBodySchema = z.object({
     .optional(),
 });
 
+export const createPhotoExtractionBodySchema = z.object({
+  images: z
+    .array(z.object({ data: z.string() }))
+    .min(1)
+    .max(6),
+  outputLanguage: z.string().optional(),
+});
+
 export const extractionJobCreateSchema = z.object({
   jobId: z.string(),
   status: z.enum(['queued', 'completed']),

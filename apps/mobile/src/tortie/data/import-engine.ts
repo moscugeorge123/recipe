@@ -1,14 +1,21 @@
 import {
   cancelExtraction,
   createExtraction,
+  createPhotoExtraction,
   getExtractionJob,
 } from '@/features/extraction/api';
+import type { ExtractionJobCreate } from '@/features/extraction/schemas';
+import {
+  PhotoFileError,
+  readPhotoAsBase64,
+} from '@/features/extraction/photo-files';
 import {
   RATE_LIMIT_COUNTDOWN_S,
   errorGroupOf,
 } from '@/features/extraction/error-groups';
 import { targetProgress } from '@/features/extraction/import-stages';
 import {
+  SCAN_SRC,
   brandNameOf,
   importSrcOf,
   type ImportSrc,
@@ -21,6 +28,7 @@ import {
   importErrorCodeOf,
   importFailureToast,
   isAbortError,
+  scanFailureToast,
 } from '@/lib/user-error';
 import { ApiError } from '@/services/api-client';
 import { useImports } from '@/tortie/import-store';
@@ -91,6 +99,7 @@ export function findRunningImport(url: string) {
     .jobs.find(
       (j) =>
         j.status === 'running' &&
+        j.src.kind !== 'scan' &&
         runtimes.has(j.id) &&
         importKeyOf(j.url) === key,
     );
@@ -107,8 +116,37 @@ export function startImport(
   // The same link is never imported twice at once: join the running import instead.
   const running = findRunningImport(url);
   if (running) return running.id;
+  return launch(url, opts.src ?? importSrcOf(url), !!opts.slow, (signal) =>
+    createExtraction({ url, selectedThumbnailUrl: opts.thumbnail }, signal),
+  );
+}
+
+/**
+ * Starts an import from photos of a cookbook page, recipe card or handwritten note and returns
+ * its local id. The files are read and uploaded in the background; the API reads the text in
+ * them like any other source.
+ */
+export function startPhotoImport(photoUris: string[]): string {
+  return launch(
+    `scan://${Date.now().toString(36)}`,
+    { ...SCAN_SRC },
+    false,
+    async (signal) => {
+      const images = await Promise.all(
+        photoUris.map((uri) => readPhotoAsBase64(uri)),
+      );
+      return createPhotoExtraction({ images }, signal);
+    },
+  );
+}
+
+function launch(
+  url: string,
+  src: ImportSrc,
+  slow: boolean,
+  create: (signal: AbortSignal) => Promise<ExtractionJobCreate>,
+): string {
   const id = `imp-${Date.now().toString(36)}-${++seq}`;
-  const src = opts.src ?? importSrcOf(url);
   const ctrl = new AbortController();
   const now = Date.now();
   useImports.getState().add({
@@ -121,7 +159,7 @@ export function startImport(
   });
   runtimes.set(id, {
     t0: now,
-    slow: !!opts.slow,
+    slow,
     ctrl,
     nextPollAt: now + POLL_FAST_MS,
     polling: false,
@@ -131,7 +169,7 @@ export function startImport(
   });
   ensureTicker();
 
-  createExtraction({ url, selectedThumbnailUrl: opts.thumbnail }, ctrl.signal)
+  create(ctrl.signal)
     .then((res) => {
       const rt = runtimes.get(id);
       if (!rt) {
@@ -152,7 +190,12 @@ export function startImport(
     })
     .catch((e) => {
       if (!runtimes.has(id) || isAbortError(e)) return;
-      fail(id, importErrorCodeOf(e) ?? 'EXTRACTION_FAILED');
+      fail(
+        id,
+        e instanceof PhotoFileError
+          ? e.code
+          : (importErrorCodeOf(e) ?? 'EXTRACTION_FAILED'),
+      );
     });
 
   return id;
@@ -176,7 +219,8 @@ export function retryImport(
   opts: { slow?: boolean } = {},
 ): string | null {
   const job = useImports.getState().jobs.find((j) => j.id === id);
-  if (!job || job.status !== 'failed') return null;
+  // A scan's photos are not kept, so it is started again from the camera.
+  if (!job || job.status !== 'failed' || job.src.kind === 'scan') return null;
   useImports.getState().remove(id);
   return startImport(job.url, { src: job.src, slow: opts.slow });
 }
@@ -218,7 +262,9 @@ function fail(id: string, code: string) {
     toast(
       code === LOST_TRACK
         ? 'Lost track of that import — try again'
-        : importFailureToast(code, brandNameOf(job.src)),
+        : job.src.kind === 'scan'
+          ? scanFailureToast(code)
+          : importFailureToast(code, brandNameOf(job.src)),
       'error',
     );
   }

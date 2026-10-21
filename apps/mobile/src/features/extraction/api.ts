@@ -42,6 +42,22 @@ export async function createExtraction(
   return extractionJobCreateSchema.parse(unwrapData(parsed));
 }
 
+/** `images` are the pages' file contents as base64, in reading order. */
+export async function createPhotoExtraction(
+  input: { images: string[] },
+  signal?: AbortSignal,
+): Promise<ExtractionJobCreate> {
+  const parsed = await apiClient.post<unknown>(
+    '/recipes/extract/photos',
+    {
+      images: input.images.map((data) => ({ data })),
+      outputLanguage: importLanguage(),
+    },
+    { signal },
+  );
+  return extractionJobCreateSchema.parse(unwrapData(parsed));
+}
+
 export async function getExtractionJob(
   id: string,
   signal?: AbortSignal,
