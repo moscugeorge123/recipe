@@ -1,6 +1,7 @@
 import { Text, type TextProps, type TextStyle } from 'react-native';
 
 import { C, F } from '@/tortie/theme';
+import { serifSlack } from '@/tortie/ui/text-slack';
 
 type Weight = 400 | 500 | 600 | 700;
 
@@ -98,5 +99,23 @@ export function kicker(color: string = C.terra, size = 12): TextStyle {
 }
 
 export function T(props: TextProps) {
-  return <Text allowFontScaling={false} {...props} />;
+  const slack = serifSlack(props.style);
+  return (
+    <Text
+      allowFontScaling={false}
+      {...props}
+      style={slack ? [props.style, slack] : props.style}
+    />
+  );
+}
+
+/** Serif heading; `T` with the serif style fragment applied. */
+export function Heading({
+  size,
+  weight = 500,
+  color,
+  style,
+  ...rest
+}: TextProps & { size: number; weight?: Weight; color?: string }) {
+  return <T {...rest} style={[serif(size, weight, color), style]} />;
 }

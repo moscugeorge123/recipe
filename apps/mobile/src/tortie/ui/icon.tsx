@@ -12,7 +12,20 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
+import iconNames from '@/assets/fonts/icon-names.json';
 import { F } from '@/tortie/theme';
+
+const KNOWN = new Set<string>(iconNames);
+const warned = new Set<string>();
+
+/** Dev-only: a name with no ligature in the bundled subset draws as plain letters. */
+function checkName(name: string) {
+  if (!__DEV__ || KNOWN.has(name) || warned.has(name)) return;
+  warned.add(name);
+  console.warn(
+    `[icon] "${name}" is not in assets/fonts/icon-names.json; add it and run scripts/build-icon-fonts.py`,
+  );
+}
 
 /**
  * Material Symbols Outlined, rendered by ligature (icon name as text).
@@ -38,6 +51,7 @@ export function Icon({
   style,
   textStyle,
 }: IconProps) {
+  checkName(name);
   const p = useSharedValue(fill ? 1 : 0);
   useEffect(() => {
     p.value = fillMs
@@ -92,6 +106,7 @@ export function Glyph({
   fill = false,
   style,
 }: Omit<IconProps, 'fillMs' | 'textStyle'> & { style?: StyleProp<TextStyle> }) {
+  checkName(name);
   return (
     <Text
       allowFontScaling={false}
