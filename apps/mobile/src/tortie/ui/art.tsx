@@ -15,7 +15,7 @@ import {
 } from '@/tortie/ui/keyframes';
 import { T } from '@/tortie/ui/text';
 
-const LOGO = require('../../../assets/tortie/tortie-logo.png');
+const LOGO = require('@/assets/images/icon.png');
 const TILE_SH = '0 10px 20px -10px rgba(46,49,46,.35), 0 0 0 1px #edeee9';
 
 type Pos = Pick<ViewStyle, 'left' | 'right' | 'top' | 'bottom'> & {

@@ -52,7 +52,7 @@ import { Byline, TimeChip } from '@/tortie/ui/time-chip';
 import { TabScroll } from '@/tortie/ui/tab-scroll';
 import { em, kicker, mono, sans, serif, T } from '@/tortie/ui/text';
 
-const LOGO = require('@/assets/tortie/tortie-logo.png');
+const LOGO = require('@/assets/images/icon.png');
 const RING = 81.68;
 const MEAL_LABEL: Record<MealKey, string> = {
   b: 'Breakfast',

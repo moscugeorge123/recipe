@@ -26,7 +26,7 @@ import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { em, kicker, sans, serif, T } from '@/tortie/ui/text';
 
-const LOGO = require('@/assets/tortie/tortie-logo.png');
+const LOGO = require('@/assets/images/icon.png');
 
 type PageDef = {
   kicker: string;
