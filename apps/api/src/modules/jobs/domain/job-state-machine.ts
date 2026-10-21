@@ -16,7 +16,17 @@ const VALID_TRANSITIONS: Readonly<Record<JobStatus, readonly JobStatus[]>> = {
   NORMALIZING_RECIPE: ['VALIDATING_RECIPE', 'FAILED'],
   VALIDATING_RECIPE: ['COMPLETED', 'FAILED'],
   COMPLETED: [],
-  FAILED: ['QUEUED'],
+  // A worker retry re-enters at the status the last completed stage left behind.
+  FAILED: [
+    'QUEUED',
+    'CONTENT_ACQUIRED',
+    'PROCESSING_MEDIA',
+    'TRANSCRIBING',
+    'ANALYZING_FRAMES',
+    'RUNNING_OCR',
+    'EXTRACTING_RECIPE',
+    'NORMALIZING_RECIPE',
+  ],
   CANCELLED: [],
 };
 
