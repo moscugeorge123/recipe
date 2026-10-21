@@ -27,6 +27,18 @@ describe('JobStateMachine', () => {
     expect(() => {
       machine.assertTransition('COMPLETED', 'QUEUED');
     }).toThrow();
+    expect(() => {
+      machine.assertTransition('FAILED', 'COMPLETED');
+    }).toThrow();
+  });
+
+  it('lets a failed job resume at the last completed stage', () => {
+    expect(() => {
+      machine.assertTransition('FAILED', 'RUNNING_OCR');
+    }).not.toThrow();
+    expect(() => {
+      machine.assertTransition('FAILED', 'QUEUED');
+    }).not.toThrow();
   });
 
   it('identifies cancellable statuses', () => {

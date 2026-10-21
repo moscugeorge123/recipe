@@ -96,18 +96,34 @@ export class StageOrchestrator {
     let previousStatus: JobStatus | undefined;
 
     for (const stage of PIPELINE_STAGE_ORDER) {
-      const job = await this.jobRepo.findById(ctx.jobId);
-      if (
-        !job ||
-        job.status === 'CANCELLED' ||
-        job.status === 'COMPLETED' ||
-        job.status === 'FAILED'
-      ) {
+      let job = await this.jobRepo.findById(ctx.jobId);
+      if (!job || job.status === 'CANCELLED' || job.status === 'COMPLETED') {
         log.info(
           { step: 'pipeline.stage', stage, status: job?.status ?? 'missing' },
           'pipeline.execute stopped',
         );
         return;
+      }
+
+      if (job.status === 'FAILED') {
+        const resume = await this.resumePoint(ctx.jobId);
+        if (!resume) {
+          log.info(
+            { step: 'pipeline.stage', stage, status: job.status },
+            'pipeline.execute stopped',
+          );
+          return;
+        }
+        this.stateMachine.assertTransition('FAILED', resume.status);
+        job = await this.jobRepo.update(ctx.jobId, {
+          status: resume.status,
+          error: null,
+          completedAt: null,
+        });
+        log.info(
+          { step: 'pipeline.stage', stage: resume.stage, status: resume.status },
+          'pipeline.execute resumed',
+        );
       }
 
       ctx.options = parseJobOptions(job.options);
@@ -131,8 +147,13 @@ export class StageOrchestrator {
         }));
 
       const startedAt = stageRecord.startedAt ?? new Date();
-      if (!stageRecord.startedAt) {
-        await this.stageRepo.update(stageRecord.id, { startedAt, status: 'RUNNING' });
+      if (stageRecord.status !== 'RUNNING' || !stageRecord.startedAt) {
+        await this.stageRepo.update(stageRecord.id, {
+          startedAt,
+          status: 'RUNNING',
+          completedAt: null,
+          error: null,
+        });
       }
 
       await this.jobRepo.update(ctx.jobId, {
@@ -238,6 +259,32 @@ export class StageOrchestrator {
     }
 
     return STAGE_TO_JOB_STATUS[stage];
+  }
+
+  /**
+   * Where a failed job can continue. Evidence for extraction is stored, so that stage can
+   * run again. Earlier stages keep their inputs only in memory, so a retry cannot resume there.
+   */
+  private async resumePoint(
+    jobId: string,
+  ): Promise<{ stage: PipelineStage; status: JobStatus } | null> {
+    const stages = await this.stageRepo.listByJobId(jobId);
+    const completed = new Set(
+      stages.filter((row) => row.status === 'COMPLETED').map((row) => row.stage),
+    );
+    const next = PIPELINE_STAGE_ORDER.find((stage) => !completed.has(stage));
+    const extractAt = PIPELINE_STAGE_ORDER.indexOf('EXTRACTING_RECIPE');
+    if (!next || PIPELINE_STAGE_ORDER.indexOf(next) < extractAt) {
+      return null;
+    }
+    const previous = PIPELINE_STAGE_ORDER[PIPELINE_STAGE_ORDER.indexOf(next) - 1];
+    if (!previous) {
+      return null;
+    }
+    return {
+      stage: next,
+      status: AFTER_STAGE_STATUS[previous] ?? STAGE_TO_JOB_STATUS[previous],
+    };
   }
 }
 
@@ -380,17 +427,25 @@ export function createDefaultStageHandlers(
 
       const jobLog = log.child({ jobId: ctx.jobId });
 
-      ctx.evidence = evidenceBuilder.build({
+      let evidence = evidenceBuilder.build({
         ...(ctx.acquiredContent ? { acquiredContent: ctx.acquiredContent } : {}),
         ...(ctx.transcript ? { transcript: ctx.transcript } : {}),
         ...(ctx.ocrResults ? { ocrResults: ctx.ocrResults } : {}),
         ...(ctx.visionAnalyses ? { visionAnalyses: ctx.visionAnalyses } : {}),
       });
-
-      const evidence = ctx.evidence;
+      // A worker retry has an empty context. The first attempt already stored the evidence.
+      let restored = false;
+      if (evidence.length === 0) {
+        const stored = (await deps.evidenceRepo.findByJobId(ctx.jobId)).map(evidenceItemFromRow);
+        if (stored.length > 0) {
+          evidence = stored;
+          restored = true;
+        }
+      }
+      ctx.evidence = evidence;
       jobLog.info(
-        { step: 'evidence.build', ...summarizeEvidence(evidence) },
-        'evidence.build completed',
+        { step: 'evidence.build', restored, ...summarizeEvidence(evidence) },
+        restored ? 'evidence.build restored' : 'evidence.build completed',
       );
       if (evidence.length === 0) {
         jobLog.error(
@@ -408,19 +463,21 @@ export function createDefaultStageHandlers(
         });
       }
 
-      await logStep(jobLog, 'evidence.persist', { items: evidence.length }, () =>
-        deps.evidenceRepo.createMany(
-          evidence.map((item) => ({
-            jobId: ctx.jobId,
-            evidenceType: item.evidenceType,
-            value: item.value,
-            source: item.source,
-            timestampSeconds: item.timestampSeconds ?? null,
-            confidence: item.confidence,
-            metadata: (item.metadata ?? {}) as Prisma.InputJsonValue,
-          })),
-        ),
-      );
+      if (!restored) {
+        await logStep(jobLog, 'evidence.persist', { items: evidence.length }, () =>
+          deps.evidenceRepo.createMany(
+            evidence.map((item) => ({
+              jobId: ctx.jobId,
+              evidenceType: item.evidenceType,
+              value: item.value,
+              source: item.source,
+              timestampSeconds: item.timestampSeconds ?? null,
+              confidence: item.confidence,
+              metadata: (item.metadata ?? {}) as Prisma.InputJsonValue,
+            })),
+          ),
+        );
+      }
 
       const options = parseJobOptions(job.options);
       ctx.options = options;
@@ -768,6 +825,28 @@ function summarizeAcquiredContent(content: AcquiredContent): Record<string, unkn
         }
       : null,
     hasThumbnail: Boolean(content.thumbnailUrl),
+  };
+}
+
+function evidenceItemFromRow(row: {
+  evidenceType: EvidenceItem['evidenceType'];
+  value: string;
+  source: EvidenceItem['source'];
+  timestampSeconds: number | null;
+  confidence: number;
+  metadata: unknown;
+}): EvidenceItem {
+  const metadata =
+    row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+      ? (row.metadata as Record<string, unknown>)
+      : undefined;
+  return {
+    evidenceType: row.evidenceType,
+    value: row.value,
+    source: row.source,
+    ...(row.timestampSeconds != null ? { timestampSeconds: row.timestampSeconds } : {}),
+    confidence: row.confidence,
+    ...(metadata ? { metadata } : {}),
   };
 }
 

@@ -58,6 +58,7 @@ import {
 } from '@/tortie/data/plan';
 import { stepNotes } from '@/tortie/data/recipe-notes';
 import { collectionMembership } from '@/tortie/data/selection';
+import { scaleStepText } from '@/features/recipes/units';
 import { useMotion } from '@/tortie/motion';
 import { useServings } from '@/tortie/data/recipe-ui';
 import {
@@ -349,7 +350,11 @@ export function RecipeDetail() {
                 <View style={{ paddingTop: 18, paddingBottom: 8 }}>
                   <T
                     style={sans(14, 600, C.ink2)}
-                  >{`${r?.ings.length ?? 0} ingredients`}</T>
+                  >{`${r?.ings.length ?? 0} ingredients${
+                    r && serv !== r.base
+                      ? ` · scaled for ${serv}, original ${r.base}`
+                      : ''
+                  }`}</T>
                 </View>
                 {r?.ings.map((x, i) => (
                   <View
@@ -412,6 +417,11 @@ export function RecipeDetail() {
                 onLayout={(e) => measurePanel(1, e.nativeEvent.layout.height)}
                 style={[{ width, paddingTop: 8, paddingHorizontal: 20 }, o1]}
               >
+                {r && Math.abs(scale - 1) > 0.005 ? (
+                  <T style={sans(12, 500, C.ink3, { marginTop: 8 })}>
+                    {`Weights and volumes are scaled for ${serv} servings; counts like “2 eggs” are for ${r.base}.`}
+                  </T>
+                ) : null}
                 {r?.steps.map((st, i) => (
                   <View
                     key={i}
@@ -487,7 +497,7 @@ export function RecipeDetail() {
                             marginTop: 4,
                           })}
                         >
-                          {st.d}
+                          {scaleStepText(st.d, scale)}
                         </T>
                       ) : null}
                       {r && id ? (
