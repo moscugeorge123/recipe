@@ -654,7 +654,6 @@ export function RecipeEditor() {
   const ni = ed.ings.filter((x) => x.txt.trim()).length;
   const ns = ed.steps.length;
   const hue = r?.hue ?? 95;
-  const photoWord = r?.photo ?? 'your dish';
   const status = isN
     ? n
       ? 'Draft · not saved yet'
@@ -837,9 +836,6 @@ export function RecipeEditor() {
           <Photo
             hue={hue}
             uri={isN ? null : r?.uri}
-            caption={'photo · ' + photoWord}
-            captionSize={11}
-            captionStyle={{ left: 16, bottom: 16 }}
             radius={24}
             style={{ height: 176 }}
           >
@@ -915,6 +911,7 @@ export function RecipeEditor() {
             />
             <StepperCell
               label="Total time"
+              grow={1.5}
               value={fmtT(ed.time)}
               marked={!!s.aiMarks[FIELD_MARK.time]}
               size={14}
@@ -1035,14 +1032,25 @@ export function RecipeEditor() {
                 .map((t, j) => (ks.some((k) => hasKey(t, k)) ? j + 1 : 0))
                 .filter(Boolean);
               const L = lexOf(nm);
+              // Untouched rows keep the recipe's own emoji/tint, as on the detail screen.
+              const orig =
+                x.src != null &&
+                r &&
+                ed0.ings.some((o) => o.k === x.k && o.txt === x.txt)
+                  ? r.ings[x.src]
+                  : undefined;
               return (
                 <IngRow
                   key={x.k}
                   k={x.k}
                   j={i}
                   txt={x.txt}
-                  emo={empty ? '' : L ? L[1] : '🍽️'}
-                  tile={empty ? C.surface2 : tint(AHUE[L ? L[2] : 5]!)}
+                  emo={empty ? '' : (orig?.emo ?? (L ? L[1] : '🍽️'))}
+                  tile={
+                    empty
+                      ? C.surface2
+                      : (orig?.tint ?? tint(AHUE[L ? L[2] : 5]!))
+                  }
                   qty={
                     empty
                       ? 'New ingredient'
@@ -1079,7 +1087,7 @@ export function RecipeEditor() {
           <DashedAdd label="Add ingredient" onPress={addIng} mt={8} />
 
           <SectionHead
-            title="Method"
+            title="Steps"
             count={ns + ' step' + (ns === 1 ? '' : 's')}
             mt={30}
           />
@@ -1310,10 +1318,13 @@ function StepperCell({
   downLabel,
   upLabel,
   marked,
+  grow = 1,
 }: {
   label: string;
   value: string;
   marked?: boolean;
+  /** Flex weight; the time cell is wider so "1 h 30 min" doesn't touch the buttons. */
+  grow?: number;
   size: number;
   onDown: () => void;
   onUp: () => void;
@@ -1321,9 +1332,9 @@ function StepperCell({
   upLabel: string;
 }) {
   const btn = {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: C.white,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1331,7 +1342,7 @@ function StepperCell({
   return (
     <View
       style={{
-        flex: 1,
+        flex: grow,
         minWidth: 0,
         backgroundColor: marked ? C.greenWash : C.surface2,
         borderRadius: 16,
@@ -1353,7 +1364,12 @@ function StepperCell({
         <Press onPress={onDown} accessibilityLabel={downLabel} style={btn}>
           <Glyph name="remove" size={18} color={C.ink} />
         </Press>
-        <T numberOfLines={1} style={sans(size, 700)}>
+        <T
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+          style={[sans(size, 700), { flex: 1, textAlign: 'center' }]}
+        >
           {value}
         </T>
         <Press onPress={onUp} accessibilityLabel={upLabel} style={btn}>
