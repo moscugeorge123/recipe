@@ -64,7 +64,10 @@ export function ProfileScreen() {
   const closeProfile = useNav((s) => s.closeProfile);
   const user = useTortieAuth((s) => s.user);
   const signingOut = useTortieAuth((s) => s.signingOut);
-  const [photoOpen, setPhotoOpen] = useState(false);
+  // Scoped to one opening: Profile stays mounted, so a sheet left open by Back would reappear.
+  const [photoState, setPhotoState] = useState({ n: profNonce, v: false });
+  const photoOpen = photoState.n === profNonce && photoState.v && prof;
+  const setPhotoOpen = (v: boolean) => setPhotoState({ n: profNonce, v });
   const scrollRef = useRef<ScrollView>(null);
   // Scroll state is scoped to one opening so it resets without an effect.
   const [scrState, setScrState] = useState({ n: profNonce, v: false });
