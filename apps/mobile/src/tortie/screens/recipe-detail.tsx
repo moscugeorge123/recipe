@@ -131,7 +131,7 @@ export function RecipeDetail() {
   }, [nonce]);
 
   // On the Steps tab, load the source video so "Watch step" opens on a ready frame.
-  const hasVideo = !!r?.video;
+  const hasVideo = !!r?.clipPlayer;
   useEffect(() => {
     if (id && seg === 1 && hasVideo) useNav.getState().primeClip(id);
   }, [id, seg, hasVideo]);
@@ -530,11 +530,7 @@ export function RecipeDetail() {
                             </T>
                           ) : null}
                           {r && id ? (
-                            <StepClipChip
-                              recipeId={id}
-                              clips={r.clips}
-                              step={i}
-                            />
+                            <StepClipChip recipe={r} step={i} />
                           ) : null}
                           {canNote ? (
                             <StepNotes

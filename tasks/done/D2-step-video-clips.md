@@ -25,7 +25,11 @@ Group D: Other new features. Called "F2" in the prototype.
 - **Done:** the importer finds the parts with an LLM over the numbered, timed transcript (`step-clip-aligner.ts`, prompt `step-clip-alignment-v1`), falling back to the word-matching heuristic in `step-clips.ts`. It stores the downloaded video on `source.metadata.video`; `GET /recipes/:id/video` streams it (byte ranges locally, redirect to a signed S3 link otherwise). yt-dlp now prefers H.264/AAC MP4 so iOS can play it.
 - **Done:** the sheet plays the real video with `expo-video` when there is one (simulation otherwise). It opens paused on the step's first frame and plays on tap; the step's parts play back to back; the bar shows the whole video as chapters with the open step's parts in terracotta; closing pauses, reopening the same step resumes, and cook mode moves to the step the sheet closed on. Cook mode and the Method tab load the video ahead of time.
 
+- **Done:** YouTube, TikTok and Facebook clips play through the platform's embedded player in a WebView (`tortie/data/clip-source.ts` builds the page and the bridge, `tortie/screens/clip-player.tsx` drives it), never from the stored file. Instagram's embed cannot seek, so it plays the stored file only with `EXPO_PUBLIC_INSTAGRAM_STORED_VIDEO=true`; otherwise "Watch step" opens the post in Instagram. The importer still downloads the video for extraction. The simulation is gone: a player that fails shows the placeholder with the "Open on …" link.
+
 ## Enrich later
+- Short TikTok links (`vm.tiktok.com/…`) carry no video id, so they open in TikTok instead of embedding.
+- The embeds are not verified on a device yet.
 - Recipes imported before the stored-video change have no `source.metadata.video`, so they keep the simulation; re-importing fills it.
 - Seed recipes carry no clips, so the chip only appears on recipes imported from video after this change.
 - Recipes imported before this change have no start times; re-importing fills them.

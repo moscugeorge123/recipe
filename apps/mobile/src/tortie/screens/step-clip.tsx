@@ -1,4 +1,3 @@
-import { useVideoPlayer, VideoView, type VideoPlayer } from 'expo-video';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -28,15 +27,13 @@ import {
   prevLabel,
   seekPlayback,
   startPlayback,
-  tickPlayback,
-  TICK_MS,
-  TICK_SECONDS,
   timelineEnd,
   togglePlayback,
   type ClipPlayback,
   type StepClip,
 } from '@/tortie/data/step-clips';
-import { useTRecipe } from '@/tortie/data/recipes';
+import { clipSourceKey } from '@/tortie/data/clip-source';
+import { useTRecipe, type TDetail } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
 import { clock } from '@/tortie/lib/fmt';
 import { toast, useNav } from '@/tortie/nav-store';
@@ -46,6 +43,11 @@ import { BrandLogo } from '@/tortie/ui/brand';
 import { Grabber, SheetClose } from '@/tortie/ui/controls';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
+import {
+  ClipPlayer,
+  type ClipDriver,
+  type ClipStatus,
+} from '@/tortie/screens/clip-player';
 import { Sheet } from '@/tortie/ui/sheet';
 import {
   OpenInNewIcon,
@@ -62,11 +64,6 @@ const STRIPE_A = '#262a26';
 const STRIPE_B = '#2e332e';
 const VIDEO_LABEL = '#9aa39a';
 const NUMERIC = { fontVariant: ['tabular-nums' as const] };
-
-/** Moves the player; kept outside components so the compiler sees no render-time mutation. */
-function seekTo(player: VideoPlayer, seconds: number) {
-  player.currentTime = seconds;
-}
 
 /* ───────────────────────────── "Watch step" chip ───────────────────────────── */
 
@@ -134,27 +131,39 @@ export function WatchStepChip({
  * The chip for one method step, or nothing when the step has no clip.
  * `large` is cook mode's "Watch this step 0:29–0:51" ("2 parts · 0:34" when the video comes
  * back to the step); the method row shows "Watch step 0:29".
+ *
+ * It opens the Step clip sheet, or the source in its own app when the app cannot play it
+ * (Instagram without the stored-video flag, short links with no video id).
  */
 export function StepClipChip({
-  recipeId,
-  clips,
+  recipe,
   step,
   large = false,
 }: {
-  recipeId: string;
-  clips: readonly StepClip[];
+  recipe: Pick<TDetail, 'id' | 'clips' | 'clipPlayer' | 'originalUrl'>;
   step: number;
   large?: boolean;
 }) {
   const tr = useT();
-  const clip = clipForStep(clips, step);
-  if (!clip) return null;
+  const clip = clipForStep(recipe.clips, step);
+  const link = clip
+    ? openLink(recipe.originalUrl, platformOf(recipe.originalUrl), clip.start)
+    : null;
+  if (!clip || (!recipe.clipPlayer && !link)) return null;
+  const onPress = () => {
+    if (recipe.clipPlayer) useNav.getState().openClip(recipe.id, step);
+    else if (link) {
+      Linking.openURL(link.href).catch(() =>
+        toast(tr('common.couldntOpenThatLink'), 'error'),
+      );
+    }
+  };
   return (
     <WatchStepChip
       large={large}
       label={large ? tr('clip.watchThisStep') : tr('clip.watchStep')}
       time={large ? clipRangeLabel(clip) : clipStartLabel(clip)}
-      onPress={() => useNav.getState().openClip(recipeId, step)}
+      onPress={onPress}
     />
   );
 }
@@ -166,8 +175,9 @@ export function StepClipChip({
  * step's first frame and plays when the user asks; closing pauses it, and reopening the same
  * step carries on from there. Cook mode follows the step the viewer closed on.
  *
- * With a stored video it drives a real player; without one it simulates playback over the
- * striped placeholder, like the prototype.
+ * YouTube, TikTok and Facebook play in the platform's embedded player; Instagram plays the
+ * stored video behind a flag (see `clip-source.ts`). A player that fails shows the striped
+ * placeholder, with the "Open on ..." link below.
  */
 export function StepClipSheet() {
   const tr = useT();
@@ -181,13 +191,12 @@ export function StepClipSheet() {
   const duration = r?.view.sourceDurationSeconds ?? null;
   const pieces = useMemo(() => barPieces(clips, duration), [clips, duration]);
 
-  // A video that fails to load falls back to the simulation.
+  // A player that fails to load leaves the placeholder.
   const [failed, setFailed] = useState<string | null>(null);
-  const uri = r?.video && r.video !== failed ? r.video : null;
-  const real = uri !== null;
-  const player = useVideoPlayer(uri, (pl) => {
-    pl.timeUpdateEventInterval = TICK_SECONDS;
-  });
+  const src = r?.clipPlayer ?? null;
+  const key = src ? clipSourceKey(src) : null;
+  const source = src && key !== failed ? src : null;
+  const drv = useRef<ClipDriver>(null);
   const [loading, setLoading] = useState(false);
 
   const [p, setP] = useState<ClipPlayback | null>(null);
@@ -213,71 +222,50 @@ export function StepClipSheet() {
     setP(startPlayback(clips, clipIndexForStep(clips, startStep)));
   }
 
-  /** Apply a new playback state; `seek` moves the real player to its position. */
+  /** Apply a new playback state; `seek` moves the player to its position. */
   const go = (next: ClipPlayback | null, seek = true) => {
     if (!next) return;
     pRef.current = next;
     setP(next);
-    if (real && seek) seekTo(player, next.pos);
+    if (seek) drv.current?.seek(next.pos);
   };
 
   // Show the right frame as soon as the sheet opens (and once the clips arrive).
   const hasP = p !== null;
   useEffect(() => {
     const cur = pRef.current;
-    if (real && cur) seekTo(player, cur.pos);
-  }, [nonce, hasP, real, player]);
+    if (cur) drv.current?.seek(cur.pos);
+  }, [nonce, hasP, key]);
 
   const playing = open && !!p?.playing;
   useEffect(() => {
-    if (!real) return;
-    if (playing) player.play();
-    else player.pause();
-  }, [playing, real, player]);
+    if (playing) drv.current?.play();
+    else drv.current?.pause();
+  }, [playing, key]);
 
-  // Real player: follow its clock, chaining the step's parts and stopping after the last.
-  useEffect(() => {
-    if (!real) return;
-    const onTime = (time: number) => {
-      const cur = pRef.current;
-      if (!cur) return;
-      const next = advancePlayback(clips, cur, time);
-      if (next.p === cur) return;
-      if (next.seek !== undefined) seekTo(player, next.seek);
-      if (next.p.ended) player.pause();
-      pRef.current = next.p;
-      setP(next.p);
-    };
-    let primed = false;
-    const subs = [
-      player.addListener('timeUpdate', ({ currentTime }) =>
-        onTime(currentTime),
-      ),
-      // The video itself ended inside a part: treat it as the part's end.
-      player.addListener('playToEnd', () => onTime(Number.MAX_SAFE_INTEGER)),
-      player.addListener('statusChange', ({ status }) => {
-        setLoading(status === 'loading');
-        // Only the first load seeks to the opening frame. Every seek goes through `loading`
-        // and back to `readyToPlay`, so seeking on each one would loop forever.
-        if (status === 'readyToPlay' && !primed && pRef.current) {
-          primed = true;
-          seekTo(player, pRef.current.pos);
-        }
-        if (status === 'error') setFailed(uri);
-      }),
-    ];
-    return () => subs.forEach((sub) => sub.remove());
-  }, [real, player, clips, uri]);
+  // Follow the player's clock, chaining the step's parts and stopping after the last.
+  const onTime = (time: number) => {
+    const cur = pRef.current;
+    if (!cur) return;
+    const next = advancePlayback(clips, cur, time);
+    if (next.p === cur) return;
+    if (next.seek !== undefined) drv.current?.seek(next.seek);
+    if (next.p.ended) drv.current?.pause();
+    pRef.current = next.p;
+    setP(next.p);
+  };
 
-  // No stored video: simulate playback.
-  useEffect(() => {
-    if (real || !playing) return;
-    const t = setInterval(
-      () => setP((cur) => (cur ? tickPlayback(clips, cur) : cur)),
-      TICK_MS,
-    );
-    return () => clearInterval(t);
-  }, [real, playing, clips]);
+  // Only the first load seeks to the opening frame. A file player goes through `loading` and
+  // back to `ready` on every seek, so seeking on each one would loop forever.
+  const primed = useRef<string | null>(null);
+  const onStatus = (status: ClipStatus) => {
+    setLoading(status === 'loading');
+    if (status === 'ready' && primed.current !== key && pRef.current) {
+      primed.current = key;
+      drv.current?.seek(pRef.current.pos);
+    }
+    if (status === 'error') setFailed(key);
+  };
 
   // Closing pauses on the current frame and hands the step back to cook mode.
   const wasOpen = useRef(open);
@@ -366,7 +354,7 @@ export function StepClipSheet() {
       </View>
 
       <Pressable
-        onPress={() => p && go(togglePlayback(clips, p), p.ended)}
+        onPress={() => source && p && go(togglePlayback(clips, p), p.ended)}
         accessibilityRole="button"
         accessibilityLabel={p?.playing ? tr('clip.pause') : tr('clip.play')}
         style={{
@@ -379,13 +367,17 @@ export function StepClipSheet() {
         }}
       >
         <View style={{ height: '100%', width: vertical ? 192 : '100%' }}>
-          {real ? (
+          {source ? (
             <View pointerEvents="none" style={{ flex: 1 }}>
-              <VideoView
-                player={player}
-                nativeControls={false}
-                contentFit={vertical ? 'cover' : 'contain'}
-                style={{ flex: 1 }}
+              <ClipPlayer
+                key={key}
+                ref={drv}
+                source={source}
+                vertical={vertical}
+                onTime={onTime}
+                // The video itself ended inside a part: treat it as the part's end.
+                onEnded={() => onTime(Number.MAX_SAFE_INTEGER)}
+                onStatus={onStatus}
               />
             </View>
           ) : (
@@ -401,17 +393,13 @@ export function StepClipSheet() {
                   color: VIDEO_LABEL,
                 }}
               >
-                {tNow('clip.videoKind', {
-                  kind: tNow(
-                    vertical ? 'clip.verticalReel' : 'clip.creatorVideo',
-                  ),
-                })}
+                {tNow('clip.cantPlayHere')}
               </T>
             </>
           )}
         </View>
-        <PlayDisc playing={!!p?.playing} ended={!!p?.ended} />
-        {real && loading && p?.playing ? (
+        {source ? <PlayDisc playing={!!p?.playing} ended={!!p?.ended} /> : null}
+        {source && loading && p?.playing ? (
           <ActivityIndicator
             color={C.bg}
             style={{ position: 'absolute', top: '50%', marginTop: -10 }}

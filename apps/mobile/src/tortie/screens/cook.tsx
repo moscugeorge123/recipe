@@ -152,7 +152,7 @@ export function CookMode() {
   }
 
   // Load the source video while cooking, so "Watch this step" shows it straight away.
-  const hasVideo = !!r?.video;
+  const hasVideo = !!r?.clipPlayer;
   useEffect(() => {
     if (open && cookId && hasVideo) useNav.getState().primeClip(cookId);
   }, [open, cookId, hasVideo]);
@@ -632,7 +632,7 @@ function StepPage({
             {scaleStepText(st.d, scale)}
           </T>
         ) : null}
-        <StepClipChip recipeId={r.id} clips={r.clips} step={i} large />
+        <StepClipChip recipe={r} step={i} large />
         {st.need.length ? (
           <>
             <T

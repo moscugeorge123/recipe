@@ -1,4 +1,5 @@
 import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -98,4 +99,26 @@ export function getGoogleWebClientId(): string {
 /** False when the build was made without the Facebook app id and client token (see `app.config.ts`). */
 export function isFacebookEnabled(): boolean {
   return Constants.expoConfig?.extra?.facebookEnabled === true;
+}
+
+/**
+ * Instagram step clips play the video the API downloaded at import (Instagram's embed cannot
+ * seek). Off by default: "Watch step" then opens the post in Instagram.
+ */
+export function isInstagramStoredVideoEnabled(): boolean {
+  const v = process.env.EXPO_PUBLIC_INSTAGRAM_STORED_VIDEO;
+  return v === 'true' || v === '1';
+}
+
+/**
+ * The origin embed pages load under. YouTube asks WebView embeds to identify the app with
+ * `https://<app id>` as the referrer.
+ */
+export function getEmbedOrigin(): string {
+  const cfg = Constants.expoConfig;
+  const id =
+    (Platform.OS === 'ios'
+      ? cfg?.ios?.bundleIdentifier
+      : cfg?.android?.package) ?? 'com.tortie.com';
+  return `https://${id}`;
 }

@@ -15,9 +15,14 @@ import {
   preferUnits,
   stepHeat,
 } from '@/features/recipes/units';
-import { getApiBaseUrl } from '@/constants/env';
+import { getApiBaseUrl, isInstagramStoredVideoEnabled } from '@/constants/env';
 import { hueOf } from '@/tortie/color';
-import { buildClips, type StepClip } from '@/tortie/data/step-clips';
+import { clipSource, type ClipSource } from '@/tortie/data/clip-source';
+import {
+  buildClips,
+  platformOf,
+  type StepClip,
+} from '@/tortie/data/step-clips';
 import { emoOf, fmtIngQty, hasKey, ingKeys } from '@/tortie/lib/fmt';
 import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
 import { tNow } from '@/i18n/format';
@@ -84,8 +89,8 @@ export type TDetail = TRecipe & {
   steps: TStep[];
   /** Source-video clips for the steps that have ranges (see `step-clips.ts`). */
   clips: StepClip[];
-  /** Full URL of the imported video the clips play from; null plays a simulation. */
-  video: string | null;
+  /** What the clips play from; null when "Watch step" opens the source in its app instead. */
+  clipPlayer: ClipSource | null;
   view: RecipeView;
 };
 
@@ -267,8 +272,15 @@ export function toTDetail(
       .map((s) => s.clipSegments),
     v.sourceDurationSeconds,
   );
-  const video = clips.length ? videoUrl(v.sourceVideoPath) : null;
-  return { ...base, ings, steps, clips, video, view: v };
+  const clipPlayer = clips.length
+    ? clipSource({
+        platform: platformOf(base.originalUrl),
+        url: base.originalUrl,
+        file: videoUrl(v.sourceVideoPath),
+        instagramFile: isInstagramStoredVideoEnabled(),
+      })
+    : null;
+  return { ...base, ings, steps, clips, clipPlayer, view: v };
 }
 
 /** A run of consecutive rows under one heading; `i` is each row's index in the full list. */
