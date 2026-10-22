@@ -1,5 +1,6 @@
 import { SUPPORTED_PLATFORMS } from '@/features/capture/sources';
 import type { Brand } from '@/tortie/ui/brand';
+import { tNow } from '@/i18n/format';
 
 /**
  * What the app promises for each place a link can come from. The Add sheet's logo strip, the
@@ -41,10 +42,10 @@ export const ADVERTISED_BRANDS: readonly Brand[] = (
 /** "Instagram, YouTube or any recipe website", for copy. */
 export function advertisedSourcesText(): string {
   const names = ADVERTISED_BRANDS.map((kind) => NAME_OF[kind]);
-  return `${names.join(', ')} or any recipe website`;
+  return tNow('share.sourcesText', { names: names.join(', ') });
 }
 
 /** Shown in place of an import button for a source the importer rejects. */
 export function unsupportedSourceNote(name: string): string {
-  return `${name} links can’t be imported yet. Share the creator’s recipe page instead, or write it down.`;
+  return tNow('share.unsupportedNote', { name });
 }

@@ -13,11 +13,15 @@ export type IngredientDraft = {
   preparation: string;
   optional: boolean;
   category: string;
+  /** Component heading, kept as-is; the editor has no field for it. */
+  group: string;
   confidence: number;
 };
 
 export type StepDraft = {
   title: string;
+  /** Method section, kept as-is; the editor has no field for it. */
+  section: string;
   instruction: string;
   durationMinutes: string;
   temperature: string;
@@ -50,11 +54,13 @@ export const EMPTY_INGREDIENT: IngredientDraft = {
   preparation: '',
   optional: false,
   category: 'Pantry',
+  group: '',
   confidence: 1,
 };
 
 export const EMPTY_STEP: StepDraft = {
   title: '',
+  section: '',
   instruction: '',
   durationMinutes: '',
   temperature: '',
@@ -112,10 +118,12 @@ export function editorDefaults(recipe: RecipeView): RecipeEditorValues {
       preparation: ingredient.preparation ?? '',
       optional: ingredient.optional ?? false,
       category: ingredient.category ?? 'Pantry',
+      group: ingredient.group ?? '',
       confidence: ingredient.confidence ?? 0,
     })),
     steps: (recipe.steps ?? []).map((step) => ({
       title: step.title ?? '',
+      section: step.section ?? '',
       instruction: step.instruction ?? '',
       durationMinutes: textNumber(
         step.durationSeconds == null
@@ -175,11 +183,13 @@ export function toPatchBody(
       preparation: ingredient.preparation.trim() || null,
       optional: ingredient.optional,
       category: ingredient.category || 'Pantry',
+      group: ingredient.group.trim() || null,
       sortOrder: index,
     })),
     steps: values.steps.map((step, index) => ({
       stepOrder: index + 1,
       title: step.title.trim() || null,
+      section: step.section.trim() || null,
       instruction: step.instruction.trim(),
       durationMinutes: nullableNumber(step.durationMinutes),
       temperature: step.temperature.trim() || null,

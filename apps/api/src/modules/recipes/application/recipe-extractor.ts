@@ -29,7 +29,7 @@ export class RecipeExtractor {
     const language = describeOutputLanguage(input.outputLanguage);
     const userPrompt = `Output language: ${language}
 
-Write the entire recipe in ${language}. Translate all of the following into ${language}: title, description, ingredient names, quantity phrases, units, preparation, temperature, step titles, and step instructions. Keep numeric amounts as digits. Do not leave any of those fields in the source language. Set sourceLanguage to the original language of the evidence.
+Write the entire recipe in ${language}. Translate all of the following into ${language}: title, description, ingredient names, quantity phrases, units, preparation, ingredient group headings, step section headings, temperature, step titles, and step instructions. Keep numeric amounts as digits. Do not leave any of those fields in the source language. Set sourceLanguage to the original language of the evidence.
 
 The description field must be a short recipe summary written in ${language}. Do not paste the original post caption into description; translate it.
 
@@ -38,6 +38,8 @@ Prefer the post description for ingredient lists, quantities, units, servings, a
 Always return calories and proteinGrams, carbsGrams, fatGrams per serving: stated values when the evidence gives them (nutritionSource "stated"), otherwise your estimate from the ingredients and servings (nutritionSource "estimated").
 
 Give every ingredient both a metric and an imperial amount, and write temperatures and lengths in step instructions in both systems.
+
+When the dish is made of separate components (such as sponge, cream and glaze), group the ingredients by component and give every step the section it belongs to; list in each step every ingredient it uses.
 
 For each step, set a short title and put the rest in instruction. Set durationMinutes only when the cook waits (boiling, baking, soaking, resting). Set ahead for work that happens before the cooking session, such as soaking rice or taking meat out to come to room temperature.
 

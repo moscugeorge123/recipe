@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { openSharedLink } from '@/features/share/open-shared-link';
 import { handoffFromShare } from '@/features/share/url';
 import { toast } from '@/tortie/nav-store';
+import { useT } from '@/i18n';
 
 /**
  * Opens the share preview when another app hands over a link. Mounted above
@@ -12,6 +13,7 @@ import { toast } from '@/tortie/nav-store';
  * if the app is backgrounded before the preview opens.
  */
 export function ShareIntentBridge() {
+  const t = useT();
   const { hasShareIntent, shareIntent, resetShareIntent } =
     useShareIntentContext();
 
@@ -26,7 +28,7 @@ export function ShareIntentBridge() {
     resetShareIntent();
 
     if (!handoff) {
-      toast('That share doesn’t include a recipe link');
+      toast(t('share-intent-bridge.thatShareDoesntInclude'));
       return;
     }
 

@@ -6,6 +6,7 @@ import { useCreateCollection } from '@/features/collections/hooks';
 import { LEVELS, useCookbook, useCookbookView } from '@/tortie/data/cookbook';
 import { useFrame } from '@/tortie/frame';
 import { toast, useNav } from '@/tortie/nav-store';
+import { plz } from '@/tortie/lib/fmt';
 import { C, CSS_EASE, F } from '@/tortie/theme';
 import { tw } from '@/tortie/ui/anim';
 import { Grabber, Label, Switch } from '@/tortie/ui/controls';
@@ -15,6 +16,8 @@ import { Input, RevealBox } from '@/tortie/ui/input';
 import { Press } from '@/tortie/ui/press';
 import { Sheet, SheetScroll } from '@/tortie/ui/sheet';
 import { ctl, em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { lazyAt, tEnum, tNow } from '@/i18n/format';
 
 const EMOS = [
   '',
@@ -137,14 +140,15 @@ function SwitchRow({
 }
 
 const TIMES: ['any' | number, string][] = [
-  ['any', 'Any'],
-  [15, '15 min'],
-  [30, '30 min'],
-  [60, '1 hour'],
-  [180, '3 hours'],
+  lazyAt(['any', ''] as ['any' | number, string], 1, 'cookbook.any'),
+  lazyAt([15, ''] as ['any' | number, string], 1, 'filter.time15'),
+  lazyAt([30, ''] as ['any' | number, string], 1, 'filter.time30'),
+  lazyAt([60, ''] as ['any' | number, string], 1, 'filter.time60'),
+  lazyAt([180, ''] as ['any' | number, string], 1, 'filter.time180'),
 ];
 
 export function CookbookFilterSheet() {
+  const tr = useT();
   const f = useFrame();
   const open = useNav((s) => s.fs);
   const close = () => useNav.getState().set({ fs: false });
@@ -155,11 +159,10 @@ export function CookbookFilterSheet() {
     opacity: tw(v.aCnt ? 1 : 0.4, 200, CSS_EASE),
   }));
   const cta = isC
-    ? 'Show ' +
-      v.colls.length +
-      ' collection' +
-      (v.colls.length === 1 ? '' : 's')
-    : 'Show ' + v.book.length + ' recipe' + (v.book.length === 1 ? '' : 's');
+    ? tNow('cookbook.showCollections', {
+        collections: plz(v.colls.length, 'collection'),
+      })
+    : tNow('cookbook.showRecipes', { recipes: plz(v.book.length, 'recipe') });
 
   return (
     <Sheet
@@ -172,7 +175,7 @@ export function CookbookFilterSheet() {
       <View style={{ paddingTop: 10, paddingHorizontal: 20 }}>
         <Grabber />
         <T style={serif(26, 500, C.ink, { letterSpacing: em(26, -0.01) })}>
-          {isC ? 'Sort collections' : 'Filter & sort'}
+          {isC ? tr('cookbook.sortCollections') : tr('cookbook.filterSort')}
         </T>
       </View>
       <SheetScroll
@@ -182,13 +185,13 @@ export function CookbookFilterSheet() {
       >
         {isC ? (
           <>
-            <Label>Sort by</Label>
+            <Label>{tr('cookbook.sortBy')}</Label>
             <Pills>
               {(
                 [
-                  ['updated', 'Recently updated'],
-                  ['az', 'A–Z'],
-                  ['size', 'Most recipes'],
+                  ['updated', tNow('cookbook.sortUpdated')],
+                  ['az', tNow('cookbook.sortAz')],
+                  ['size', tNow('cookbook.sortSize')],
                 ] as const
               ).map(([k, l]) => (
                 <SPill
@@ -199,13 +202,13 @@ export function CookbookFilterSheet() {
                 />
               ))}
             </Pills>
-            <Label>Owner</Label>
+            <Label>{tr('cookbook.owner')}</Label>
             <Pills>
               {(
                 [
-                  ['all', 'All'],
-                  ['mine', 'Mine'],
-                  ['shared', 'Shared with me'],
+                  ['all', tNow('cookbook.ownerAll')],
+                  ['mine', tNow('cookbook.ownerMine')],
+                  ['shared', tNow('cookbook.ownerShared')],
                 ] as const
               ).map(([k, l]) => (
                 <SPill
@@ -216,25 +219,25 @@ export function CookbookFilterSheet() {
                 />
               ))}
             </Pills>
-            <Label>Show</Label>
+            <Label>{tr('cookbook.show')}</Label>
             <ShowCard>
               <SwitchRow
-                title="Empty collections"
-                sub="Keep collections with no recipes yet"
+                title={tr('cookbook.emptyCollections')}
+                sub={tr('cookbook.keepCollectionsWithNo')}
                 value={cf.empty}
                 onChange={() => setCF({ empty: !cf.empty })}
               />
             </ShowCard>
-            <Label>Layout</Label>
+            <Label>{tr('cookbook.layout')}</Label>
             <Pills>
               <SPill
-                label="Grid"
+                label={tr('cookbook.grid')}
                 icon="grid_view"
                 on={cf.view === 'grid'}
                 onPress={() => setCF({ view: 'grid' })}
               />
               <SPill
-                label="List"
+                label={tr('cookbook.list')}
                 icon="view_agenda"
                 on={cf.view === 'list'}
                 onPress={() => setCF({ view: 'list' })}
@@ -243,14 +246,14 @@ export function CookbookFilterSheet() {
           </>
         ) : (
           <>
-            <Label>Sort by</Label>
+            <Label>{tr('cookbook.sortBy')}</Label>
             <Pills>
               {(
                 [
-                  ['recent', 'Recently added'],
-                  ['az', 'A–Z'],
-                  ['quick', 'Quickest'],
-                  ['cooked', 'Most cooked'],
+                  ['recent', tNow('cookbook.sortRecent')],
+                  ['az', tNow('cookbook.sortAz')],
+                  ['quick', tNow('cookbook.sortQuick')],
+                  ['cooked', tNow('cookbook.sortCooked')],
                 ] as const
               ).map(([k, l]) => (
                 <SPill
@@ -261,7 +264,7 @@ export function CookbookFilterSheet() {
                 />
               ))}
             </Pills>
-            <Label>Total time</Label>
+            <Label>{tr('common.totalTime')}</Label>
             <Pills>
               {TIMES.map(([k, l]) => (
                 <SPill
@@ -272,12 +275,12 @@ export function CookbookFilterSheet() {
                 />
               ))}
             </Pills>
-            <Label>Difficulty</Label>
+            <Label>{tr('cookbook.difficulty')}</Label>
             <Pills>
               {LEVELS.map((k) => (
                 <SPill
                   key={k}
-                  label={k}
+                  label={tEnum('level', k)}
                   on={!!rf.lv[k]}
                   icon={rf.lv[k] ? 'check' : undefined}
                   onPress={() =>
@@ -286,25 +289,25 @@ export function CookbookFilterSheet() {
                 />
               ))}
             </Pills>
-            <Label>Show</Label>
+            <Label>{tr('cookbook.show')}</Label>
             <ShowCard>
               <SwitchRow
-                title="Cook from my pantry"
-                sub="At least a third of the ingredients are at home"
+                title={tr('cookbook.cookFromMyPantry')}
+                sub={tr('cookbook.atLeastAThird')}
                 value={rf.pantry}
                 onChange={() => setRF((cur) => ({ pantry: !cur.pantry }))}
               />
             </ShowCard>
-            <Label>Layout</Label>
+            <Label>{tr('cookbook.layout')}</Label>
             <Pills>
               <SPill
-                label="Grid"
+                label={tr('cookbook.grid')}
                 icon="grid_view"
                 on={rf.view === 'grid'}
                 onPress={() => setRF({ view: 'grid' })}
               />
               <SPill
-                label="List"
+                label={tr('cookbook.list')}
                 icon="view_agenda"
                 on={rf.view === 'list'}
                 onPress={() => setRF({ view: 'list' })}
@@ -337,7 +340,7 @@ export function CookbookFilterSheet() {
           }}
           animatedStyle={resetO}
         >
-          <T style={sans(15, 600)}>Reset</T>
+          <T style={sans(15, 600)}>{tr('cookbook.reset')}</T>
         </Press>
         <Press
           onPress={close}
@@ -360,6 +363,7 @@ export function CookbookFilterSheet() {
 }
 
 export function NewCollectionSheet() {
+  const tr = useT();
   const f = useFrame();
   const { width } = useWindowDimensions();
   const open = useNav((s) => s.nc);
@@ -400,9 +404,9 @@ export function NewCollectionSheet() {
         name: emo ? emo + ' ' + n : n,
         ...(recipeIds.length ? { recipeIds } : {}),
       },
-      { onError: () => toast('Couldn’t create that collection. Try again.') },
+      { onError: () => toast(tr('cookbook.couldntCreateThatCollection')) },
     );
-    toast('Created ' + (emo ? emo + ' ' : '') + n);
+    toast(tNow('cookbook.created', { name: (emo ? emo + ' ' : '') + n }));
   };
 
   const inputBd = useAnimatedStyle(() => ({
@@ -422,7 +426,7 @@ export function NewCollectionSheet() {
     >
       <Grabber />
       <T style={serif(26, 500, C.ink, { letterSpacing: em(26, -0.01) })}>
-        New collection
+        {tr('common.newCollection')}
       </T>
       <RevealBox
         style={{
@@ -470,7 +474,7 @@ export function NewCollectionSheet() {
             onChangeText={setName}
             onSubmitEditing={submit}
             maxLength={40}
-            placeholder="Name it — e.g. Soup season"
+            placeholder={tr('cookbook.nameItEG')}
             placeholderTextColor={C.ink3}
             allowFontScaling={false}
             returnKeyType="done"
@@ -492,14 +496,14 @@ export function NewCollectionSheet() {
           marginTop: 20,
         })}
       >
-        Emoji{' '}
+        {tNow('common.emoji')}{' '}
         <T
           style={sans(12, 600, C.ink3, {
             letterSpacing: 0,
             textTransform: 'none',
           })}
         >
-          · optional
+          {tr('cookbook.optional')}
         </T>
       </T>
       <View
@@ -534,7 +538,7 @@ export function NewCollectionSheet() {
         }}
         animatedStyle={btnO}
       >
-        <T style={sans(15, 700, C.bg)}>Create collection</T>
+        <T style={sans(15, 700, C.bg)}>{tr('cookbook.createCollection')}</T>
       </Press>
     </Sheet>
   );
@@ -551,6 +555,7 @@ function EmojiCell({
   size: number;
   onPress: () => void;
 }) {
+  const tr = useT();
   const a = useAnimatedStyle(() => ({
     backgroundColor: tw(on ? C.greenSoft : C.white, 200, CSS_EASE),
     borderColor: tw(on ? C.green : C.line, 200, CSS_EASE),
@@ -560,7 +565,7 @@ function EmojiCell({
       onPress={onPress}
       scale={0.88}
       easing={CSS_EASE}
-      accessibilityLabel={g || 'No emoji'}
+      accessibilityLabel={g || tr('cookbook.noEmoji')}
       accessibilityState={{ selected: on }}
       style={{
         width: size,

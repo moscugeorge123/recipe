@@ -1,5 +1,6 @@
 import type { ClipRange } from '@/features/recipes/types';
 import { clock } from '@/tortie/lib/fmt';
+import { tNow } from '@/i18n/format';
 
 /**
  * Step clips ("Watch step"): the parts of the source video where one method step happens.
@@ -315,18 +316,20 @@ export function playbackLeft(
 ): string {
   if (!clips[p.idx]) return '';
   return p.ended
-    ? 'Step clip done'
-    : `${secs(Math.ceil(remainingSeconds(clips, p)))} left`;
+    ? tNow('clip.stepClipDone')
+    : tNow('clip.timeLeft', {
+        time: secs(Math.ceil(remainingSeconds(clips, p))),
+      });
 }
 
 export function prevLabel(clips: readonly StepClip[], idx: number): string {
   const c = clips[idx - 1];
-  return c ? `Step ${c.step + 1}` : 'Previous';
+  return c ? tNow('common.stepN', { n: c.step + 1 }) : tNow('common.previous');
 }
 
 export function nextLabel(clips: readonly StepClip[], idx: number): string {
   const c = clips[idx + 1];
-  return c ? `Step ${c.step + 1}` : 'Last step';
+  return c ? tNow('common.stepN', { n: c.step + 1 }) : tNow('clip.lastStep');
 }
 
 /* ─────────────────────────────── Source platform ─────────────────────────────── */
@@ -352,7 +355,7 @@ export function platformOf(
   const hit = PLATFORMS.find((p) => p.re.test(u));
   if (hit) return { key: hit.key, name: hit.name };
   return /^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/|$)/i.test(u)
-    ? { key: 'web', name: 'Website' }
+    ? { key: 'web', name: tNow('tag.Website') }
     : null;
 }
 
@@ -386,8 +389,13 @@ export function openLink(
   if (platform?.key === 'youtube') {
     return {
       href: youtubeAt(u, start),
-      label: `Open in YouTube at ${secs(start)}`,
+      label: tNow('clip.openInYoutubeAt', { time: secs(start) }),
     };
   }
-  return { href: u, label: `Open on ${platform?.name ?? 'Website'}` };
+  return {
+    href: u,
+    label: tNow('clip.openOn', {
+      platform: platform?.name ?? tNow('tag.Website'),
+    }),
+  };
 }

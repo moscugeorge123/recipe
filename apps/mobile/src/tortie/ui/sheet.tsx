@@ -46,6 +46,7 @@ import {
   type SheetPressBlock,
 } from '@/tortie/ui/sheet-press';
 import { SheetScrollCtx, type SheetScrollApi } from '@/tortie/ui/sheet-scroll';
+import { useT } from '@/i18n';
 
 export { SheetScroll } from '@/tortie/ui/sheet-scroll';
 
@@ -138,6 +139,7 @@ export function Sheet({
   avoidKeyboard = false,
   footer,
 }: SheetProps) {
+  const tr = useT();
   const { m } = useMotion();
   const [footH, setFootH] = useState(0);
   const dur = ms ?? Math.round(520 * m);
@@ -405,7 +407,7 @@ export function Sheet({
         <Pressable
           style={StyleSheet.absoluteFill}
           onPress={onClose}
-          accessibilityLabel="Close"
+          accessibilityLabel={tr('auth.close')}
         />
       </Animated.View>
       <GestureDetector gesture={pan} touchAction="pan-y">

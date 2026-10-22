@@ -15,11 +15,17 @@ import {
   preferUnits,
   stepHeat,
 } from '@/features/recipes/units';
-import { getApiBaseUrl } from '@/constants/env';
+import { getApiBaseUrl, isInstagramStoredVideoEnabled } from '@/constants/env';
 import { hueOf } from '@/tortie/color';
-import { buildClips, type StepClip } from '@/tortie/data/step-clips';
+import { clipSource, type ClipSource } from '@/tortie/data/clip-source';
+import {
+  buildClips,
+  platformOf,
+  type StepClip,
+} from '@/tortie/data/step-clips';
 import { emoOf, fmtIngQty, hasKey, ingKeys } from '@/tortie/lib/fmt';
 import { useTortiePrefs, type Units } from '@/tortie/prefs-store';
+import { tNow } from '@/i18n/format';
 
 /** Design-shaped recipe summary (maps the prototype's RECIPES entries). */
 export type TRecipe = {
@@ -57,6 +63,8 @@ export type TIng = {
   n: string;
   emo: string;
   tint: string;
+  /** Component heading ("For the sponge"); null when the list is one block. */
+  g: string | null;
 };
 export type TStep = {
   /** Short title from extraction, or the first sentence when a recipe has none. */
@@ -73,14 +81,16 @@ export type TStep = {
   tip: string;
   /** Indexes into `ings` mentioned by this step. */
   need: number[];
+  /** Part of the method ("Make the sponge"); null when the method is one block. */
+  sec: string | null;
 };
 export type TDetail = TRecipe & {
   ings: TIng[];
   steps: TStep[];
   /** Source-video clips for the steps that have ranges (see `step-clips.ts`). */
   clips: StepClip[];
-  /** Full URL of the imported video the clips play from; null plays a simulation. */
-  video: string | null;
+  /** What the clips play from; null when "Watch step" opens the source in its app instead. */
+  clipPlayer: ClipSource | null;
   view: RecipeView;
 };
 
@@ -97,16 +107,18 @@ const GENERIC_CREATORS = new Set(['website', 'video', 'link', 'web']);
 
 /** The API has no "user-written" flag, so a web source URL stands in for "imported". */
 export function bylineOf(
-  r: Pick<AnyRecipe, 'creator' | 'originalUrl'> & { sourceLabel?: string | null },
+  r: Pick<AnyRecipe, 'creator' | 'originalUrl'> & {
+    sourceLabel?: string | null;
+  },
 ): string {
   const host = sourceHost(r.originalUrl);
-  if (!host) return 'by you';
+  if (!host) return tNow('data.byYou');
   const creator = r.creator?.trim() ?? '';
   const generic =
     !creator ||
     GENERIC_CREATORS.has(creator.toLowerCase()) ||
     creator === r.sourceLabel;
-  return `by ${generic ? host : creator}`;
+  return `${tNow('detail.by')} ${generic ? host : creator}`;
 }
 
 /** Real total time only; the detail mapper's `minutes` defaults to 30 when the API has none. 0 = unknown. */
@@ -121,7 +133,7 @@ function photoWord(title: string): string {
     .replace(/[^a-z\s&-]/g, '')
     .split(/\s+/)
     .filter((x) => x.length > 3 && !['with', 'and', 'the', 'from'].includes(x));
-  return w[w.length - 1] ?? 'your dish';
+  return w[w.length - 1] ?? tNow('data.yourDish');
 }
 
 export function toTRecipe(r: AnyRecipe): TRecipe {
@@ -158,10 +170,18 @@ export function toTRecipe(r: AnyRecipe): TRecipe {
 }
 
 const STAGE: Record<string, string> = {
-  PREP: 'Prep',
-  COOK: 'Cooking',
-  FINISH: 'Finish',
-  SERVE: 'Serve',
+  get PREP() {
+    return tNow('data.stagePrep');
+  },
+  get COOK() {
+    return tNow('data.stageCooking');
+  },
+  get FINISH() {
+    return tNow('data.stageFinish');
+  },
+  get SERVE() {
+    return tNow('data.stageServe');
+  },
 };
 
 function splitStep(text: string): [string, string] {
@@ -212,7 +232,14 @@ export function toTDetail(
       units === 'source'
         ? { quantity: x.quantity ?? null, unit: x.unit ?? null }
         : ingredientAmount(x, units);
-    return { q: amount.quantity, u: amount.unit ?? '', n, emo, tint: e.tint };
+    return {
+      q: amount.quantity,
+      u: amount.unit ?? '',
+      n,
+      emo,
+      tint: e.tint,
+      g: x.group ?? null,
+    };
   });
   const steps: TStep[] = [...v.steps]
     .sort((a, b) => a.stepOrder - b.stepOrder)
@@ -236,6 +263,7 @@ export function toTDetail(
         heat: stepHeat(s, units === 'source' ? 'metric' : units),
         tip: '',
         need,
+        sec: s.section ?? null,
       };
     });
   const clips = buildClips(
@@ -244,8 +272,36 @@ export function toTDetail(
       .map((s) => s.clipSegments),
     v.sourceDurationSeconds,
   );
-  const video = clips.length ? videoUrl(v.sourceVideoPath) : null;
-  return { ...base, ings, steps, clips, video, view: v };
+  const clipPlayer = clips.length
+    ? clipSource({
+        platform: platformOf(base.originalUrl),
+        url: base.originalUrl,
+        file: videoUrl(v.sourceVideoPath),
+        instagramFile: isInstagramStoredVideoEnabled(),
+      })
+    : null;
+  return { ...base, ings, steps, clips, clipPlayer, view: v };
+}
+
+/** A run of consecutive rows under one heading; `i` is each row's index in the full list. */
+export type Section<T> = { head: string | null; rows: { x: T; i: number }[] };
+
+/**
+ * Splits ingredients or steps into consecutive runs by heading, so a layered cake reads as
+ * "For the sponge", "For the cream"… A list without headings comes back as one headless run.
+ */
+export function sectionsOf<T>(
+  items: readonly T[],
+  head: (x: T) => string | null,
+): Section<T>[] {
+  const out: Section<T>[] = [];
+  items.forEach((x, i) => {
+    const h = head(x);
+    const last = out[out.length - 1];
+    if (last && last.head === h) last.rows.push({ x, i });
+    else out.push({ head: h, rows: [{ x, i }] });
+  });
+  return out;
 }
 
 /** The API serves the source video next to the recipe; null without a path or an API URL. */

@@ -18,6 +18,7 @@ import {
   type MealSlot,
 } from '@/features/meal-plan/types';
 import { useNav } from '@/tortie/nav-store';
+import { tNow } from '@/i18n/format';
 import { MON } from '@/tortie/lib/fmt';
 import { useTRecipe, useTRecipes, type TRecipe } from '@/tortie/data/recipes';
 
@@ -74,14 +75,14 @@ export function weekRange(monday: string): string {
 
 export const weekName = (w: number) =>
   w === 0
-    ? 'This week'
+    ? tNow('week.this')
     : w === 1
-      ? 'Next week'
+      ? tNow('week.next')
       : w === -1
-        ? 'Last week'
+        ? tNow('week.last')
         : w > 0
-          ? 'In ' + w + ' weeks'
-          : -w + ' weeks ago';
+          ? tNow('week.inN', { n: w })
+          : tNow('week.nAgo', { n: -w });
 
 const EMPTY_WEEK: TDay[] = Array.from({ length: 7 }, () => ({
   b: null,

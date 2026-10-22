@@ -30,6 +30,8 @@ export interface ExtractedStep {
   stepOrder: number;
   /** Short imperative label. Missing on extractions from older prompts. */
   title?: string | null;
+  /** Part of the dish the step belongs to ("Make the sponge"). */
+  section?: string | null;
   instruction: string;
   durationMinutes?: number | null;
   temperature?: string | null;
@@ -90,6 +92,7 @@ export interface NormalizedIngredient {
 export interface NormalizedStep {
   stepOrder: number;
   title: string | null;
+  section?: string | null;
   instruction: string;
   durationMinutes: number | null;
   temperature: string | null;

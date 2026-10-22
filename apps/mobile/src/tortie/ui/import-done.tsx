@@ -10,6 +10,8 @@ import { Pop, Twinkle } from '@/tortie/ui/keyframes';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tNow } from '@/i18n/format';
 
 type DoneRecipe = {
   title: string;
@@ -40,20 +42,23 @@ export function ImportDone({
   onOpen: () => void;
   onAnother: () => void;
 }) {
+  const t = useT();
   const source = !src
-    ? 'Scanned from a page'
+    ? tNow('imports.scannedFromPage')
     : src.kind === 'scan'
-      ? 'Scanned from a page'
+      ? tNow('imports.scannedFromPage')
       : src.kind === 'web'
-        ? 'From ' + src.host
-        : 'From ' + src.name;
+        ? tNow('import.sourceHost', { source: src.host })
+        : tNow('import.sourceHost', { source: src.name });
   return (
     <>
       <Press
         onPress={onOpen}
         scale={0.98}
         easing={CSS_EASE}
-        accessibilityLabel={`Open ${recipe?.title ?? 'recipe'}`}
+        accessibilityLabel={tNow('imports.openJob', {
+          title: recipe?.title ?? tNow('imports.recipeFallback'),
+        })}
         style={{
           flexDirection: 'row',
           gap: 14,
@@ -101,7 +106,9 @@ export function ImportDone({
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <T style={sans(12, 700, C.green)}>
-            {duplicate ? 'Already in your Cookbook' : 'Added to Cookbook'}
+            {duplicate
+              ? t('imports.alreadyInYourCookbook')
+              : t('imports.addedToCookbook')}
           </T>
           <T numberOfLines={2} style={[serif(19, 600), { marginTop: 3 }]}>
             {recipe?.title ?? ''}
@@ -152,7 +159,7 @@ export function ImportDone({
         }}
       >
         <Glyph name="add_link" size={20} color={C.bg} />
-        <T style={sans(15, 700, C.bg)}>Import another recipe</T>
+        <T style={sans(15, 700, C.bg)}>{t('common.importAnotherRecipe')}</T>
       </Press>
     </>
   );

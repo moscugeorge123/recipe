@@ -1,3 +1,4 @@
+import { tNow } from '@/i18n/format';
 /** The five failure screens a link import can end on. */
 export type ImportErrorGroup =
   'not_recipe' | 'unsupported' | 'cant_open' | 'rate_limited' | 'generic';
@@ -41,25 +42,23 @@ function scanErrorCopy(group: ImportErrorGroup): ImportErrorCopy {
     return {
       icon: 'no_meals',
       warn: false,
-      message: 'That photo doesn’t look like a recipe',
-      sub: 'Fit the whole page in the frame and avoid glare.',
-      primary: { label: 'Scan again', action: 'scan' },
-      secondary: { label: 'Write it yourself', action: 'write' },
+      message: tNow('err.scanNotRecipe'),
+      sub: tNow('err.scanNotRecipeSub'),
+      primary: { label: tNow('imports.scanAgain'), action: 'scan' },
+      secondary: { label: tNow('add.writeItYourself'), action: 'write' },
     };
   }
   return {
     icon: 'sentiment_dissatisfied',
     warn: group === 'rate_limited',
     message:
-      group === 'rate_limited'
-        ? 'That’s a lot of scans — wait a moment'
-        : 'Couldn’t read a recipe from that photo',
+      group === 'rate_limited' ? tNow('err.scanBusy') : tNow('err.scanGeneric'),
     sub:
       group === 'rate_limited'
-        ? 'Try again in a minute. Nothing was lost.'
-        : 'Try again in good light with the page flat, or write it yourself.',
-    primary: { label: 'Scan again', action: 'scan' },
-    secondary: { label: 'Write it yourself', action: 'write' },
+        ? tNow('err.scanBusySub')
+        : tNow('err.scanGenericSub'),
+    primary: { label: tNow('imports.scanAgain'), action: 'scan' },
+    secondary: { label: tNow('add.writeItYourself'), action: 'write' },
   };
 }
 
@@ -78,46 +77,48 @@ export function importErrorCopy(
       return {
         icon: 'no_meals',
         warn: false,
-        message: 'That link doesn’t look like a food recipe',
-        sub: 'Try a link to a recipe page or a cooking video.',
-        primary: { label: 'Try another link', action: 'another' },
-        secondary: { label: 'Write it yourself', action: 'write' },
+        message: tNow('err.notRecipe'),
+        sub: tNow('err.notRecipeSub'),
+        primary: { label: tNow('err.tryAnother'), action: 'another' },
+        secondary: { label: tNow('add.writeItYourself'), action: 'write' },
       };
     case 'unsupported':
       return {
         icon: 'link_off',
         warn: false,
-        message: `${source ? `${source} links` : 'That kind of link'} can’t be imported yet`,
-        sub: 'Try a recipe website, Instagram or YouTube link — or scan a page instead.',
-        primary: { label: 'Try another link', action: 'another' },
-        secondary: { label: 'Scan a page', action: 'scan' },
+        message: source
+          ? tNow('err.unsupportedLinks', { source })
+          : tNow('err.unsupportedKind'),
+        sub: tNow('err.unsupportedSub'),
+        primary: { label: tNow('err.tryAnother'), action: 'another' },
+        secondary: { label: tNow('common.scanAPage'), action: 'scan' },
       };
     case 'cant_open':
       return {
         icon: 'public_off',
         warn: false,
-        message: 'We couldn’t reach that link — check it and try again',
-        sub: 'The page may be private, or the address may have a typo.',
-        primary: { label: 'Try again', action: 'retry' },
-        secondary: { label: 'Edit link', action: 'edit' },
+        message: tNow('err.cantOpen'),
+        sub: tNow('err.cantOpenSub'),
+        primary: { label: tNow('recipe.translationRetry'), action: 'retry' },
+        secondary: { label: tNow('err.editLink'), action: 'edit' },
       };
     case 'rate_limited':
       return {
         icon: 'hourglass_top',
         warn: true,
-        message: 'That source is busy — wait a moment and try again',
-        sub: 'Too many people are asking at once. Nothing was lost.',
-        primary: { label: 'Try again', action: 'retry' },
-        secondary: { label: 'Edit link', action: 'edit' },
+        message: tNow('err.busy'),
+        sub: tNow('err.busySub'),
+        primary: { label: tNow('recipe.translationRetry'), action: 'retry' },
+        secondary: { label: tNow('err.editLink'), action: 'edit' },
       };
     case 'generic':
       return {
         icon: 'sentiment_dissatisfied',
         warn: false,
-        message: 'Couldn’t read a recipe from that link',
-        sub: 'Something went wrong on our side. Try again, or write it yourself.',
-        primary: { label: 'Try again', action: 'retry' },
-        secondary: { label: 'Write it yourself', action: 'write' },
+        message: tNow('err.generic'),
+        sub: tNow('err.genericSub'),
+        primary: { label: tNow('recipe.translationRetry'), action: 'retry' },
+        secondary: { label: tNow('add.writeItYourself'), action: 'write' },
       };
   }
 }

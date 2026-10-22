@@ -30,7 +30,7 @@ import {
 import { emptySlotAction, findSlotRecipeEntry } from '@/tortie/data/plan-slot';
 import { useTRecipes } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
-import { DAYLETTERS, DAYNAMES, fmtT, MON } from '@/tortie/lib/fmt';
+import { DAYLETTERS, DAYNAMES, fmtT, MON, plz } from '@/tortie/lib/fmt';
 import { toast, useNav } from '@/tortie/nav-store';
 import {
   cardWebStyle,
@@ -51,19 +51,22 @@ import { Sheet } from '@/tortie/ui/sheet';
 import { Stagger } from '@/tortie/ui/stagger';
 import { TabScroll } from '@/tortie/ui/tab-scroll';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { lazyAt, tEnum, tNow } from '@/i18n/format';
 
 const SLOTS: [MealKey, string, string][] = [
-  ['b', 'Breakfast', 'wb_twilight'],
-  ['l', 'Lunch', 'light_mode'],
-  ['d', 'Dinner', 'dark_mode'],
+  lazyAt(['b', '', 'wb_twilight'], 1, 'meal.breakfast'),
+  lazyAt(['l', '', 'light_mode'], 1, 'meal.lunch'),
+  lazyAt(['d', '', 'dark_mode'], 1, 'meal.dinner'),
 ];
 
 /** Shown when a slot is tapped before any recipe is saved. */
-export const SAVE_FIRST_TOAST = 'Save a recipe first';
+export const saveFirstToast = () => tNow('plan.saveFirst');
 
 const usePlanOn = () => useNav((s) => s.tab === 'plan' && s.mounted);
 
 export function PlanScreen() {
+  const t = useT();
   usePlanToday();
   const on = usePlanOn();
   const wk = usePlan((s) => s.wk);
@@ -82,7 +85,10 @@ export function PlanScreen() {
         <PlanHeader
           compact={compact}
           on={on}
-          sub={`${weekRange(monday)} · ${planned} of 21 meals planned`}
+          sub={tNow('plan.weekSummary', {
+            range: weekRange(monday),
+            planned,
+          })}
         />
       )}
     >
@@ -97,7 +103,7 @@ export function PlanScreen() {
               { marginTop: 16, textAlign: 'center' },
             ]}
           >
-            Nothing was planned that week.
+            {t('plan.nothingWasPlannedThat')}
           </T>
         ) : null}
         {dayHasRecipe ? <ShopCard on={on} recipeIds={recipeIds} /> : null}
@@ -115,7 +121,7 @@ function startSlotPick(
 ) {
   if (emptySlotAction(noRecipes) === 'add') {
     // No recipes yet: an empty picker is a dead end, so explain and offer Add.
-    toast(SAVE_FIRST_TOAST);
+    toast(saveFirstToast());
     useNav.getState().openAdd();
     return;
   }
@@ -133,6 +139,7 @@ function PlanHeader({
   on: boolean;
   sub: string;
 }) {
+  const t = useT();
   const pad = useAnimatedStyle(() => ({
     paddingTop: tw(compact ? 10 : 8, 220, CSS_EASE),
     paddingBottom: tw(compact ? 10 : 18, 220, CSS_EASE),
@@ -157,7 +164,7 @@ function PlanHeader({
               numberOfLines={1}
               style={[serif(36, 500), title]}
             >
-              Meal plan
+              {t('plan.mealPlan')}
             </Animated.Text>
             <Animated.View style={[{ overflow: 'hidden' }, subA]}>
               <T
@@ -213,6 +220,7 @@ function RoundBtn({
 }
 
 function WeekControls({ on }: { on: boolean }) {
+  const t = useT();
   const wk = usePlan((s) => s.wk);
   const wkOut = usePlan((s) => s.wkOut);
   const wkDir = usePlan((s) => s.wkDir);
@@ -267,7 +275,7 @@ function WeekControls({ on }: { on: boolean }) {
           }}
         >
           <Glyph name="today" size={18} color={C.green} />
-          <T style={sans(13, 700, C.green)}>Today</T>
+          <T style={sans(13, 700, C.green)}>{t('tab.today')}</T>
         </Press>
       ) : null}
       <RoundBtn
@@ -275,21 +283,21 @@ function WeekControls({ on }: { on: boolean }) {
         size={20}
         color={C.green}
         onPress={openCal}
-        label="Pick a day from the month"
+        label={t('plan.pickADayFrom')}
       />
       <RoundBtn
         icon="chevron_left"
         size={22}
         color={C.ink}
         onPress={() => setWeek(wk - 1)}
-        label="Previous week"
+        label={t('common.previousWeek')}
       />
       <RoundBtn
         icon="chevron_right"
         size={22}
         color={C.ink}
         onPress={() => setWeek(wk + 1)}
-        label="Next week"
+        label={t('week.next')}
       />
     </Stagger>
   );
@@ -402,7 +410,7 @@ function DayContent({ on }: { on: boolean }) {
   const title =
     DAYNAMES[day] +
     (wk === 0 && day === todayIndex()
-      ? ' · Today'
+      ? tNow('plan.dayToday')
       : ' · ' + MON[p.m] + ' ' + p.d);
   const dc = MEAL_KEYS.filter((k) => pd[k]).length;
   const fx = useAnimatedStyle(() => ({
@@ -432,7 +440,9 @@ function DayContent({ on }: { on: boolean }) {
         }}
       >
         <T style={serif(22, 600)}>{title}</T>
-        <T style={sans(13, 400, C.ink2)}>{`${dc} of 3 planned`}</T>
+        <T style={sans(13, 400, C.ink2)}>
+          {tNow('plan.dayPlanned', { n: dc })}
+        </T>
       </Stagger>
       <Animated.View style={[{ gap: 10 }, fx]}>
         {SLOTS.map(([k, label, icon], i) => (
@@ -469,6 +479,8 @@ function DayContent({ on }: { on: boolean }) {
 }
 
 function FilledSlot({ id, meal }: { id: string; meal: MealKey }) {
+  const tr = useT();
+  const t = useT();
   const r = useRecipeLite(id);
   const openRecipe = useNav((s) => s.openRecipe);
   const wk = usePlan((s) => s.wk);
@@ -515,7 +527,7 @@ function FilledSlot({ id, meal }: { id: string; meal: MealKey }) {
       accessibilityRole="button"
       accessibilityState={selOn ? { selected: isSel } : undefined}
       accessibilityActions={
-        entryId ? [{ name: 'select', label: 'Select' }] : undefined
+        entryId ? [{ name: 'select', label: tr('common.select') }] : undefined
       }
       onAccessibilityAction={(e) => {
         if (e.nativeEvent.actionName === 'select' && entryId)
@@ -547,7 +559,7 @@ function FilledSlot({ id, meal }: { id: string; meal: MealKey }) {
       <View style={{ flex: 1, minWidth: 0 }}>
         <T style={[serif(17, 600), { lineHeight: 20.4 }]}>{r?.title ?? ''}</T>
         <T style={[sans(12, 400, C.ink2), { marginTop: 4 }]}>
-          {r ? fmtT(r.time) + ' · ' + r.level : ''}
+          {r ? fmtT(r.time) + ' · ' + tEnum('level', r.level) : ''}
         </T>
       </View>
       {selOn ? (
@@ -571,7 +583,7 @@ function FilledSlot({ id, meal }: { id: string; meal: MealKey }) {
           }}
           scale={0.9}
           easing={CSS_EASE}
-          accessibilityLabel="Cook"
+          accessibilityLabel={t('plan.cook')}
           style={{
             width: 40,
             height: 40,
@@ -620,7 +632,9 @@ function EmptySlot({
       }}
     >
       <Glyph name="add" size={20} color={C.green} />
-      <T style={sans(14, 600, C.green)}>{'Add ' + label.toLowerCase()}</T>
+      <T style={sans(14, 600, C.green)}>
+        {tNow('plan.addSlot', { slot: label.toLowerCase() })}
+      </T>
     </Press>
   );
 }
@@ -630,6 +644,7 @@ function EmptySlot({
  * API does it), so this card points at the list instead of offering to add.
  */
 function ShopCard({ on, recipeIds }: { on: boolean; recipeIds: string[] }) {
+  const t = useT();
   const client = useQueryClient();
   const missing = useMissingFromList(recipeIds);
   const gone = missing != null && missing > 0;
@@ -646,14 +661,15 @@ function ShopCard({ on, recipeIds }: { on: boolean; recipeIds: string[] }) {
     >
       <T style={[serif(21, 500, C.bg), { lineHeight: 25.2 }]}>
         {gone
-          ? 'Some ingredients aren’t on your list'
-          : 'Your week’s ingredients are on your list'}
+          ? t('plan.someIngredientsArentOn')
+          : t('plan.yourWeeksIngredientsAre')}
       </T>
       <T style={[sans(14, 400, '#c5eacc'), { lineHeight: 21, marginTop: 6 }]}>
         {gone
-          ? missing + (missing === 1 ? ' ingredient' : ' ingredients') +
-            ' from this week’s meals were removed from Groceries.'
-          : 'Planning a meal adds its ingredients to Groceries. Duplicates across recipes are merged, and removing a meal takes them off again.'}
+          ? tNow('plan.ingredientsRemoved', {
+              ingredients: plz(missing, 'ingredient'),
+            })
+          : t('plan.planningAMealAdds')}
       </T>
       <Press
         onPress={() =>
@@ -677,7 +693,7 @@ function ShopCard({ on, recipeIds }: { on: boolean; recipeIds: string[] }) {
       >
         <Glyph name="shopping_basket" size={20} color="#32533C" />
         <T style={sans(14, 700, '#32533C')}>
-          {gone ? 'Add to groceries' : 'Review groceries'}
+          {gone ? t('common.addToGroceries') : t('plan.reviewGroceries')}
         </T>
       </Press>
     </Stagger>
@@ -696,6 +712,7 @@ type Cell = {
 };
 
 export function MonthPickerSheet() {
+  const t = useT();
   const f = useFrame();
   const open = useNav((s) => s.cal);
   const calM = usePlan((s) => s.calM);
@@ -778,7 +795,7 @@ export function MonthPickerSheet() {
     >
       <Grabber />
       <T style={[serif(26, 500), { letterSpacing: em(26, -0.01) }]}>
-        Pick a day
+        {t('plan.pickADay')}
       </T>
       <View
         style={{
@@ -794,12 +811,12 @@ export function MonthPickerSheet() {
         </T>
         <MonthBtn
           icon="chevron_left"
-          label="Previous month"
+          label={t('plan.previousMonth')}
           onPress={() => setCalM(calM - 1)}
         />
         <MonthBtn
           icon="chevron_right"
-          label="Next month"
+          label={t('plan.nextMonth')}
           onPress={() => setCalM(calM + 1)}
         />
       </View>
@@ -842,7 +859,7 @@ export function MonthPickerSheet() {
               backgroundColor: C.terra,
             }}
           />
-          <T style={sans(12, 400, C.ink2)}>Meals planned</T>
+          <T style={sans(12, 400, C.ink2)}>{t('plan.mealsPlanned')}</T>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <View
@@ -854,7 +871,7 @@ export function MonthPickerSheet() {
               borderColor: C.green,
             }}
           />
-          <T style={sans(12, 400, C.ink2)}>Today</T>
+          <T style={sans(12, 400, C.ink2)}>{t('tab.today')}</T>
         </View>
       </View>
     </Sheet>

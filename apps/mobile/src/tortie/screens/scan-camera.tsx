@@ -17,6 +17,7 @@ import { tw } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { mono, sans, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
 
 const FROST = 'rgba(40,44,40,.55)';
 const CORNER = 34;
@@ -25,6 +26,7 @@ const PHOTO_QUALITY = 0.6;
 
 /** Full-bleed page scanner: opacity 0→1 (280ms) + scale 1.04→1 (520ms × m, EASE). */
 export function ScanCamera() {
+  const tr = useT();
   const f = useFrame();
   const { m } = useMotion();
   const open = useNav((s) => s.cam);
@@ -101,7 +103,7 @@ export function ScanCamera() {
         setShot(uri);
       }
     } catch {
-      toast('Couldn’t open your photo library');
+      toast(tr('scan.couldntOpenYourPhoto'));
     }
   };
 
@@ -163,7 +165,7 @@ export function ScanCamera() {
               { textAlign: 'center', lineHeight: 17.6 },
             ]}
           >
-            {'camera preview\nallow camera access to scan'}
+            {tr('scan.cameraPreviewAllowCamera')}
           </T>
         </View>
       ) : null}
@@ -261,7 +263,7 @@ export function ScanCamera() {
       >
         <Frost
           onPress={close}
-          label="Close camera"
+          label={tr('scan.closeCamera')}
           style={{ width: 44, height: 44, borderRadius: 22 }}
         >
           <Glyph name="close" size={24} color={C.bg} />
@@ -282,12 +284,12 @@ export function ScanCamera() {
           />
           <View style={[StyleSheet.absoluteFill, { backgroundColor: FROST }]} />
           <T style={sans(13, 600, C.bg)}>
-            {hasShot ? 'Looks good?' : 'Scan a page'}
+            {hasShot ? tr('scan.looksGood') : tr('common.scanAPage')}
           </T>
         </View>
         <Frost
           onPress={() => setTorch((v) => !v)}
-          label="Flash"
+          label={tr('scan.flash')}
           style={{ width: 44, height: 44, borderRadius: 22 }}
         >
           <Glyph
@@ -316,7 +318,7 @@ export function ScanCamera() {
               },
             ]}
           >
-            Fit the recipe page inside the frame
+            {tr('scan.fitTheRecipePage')}
           </T>
           <View
             style={{
@@ -332,7 +334,7 @@ export function ScanCamera() {
           >
             <Frost
               onPress={() => void library()}
-              label="Choose from library"
+              label={tr('scan.chooseFromLibrary')}
               style={{ width: 48, height: 48, borderRadius: 14 }}
             >
               <Glyph name="photo_library" size={24} color={C.bg} />
@@ -342,7 +344,7 @@ export function ScanCamera() {
               scale={0.9}
               ms={160}
               easing={CSS_EASE}
-              accessibilityLabel="Take photo"
+              accessibilityLabel={tr('scan.takePhoto')}
               style={{
                 width: 78,
                 height: 78,
@@ -358,7 +360,7 @@ export function ScanCamera() {
             </Press>
             <Frost
               onPress={() => setFace((v) => (v === 'back' ? 'front' : 'back'))}
-              label="Switch camera"
+              label={tr('scan.switchCamera')}
               style={{ width: 48, height: 48, borderRadius: 24 }}
             >
               <Glyph name="flip_camera_ios" size={24} color={C.bg} />
@@ -391,12 +393,12 @@ export function ScanCamera() {
             }}
           >
             <Glyph name="refresh" size={20} color={C.bg} />
-            <T style={sans(15, 700, C.bg)}>Retake</T>
+            <T style={sans(15, 700, C.bg)}>{tr('scan.retake')}</T>
           </Frost>
           <Press
             onPress={use}
             disabled={!imgOn}
-            accessibilityLabel="Read recipe"
+            accessibilityLabel={tr('scan.readRecipe')}
             scale={0.97}
             easing={CSS_EASE}
             style={{
@@ -411,7 +413,7 @@ export function ScanCamera() {
             }}
           >
             <Glyph name="auto_awesome" size={20} color={C.ink} />
-            <T style={sans(15, 700)}>Read recipe</T>
+            <T style={sans(15, 700)}>{tr('scan.readRecipe')}</T>
           </Press>
         </View>
       )}

@@ -1,3 +1,4 @@
+import { tNow } from '@/i18n/format';
 export function collectionDeleteCopy(name: string): {
   title: string;
   message: string;
@@ -5,9 +6,9 @@ export function collectionDeleteCopy(name: string): {
   cancelLabel: string;
 } {
   return {
-    title: `Delete “${name}”?`,
-    message: 'Recipes stay in your kitchen. Only this cookbook is removed.',
-    confirmLabel: 'Delete cookbook',
-    cancelLabel: 'Keep',
+    title: tNow('collections.deleteTitle', { name }),
+    message: tNow('collections.deleteMessage'),
+    confirmLabel: tNow('collections.deleteConfirm'),
+    cancelLabel: tNow('notes.keep'),
   };
 }

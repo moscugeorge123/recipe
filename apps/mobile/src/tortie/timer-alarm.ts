@@ -16,6 +16,7 @@ import {
   type AlarmCommand,
 } from '@/tortie/timer-clock';
 import { cookTimerNative } from '@/tortie/timer-native';
+import { tNow } from '@/i18n/format';
 
 type NotificationsModule = typeof import('expo-notifications');
 type NotificationResponse = import('expo-notifications').NotificationResponse;
@@ -80,9 +81,7 @@ function warnExpoGoOnce() {
   if (warnedExpoGo || !__DEV__ || alarmsSupported) return;
   if (Platform.OS !== 'android' || !inExpoGo) return;
   warnedExpoGo = true;
-  console.warn(
-    'Cooking timer alarms are off in Expo Go on Android. Use a development build to hear them.',
-  );
+  console.warn(tNow('timer.expoGoOff'));
 }
 
 export function startTimerAlarms(): () => void {
@@ -181,7 +180,7 @@ async function reconcile() {
     if (!allowed) {
       if (!toldDenied) {
         toldDenied = true;
-        toast('Allow notifications so timers can ring when Tortie is closed');
+        toast(tNow('timer-alarm.allowNotificationsSoTimers'));
       }
       for (const alarm of existing) {
         const timer = alarm.key ? timers[alarm.key] : undefined;
@@ -233,12 +232,12 @@ function prepareCategory(notifications: NotificationsModule): Promise<void> {
     .setNotificationCategoryAsync(CATEGORY, [
       {
         identifier: ACTION_STOP,
-        buttonTitle: 'Stop',
+        buttonTitle: tNow('common.stop'),
         options: { opensAppToForeground: false },
       },
       {
         identifier: ACTION_GO,
-        buttonTitle: 'Go to step',
+        buttonTitle: tNow('common.goToStep'),
         options: { opensAppToForeground: true },
       },
     ])
@@ -254,10 +253,10 @@ function prepareChannel(notifications: NotificationsModule): Promise<void> {
   if (Platform.OS !== 'android') return Promise.resolve();
   channelReady ??= notifications
     .setNotificationChannelAsync(channelId(), {
-      name: 'Cooking timers',
+      name: tNow('timer.channelName'),
       importance: notifications.AndroidImportance.MAX,
       bypassDnd: true,
-      description: 'Alarms when a cooking timer finishes',
+      description: tNow('timer.channelDesc'),
       lockscreenVisibility: notifications.AndroidNotificationVisibility.PUBLIC,
       sound: channelSound(),
       audioAttributes: {
@@ -315,9 +314,10 @@ async function schedule(
   await notifications.scheduleNotificationAsync({
     identifier: alarmId(command.key),
     content: {
-      title:
-        "Time's up · " +
-        (command.title || command.recipeTitle || 'Cooking timer'),
+      title: tNow('timer.alarmTimesUpDash', {
+        title:
+          command.title || command.recipeTitle || tNow('timer.cookingTimer'),
+      }),
       body: alarmBody(command),
       categoryIdentifier: CATEGORY,
       sound: contentSound(),
@@ -439,13 +439,13 @@ export async function testAlarm(): Promise<void> {
   if (!notifications) return;
   await prepare(notifications);
   if (!(await ensurePermission(notifications))) {
-    toast('Allow notifications so timers can ring when Tortie is closed');
+    toast(tNow('timer-alarm.allowNotificationsSoTimers'));
     return;
   }
   await notifications.scheduleNotificationAsync({
     content: {
-      title: "Time's up",
-      body: 'Test alarm',
+      title: tNow('timer.alarmTimesUp'),
+      body: tNow('timer.testAlarm'),
       sound: contentSound(),
       priority: notifications.AndroidNotificationPriority.MAX,
       vibrate: VIBRATE,

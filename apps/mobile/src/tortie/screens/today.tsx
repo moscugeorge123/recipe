@@ -51,13 +51,21 @@ import { FirstRecipeHero, LibraryNotice } from '@/tortie/ui/first-recipe';
 import { Byline, TimeChip } from '@/tortie/ui/time-chip';
 import { TabScroll } from '@/tortie/ui/tab-scroll';
 import { em, kicker, mono, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tEnum, tNow } from '@/i18n/format';
 
 const LOGO = require('@/assets/tortie/tortie-logo.png');
 const RING = 81.68;
 const MEAL_LABEL: Record<MealKey, string> = {
-  b: 'Breakfast',
-  l: 'Lunch',
-  d: 'Dinner',
+  get b() {
+    return tNow('meal.breakfast');
+  },
+  get l() {
+    return tNow('meal.lunch');
+  },
+  get d() {
+    return tNow('meal.dinner');
+  },
 };
 
 const ACircle = Animated.createAnimatedComponent(Circle);
@@ -180,6 +188,7 @@ function TodayHeader({ compact, on }: { compact: boolean; on: boolean }) {
 }
 
 function CookingNow({ on }: { on: boolean }) {
+  const tr = useT();
   const active = useCook((s) => s.active);
   const activeOn = useCook((s) => s.activeOn);
   const timers = useCook((s) => s.timers);
@@ -208,8 +217,8 @@ function CookingNow({ on }: { on: boolean }) {
     const ringCol = AT.run ? C.terra : C.ink3;
     const next =
       ast < an - 1
-        ? 'Next: ' + r.steps[ast + 1]!.t
-        : 'Last step — nearly there';
+        ? tNow('today.nextStep', { title: r.steps[ast + 1]!.t })
+        : tNow('today.lastStep');
     const resume = () => startCook(active.id);
     body = (
       <>
@@ -222,11 +231,11 @@ function CookingNow({ on }: { on: boolean }) {
           }}
         >
           <PulseDot />
-          <T style={kicker(C.terra)}>Cooking now</T>
+          <T style={kicker(C.terra)}>{tr('today.cookingNow')}</T>
           <T style={[sans(12, 600, C.ink3), { marginLeft: 'auto' }]}>
-            {'Started ' +
-              fmtT(Math.max(1, Math.round((now - active.at) / 60000))) +
-              ' ago'}
+            {tNow('today.startedAgo', {
+              time: fmtT(Math.max(1, Math.round((now - active.at) / 60000))),
+            })}
           </T>
         </View>
         <Press
@@ -262,7 +271,9 @@ function CookingNow({ on }: { on: boolean }) {
                   { letterSpacing: em(11, 0.05), textTransform: 'uppercase' },
                 ]}
               >
-                {st.ahead ? 'Before you start' : `Step ${ast + 1} of ${an}`}
+                {st.ahead
+                  ? tr('common.beforeYouStart')
+                  : tNow('today.stepOf', { n: ast + 1, total: an })}
               </T>
               <T
                 numberOfLines={1}
@@ -281,11 +292,11 @@ function CookingNow({ on }: { on: boolean }) {
           <Press
             onPress={() => {
               useCook.getState().discard();
-              toast('Cooking session cleared');
+              toast(tr('today.cookingSessionCleared'));
             }}
             scale={0.88}
             easing={CSS_EASE}
-            accessibilityLabel="Discard session"
+            accessibilityLabel={tr('today.discardSession')}
             style={{
               position: 'absolute',
               top: 10,
@@ -356,7 +367,13 @@ function CookingNow({ on }: { on: boolean }) {
                   {clock(AT.rem)}
                 </T>
                 <T style={sans(12, 600, C.ink2)}>
-                  {AT.run ? 'left' : AT.rem === 0 ? 'done' : 'paused'}
+                  {tNow(
+                    AT.run
+                      ? 'today.timerLeft'
+                      : AT.rem === 0
+                        ? 'today.timerDone'
+                        : 'today.timerPaused',
+                  )}
                 </T>
               </Press>
             ) : (
@@ -386,7 +403,7 @@ function CookingNow({ on }: { on: boolean }) {
               }}
             >
               <Glyph name="play_arrow" size={20} color={C.white} fill />
-              <T style={sans(14, 700, C.white)}>Resume</T>
+              <T style={sans(14, 700, C.white)}>{tr('today.resume')}</T>
             </Press>
           </View>
         </Press>
@@ -477,6 +494,7 @@ function BarFill({ width }: { width: number }) {
 }
 
 function Tonight({ on }: { on: boolean }) {
+  const tr = useT();
   const { list, isLoading } = useTRecipes();
   const { week } = usePlanWeek(currentMonday());
   const plannedId = week[todayIndex()]?.d ?? null;
@@ -493,7 +511,9 @@ function Tonight({ on }: { on: boolean }) {
 
   return (
     <Stagger i={1} on={on}>
-      <T style={[kicker(C.terra), { marginBottom: 10 }]}>Tonight’s dinner</T>
+      <T style={[kicker(C.terra), { marginBottom: 10 }]}>
+        {tr('today.tonightsDinner')}
+      </T>
       <View
         style={{
           backgroundColor: C.surface,
@@ -519,7 +539,7 @@ function Tonight({ on }: { on: boolean }) {
               bottom: 0,
             }}
           >
-            {!t?.uri ? (
+            {__DEV__ && !t?.uri ? (
               <T
                 style={[
                   mono(11, phCaption(hue)),
@@ -565,7 +585,7 @@ function Tonight({ on }: { on: boolean }) {
             <T
               style={[sans(11, 700, C.green), { letterSpacing: em(11, 0.04) }]}
             >
-              Tonight’s focus
+              {tr('today.tonightsFocus')}
             </T>
           </View>
           <View
@@ -587,7 +607,7 @@ function Tonight({ on }: { on: boolean }) {
                     { letterSpacing: em(11, 0.03) },
                   ]}
                 >
-                  {t.tag}
+                  {tEnum('tag', t.tag)}
                 </T>
               </View>
             ) : null}
@@ -610,8 +630,11 @@ function Tonight({ on }: { on: boolean }) {
             style={{ flexDirection: 'row', justifyContent: 'space-between' }}
           >
             <Meta icon="timer" text={t ? fmtT(t.time) : ''} />
-            <Meta icon="skillet" text={t?.level ?? ''} />
-            <Meta icon="group" text={'Serves ' + (t?.base ?? '')} />
+            <Meta icon="skillet" text={tEnum('level', t?.level)} />
+            <Meta
+              icon="group"
+              text={tNow('today.servesN', { n: t?.base ?? '' })}
+            />
           </View>
           <View style={{ flexDirection: 'row', gap: 8 }}>
             <Press
@@ -633,8 +656,8 @@ function Tonight({ on }: { on: boolean }) {
               <Glyph name="local_fire_department" size={19} color={C.white} />
               <T style={sans(14, 700, C.white)}>
                 {activeOn && active?.id === id
-                  ? 'Resume cooking'
-                  : 'Start cook mode'}
+                  ? tr('common.resumeCooking')
+                  : tr('today.startCookMode')}
               </T>
             </Press>
             <Press
@@ -651,7 +674,7 @@ function Tonight({ on }: { on: boolean }) {
                 justifyContent: 'center',
               }}
             >
-              <T style={sans(14, 600)}>Recipe</T>
+              <T style={sans(14, 600)}>{tr('today.recipe')}</T>
             </Press>
           </View>
         </View>
@@ -694,6 +717,7 @@ function FirstRecipe({
 }
 
 function ThisWeek({ on }: { on: boolean }) {
+  const tr = useT();
   const stamp = usePlanToday();
   const { week, isLoading } = usePlanWeek(currentMonday());
   const goTab = useNav((s) => s.goTab);
@@ -756,7 +780,7 @@ function ThisWeek({ on }: { on: boolean }) {
           marginBottom: 12,
         }}
       >
-        <T style={serif(19, 600)}>This week</T>
+        <T style={serif(19, 600)}>{tr('week.this')}</T>
         <Glyph name="chevron_right" size={18} color={C.green} />
       </Press>
       <View style={{ flexDirection: 'row', gap: 4 }}>
@@ -858,6 +882,7 @@ function DayMeals({
   mounted: boolean;
   weekLoading: boolean;
 }) {
+  const tr = useT();
   const breakfast = useRecipeSlot(day.b);
   const lunch = useRecipeSlot(day.l);
   const dinner = useRecipeSlot(day.d);
@@ -866,7 +891,7 @@ function DayMeals({
   const any = MEAL_KEYS.some((k) => slots[k].recipe);
   if (!any) {
     if (pending) return null;
-    const dayName = DAYNAMES[dayIndex] ?? 'this day';
+    const dayName = DAYNAMES[dayIndex] || tNow('today.thisDay');
     const missing = MEAL_KEYS.some((k) => day[k]);
     return (
       <Press
@@ -907,10 +932,12 @@ function DayMeals({
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <T numberOfLines={1} style={sans(14, 600, C.green)}>
-            {`Plan meals for ${dayName}`}
+            {tNow('today.planMealsFor', { day: dayName })}
           </T>
           <T style={[sans(12, 400, C.ink3), { marginTop: 1 }]}>
-            {missing ? 'No recipes available' : 'Nothing planned yet'}
+            {missing
+              ? tr('today.noRecipesAvailable')
+              : tr('today.nothingPlannedYet')}
           </T>
         </View>
         <Glyph name="chevron_right" size={18} color={C.ink3} />
@@ -994,6 +1021,7 @@ function MealRow({
 }
 
 function CookAgain({ on }: { on: boolean }) {
+  const tr = useT();
   const { list, isLoading } = useTRecipes();
   const goTab = useNav((s) => s.goTab);
   const openRecipe = useNav((s) => s.openRecipe);
@@ -1014,9 +1042,9 @@ function CookAgain({ on }: { on: boolean }) {
           marginBottom: 12,
         }}
       >
-        <T style={serif(21, 600)}>Cook again</T>
+        <T style={serif(21, 600)}>{tr('today.cookAgain')}</T>
         <Press onPress={() => goTab('cookbook')}>
-          <T style={sans(13, 600, C.green)}>Cookbook</T>
+          <T style={sans(13, 600, C.green)}>{tr('tab.cookbook')}</T>
         </Press>
       </View>
       <ScrollView

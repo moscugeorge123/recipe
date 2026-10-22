@@ -24,10 +24,13 @@ import { Dots } from '@/tortie/ui/keyframes';
 import { Photo } from '@/tortie/ui/photo';
 import { Press } from '@/tortie/ui/press';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tNow } from '@/i18n/format';
 
 const FROST = 'rgba(248,250,245,.92)';
 
 export function SharePreview() {
+  const t = useT();
   const open = useNav((s) => s.shareOpen);
   const url = useNav((s) => s.shareUrl);
   const hinted = useNav((s) => s.shareTitle);
@@ -76,7 +79,9 @@ export function SharePreview() {
     !preview.isError;
   const notRecipe =
     !blocked && preview.data?.looksLikeRecipe === false && anywayFor !== url;
-  const cta = brand ? 'Import from ' + source!.name : 'Import recipe';
+  const cta = brand
+    ? tNow('share.importFrom', { name: source!.name })
+    : tNow('add.importRecipe');
   const barPad = Math.max(30, f.bottom);
 
   const close = () => useNav.getState().closeShare();
@@ -147,7 +152,7 @@ export function SharePreview() {
                 minHeight: 22,
               }}
             >
-              <T style={sans(15, 600, C.ink2)}>Reading the link</T>
+              <T style={sans(15, 600, C.ink2)}>{t('share.readingTheLink')}</T>
               <Dots textStyle={sans(15, 600, C.ink2)} />
             </View>
           ) : description ? (
@@ -165,12 +170,12 @@ export function SharePreview() {
             </T>
           ) : preview.isError ? (
             <T style={[sans(14, 500, C.ink3), { marginTop: 12 }]}>
-              Couldn’t load a preview. You can still import it.
+              {t('share.couldntLoadAPreview')}
             </T>
           ) : null}
           {noPreview ? (
             <T style={[sans(14, 500, C.ink3), { marginTop: 12 }]}>
-              Preview not available. You can still import it.
+              {t('share.previewNotAvailableYou')}
             </T>
           ) : null}
           {blocked ? (
@@ -183,7 +188,7 @@ export function SharePreview() {
           {notRecipe && imp.phase === 0 ? (
             <Notice
               icon="no_meals"
-              text="This doesn’t look like a recipe. You can still try importing it."
+              text={t('share.thisDoesntLookLike')}
               style={{ marginTop: 16 }}
             />
           ) : null}
@@ -205,7 +210,7 @@ export function SharePreview() {
 
       <Press
         onPress={close}
-        accessibilityLabel="Close"
+        accessibilityLabel={t('auth.close')}
         scale={0.9}
         ms={200}
         easing={CSS_EASE}
@@ -258,11 +263,15 @@ export function SharePreview() {
           style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
         />
         {imp.phase === 0 && blocked ? (
-          <ImportButton label="Not supported yet" onPress={close} disabled />
+          <ImportButton
+            label={t('share.notSupportedYet')}
+            onPress={close}
+            disabled
+          />
         ) : null}
         {imp.phase === 0 && !blocked && notRecipe ? (
           <OutlineButton
-            label="Import anyway"
+            label={t('share.importAnyway')}
             onPress={() => setAnywayFor(url)}
           />
         ) : null}
@@ -274,7 +283,7 @@ export function SharePreview() {
             onPress={imp.cancel}
             scale={0.96}
             easing={CSS_EASE}
-            accessibilityLabel="Cancel import"
+            accessibilityLabel={t('share.cancelImport')}
             style={{
               height: 48,
               borderRadius: 99,
@@ -285,7 +294,7 @@ export function SharePreview() {
               justifyContent: 'center',
             }}
           >
-            <T style={sans(15, 600)}>Cancel</T>
+            <T style={sans(15, 600)}>{t('auth.cancel')}</T>
           </Press>
         ) : null}
         {imp.phase === 2 ? (
@@ -438,12 +447,15 @@ function SavedDock({
   meta: string | null;
   onOpen: () => void;
 }) {
+  const t = useT();
   return (
     <View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Glyph name="check_circle" size={18} color={C.green} fill />
         <T style={sans(13, 700, C.green)}>
-          {duplicate ? 'Already in your cookbook' : 'Saved to Cookbook'}
+          {duplicate
+            ? t('common.alreadyInYourCookbook')
+            : t('share.savedToCookbook')}
         </T>
       </View>
       {title ? (
@@ -458,7 +470,7 @@ function SavedDock({
         onPress={onOpen}
         scale={0.97}
         easing={CSS_EASE}
-        accessibilityLabel="Open recipe"
+        accessibilityLabel={t('share.openRecipe')}
         style={{
           height: 56,
           marginTop: 14,
@@ -469,7 +481,7 @@ function SavedDock({
           boxShadow: SH.greenCta,
         }}
       >
-        <T style={sans(16, 700, C.bg)}>Open recipe</T>
+        <T style={sans(16, 700, C.bg)}>{t('share.openRecipe')}</T>
       </Press>
     </View>
   );

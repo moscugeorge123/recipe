@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
   View,
@@ -33,13 +33,14 @@ import { generalNotes, stepNotes } from '@/tortie/data/recipe-notes';
 import { useServings } from '@/tortie/data/recipe-ui';
 import {
   ingQty,
+  sectionsOf,
   useTRecipe,
   type TDetail,
   type TIng,
   type TStep,
 } from '@/tortie/data/recipes';
 import { useFrame } from '@/tortie/frame';
-import { clock, fmtT } from '@/tortie/lib/fmt';
+import { clock, fmtT, plz } from '@/tortie/lib/fmt';
 import { useMotion } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
 import { useTortiePrefs } from '@/tortie/prefs-store';
@@ -59,7 +60,10 @@ import {
   useSnoozeLabel,
 } from '@/tortie/screens/timer-alert';
 import type { RecipeNoteDto } from '@/features/recipes/schemas';
+import { SectionHead } from '@/tortie/ui/section-head';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { tEnum, tNow } from '@/i18n/format';
 
 const RING = 326.73;
 const MINI_RING = 69.12;
@@ -82,6 +86,7 @@ const timerOf = (timers: Record<string, StepTimer>, key: string, m: number) =>
   };
 
 export function CookMode() {
+  const tr = useT();
   const open = useNav((s) => s.cookOpen);
   const cookId = useNav((s) => s.cookId);
   const nonce = useNav((s) => s.cookNonce);
@@ -147,7 +152,7 @@ export function CookMode() {
   }
 
   // Load the source video while cooking, so "Watch this step" shows it straight away.
-  const hasVideo = !!r?.video;
+  const hasVideo = !!r?.clipPlayer;
   useEffect(() => {
     if (open && cookId && hasVideo) useNav.getState().primeClip(cookId);
   }, [open, cookId, hasVideo]);
@@ -255,7 +260,7 @@ export function CookMode() {
       const sid = c.sessionId;
       c.end();
       close();
-      toast('Logged to your cooking history');
+      toast(tr('cook.loggedToYourCooking'));
       sync.finish(cookId, sid).catch(() => undefined);
       return;
     }
@@ -265,12 +270,12 @@ export function CookMode() {
 
   const scale = r ? serv / r.base : 1;
   const nextLabel = intro
-    ? 'Start cooking'
+    ? tNow('auth.doneStart')
     : done
-      ? 'Finish'
+      ? tNow('cook.finish')
       : cur < n - 1
-        ? 'Next step'
-        : 'I’m done';
+        ? tNow('cook.next')
+        : tNow('cook.imDone');
   const nextBg = done || cur === n - 1 ? C.green : C.terra;
   const count = done ? '✓' : intro ? '' : `${cur + 1}/${n}`;
 
@@ -293,7 +298,11 @@ export function CookMode() {
     >
       <View style={{ paddingTop: f.pushTop, paddingHorizontal: 20 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <RoundBtn icon="close" onPress={close} label="Close cook mode" />
+          <RoundBtn
+            icon="close"
+            onPress={close}
+            label={tr('cook.closeCookMode')}
+          />
           <View style={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
             <T
               style={sans(11, 700, C.terra, {
@@ -301,7 +310,7 @@ export function CookMode() {
                 textTransform: 'uppercase',
               })}
             >
-              Cook mode
+              {tr('common.cookMode')}
             </T>
             <T numberOfLines={1} style={serif(17, 600)}>
               {r?.title ?? ''}
@@ -397,7 +406,7 @@ export function CookMode() {
               textAlign: 'center',
             })}
           >
-            Buon appetito.
+            {tr('cook.buonAppetito')}
           </T>
           <T
             style={sans(16, 400, C.ink2, {
@@ -406,7 +415,7 @@ export function CookMode() {
               textAlign: 'center',
             })}
           >
-            {(r?.title ?? '') + ' is served. Enjoy every bite.'}
+            {tNow('cook.served', { title: r?.title ?? '' })}
           </T>
         </Animated.View>
 
@@ -453,7 +462,7 @@ export function CookMode() {
           >
             <ServBtn
               icon="remove"
-              label="Fewer portions"
+              label={tr('cook.fewerPortions')}
               onPress={() => setServ(serv - 1)}
             />
             <View style={{ minWidth: 58, alignItems: 'center' }}>
@@ -463,12 +472,12 @@ export function CookMode() {
               <T
                 style={sans(10, 700, C.ink2, { lineHeight: 10, marginTop: 2 })}
               >
-                portions
+                {tNow('cook.portionsLabel')}
               </T>
             </View>
             <ServBtn
               icon="add"
-              label="More portions"
+              label={tr('cook.morePortions')}
               onPress={() => setServ(serv + 1)}
             />
           </View>
@@ -538,7 +547,7 @@ function Bars({
           key={i}
           onPress={() => onPress(i)}
           hitSlop={{ top: 10, bottom: 10 }}
-          accessibilityLabel={`Step ${i + 1}`}
+          accessibilityLabel={tNow('common.stepN', { n: i + 1 })}
           style={{
             flex: 1,
             height: 5,
@@ -587,6 +596,7 @@ function StepPage({
   notes: RecipeNoteDto[] | null;
   onAddNote: () => void;
 }) {
+  const tr = useT();
   const a = useAnimatedStyle(() => ({
     opacity: tw(on ? 1 : 0.2, ms, CSS_EASE),
   }));
@@ -602,7 +612,11 @@ function StepPage({
         }}
       >
         <T style={sans(13, 700, C.terra)}>
-          {st.ahead ? 'Before you start' : `Step ${i + 1}`}
+          {st.ahead
+            ? tr('common.beforeYouStart')
+            : [st.sec, tNow('common.stepN', { n: i + 1 })]
+                .filter(Boolean)
+                .join(' · ')}
         </T>
         <T
           style={serif(34, 500, C.ink, {
@@ -618,7 +632,7 @@ function StepPage({
             {scaleStepText(st.d, scale)}
           </T>
         ) : null}
-        <StepClipChip recipeId={r.id} clips={r.clips} step={i} large />
+        <StepClipChip recipe={r} step={i} large />
         {st.need.length ? (
           <>
             <T
@@ -628,7 +642,7 @@ function StepPage({
                 marginTop: 22,
               })}
             >
-              You’ll need
+              {tr('cook.youllNeed')}
             </T>
             <View
               style={{
@@ -702,17 +716,18 @@ function TimerCard({
   recipeTitle: string;
   T0: StepTimer;
 }) {
+  const tr = useT();
   const btnBg = useAnimatedStyle(() => ({
     backgroundColor: tw(T0.run ? C.ink : C.green, 300, CSS_EASE),
   }));
   const idle = !T0.run && T0.rem === T0.total;
   const label = T0.run
-    ? 'Pause'
+    ? tNow('cook.timerPause')
     : T0.rem < T0.total && T0.rem > 0
-      ? 'Resume'
+      ? tNow('cook.timerResume')
       : T0.rem === 0
-        ? 'Again'
-        : 'Start';
+        ? tNow('cook.timerAgain')
+        : tNow('cook.timerStart');
   const cook = useCook.getState;
   const [panel, setPanel] = useState(false);
   const alert = isAlerting(T0);
@@ -801,18 +816,18 @@ function TimerCard({
                 marginTop: 4,
               })}
             >
-              Time’s up
+              {tr('common.timesUp')}
             </T>
           ) : null}
         </View>
         <RoundIcon
           icon="restart_alt"
-          label="Reset timer"
+          label={tr('cook.resetTimer')}
           onPress={() => cook().reset(tkey, m)}
         />
         <RoundIcon
           icon="tune"
-          label="Adjust timer"
+          label={tr('cook.adjustTimer')}
           active={panel}
           onPress={() => setPanel((v) => !v)}
         />
@@ -821,7 +836,7 @@ function TimerCard({
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
           <AlertBtn label={snoozeLabel} onPress={() => cook().snooze(tkey)} />
           <AlertBtn
-            label="Stop"
+            label={tr('common.stop')}
             a11y="Stop timer"
             solid
             onPress={() => cook().stop(tkey)}
@@ -830,18 +845,18 @@ function TimerCard({
       ) : (
         <View style={{ flexDirection: 'row', gap: 6, marginTop: 10 }}>
           <MiniBtn
-            label="−1 min"
+            label={tr('cook.1Min')}
             dim={T0.rem <= 60}
             onPress={() =>
               cook().shift(tkey, -1, m, title, recipeTitle, detail)
             }
           />
           <MiniBtn
-            label="+1 min"
+            label={tr('cook.1Min2')}
             onPress={() => cook().bump(tkey, m, title, recipeTitle, detail)}
           />
           <MiniBtn
-            label="+5 min"
+            label={tr('cook.5Min')}
             onPress={() => cook().shift(tkey, 5, m, title, recipeTitle, detail)}
           />
         </View>
@@ -977,6 +992,7 @@ function TimerPanel({
   recipeTitle: string;
   onApplied: () => void;
 }) {
+  const tr = useT();
   const [text, setText] = useState(String(clampMinutes(initial)));
   const typed = parseInt(text, 10);
   const mins = Number.isFinite(typed) ? clampMinutes(typed) : initial;
@@ -1017,7 +1033,7 @@ function TimerPanel({
           textTransform: 'uppercase',
         })}
       >
-        Set duration
+        {tr('cook.setDuration')}
       </T>
       <View
         style={{
@@ -1027,7 +1043,7 @@ function TimerPanel({
           marginTop: 8,
         }}
       >
-        {stepper(-1, 'remove', 'Shorter', mins <= MIN_TIMER_MINUTES)}
+        {stepper(-1, 'remove', tNow('cook.shorter'), mins <= MIN_TIMER_MINUTES)}
         <View
           style={{
             flex: 1,
@@ -1044,7 +1060,7 @@ function TimerPanel({
             keyboardType="number-pad"
             selectTextOnFocus
             maxLength={3}
-            accessibilityLabel="Timer minutes"
+            accessibilityLabel={tr('cook.timerMinutes')}
             style={serif(22, 600, C.ink, {
               fontVariant: ['tabular-nums'],
               minWidth: 44,
@@ -1052,9 +1068,9 @@ function TimerPanel({
               padding: 0,
             })}
           />
-          <T style={serif(22, 600, C.ink)}>min</T>
+          <T style={serif(22, 600, C.ink)}>{tNow('time.minUnit')}</T>
         </View>
-        {stepper(1, 'add', 'Longer', mins >= MAX_TIMER_MINUTES)}
+        {stepper(1, 'add', tNow('cook.longer'), mins >= MAX_TIMER_MINUTES)}
       </View>
       <Press
         onPress={() => {
@@ -1074,7 +1090,9 @@ function TimerPanel({
           justifyContent: 'center',
         }}
       >
-        <T style={sans(14, 700, C.bg)}>{'Set timer to ' + fmtT(mins)}</T>
+        <T style={sans(14, 700, C.bg)}>
+          {tNow('cook.setTimerTo', { time: fmtT(mins) })}
+        </T>
       </Press>
     </View>
   );
@@ -1128,6 +1146,7 @@ function Intro({
   notes: RecipeNoteDto[] | null;
   onAddNote: () => void;
 }) {
+  const tr = useT();
   const label = sans(11, 700, C.ink2, {
     letterSpacing: em(11, 0.06),
     textTransform: 'uppercase',
@@ -1168,115 +1187,152 @@ function Intro({
           marginTop: 10,
         }}
       >
-        {(r ? [fmtT(r.time), r.level, r.steps.length + ' steps'] : []).map(
-          (x, i) => (
-            <T key={i} style={sans(13, 600, C.ink2)}>
-              {x}
-            </T>
-          ),
-        )}
-      </View>
-      {notes ? (
-        <StepNotes notes={notes} onAdd={onAddNote} label="Recipe notes" />
-      ) : null}
-      <T style={[label, { marginTop: 24 }]}>Ingredients</T>
-      <View style={{ marginTop: 6 }}>
-        {r?.ings.map((x, i) => (
-          <View
-            key={i}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 12,
-              paddingVertical: 11,
-              borderBottomWidth: 1,
-              borderBottomColor: C.surface3,
-            }}
-          >
-            <View
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 9,
-                backgroundColor: x.tint,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <T style={{ fontSize: 16, lineHeight: 20, textAlign: 'center' }}>
-                {x.emo}
-              </T>
-            </View>
-            <T
-              style={sans(15, 700, C.ink, { lineHeight: 20.25, minWidth: 72 })}
-            >
-              {ingQ(x, scale)}
-            </T>
-            <T style={sans(15, 400, C.ink, { lineHeight: 20.25, flex: 1 })}>
-              {x.n}
-            </T>
-          </View>
+        {(r
+          ? [fmtT(r.time), tEnum('level', r.level), plz(r.steps.length, 'step')]
+          : []
+        ).map((x, i) => (
+          <T key={i} style={sans(13, 600, C.ink2)}>
+            {x}
+          </T>
         ))}
       </View>
-      <T style={[label, { marginTop: 26 }]}>Steps</T>
-      <View style={{ gap: 16, marginTop: 12 }}>
-        {r?.steps.map((st, i) => (
-          <View key={i} style={{ flexDirection: 'row', gap: 14 }}>
-            <View
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 15,
-                backgroundColor: C.surface3,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <T style={sans(13, 700)}>{String(i + 1)}</T>
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              {st.ahead ? (
+      {notes ? (
+        <StepNotes
+          notes={notes}
+          onAdd={onAddNote}
+          label={tr('cook.recipeNotes')}
+        />
+      ) : null}
+      <T style={[label, { marginTop: 24 }]}>{tr('common.ingredients')}</T>
+      <View style={{ marginTop: 6 }}>
+        {sectionsOf(r?.ings ?? [], (x) => x.g).map((sec, si) => (
+          <Fragment key={si}>
+            {sec.head ? (
+              <SectionHead first={si === 0}>{sec.head}</SectionHead>
+            ) : null}
+            {sec.rows.map(({ x, i }) => (
+              <View
+                key={i}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  paddingVertical: 11,
+                  borderBottomWidth: 1,
+                  borderBottomColor: C.surface3,
+                }}
+              >
+                <View
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 9,
+                    backgroundColor: x.tint,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <T
+                    style={{
+                      fontSize: 16,
+                      lineHeight: 20,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {x.emo}
+                  </T>
+                </View>
                 <T
-                  style={sans(11, 700, C.terra, {
-                    letterSpacing: em(11, 0.06),
-                    textTransform: 'uppercase',
-                    marginBottom: 3,
+                  style={sans(15, 700, C.ink, {
+                    lineHeight: 20.25,
+                    minWidth: 72,
                   })}
                 >
-                  Before you start
+                  {ingQ(x, scale)}
                 </T>
-              ) : null}
-              <View
-                style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}
-              >
-                <T style={sans(16, 700, C.ink, { flex: 1, lineHeight: 20.8 })}>
-                  {st.t}
+                <T style={sans(15, 400, C.ink, { lineHeight: 20.25, flex: 1 })}>
+                  {x.n}
                 </T>
-                {st.m > 0 ? (
+              </View>
+            ))}
+          </Fragment>
+        ))}
+      </View>
+      <T style={[label, { marginTop: 26 }]}>{tr('common.steps')}</T>
+      <View style={{ gap: 16, marginTop: 12 }}>
+        {sectionsOf(r?.steps ?? [], (st) => st.sec).map((sec, si) => (
+          <Fragment key={si}>
+            {sec.head ? (
+              <SectionHead first={si === 0}>{sec.head}</SectionHead>
+            ) : null}
+            {sec.rows.map(({ x: st, i }) => (
+              <View key={i} style={{ flexDirection: 'row', gap: 14 }}>
+                <View
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    backgroundColor: C.surface3,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <T style={sans(13, 700)}>{String(i + 1)}</T>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {st.ahead ? (
+                    <T
+                      style={sans(11, 700, C.terra, {
+                        letterSpacing: em(11, 0.06),
+                        textTransform: 'uppercase',
+                        marginBottom: 3,
+                      })}
+                    >
+                      {tr('common.beforeYouStart')}
+                    </T>
+                  ) : null}
                   <View
                     style={{
                       flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 3,
+                      alignItems: 'baseline',
+                      gap: 8,
                     }}
                   >
-                    <Glyph name="timer" size={15} color={C.terra} />
-                    <T style={sans(12, 600, C.terra)}>{fmtT(st.m)}</T>
+                    <T
+                      style={sans(16, 700, C.ink, {
+                        flex: 1,
+                        lineHeight: 20.8,
+                      })}
+                    >
+                      {st.t}
+                    </T>
+                    {st.m > 0 ? (
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}
+                      >
+                        <Glyph name="timer" size={15} color={C.terra} />
+                        <T style={sans(12, 600, C.terra)}>{fmtT(st.m)}</T>
+                      </View>
+                    ) : null}
                   </View>
-                ) : null}
+                  {st.d ? (
+                    <T
+                      style={sans(14, 400, C.ink2, {
+                        lineHeight: 21,
+                        marginTop: 3,
+                      })}
+                    >
+                      {scaleStepText(st.d, scale)}
+                    </T>
+                  ) : null}
+                </View>
               </View>
-              {st.d ? (
-                <T
-                  style={sans(14, 400, C.ink2, {
-                    lineHeight: 21,
-                    marginTop: 3,
-                  })}
-                >
-                  {scaleStepText(st.d, scale)}
-                </T>
-              ) : null}
-            </View>
-          </View>
+            ))}
+          </Fragment>
         ))}
       </View>
     </ScrollView>
@@ -1482,9 +1538,7 @@ function Dock({
               ew={tExpW}
               title={title}
               kicker={
-                'Step ' +
-                (si + 1) +
-                ' timer' +
+                tNow('cook.stepTimerKicker', { n: si + 1 }) +
                 (other ? ' · ' + t.recipeTitle : '')
               }
               onExpand={() => expand(k, idx)}
@@ -1548,13 +1602,18 @@ function DockPill({
   onStop: () => void;
   onGo: () => void;
 }) {
+  const tr = useT();
   const done = t.rem === 0;
   const alert = isAlerting(t);
   const now = useNow(1000, alert);
   const flash = useFlash(alert);
   const glow = useAnimatedStyle(() => ({ opacity: 0.2 * flash.value }));
   const th = t.run ? RUN : done ? DONE : PAUSED;
-  const lbl = t.run ? 'left' : done ? 'Done' : 'Paused';
+  const lbl = t.run
+    ? tNow('today.timerLeft')
+    : done
+      ? tNow('common.done')
+      : tNow('cook.paused');
   const time = alert ? overClock(t, now) : clock(t.rem);
   const box = useAnimatedStyle(() => ({
     width: tw(exp ? ew : 146, 440, EASE),
@@ -1681,7 +1740,7 @@ function DockPill({
                 textTransform: 'uppercase',
               })}
             >
-              {alert ? 'Time’s up · ' + kicker : kicker}
+              {alert ? tNow('cook.timesUpKicker', { kicker }) : kicker}
             </T>
             <T
               numberOfLines={2}
@@ -1692,14 +1751,14 @@ function DockPill({
           </View>
           <Press
             onPress={onDismiss}
-            accessibilityLabel="Dismiss timer"
+            accessibilityLabel={tr('cook.dismissTimer')}
             style={small}
           >
             <Glyph name="close" size={19} color={th.col} />
           </Press>
           <Press
             onPress={onCollapse}
-            accessibilityLabel="Collapse timer"
+            accessibilityLabel={tr('cook.collapseTimer')}
             style={small}
           >
             <Glyph name="expand_more" size={21} color={th.col} />
@@ -1748,7 +1807,7 @@ function DockPill({
               </Press>
               <Press
                 onPress={onStop}
-                accessibilityLabel="Stop timer"
+                accessibilityLabel={tr('cook.stopTimer')}
                 scale={0.94}
                 easing={CSS_EASE}
                 style={{
@@ -1760,7 +1819,7 @@ function DockPill({
                 }}
               >
                 <T numberOfLines={1} style={sans(13, 700, th.bg)}>
-                  Stop
+                  {tr('common.stop')}
                 </T>
               </Press>
             </>
@@ -1779,12 +1838,14 @@ function DockPill({
                 }}
               >
                 <T numberOfLines={1} style={sans(13, 700, th.col)}>
-                  +1 min
+                  {tr('cook.1Min2')}
                 </T>
               </Press>
               <Press
                 onPress={onToggle}
-                accessibilityLabel={t.run ? 'Pause timer' : 'Start timer'}
+                accessibilityLabel={
+                  t.run ? tr('cook.pauseTimer') : tr('cook.startTimer')
+                }
                 scale={0.92}
                 easing={CSS_EASE}
                 style={{
@@ -1807,7 +1868,7 @@ function DockPill({
           )}
           <Press
             onPress={onGo}
-            accessibilityLabel="Go to step"
+            accessibilityLabel={tr('common.goToStep')}
             scale={0.92}
             easing={CSS_EASE}
             style={{
@@ -1896,13 +1957,14 @@ function ServBtn({
 }
 
 function BackBtn({ dim, onPress }: { dim: boolean; onPress: () => void }) {
+  const tr = useT();
   const a = useAnimatedStyle(() => ({
     opacity: tw(dim ? 0.35 : 1, 300, CSS_EASE),
   }));
   return (
     <Press
       onPress={onPress}
-      accessibilityLabel="Previous step"
+      accessibilityLabel={tr('cook.previousStep')}
       scale={0.92}
       easing={CSS_EASE}
       animatedStyle={a}

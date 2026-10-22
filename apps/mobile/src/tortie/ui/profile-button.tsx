@@ -7,6 +7,7 @@ import { tw } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { sans, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
 
 /** Up to two initials for the avatar, "?" when there is no name. */
 export function profileInitials(name: string | null | undefined): string {
@@ -24,6 +25,7 @@ export function profileInitials(name: string | null | undefined): string {
  * compact.
  */
 export function ProfileButton({ compact }: { compact: boolean }) {
+  const t = useT();
   const authed = useTortieAuth((s) => s.authed);
   const user = useTortieAuth((s) => s.user);
   const openProfile = useNav((s) => s.openProfile);
@@ -39,7 +41,7 @@ export function ProfileButton({ compact }: { compact: boolean }) {
       scale={0.88}
       ms={220}
       easing={SPRING}
-      accessibilityLabel="Profile"
+      accessibilityLabel={t('common.profile')}
       style={{ borderRadius: 99 }}
     >
       {authed ? (

@@ -12,6 +12,7 @@ import { isMigratableRecipeId } from '@/features/kitchen/ids';
 import { isOfflineError } from '@/lib/network';
 import { enqueueIdempotent, useKitchenStore } from '@/stores/kitchen-store';
 import { useUiStore } from '@/stores/ui-store';
+import { tNow } from '@/i18n/format';
 
 function applyReview(
   client: QueryClient,
@@ -65,7 +66,7 @@ export function useConfirmReviewed() {
       if (isOfflineError(error) && isMigratableRecipeId(recipeId)) {
         enqueueIdempotent('review.ready', recipeId);
         showToast({
-          text: 'Marked reviewed. We’ll sync when you’re back online.',
+          text: tNow('engage.reviewedOffline'),
           glyph: '✓',
         });
         return;
@@ -77,7 +78,7 @@ export function useConfirmReviewed() {
         );
       }
       showToast({
-        text: 'Couldn’t mark this reviewed. Try again.',
+        text: tNow('engage.reviewedFailed'),
         glyph: '!',
       });
     },

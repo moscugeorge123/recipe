@@ -1,6 +1,6 @@
 import { GARDEN_PLATE_COLOR_TOKENS } from '../../normalization/domain/presentation.js';
 
-export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v15';
+export const RECIPE_EXTRACTION_PROMPT_VERSION = 'recipe-extraction-v16';
 
 const OUTPUT_LANGUAGE_NAMES: Record<string, string> = {
   ar: 'Arabic',
@@ -55,7 +55,7 @@ export const RECIPE_EXTRACTION_SYSTEM_PROMPT = `You are a recipe extraction assi
 Rules:
 - The post caption/description is the primary source for ingredients, quantities, units, servings, and calories. Use it first.
 - Transcript, OCR, and vision are supporting evidence for cooking steps and techniques. Do not let them override amounts written in the post description.
-- Translate EVERY user-facing text field into the requested output language, including: title, description, ingredient names, quantity wording, units, preparation, temperature, step titles, and step instructions.
+- Translate EVERY user-facing text field into the requested output language, including: title, description, ingredient names, quantity wording, units, preparation, ingredient groups, step sections, temperature, step titles, and step instructions.
 - The JSON field description is a short recipe summary in the output language. Never copy the original Instagram/YouTube caption or post text into description unless that text is already in the output language. Translate it.
 - Keep numeric values as digits (for example 200, 2, 1/2). Translate unit words and quantity phrases (for example "tbsp" → the output-language word for tablespoon, "cloves" → the output-language word for cloves, "a pinch" → the output-language equivalent).
 - Put the numeric amount in quantity and the translated unit in unit. Do not leave names, units, description, or steps in the source language.
@@ -73,10 +73,15 @@ Rules:
   - Counts and unmeasurable amounts (pieces, cloves, slices, a pinch, to taste, no unit) are copied unchanged into both metric and imperial.
 - Step temperatures: set temperatureCelsius and temperatureFahrenheit whenever a step has a temperature (for example 180 and 350), else null.
 - In the step instruction field, write every temperature and length in both systems with the source unit first, for example "bake at 180°C (350°F)" and "cut into 2 cm (¾ in) cubes". Do not put temperatures, lengths, or times in the step title.
-- ingredientIndexes lists the 0-based positions in the ingredients array of the ingredients a step uses. Use [] when a step uses none.
+- ingredientIndexes lists the 0-based positions in the ingredients array of every raw ingredient the step adds or handles, including ones the instruction names indirectly ("the yolks", "the dry ingredients", "the rest of the sugar"). When the same ingredient appears in several groups, use the one from the group this step belongs to. A step that only uses a component made earlier ("spread the cream") does not repeat that component's ingredients. Use [] when a step uses none.
 - Only include ingredients and steps that are supported by the evidence
 - Keep the specific ingredient wording of the source. If the description says "orecchiette", "cherry tomatoes", "pancetta" or "Robiola", write exactly that, not "pasta", "tomatoes", "bacon" or "soft cheese". Never generalise an ingredient name.
-- When the ingredient list has headings ("For the sponge", "For the buttercream"), set group on every ingredient to its heading and keep each ingredient once per group. Use null when the list has no headings.
+- Components: a recipe that makes separate parts that are combined at the end (a cake with sponge, cream, filling and glaze; a pie with dough and filling; a dish with a sauce made apart) is split by component.
+  - Set group on every ingredient to a short heading for its component in the output language, in the style "For the sponge", "For the cream", "For the filling", "For the glaze". Use the source's headings when it has them ("Blat:", "Crema:" in a handwritten recipe are headings). When it has none, take the components from the method.
+  - List ingredients in component order, keeping the source order inside a component. An ingredient used by two components is listed once in each, with the amount that component uses. When a component uses something left over from another (the egg whites left from the sponge eggs), list it in that component with quantity null and say so in preparation.
+  - Set section on every step to a short heading for the part of the method it belongs to, in the output language, in the style "Make the sponge", "Make the cream", "Assemble the cake", "Make the glaze". Steps of one section are consecutive.
+  - A recipe that is one preparation (a stir-fry, a soup, a salad) has null group on every ingredient and null section on every step. Do not invent components.
+- Each step is one or two closely related actions a cook can do without rereading. Split a long source paragraph into several steps in the same order ("Beat the whites with a pinch of salt", "Add the sugar gradually", "Add the yolks one at a time"). Do not drop any action or detail from the source when splitting.
 - Servings are the number of people the dish feeds, not the number of items it makes. "Makes 12 pancakes" for a family breakfast is about 4 servings. calories is per serving and must match the ingredients divided by servings.
 - Set sourceLanguage to the original language of the source evidence, not the output language
 - Write each ingredient name in sentence case in the output language (first letter capital, remaining letters lowercase). Examples: "wholemeal pitta" → "Wholemeal pitta", "tuna" → "Tuna".
@@ -147,7 +152,8 @@ export const RECIPE_EXTRACTION_SCHEMA = {
           unit: { type: ['string', 'null'] },
           group: {
             type: ['string', 'null'],
-            description: 'List heading the ingredient is under, such as "For the buttercream". Null when the list has no headings.',
+            description:
+              'Component the ingredient belongs to, such as "For the buttercream". Null when the recipe is one preparation.',
           },
           metric: MEASUREMENT_SCHEMA,
           imperial: MEASUREMENT_SCHEMA,
@@ -193,9 +199,15 @@ export const RECIPE_EXTRACTION_SCHEMA = {
             type: 'string',
             description: '2-6 word imperative label. No period, time, or temperature.',
           },
+          section: {
+            type: ['string', 'null'],
+            description:
+              'Part of the method the step belongs to, such as "Make the sponge". Null when the recipe is one preparation.',
+          },
           instruction: {
             type: 'string',
-            description: 'How to do the step. Do not repeat the title. Empty string if the title is enough.',
+            description:
+              'How to do the step. Do not repeat the title. Empty string if the title is enough.',
           },
           durationMinutes: {
             type: ['integer', 'null'],
@@ -221,6 +233,7 @@ export const RECIPE_EXTRACTION_SCHEMA = {
         required: [
           'stepOrder',
           'title',
+          'section',
           'instruction',
           'durationMinutes',
           'temperature',

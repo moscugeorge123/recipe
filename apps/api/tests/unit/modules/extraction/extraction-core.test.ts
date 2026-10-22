@@ -19,7 +19,11 @@ import {
   RECIPE_EXTRACTION_SYSTEM_PROMPT,
   describeOutputLanguage,
 } from '../../../../src/modules/recipes/prompts/recipe-extraction-v1.js';
-import type { LLMInput, LLMProvider, LLMResult } from '../../../../src/infrastructure/ai/llm/llm-provider.js';
+import type {
+  LLMInput,
+  LLMProvider,
+  LLMResult,
+} from '../../../../src/infrastructure/ai/llm/llm-provider.js';
 describe('EvidenceBuilder', () => {
   const builder = new EvidenceBuilder();
   const instagramFixture = {
@@ -83,7 +87,9 @@ describe('EvidenceBuilder', () => {
       },
     });
 
-    const written = items.filter((i) => i.evidenceType === 'CAPTION' || i.evidenceType === 'DESCRIPTION');
+    const written = items.filter(
+      (i) => i.evidenceType === 'CAPTION' || i.evidenceType === 'DESCRIPTION',
+    );
     expect(written).toHaveLength(1);
   });
 });
@@ -193,9 +199,7 @@ describe('RecipeNormalizer', () => {
       {
         title: 'paste cu usturoi',
         sourceLanguage: 'en',
-        ingredients: [
-          { name: 'usturoi', quantity: '3', unit: 'căței', confidence: 0.8 },
-        ],
+        ingredients: [{ name: 'usturoi', quantity: '3', unit: 'căței', confidence: 0.8 }],
         steps: [{ stepOrder: 1, instruction: 'Amestecă usturoiul', confidence: 0.7 }],
       },
       'ro',
@@ -256,7 +260,20 @@ describe('ConfidenceCalculator', () => {
           sortOrder: 0,
         },
       ],
-      steps: [{ stepOrder: 1, title: null, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', ahead: false, confidence: 0.8, provenance: {}, warnings: [] }],
+      steps: [
+        {
+          stepOrder: 1,
+          title: null,
+          instruction: 'Mix',
+          durationMinutes: null,
+          temperature: null,
+          stage: 'COOK',
+          ahead: false,
+          confidence: 0.8,
+          provenance: {},
+          warnings: [],
+        },
+      ],
     });
 
     const withoutQty = calculator.calculate({
@@ -287,7 +304,20 @@ describe('ConfidenceCalculator', () => {
           sortOrder: 0,
         },
       ],
-      steps: [{ stepOrder: 1, title: null, instruction: 'Mix', durationMinutes: null, temperature: null, stage: 'COOK', ahead: false, confidence: 0.5, provenance: {}, warnings: [] }],
+      steps: [
+        {
+          stepOrder: 1,
+          title: null,
+          instruction: 'Mix',
+          durationMinutes: null,
+          temperature: null,
+          stage: 'COOK',
+          ahead: false,
+          confidence: 0.5,
+          provenance: {},
+          warnings: [],
+        },
+      ],
     });
 
     expect(withQty).toBeGreaterThan(withoutQty);
@@ -360,7 +390,9 @@ describe('output language', () => {
 
     expect(captured).toContain('Romanian (ro)');
     expect(captured).toContain('Write the entire recipe in Romanian (ro)');
-    expect(captured).toContain('quantity phrases, units, preparation, temperature');
+    expect(captured).toContain(
+      'quantity phrases, units, preparation, ingredient group headings, step section headings, temperature',
+    );
     expect(captured).toContain('Do not paste the original post caption into description');
   });
 
@@ -509,8 +541,13 @@ describe('RecipeNormalizer nutrition, units and steps', () => {
     expect(result.difficulty).toBe('Medium');
     expect(result.servings).toBeNull();
     expect(
-      normalizer.normalize({ title: 'x', sourceLanguage: 'en', difficulty: 'Weekend', ingredients: [], steps: [] })
-        .difficulty,
+      normalizer.normalize({
+        title: 'x',
+        sourceLanguage: 'en',
+        difficulty: 'Weekend',
+        ingredients: [],
+        steps: [],
+      }).difficulty,
     ).toBeNull();
   });
 
@@ -632,9 +669,12 @@ describe('serializeStageError', () => {
       code: 'ENOENT',
       stderr: 'yt-dlp: command not found\n',
     });
-    const wrapped = new Error('Failed to fetch YouTube metadata: yt-dlp is not installed or not on PATH', {
-      cause: spawned,
-    });
+    const wrapped = new Error(
+      'Failed to fetch YouTube metadata: yt-dlp is not installed or not on PATH',
+      {
+        cause: spawned,
+      },
+    );
 
     expect(serializeStageError(wrapped)).toEqual({
       message: 'Failed to fetch YouTube metadata: yt-dlp is not installed or not on PATH',

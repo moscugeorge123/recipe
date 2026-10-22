@@ -275,6 +275,7 @@ function mapIngredient(ingredient: RecipeIngredientDto): RecipeIngredientView {
     category:
       asIngredientCategory(ingredient.category) ??
       categorizeIngredient(ingredient.name),
+    group: ingredient.group?.trim() || null,
     confidence: ingredient.confidence,
   };
 }
@@ -289,6 +290,7 @@ function mapStep(
     id: step.id,
     stepOrder: step.stepOrder,
     title: step.title?.trim() || null,
+    section: step.section?.trim() || null,
     instruction: step.instruction,
     durationSeconds:
       step.durationMinutes === null ? null : step.durationMinutes * 60,

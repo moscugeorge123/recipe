@@ -25,10 +25,16 @@ import { tw } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { lazyAt, tNow } from '@/i18n/format';
 
-const ACTS = [
-  ['add_shopping_cart', 'Add ingredients to groceries', C.green],
-  ['delete', 'Remove', C.terra],
+const ACTS: [string, string, string][] = [
+  lazyAt(
+    ['add_shopping_cart', '', C.green],
+    1,
+    'detail.addIngredientsToGroceries',
+  ),
+  lazyAt(['delete', '', C.terra], 1, 'common.remove'),
 ] as const;
 
 function cachedPlanEntries(
@@ -59,6 +65,7 @@ function cachedPlanEntries(
  * cookbook, with add-to-groceries and remove.
  */
 export function PlanSelectionBars() {
+  const t = useT();
   const f = useFrame();
   const { m, reduced } = useMotion();
   const ms = Math.round(520 * m);
@@ -136,10 +143,10 @@ export function PlanSelectionBars() {
     useNav.getState().clearSel();
     try {
       await clearWeek.mutateAsync(ids);
-      toast(plz(ids.length, 'meal') + ' removed');
+      toast(tNow('plan.mealsRemoved', { meals: plz(ids.length, 'meal') }));
     } catch {
       void client.invalidateQueries({ queryKey: mealPlanKeys.all });
-      toast('Couldn’t remove those meals — try again.');
+      toast(t('plan.couldntRemoveThoseMeals'));
     } finally {
       busy.current = false;
     }
@@ -174,7 +181,7 @@ export function PlanSelectionBars() {
       >
         <Press
           onPress={() => useNav.getState().clearSel()}
-          accessibilityLabel="Cancel selection"
+          accessibilityLabel={t('common.cancelSelection')}
           scale={0.9}
           ms={200}
           easing={CSS_EASE}
@@ -195,7 +202,7 @@ export function PlanSelectionBars() {
             { flex: 1, minWidth: 0 },
           ]}
         >
-          {n} selected
+          {tNow('common.selectedN', { n })}
         </T>
         <Press
           onPress={() => {
@@ -211,7 +218,7 @@ export function PlanSelectionBars() {
           }}
         >
           <T style={sans(14, 700, C.green)}>
-            {all ? 'Deselect all' : 'Select all'}
+            {all ? t('common.deselectAll') : t('common.selectAll')}
           </T>
         </Press>
       </Animated.View>

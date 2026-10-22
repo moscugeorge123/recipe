@@ -62,6 +62,7 @@ import { tw, useOpenProgress } from '@/tortie/ui/anim';
 import { reportAppFrame } from '@/tortie/ui/keyboard';
 import { ImportPill } from '@/tortie/ui/import-pill';
 import { ToastView } from '@/tortie/ui/toast';
+import { useAppLanguage, useT } from '@/i18n';
 
 SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
 
@@ -72,6 +73,8 @@ SystemUI.setBackgroundColorAsync(C.bg).catch(() => undefined);
  * step is dismissed, then the app takes over.
  */
 export function TortieShell() {
+  const tr = useT();
+  const language = useAppLanguage();
   const status = useTortieAuth((s) => s.status);
   const au = useNav((s) => s.au);
   const auStep = useNav((s) => s.auStep);
@@ -93,14 +96,20 @@ export function TortieShell() {
     ) {
       sawDone.current = false;
       const first = firstName(useTortieAuth.getState().user);
-      toast(first === 'there' ? 'Welcome to Tortie' : `Welcome, ${first}`);
+      toast(
+        first === 'there'
+          ? tr('auth.welcomeToast')
+          : tr('auth.welcomeToastName', { name: first }),
+      );
     }
     wasGated.current = gated;
   }, [gated, auStep, status]);
 
+  // Remount on a language change so every screen, including module-level
+  // copy read through `tNow`, picks the new language up without a restart.
   if (status === 'loading') return null;
-  if (gated) return <SignedOutGate />;
-  return <SignedInShell />;
+  if (gated) return <SignedOutGate key={language} />;
+  return <SignedInShell key={language} />;
 }
 
 /** Hosts `<SignInFlow required />` with the same providers the shell gives it. */

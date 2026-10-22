@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
   RecipeNormalizer,
-  disambiguateRepeatedNames,
   servingsSanityWarnings,
+  tidyHeadings,
   withInferredSeasonings,
 } from '../../../../src/modules/normalization/application/recipe-normalizer.js';
 import { tidyInlineMeasurements } from '../../../../src/modules/normalization/domain/measurement-conversion.js';
@@ -45,37 +45,107 @@ function extracted(over: Partial<ExtractedRecipe>): ExtractedRecipe {
   };
 }
 
-describe('ingredient groups', () => {
-  it('keeps the group heading and suffixes repeated names with it', () => {
+describe('ingredient groups and step sections', () => {
+  it('keeps each group heading and leaves repeated names as written', () => {
     const recipe = new RecipeNormalizer().normalize(
       extracted({
         ingredients: [
-          { name: 'cocoa powder', quantity: '2', unit: 'tbsp', group: 'For the sponge', confidence: 1 },
-          { name: 'cocoa powder', quantity: '5', unit: 'tbsp', group: 'For the buttercream', confidence: 1 },
+          {
+            name: 'cocoa powder',
+            quantity: '2',
+            unit: 'tbsp',
+            group: 'For the sponge:',
+            confidence: 1,
+          },
           { name: 'flour', quantity: '200', unit: 'g', group: 'For the sponge', confidence: 1 },
+          {
+            name: 'cocoa powder',
+            quantity: '5',
+            unit: 'tbsp',
+            group: 'For the buttercream',
+            confidence: 1,
+          },
         ],
-        steps: [{ stepOrder: 1, title: 'Mix', instruction: 'Mix the flour and cocoa powder.', confidence: 1 }],
+        steps: [
+          {
+            stepOrder: 1,
+            title: 'Mix',
+            instruction: 'Mix the flour and cocoa powder.',
+            confidence: 1,
+          },
+        ],
       }),
     );
     expect(recipe.ingredients.map((i) => [i.name, i.group])).toEqual([
-      ['Cocoa powder (sponge)', 'For the sponge'],
-      ['Cocoa powder (buttercream)', 'For the buttercream'],
+      ['Cocoa powder', 'For the sponge'],
       ['Flour', 'For the sponge'],
+      ['Cocoa powder', 'For the buttercream'],
     ]);
   });
 
-  it('leaves repeated names alone when there is no group', () => {
-    const rows = [
-      { name: 'Butter', group: null },
-      { name: 'Butter', group: null },
-    ];
-    expect(disambiguateRepeatedNames(rows)).toEqual(rows);
+  it('gives every step its section', () => {
+    const recipe = new RecipeNormalizer().normalize(
+      extracted({
+        ingredients: [{ name: 'eggs', quantity: '7', confidence: 1 }],
+        steps: [
+          {
+            stepOrder: 1,
+            title: 'Beat the whites',
+            instruction: '',
+            section: 'Make the sponge',
+            confidence: 1,
+          },
+          {
+            stepOrder: 2,
+            title: 'Cook the cream',
+            instruction: '',
+            section: 'Make the cream',
+            confidence: 1,
+          },
+          {
+            stepOrder: 3,
+            title: 'Spread the cream',
+            instruction: '',
+            section: ' Assemble the cake ',
+            confidence: 1,
+          },
+        ],
+      }),
+    );
+    expect(recipe.steps.map((s) => s.section)).toEqual([
+      'Make the sponge',
+      'Make the cream',
+      'Assemble the cake',
+    ]);
+  });
+
+  it('drops a heading every row shares', () => {
+    const rows = [{ g: 'Ingredients:' }, { g: 'Ingredients' }];
+    expect(
+      tidyHeadings(
+        rows,
+        (r) => r.g,
+        (_r, g) => g,
+      ),
+    ).toEqual([null, null]);
+    expect(
+      tidyHeadings(
+        [{ g: null }, { g: 'For the glaze' }],
+        (r) => r.g,
+        (_r, g) => g,
+      ),
+    ).toEqual([null, 'For the glaze']);
   });
 });
 
 describe('inferred seasonings', () => {
   const steps = [
-    { stepOrder: 1, title: 'Cook', instruction: 'Cook with a pinch of salt and black pepper.', confidence: 1 },
+    {
+      stepOrder: 1,
+      title: 'Cook',
+      instruction: 'Cook with a pinch of salt and black pepper.',
+      confidence: 1,
+    },
   ];
 
   it('adds salt and pepper named in the method but missing from the list', () => {
@@ -101,7 +171,9 @@ describe('inferred seasonings', () => {
     const added = withInferredSeasonings(
       extracted({
         ingredients: [{ name: 'eggs', quantity: '2', confidence: 1 }],
-        steps: [{ stepOrder: 1, title: 'Chop', instruction: 'Chop the bell pepper.', confidence: 1 }],
+        steps: [
+          { stepOrder: 1, title: 'Chop', instruction: 'Chop the bell pepper.', confidence: 1 },
+        ],
       }),
     );
     expect(added).toHaveLength(1);
@@ -113,7 +185,9 @@ describe('inferred seasonings', () => {
     );
     const salt = recipe.ingredients.find((i) => i.name === 'Salt');
     expect(salt).toMatchObject({ optional: true, unit: 'pinch', quantity: null });
-    expect((recipe.warnings as Array<{ field: string }>).filter((w) => w.field === 'Salt')).toEqual([]);
+    expect((recipe.warnings as Array<{ field: string }>).filter((w) => w.field === 'Salt')).toEqual(
+      [],
+    );
   });
 });
 
@@ -172,7 +246,9 @@ describe('servingsSanityWarnings', () => {
       }),
     );
     expect(recipe.calories).toBeNull();
-    expect((recipe.warnings as Array<{ code: string }>).some((w) => w.code === 'SERVINGS_SUSPECT')).toBe(true);
+    expect(
+      (recipe.warnings as Array<{ code: string }>).some((w) => w.code === 'SERVINGS_SUSPECT'),
+    ).toBe(true);
   });
 });
 
@@ -229,7 +305,9 @@ describe('RecipeValidator step/ingredient matching', () => {
     new RecipeValidator().validate(r).warnings.filter((w) => w.code === 'STEP_INGREDIENT_MISMATCH');
 
   it('trusts ingredientRefs', () => {
-    expect(mismatch(recipe({ steps: [step('Combine everything in a large bowl.', [0])] }))).toEqual([]);
+    expect(mismatch(recipe({ steps: [step('Combine everything in a large bowl.', [0])] }))).toEqual(
+      [],
+    );
   });
 
   it('matches the last word of a multi-word name', () => {
@@ -244,7 +322,9 @@ describe('RecipeValidator step/ingredient matching', () => {
   });
 
   it('still warns when nothing in the step relates to the list', () => {
-    expect(mismatch(recipe({ steps: [step('Preheat the oven and grease a tin.')] }))).toHaveLength(1);
+    expect(mismatch(recipe({ steps: [step('Preheat the oven and grease a tin.')] }))).toHaveLength(
+      1,
+    );
   });
 
   it('does not match short words by accident', () => {

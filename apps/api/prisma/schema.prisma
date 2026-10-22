@@ -409,6 +409,8 @@ model RecipeStep {
   stepOrder             Int
   /// Short imperative label. Null on recipes extracted before step titles existed.
   title                 String?
+  /// Part of the dish the step belongs to ("Make the sponge"); null when the method is not split
+  section               String?
   instruction           String
   durationMinutes       Int?
   temperature           String?
@@ -523,6 +525,7 @@ model RecipeRevisionStep {
   sourceId              String? @db.Uuid
   stepOrder             Int
   title                 String?
+  section               String?
   instruction           String
   durationMinutes       Int?
   temperature           String?

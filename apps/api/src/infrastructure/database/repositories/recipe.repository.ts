@@ -794,6 +794,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
                 create: target.steps.map((item) => ({
                   stepOrder: item.stepOrder,
                   title: item.title,
+                  section: item.section ?? null,
                   instruction: item.instruction,
                   durationMinutes: item.durationMinutes,
                   temperature: item.temperature,
@@ -1044,6 +1045,7 @@ export class PrismaRecipeRepository implements IRecipeRepository {
         id: step.id,
         stepOrder: step.stepOrder,
         title: step.title,
+        section: step.section ?? null,
         instruction: step.instruction,
         durationMinutes: step.durationMinutes,
         temperature: step.temperature,

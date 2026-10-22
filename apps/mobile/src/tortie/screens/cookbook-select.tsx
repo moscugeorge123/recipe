@@ -36,6 +36,8 @@ import { tw } from '@/tortie/ui/anim';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { em, sans, serif, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
+import { lazyAt, tNow } from '@/i18n/format';
 
 const LONG_PRESS_MS = 460;
 
@@ -246,10 +248,10 @@ export function SelMark({ on, grid }: { on: boolean; grid: boolean }) {
   );
 }
 
-const ACTS = [
-  ['library_add', 'Add to collection'],
-  ['add_shopping_cart', 'Add to groceries'],
-  ['ios_share', 'Share'],
+const ACTS: [string, string][] = [
+  lazyAt(['library_add', ''], 1, 'detail.addToCollection'),
+  lazyAt(['add_shopping_cart', ''], 1, 'common.addToGroceries'),
+  lazyAt(['ios_share', ''], 1, 'common.share'),
 ] as const;
 
 /**
@@ -257,6 +259,7 @@ const ACTS = [
  * (or fades, under reduced motion) when the mode is off.
  */
 export function CookbookSelectionBars() {
+  const t = useT();
   const f = useFrame();
   const { m, reduced } = useMotion();
   const ms = Math.round(520 * m);
@@ -385,7 +388,7 @@ export function CookbookSelectionBars() {
       >
         <Press
           onPress={() => useNav.getState().clearSel()}
-          accessibilityLabel="Cancel selection"
+          accessibilityLabel={t('common.cancelSelection')}
           scale={0.9}
           ms={200}
           easing={CSS_EASE}
@@ -406,7 +409,7 @@ export function CookbookSelectionBars() {
             { flex: 1, minWidth: 0 },
           ]}
         >
-          {n} selected
+          {tNow('common.selectedN', { n })}
         </T>
         <Press
           onPress={() => {
@@ -422,7 +425,7 @@ export function CookbookSelectionBars() {
           }}
         >
           <T style={sans(14, 700, C.green)}>
-            {all ? 'Deselect all' : 'Select all'}
+            {all ? t('common.deselectAll') : t('common.selectAll')}
           </T>
         </Press>
       </Animated.View>

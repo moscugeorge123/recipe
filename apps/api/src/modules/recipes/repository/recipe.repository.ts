@@ -37,6 +37,7 @@ export interface CreateRecipeIngredientInput {
 export interface CreateRecipeStepInput {
   stepOrder: number;
   title?: string | null;
+  section?: string | null;
   instruction: string;
   durationMinutes?: number | null;
   temperature?: string | null;
@@ -195,6 +196,7 @@ export interface EffectiveRecipeRecord {
     id: string;
     stepOrder: number;
     title: string | null;
+    section?: string | null;
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;
@@ -258,6 +260,7 @@ export interface RevisionSnapshotInput {
   steps: Array<{
     stepOrder: number;
     title?: string | null;
+    section?: string | null;
     instruction: string;
     durationMinutes: number | null;
     temperature: string | null;

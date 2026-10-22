@@ -11,6 +11,7 @@ import { C, EASE, SH } from '@/tortie/theme';
 import { Glyph } from '@/tortie/ui/icon';
 import { Press } from '@/tortie/ui/press';
 import { sans, T } from '@/tortie/ui/text';
+import { useT } from '@/i18n';
 
 /**
  * Bottom toast: translateY 90 → 0 (520ms EASE), opacity 300ms. Visible 2400ms (3800ms for
@@ -22,6 +23,7 @@ import { sans, T } from '@/tortie/ui/text';
  * is backgrounded), so a toast can never stay on screen.
  */
 export function ToastView() {
+  const tr = useT();
   const f = useFrame();
   const msg = useNav((s) => s.toast);
   const on = useNav((s) => s.toastOn);
@@ -82,7 +84,7 @@ export function ToastView() {
       <Press
         onPress={() => useNav.getState().toastHide()}
         scale={0.98}
-        accessibilityLabel="Dismiss message"
+        accessibilityLabel={tr('common.dismissMessage')}
         style={{
           flexDirection: 'row',
           alignItems: 'center',
