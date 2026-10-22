@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import {
+  Alert,
   Linking,
   ScrollView,
   View,
@@ -387,6 +388,7 @@ export function RecipeDetail() {
                         flex: 1,
                         flexDirection: 'row',
                         alignItems: 'flex-start',
+                        gap: 8,
                       }}
                     >
                       <T
@@ -1107,12 +1109,25 @@ export function RecipeMenuSheet() {
             <Press
               onPress={() => {
                 if (!id) return;
-                useNav.getState().set({
-                  menu: false,
-                  menuBulk: false,
-                  detailOpen: false,
-                });
-                del.mutate(id);
+                Alert.alert(
+                  'Delete this recipe?',
+                  'This can’t be undone.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    {
+                      text: 'Delete',
+                      style: 'destructive',
+                      onPress: () => {
+                        useNav.getState().set({
+                          menu: false,
+                          menuBulk: false,
+                          detailOpen: false,
+                        });
+                        del.mutate(id);
+                      },
+                    },
+                  ],
+                );
               }}
               style={{
                 marginTop: 10,

@@ -2,6 +2,7 @@ import type { ExtractionJob, JobStatus, Prisma } from '@prisma/client';
 
 import type { AppLogger } from '../../../infrastructure/logging/logger.js';
 import { silentLogger } from '../../../infrastructure/logging/logger.js';
+import { tracePhotoImport } from '../../../infrastructure/logging/photo-import-trace.js';
 import { assertSafeUrl } from '../../../infrastructure/security/ssrf-guard.js';
 import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
 import { AppError } from '../../../shared/errors/app-error.js';
@@ -133,6 +134,27 @@ export class ExtractionJobService {
     userId: string,
     input: CreatePhotoJobInput,
   ): Promise<CreateExtractionJobResult> {
+    const pages = input.images.map((data, position) => ({
+      index: position + 1,
+      bytes: data.byteLength,
+    }));
+    try {
+      return await this.storeAndQueuePhotoJob(userId, input);
+    } catch (error: unknown) {
+      tracePhotoImport({
+        step: 'photo.intake',
+        phase: 'failed',
+        data: { userId, outputLanguage: input.outputLanguage ?? 'en', pages },
+        error,
+      });
+      throw error;
+    }
+  }
+
+  private async storeAndQueuePhotoJob(
+    userId: string,
+    input: CreatePhotoJobInput,
+  ): Promise<CreateExtractionJobResult> {
     if (!this.storage) {
       throw new AppError({
         code: ErrorCode.SERVICE_UNAVAILABLE,
@@ -170,11 +192,19 @@ export class ExtractionJobService {
 
     const importId = newPhotoImportId();
     const originalUrl = buildPhotoSourceUrl(importId, types);
-    for (const [position, data] of input.images.entries()) {
+    const storedPages = input.images.map((data, position) => {
       const type = types[position] as PhotoMimeType;
-      await this.storage.upload(photoStorageKey(importId, position + 1, type), data, {
-        contentType: type,
-      });
+      return {
+        index: position + 1,
+        bytes: data.byteLength,
+        mimeType: type,
+        storageKey: photoStorageKey(importId, position + 1, type),
+      };
+    });
+    for (const [position, data] of input.images.entries()) {
+      const page = storedPages[position];
+      if (!page) continue;
+      await this.storage.upload(page.storageKey, data, { contentType: page.mimeType });
     }
 
     const normalizedUrl = originalUrl;
@@ -195,6 +225,18 @@ export class ExtractionJobService {
       { step: 'queue.enqueue', jobId: job.id, sourceType: 'PHOTO', pages: input.images.length },
       'queue.enqueue completed',
     );
+    tracePhotoImport({
+      jobId: job.id,
+      step: 'photo.intake',
+      phase: 'completed',
+      data: {
+        userId,
+        importId,
+        sourceUrl: originalUrl,
+        outputLanguage: input.outputLanguage ?? 'en',
+        pages: storedPages,
+      },
+    });
 
     return { jobId: job.id, status: 'queued' };
   }

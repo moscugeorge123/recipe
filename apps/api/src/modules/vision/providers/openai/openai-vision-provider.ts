@@ -10,6 +10,7 @@ import {
 import { openAIErrorFields } from '../../../../infrastructure/ai/llm/openai-provider.js';
 import type { AIUsageTracker } from '../../../../infrastructure/ai/usage/ai-usage-tracker.js';
 import { silentLogger, type AppLogger } from '../../../../infrastructure/logging/logger.js';
+import { tracePhotoImport } from '../../../../infrastructure/logging/photo-import-trace.js';
 import type {
   ImageInput,
   VisionAnalysis,
@@ -114,6 +115,7 @@ export class OpenAIVisionProvider implements VisionProvider {
           { ...fields, durationMs: Date.now() - startedAt, ...openAIErrorFields(error), err: error },
           'ai.vision.call failed',
         );
+        this.tracePhoto('failed', { ...fields, durationMs: Date.now() - startedAt }, error);
         throw error;
       }
 
@@ -129,23 +131,30 @@ export class OpenAIVisionProvider implements VisionProvider {
       };
       if (!content?.trim()) {
         this.log.warn(resultFields, 'ai.vision.call returned no content; image skipped');
+        this.tracePhoto('completed', { ...resultFields, modelResponse: content ?? null, observations: [] });
         continue;
       }
 
       let parsed: { observations: VisionObservation[] };
       try {
         parsed = JSON.parse(content) as { observations: VisionObservation[] };
-      } catch {
+      } catch (error: unknown) {
         this.log.warn(
           { ...resultFields, responseSnippet: content.slice(0, 300) },
           'ai.vision.call returned invalid JSON; image skipped',
         );
+        this.tracePhoto('failed', { ...resultFields, modelResponse: content }, error);
         continue;
       }
       this.log.info(
         { ...resultFields, observations: parsed.observations.length },
         'ai.vision.call completed',
       );
+      this.tracePhoto('completed', {
+        ...resultFields,
+        modelResponse: content,
+        observations: parsed.observations,
+      });
 
       if (this.usageTracker && this.jobId) {
         await this.usageTracker.track({
@@ -167,6 +176,18 @@ export class OpenAIVisionProvider implements VisionProvider {
     }
 
     return results;
+  }
+
+  /** Picture imports keep each vision reply. Other sources do not. */
+  private tracePhoto(phase: 'completed' | 'failed', data: unknown, error?: unknown): void {
+    if (this.log.bindings().sourceType !== 'PHOTO') return;
+    tracePhotoImport({
+      ...(this.jobId ? { jobId: this.jobId } : {}),
+      step: 'ai.vision.call',
+      phase,
+      data,
+      ...(error !== undefined ? { error } : {}),
+    });
   }
 }
 

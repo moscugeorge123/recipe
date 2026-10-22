@@ -2,6 +2,7 @@ import OpenAI from 'openai';
 
 import type { AppConfig } from '../../../config/env.js';
 import { silentLogger, type AppLogger } from '../../logging/logger.js';
+import { tracePhotoImport } from '../../logging/photo-import-trace.js';
 import type { AIUsageTracker } from '../usage/ai-usage-tracker.js';
 import {
   createChatClient,
@@ -96,6 +97,7 @@ export class OpenAIProvider implements LLMProvider {
           { ...fields, durationMs: Date.now() - startedAt, ...openAIErrorFields(error), err: error },
           'ai.llm failed',
         );
+        this.tracePhoto('failed', { ...fields, messages: input.messages }, error);
         throw error;
       }
 
@@ -119,7 +121,9 @@ export class OpenAIProvider implements LLMProvider {
           { ...resultFields, refusal: choice?.message.refusal ?? null },
           'ai.llm failed: empty response',
         );
-        throw new Error(`${isDeepSeek ? 'DeepSeek' : 'OpenAI'} returned empty response`);
+        const empty = new Error(`${isDeepSeek ? 'DeepSeek' : 'OpenAI'} returned empty response`);
+        this.tracePhoto('failed', { ...resultFields, messages: input.messages, modelResponse: content }, empty);
+        throw empty;
       }
 
       if (choice?.finish_reason === 'length') {
@@ -157,6 +161,11 @@ export class OpenAIProvider implements LLMProvider {
             : 'ai.llm failed: response is not valid JSON',
         );
         if (retriesLeft <= 0) {
+          this.tracePhoto(
+            'failed',
+            { ...resultFields, messages: input.messages, modelResponse: content },
+            error,
+          );
           throw error;
         }
       }
@@ -170,6 +179,12 @@ export class OpenAIProvider implements LLMProvider {
       { ...resultFields, ...ingredientOutput(input, content) },
       'ai.llm completed',
     );
+    this.tracePhoto('completed', {
+      ...resultFields,
+      messages: input.messages,
+      modelResponse: content,
+      parsed: data,
+    });
 
     return {
       data,
@@ -177,6 +192,18 @@ export class OpenAIProvider implements LLMProvider {
       usage,
       durationMs,
     };
+  }
+
+  /** Picture imports record the prompt and the model's full reply. Other sources do not. */
+  private tracePhoto(phase: 'completed' | 'failed', data: unknown, error?: unknown): void {
+    if (this.log.bindings().sourceType !== 'PHOTO') return;
+    tracePhotoImport({
+      ...(this.jobId ? { jobId: this.jobId } : {}),
+      step: 'ai.llm',
+      phase,
+      data,
+      ...(error !== undefined ? { error } : {}),
+    });
   }
 }
 

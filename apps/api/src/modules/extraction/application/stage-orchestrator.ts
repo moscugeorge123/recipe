@@ -7,6 +7,11 @@ import { AIUsageTracker } from '../../../infrastructure/ai/usage/ai-usage-tracke
 import { DEFAULT_PRICING } from '../../../infrastructure/ai/usage/pricing.js';
 import { silentLogger, type AppLogger } from '../../../infrastructure/logging/logger.js';
 import { logStep } from '../../../infrastructure/logging/log-step.js';
+import {
+  tracePhotoImport,
+  type PhotoImportTracePhase,
+} from '../../../infrastructure/logging/photo-import-trace.js';
+import { isPhotoSourceUrl } from '../../content/providers/photo/photo-source.js';
 import { DEFAULT_PROFILE_ID } from '../../profiles/domain/profile.js';
 import type { StorageProvider } from '../../../infrastructure/storage/storage-provider.js';
 import { isAppError } from '../../../shared/errors/app-error.js';
@@ -94,6 +99,16 @@ export class StageOrchestrator {
   async runStages(ctx: PipelineContext): Promise<void> {
     const log = this.log.child({ jobId: ctx.jobId });
     let previousStatus: JobStatus | undefined;
+    const traceStage = (phase: PhotoImportTracePhase, data: Record<string, unknown>, error?: unknown): void => {
+      if (!isPhotoSourceUrl(ctx.sourceUrl)) return;
+      tracePhotoImport({
+        jobId: ctx.jobId,
+        step: 'pipeline.stage',
+        phase,
+        data,
+        ...(error !== undefined ? { error } : {}),
+      });
+    };
 
     for (const stage of PIPELINE_STAGE_ORDER) {
       let job = await this.jobRepo.findById(ctx.jobId);
@@ -102,6 +117,7 @@ export class StageOrchestrator {
           { step: 'pipeline.stage', stage, status: job?.status ?? 'missing' },
           'pipeline.execute stopped',
         );
+        traceStage('skipped', { stage, status: job?.status ?? 'missing', stopped: true });
         return;
       }
 
@@ -112,6 +128,7 @@ export class StageOrchestrator {
             { step: 'pipeline.stage', stage, status: job.status },
             'pipeline.execute stopped',
           );
+          traceStage('skipped', { stage, status: job.status, stopped: true });
           return;
         }
         this.stateMachine.assertTransition('FAILED', resume.status);
@@ -124,6 +141,7 @@ export class StageOrchestrator {
           { step: 'pipeline.stage', stage: resume.stage, status: resume.status },
           'pipeline.execute resumed',
         );
+        traceStage('started', { stage: resume.stage, status: resume.status, resumed: true });
       }
 
       ctx.options = parseJobOptions(job.options);
@@ -131,6 +149,7 @@ export class StageOrchestrator {
       const existing = await this.stageRepo.findByJobAndStage(ctx.jobId, stage);
       if (existing?.status === 'COMPLETED') {
         log.info({ step: 'pipeline.stage', stage, skipped: true }, 'pipeline.stage skipped');
+        traceStage('skipped', { stage, reason: 'already completed' });
         previousStatus = AFTER_STAGE_STATUS[stage] ?? STAGE_TO_JOB_STATUS[stage];
         continue;
       }
@@ -165,6 +184,7 @@ export class StageOrchestrator {
 
       const stageStartedMs = Date.now();
       log.info({ step: 'pipeline.stage', stage, status: runningStatus }, 'pipeline.stage started');
+      traceStage('started', { stage, status: runningStatus });
 
       try {
         const handler = this.handlers[stage];
@@ -186,6 +206,11 @@ export class StageOrchestrator {
           { step: 'pipeline.stage', stage, durationMs: Date.now() - stageStartedMs },
           'pipeline.stage completed',
         );
+        traceStage('completed', {
+          stage,
+          durationMs: Date.now() - stageStartedMs,
+          state: photoImportState(ctx),
+        });
 
         const afterStatus = AFTER_STAGE_STATUS[stage];
         if (afterStatus === 'COMPLETED') {
@@ -199,6 +224,12 @@ export class StageOrchestrator {
             { step: 'pipeline.job', status: 'COMPLETED', recipeId: ctx.recipeId ?? null },
             'pipeline.job completed',
           );
+          traceStage('completed', {
+            stage,
+            status: 'COMPLETED',
+            recipeId: ctx.recipeId ?? null,
+            state: photoImportState(ctx),
+          });
           return;
         }
 
@@ -240,6 +271,18 @@ export class StageOrchestrator {
             err: error,
           },
           'pipeline.stage failed',
+        );
+        traceStage(
+          'failed',
+          {
+            stage,
+            durationMs: Date.now() - stageStartedMs,
+            errorCode: serialized.code ?? null,
+            errorMessage: serialized.message,
+            errorCause: serialized.cause ?? null,
+            state: photoImportState(ctx),
+          },
+          error,
         );
 
         throw error;
@@ -379,6 +422,7 @@ export function createDefaultStageHandlers(
         ctx.jobId,
         ctx.outputLanguage,
       );
+      tracePhotoStep(ctx, 'content.acquire', ctx.acquiredContent);
       log.child({ jobId: ctx.jobId }).info(
         { step: 'content.acquire', ...summarizeAcquiredContent(ctx.acquiredContent) },
         'content.acquire summary',
@@ -443,6 +487,7 @@ export function createDefaultStageHandlers(
         }
       }
       ctx.evidence = evidence;
+      tracePhotoStep(ctx, 'evidence.build', evidence);
       jobLog.info(
         { step: 'evidence.build', restored, ...summarizeEvidence(evidence) },
         restored ? 'evidence.build restored' : 'evidence.build completed',
@@ -487,7 +532,12 @@ export function createDefaultStageHandlers(
         DEFAULT_PRICING,
         job.requestedByUserId ?? undefined,
       );
-      const ai = createAIProviders(deps.config, usageTracker, ctx.jobId, jobLog);
+      const ai = createAIProviders(
+        deps.config,
+        usageTracker,
+        ctx.jobId,
+        isPhotoSourceUrl(ctx.sourceUrl) ? jobLog.child({ sourceType: 'PHOTO' }) : jobLog,
+      );
 
       const classifier = createRecipeClassifier(ai.llm, {
         useLlm: Boolean(deps.config.ai.llmApiKey),
@@ -507,6 +557,7 @@ export function createDefaultStageHandlers(
             url: ctx.sourceUrl,
           }),
       );
+      tracePhotoStep(ctx, 'ai.classify-recipe', classification);
       jobLog.info(
         {
           step: 'ai.classify-recipe',
@@ -536,6 +587,7 @@ export function createDefaultStageHandlers(
             outputLanguage: ctx.outputLanguage,
           }),
       );
+      tracePhotoStep(ctx, 'ai.extract-recipe', { promptVersion, recipe: extracted, rawExtraction });
       jobLog.info(
         {
           step: 'ai.extract-recipe',
@@ -553,6 +605,7 @@ export function createDefaultStageHandlers(
       );
 
       const normalized = recipeNormalizer.normalize(extracted, ctx.outputLanguage);
+      tracePhotoStep(ctx, 'recipe.normalize', normalized);
       jobLog.info(
         {
           step: 'recipe.normalize',
@@ -581,6 +634,12 @@ export function createDefaultStageHandlers(
       const validation = recipeValidator.validate(normalized);
       normalized.warnings = validation.warnings as unknown as Prisma.InputJsonValue;
       normalized.confidence = confidenceCalculator.calculate(normalized);
+      tracePhotoStep(ctx, 'recipe.validate', {
+        valid: validation.valid,
+        warnings: validation.warnings,
+        confidence: normalized.confidence,
+        recipe: normalized,
+      });
       jobLog.info(
         {
           step: 'recipe.validate',
@@ -729,6 +788,7 @@ export function createDefaultStageHandlers(
 
       ctx.recipeId = recipe.id;
       await deps.jobRepo.update(ctx.jobId, { recipeId: recipe.id });
+      tracePhotoStep(ctx, 'recipe.persist', { recipeId: recipe.id, recipe: recipeFields });
       jobLog.info({ step: 'recipe.persist', recipeId: recipe.id }, 'recipe linked to job');
     },
 
@@ -785,6 +845,12 @@ export function createDefaultStageHandlers(
       );
 
       const validation = recipeValidator.validate(normalized);
+      tracePhotoStep(ctx, 'recipe.final-validate', {
+        recipeId,
+        valid: validation.valid,
+        warnings: validation.warnings,
+        recipe: normalized,
+      });
       log.child({ jobId: ctx.jobId }).info(
         {
           step: 'recipe.final-validate',
@@ -798,6 +864,34 @@ export function createDefaultStageHandlers(
       );
     },
   };
+}
+
+/** Everything a picture import has collected so far. Image bytes stay in storage. */
+function photoImportState(ctx: PipelineContext): Record<string, unknown> {
+  return {
+    sourceUrl: ctx.sourceUrl,
+    outputLanguage: ctx.outputLanguage,
+    options: ctx.options ?? null,
+    recipeId: ctx.recipeId ?? null,
+    acquiredContent: ctx.acquiredContent ?? null,
+    transcript: ctx.transcript
+      ? {
+          language: ctx.transcript.language,
+          source: ctx.transcript.source,
+          fullText: ctx.transcript.fullText,
+          segments: ctx.transcript.segments,
+          provider: ctx.transcript.provider,
+        }
+      : null,
+    ocrResults: ctx.ocrResults ?? null,
+    visionAnalyses: ctx.visionAnalyses ?? null,
+    evidence: ctx.evidence ?? null,
+  };
+}
+
+function tracePhotoStep(ctx: PipelineContext, step: string, data: unknown): void {
+  if (!isPhotoSourceUrl(ctx.sourceUrl)) return;
+  tracePhotoImport({ jobId: ctx.jobId, step, phase: 'completed', data });
 }
 
 function summarizeAcquiredContent(content: AcquiredContent): Record<string, unknown> {

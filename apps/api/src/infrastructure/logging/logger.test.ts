@@ -13,6 +13,7 @@ import {
   IMPORT_LOG_FILE,
   isJobLogLine,
 } from './logger.js';
+import { configurePhotoImportTrace } from './photo-import-trace.js';
 
 /** Non-test environments default to Firebase auth, which needs a project id. */
 const load = (env: NodeJS.ProcessEnv) =>
@@ -117,6 +118,7 @@ describe('createLogger', () => {
   const dirs: string[] = [];
 
   afterEach(async () => {
+    configurePhotoImportTrace(undefined);
     await Promise.all(dirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
   });
 

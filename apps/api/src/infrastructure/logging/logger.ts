@@ -12,6 +12,7 @@ const require = createRequire(import.meta.url);
 import type { FastifyRequest, FastifyServerOptions } from 'fastify';
 
 import type { AppConfig } from '../../config/env.js';
+import { configurePhotoImportTrace } from './photo-import-trace.js';
 
 /** Exactly the object Fastify accepts for its `logger` option, minus the `boolean` shorthand. */
 export type LoggerOptions = Exclude<NonNullable<FastifyServerOptions['logger']>, boolean>;
@@ -200,6 +201,7 @@ export async function createLogger(
   config: AppConfig,
   loggerOptions: CreateLoggerOptions = {},
 ): Promise<AppLogger> {
+  configurePhotoImportTrace(config.nodeEnv === 'test' ? undefined : config.logging.directory);
   const options = buildLoggerOptions(config, loggerOptions);
   const streams = await buildLogStreams(config);
   if (streams.length === 0) {

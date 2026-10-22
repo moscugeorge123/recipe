@@ -13,6 +13,7 @@ import {
 } from '../../../../infrastructure/ai/llm/openai-provider.js';
 import type { AIUsageTracker } from '../../../../infrastructure/ai/usage/ai-usage-tracker.js';
 import { silentLogger, type AppLogger } from '../../../../infrastructure/logging/logger.js';
+import { tracePhotoImport } from '../../../../infrastructure/logging/photo-import-trace.js';
 import type { ImageInput, OCRProvider, OCRResult } from '../../domain/types.js';
 
 const OCR_SCHEMA = {
@@ -96,6 +97,7 @@ export class LLMVisionOCRProvider implements OCRProvider {
         { ...fields, durationMs: Date.now() - startedAt, ...openAIErrorFields(error), err: error },
         'ai.ocr.call failed',
       );
+      this.tracePhoto('failed', { ...fields, durationMs: Date.now() - startedAt }, error);
       throw error;
     });
 
@@ -131,6 +133,7 @@ export class LLMVisionOCRProvider implements OCRProvider {
     } else {
       this.log.info(resultFields, 'ai.ocr.call completed');
     }
+    this.tracePhoto('completed', { ...resultFields, text: parsed.text, modelResponse: content ?? null });
 
     return {
       text: parsed.text,
@@ -139,6 +142,18 @@ export class LLMVisionOCRProvider implements OCRProvider {
       provider: { name: 'llm-vision', model: this.model },
       ...originFields(image),
     };
+  }
+
+  /** Picture imports keep the model's full reply in the photo-import log. Other sources do not. */
+  private tracePhoto(phase: 'completed' | 'failed', data: unknown, error?: unknown): void {
+    if (this.log.bindings().sourceType !== 'PHOTO') return;
+    tracePhotoImport({
+      ...(this.jobId ? { jobId: this.jobId } : {}),
+      step: 'ai.ocr.call',
+      phase,
+      data,
+      ...(error !== undefined ? { error } : {}),
+    });
   }
 }
 

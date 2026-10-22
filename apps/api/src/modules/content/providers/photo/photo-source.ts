@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 
 export const PHOTO_URL_SCHEME = 'photo:';
 
+export function isPhotoSourceUrl(url: string | undefined): boolean {
+  return typeof url === 'string' && url.toLowerCase().startsWith(`${PHOTO_URL_SCHEME}//`);
+}
+
 export type PhotoMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 
 const EXTENSIONS: Record<PhotoMimeType, string> = {

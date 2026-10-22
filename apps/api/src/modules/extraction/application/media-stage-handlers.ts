@@ -8,6 +8,8 @@ import { AIUsageTracker } from '../../../infrastructure/ai/usage/ai-usage-tracke
 import { DEFAULT_PRICING } from '../../../infrastructure/ai/usage/pricing.js';
 import { silentLogger } from '../../../infrastructure/logging/logger.js';
 import { logStep } from '../../../infrastructure/logging/log-step.js';
+import { tracePhotoImport } from '../../../infrastructure/logging/photo-import-trace.js';
+import { isPhotoSourceUrl } from '../../content/providers/photo/photo-source.js';
 import type { ContentVideo } from '../../content/domain/types.js';
 import { parseJobOptions } from '../../jobs/domain/job-options.js';
 import type { MediaAssetOrigin } from '../../media/application/media-processing.service.js';
@@ -45,12 +47,17 @@ export function createMediaStageHandlers(
   const log = deps.log ?? silentLogger();
   const cfg = deps.config.extraction;
 
-  const aiFor = (jobId: string): AIProviders =>
+  const aiFor = (ctx: { jobId: string; sourceUrl: string; acquiredContent?: { sourceType?: string } }): AIProviders =>
     createAIProviders(
       deps.config,
       new AIUsageTracker(deps.aiUsageRepo, DEFAULT_PRICING),
-      jobId,
-      log.child({ jobId }),
+      ctx.jobId,
+      log.child({
+        jobId: ctx.jobId,
+        ...(ctx.acquiredContent?.sourceType === 'PHOTO' || isPhotoSourceUrl(ctx.sourceUrl)
+          ? { sourceType: 'PHOTO' as const }
+          : {}),
+      }),
     );
 
   return {
@@ -111,6 +118,15 @@ export function createMediaStageHandlers(
           jobId: ctx.jobId,
           images: slideImages,
         });
+        tracePhoto(ctx, 'media.process-images', {
+          requested: slideImages.map((image) => ({
+            slideIndex: image.slideIndex,
+            mimeType: image.mimeType ?? null,
+            storageKey: image.storageKey ?? null,
+            url: image.url,
+          })),
+          storedKeys: stored,
+        });
         jobLog.info(
           { step: 'media.process-images', requested: slideImages.length, stored: stored.length },
           'media.process-images completed',
@@ -166,7 +182,7 @@ export function createMediaStageHandlers(
         return;
       }
 
-      const ai = aiFor(ctx.jobId);
+      const ai = aiFor(ctx);
       const parts: Array<{ slideIndex?: number; transcript: Transcript }> = [];
 
       for (const audioAsset of audioAssets) {
@@ -223,6 +239,13 @@ export function createMediaStageHandlers(
       if (merged) {
         ctx.transcript = merged;
       }
+      tracePhoto(ctx, 'ai.transcribe', {
+        language: merged?.language ?? null,
+        source: merged?.source ?? null,
+        fullText: merged?.fullText ?? null,
+        segments: merged?.segments ?? [],
+        provider: merged?.provider ?? null,
+      });
       jobLog.info(
         {
           step: 'ai.transcribe',
@@ -251,7 +274,7 @@ export function createMediaStageHandlers(
         : cfg.visionMaxImages;
       const selected = sampleEvenly(visuals, limit);
       const jobLog = log.child({ jobId: ctx.jobId });
-      const ai = aiFor(ctx.jobId);
+      const ai = aiFor(ctx);
 
       const results = await mapWithConcurrency(selected, cfg.mediaAiConcurrency, async (visual) => {
         const existing = await deps.visionRepo.findByMediaAssetId(visual.asset.id);
@@ -283,11 +306,27 @@ export function createMediaStageHandlers(
           return analysis;
         } catch (error: unknown) {
           jobLog.warn({ step: 'ai.vision', mediaKind: visual.mediaKind, err: error }, 'ai.vision skipped image');
+          tracePhotoFailure(ctx, 'ai.vision', {
+            storageKey: visual.asset.storageKey,
+            mediaKind: visual.mediaKind,
+            slideIndex: visual.slideIndex ?? null,
+          }, error);
           return undefined;
         }
       });
 
       ctx.visionAnalyses = results.filter((r): r is VisionAnalysis => r !== undefined);
+      tracePhoto(ctx, 'ai.vision', {
+        available: visuals.length,
+        selected: selected.map((visual) => ({
+          storageKey: visual.asset.storageKey,
+          mimeType: visual.asset.mimeType,
+          mediaKind: visual.mediaKind,
+          slideIndex: visual.slideIndex ?? null,
+          timestampSeconds: visual.timestampSeconds ?? null,
+        })),
+        analyses: ctx.visionAnalyses,
+      });
       jobLog.info(
         {
           step: 'ai.vision',
@@ -315,18 +354,34 @@ export function createMediaStageHandlers(
       );
       const selected = sortVisuals([...images, ...frames]);
       const jobLog = log.child({ jobId: ctx.jobId });
-      const ai = aiFor(ctx.jobId);
+      const ai = aiFor(ctx);
 
       const results = await mapWithConcurrency(selected, cfg.mediaAiConcurrency, async (visual) => {
+        const page = {
+          storageKey: visual.asset.storageKey,
+          mimeType: visual.asset.mimeType,
+          bytes: Number(visual.asset.sizeBytes),
+          mediaKind: visual.mediaKind,
+          slideIndex: visual.slideIndex ?? null,
+          timestampSeconds: visual.timestampSeconds ?? null,
+        };
         const existing = await deps.ocrRepo.findByMediaAssetId(visual.asset.id);
         if (existing[0]) {
-          return {
+          const reused = {
             text: existing[0].text,
             confidence: existing[0].confidence,
             boundingBoxes: existing[0].boundingBoxes as Prisma.InputJsonValue,
             provider: existing[0].provider as Prisma.InputJsonValue,
             ...originOf(visual),
           } satisfies OCRResult;
+          tracePhoto(ctx, 'ai.ocr', {
+            ...page,
+            reused: true,
+            text: reused.text,
+            confidence: reused.confidence,
+            provider: reused.provider,
+          });
+          return reused;
         }
 
         try {
@@ -345,9 +400,19 @@ export function createMediaStageHandlers(
             boundingBoxes: ocrResult.boundingBoxes,
             provider: ocrResult.provider,
           });
-          return { ...ocrResult, ...originOf(visual) };
+          const read = { ...ocrResult, ...originOf(visual) };
+          tracePhoto(ctx, 'ai.ocr', {
+            ...page,
+            bytes: data.byteLength,
+            text: read.text,
+            confidence: read.confidence,
+            boundingBoxes: read.boundingBoxes,
+            provider: read.provider,
+          });
+          return read;
         } catch (error: unknown) {
           jobLog.warn({ step: 'ai.ocr', mediaKind: visual.mediaKind, err: error }, 'ai.ocr skipped image');
+          tracePhotoFailure(ctx, 'ai.ocr', page, error);
           return undefined;
         }
       });
@@ -441,6 +506,25 @@ async function loadVisualAssets(
   ];
 
   return sortVisuals(visuals);
+}
+
+function tracePhoto(
+  ctx: { jobId: string; sourceUrl: string; acquiredContent?: { sourceType?: string } },
+  step: string,
+  data: unknown,
+): void {
+  if (ctx.acquiredContent?.sourceType !== 'PHOTO' && !isPhotoSourceUrl(ctx.sourceUrl)) return;
+  tracePhotoImport({ jobId: ctx.jobId, step, phase: 'completed', data });
+}
+
+function tracePhotoFailure(
+  ctx: { jobId: string; sourceUrl: string; acquiredContent?: { sourceType?: string } },
+  step: string,
+  data: unknown,
+  error: unknown,
+): void {
+  if (ctx.acquiredContent?.sourceType !== 'PHOTO' && !isPhotoSourceUrl(ctx.sourceUrl)) return;
+  tracePhotoImport({ jobId: ctx.jobId, step, phase: 'failed', data, error });
 }
 
 function originOf(visual: VisualAsset): Pick<OCRResult, 'mediaKind' | 'slideIndex' | 'timestampSeconds'> {
