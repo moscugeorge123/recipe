@@ -550,26 +550,28 @@ export function importErrorCodeOf(error: unknown): string | undefined {
 export function importFailureToast(
   code: string | undefined,
   source?: string,
-  fallback = 'Couldn’t read a recipe from that link',
+  fallback = tNow('err.generic'),
 ): string {
   switch (code) {
     case 'NOT_A_RECIPE':
-      return 'That link doesn’t look like a food recipe';
+      return tNow('err.notRecipe');
     case 'UNSUPPORTED_SOURCE':
-      return `${source ? `${source} links` : 'That kind of link'} can’t be imported yet — try a recipe website, Instagram or YouTube`;
+      return source
+        ? tNow('toast.unsupportedLinks', { source })
+        : tNow('toast.unsupportedKind');
     case 'INVALID_URL':
-      return 'That doesn’t look like a valid link — check the address';
+      return tNow('toast.invalidUrl');
     case 'HOST_NOT_FOUND':
-      return 'We couldn’t find that site. Check the address and try again';
+      return tNow('toast.hostNotFound');
     case 'BLOCKED':
-      return 'That site won’t let us read it — try another link';
+      return tNow('toast.blocked');
     case 'NOT_FOUND':
-      return 'That page isn’t there any more — check the link';
+      return tNow('toast.notFound');
     case 'CONTENT_ACQUISITION_FAILED':
-      return 'We couldn’t reach that link — check it and try again';
+      return tNow('err.cantOpen');
     case 'TOO_MANY_REQUESTS':
     case 'PROVIDER_RATE_LIMITED':
-      return 'That source is busy — wait a moment and try again';
+      return tNow('err.busy');
     default:
       return fallback;
   }
@@ -579,18 +581,18 @@ export function importFailureToast(
 export function scanFailureToast(code: string | undefined): string {
   switch (code) {
     case 'NOT_A_RECIPE':
-      return 'That photo doesn’t look like a recipe — try a clearer shot';
+      return tNow('toast.scanNotRecipe');
     case 'PAYLOAD_TOO_LARGE':
-      return 'That photo is too large — try a smaller one';
+      return tNow('toast.scanTooLarge');
     case 'UNSUPPORTED_MEDIA_TYPE':
-      return 'Use a JPEG, PNG or WebP photo';
+      return tNow('toast.scanUnsupportedType');
     case 'PHOTO_UNREADABLE':
-      return 'We couldn’t open that photo — try taking it again';
+      return tNow('toast.scanUnreadable');
     case 'TOO_MANY_REQUESTS':
     case 'PROVIDER_RATE_LIMITED':
-      return 'That’s a lot of scans — wait a moment and try again';
+      return tNow('toast.scanBusy');
     default:
-      return 'Couldn’t read a recipe from that photo — try again in good light';
+      return tNow('toast.scanGeneric');
   }
 }
 

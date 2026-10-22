@@ -398,7 +398,7 @@ export function ScanCamera() {
           <Press
             onPress={use}
             disabled={!imgOn}
-            accessibilityLabel="Read recipe"
+            accessibilityLabel={tr('scan.readRecipe')}
             scale={0.97}
             easing={CSS_EASE}
             style={{

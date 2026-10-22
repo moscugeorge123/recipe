@@ -281,7 +281,9 @@ export function RecipeDetail() {
               <T style={sans(14, 400, C.ink2)}>
                 {tNow('detail.by')}{' '}
                 <T style={sans(14, 700, C.ink)}>
-                  {host ? r.byline.replace(/^(by|de|por|par|von) /, '') : tr('detail.you')}
+                  {host
+                    ? r.byline.replace(/^(by|de|por|par|von) /, '')
+                    : tr('detail.you')}
                 </T>
               </T>
               {host && r.originalUrl ? (
@@ -1128,12 +1130,12 @@ export function RecipeMenuSheet() {
               onPress={() => {
                 if (!id) return;
                 Alert.alert(
-                  'Delete this recipe?',
-                  'This can’t be undone.',
+                  tr('detail.deleteThisRecipe'),
+                  tr('detail.cantBeUndone'),
                   [
-                    { text: 'Cancel', style: 'cancel' },
+                    { text: tr('auth.cancel'), style: 'cancel' },
                     {
-                      text: 'Delete',
+                      text: tr('notes.delete'),
                       style: 'destructive',
                       onPress: () => {
                         useNav.getState().set({
