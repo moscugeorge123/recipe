@@ -36,7 +36,7 @@ describe('inspectClipboard', () => {
     });
   });
 
-  test('offers other websites and hides unsupported social platforms', () => {
+  test('offers other websites and hides TikTok', () => {
     expect(
       inspectClipboard('https://www.seriouseats.com/pistachio-pasta'),
     ).toMatchObject({
@@ -50,9 +50,20 @@ describe('inspectClipboard', () => {
     expect(inspectClipboard('https://www.tiktok.com/@cook/video/1')).toEqual({
       kind: 'hidden',
     });
-    expect(inspectClipboard('https://facebook.com/reel/123')).toEqual({
-      kind: 'hidden',
+  });
+
+  test('offers Facebook posts, reels and short links', () => {
+    expect(inspectClipboard('https://facebook.com/reel/123')).toMatchObject({
+      kind: 'url',
+      source: 'Facebook',
     });
+    expect(inspectClipboard('https://fb.watch/abc123/')).toMatchObject({
+      kind: 'url',
+      source: 'Facebook',
+    });
+    expect(
+      inspectClipboard('https://m.facebook.com/story.php?story_fbid=1&id=2'),
+    ).toMatchObject({ kind: 'url', source: 'Facebook' });
   });
 
   test('offers long pasted text and multiline recipes', () => {

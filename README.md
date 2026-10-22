@@ -7,6 +7,7 @@ Nx monorepo for the Recipe (Mise) mobile app and extraction API.
 | **mobile** | `apps/mobile` | Expo SDK 57, React Native, TypeScript |
 | **api** | `apps/api` | Fastify, TypeScript, PostgreSQL, BullMQ |
 | **dashboard** | `apps/dashboard` | Vite, React, TypeScript |
+| **landing** | `apps/landing` | Vite, React, TypeScript — public presentation page with store links |
 
 ## What users get
 
@@ -51,6 +52,8 @@ npx nx run api:dev:worker
 
 npx nx run dashboard:dev:fixtures   # Import ledger with sample data
 npx nx dev dashboard                # Import ledger against the API
+
+npx nx dev landing                  # Tortie presentation page on :5174
 ```
 
 The worker process consumes the **extraction** queue. Preview/import HTTP stays on the API; media/AI jobs run on the worker.
@@ -109,7 +112,8 @@ npm run e2e -w mobile
 
 ## Known limitations
 
-- Facebook and TikTok extraction remain stubs (`UNSUPPORTED_SOURCE`).
+- TikTok extraction remains a stub (`UNSUPPORTED_SOURCE`). Facebook import needs `APIFY_API_TOKEN` (posts and photos) and `yt-dlp` (reels and videos); only public posts can be read.
+- Photo import reads up to six JPEG, PNG or WebP pages per scan (cookbook pages, recipe cards, handwriting). It needs an OpenAI/DeepSeek key for OCR; without one the job fails visibly.
 - No login yet; all devices talking to one API share the singleton profile.
 - Recipe detail **Original source** is still a “coming soon” toast; revision history and edit work.
 - You → Cooking history is a prototype stub.

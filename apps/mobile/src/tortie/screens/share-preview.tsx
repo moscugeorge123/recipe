@@ -50,8 +50,8 @@ export function SharePreview() {
       : (fromUrl ?? fromPreview);
   const host = hostOf(url);
   const brand = source && source.kind !== 'web' ? source.kind : null;
-  // TikTok and Facebook show a login wall to the preview fetcher, so its title ("TikTok -
-  // Make Your Day") says nothing about the link. Show only the source and the domain.
+  // TikTok shows a login wall to the preview fetcher, so its title ("TikTok - Make Your
+  // Day") says nothing about the link. Show only the source and the domain.
   const blocked = brand && supportOf(brand) === 'unsupported' ? source : null;
   const fetchedTitle = blocked ? '' : preview.data?.title?.trim() || '';
   const hintedTitle = blocked ? '' : hinted?.trim() || '';

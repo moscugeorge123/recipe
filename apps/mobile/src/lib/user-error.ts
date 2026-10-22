@@ -362,6 +362,25 @@ export function importFailureToast(
   }
 }
 
+/** Toast for a failed photo import, in the same one-or-two-line size as `importFailureToast`. */
+export function scanFailureToast(code: string | undefined): string {
+  switch (code) {
+    case 'NOT_A_RECIPE':
+      return 'That photo doesn’t look like a recipe — try a clearer shot';
+    case 'PAYLOAD_TOO_LARGE':
+      return 'That photo is too large — try a smaller one';
+    case 'UNSUPPORTED_MEDIA_TYPE':
+      return 'Use a JPEG, PNG or WebP photo';
+    case 'PHOTO_UNREADABLE':
+      return 'We couldn’t open that photo — try taking it again';
+    case 'TOO_MANY_REQUESTS':
+    case 'PROVIDER_RATE_LIMITED':
+      return 'That’s a lot of scans — wait a moment and try again';
+    default:
+      return 'Couldn’t read a recipe from that photo — try again in good light';
+  }
+}
+
 export function importErrorCopy(
   code: string | undefined,
   source?: string,

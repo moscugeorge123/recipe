@@ -11,6 +11,13 @@ export type ImportSrc = {
   host: string;
 };
 
+/** Photos of a cookbook page or handwritten card, read by the same importer as links. */
+export const SCAN_SRC: ImportSrc = {
+  kind: 'scan',
+  name: 'Scanned page',
+  host: 'Scanned page',
+};
+
 export type ImportStatus = 'running' | 'done' | 'failed';
 
 export type ImportJob = {

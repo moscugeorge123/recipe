@@ -8,6 +8,7 @@ import { StyleSheet, View, type ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import Svg, { Defs, Pattern, Rect } from 'react-native-svg';
 
+import { startPhotoImport } from '@/tortie/data/import-engine';
 import { useFrame } from '@/tortie/frame';
 import { useMotion } from '@/tortie/motion';
 import { toast, useNav } from '@/tortie/nav-store';
@@ -19,6 +20,8 @@ import { mono, sans, T } from '@/tortie/ui/text';
 
 const FROST = 'rgba(40,44,40,.55)';
 const CORNER = 34;
+/** Text stays legible at this quality and a page photo stays well under the API's 10 MB cap. */
+const PHOTO_QUALITY = 0.6;
 
 /** Full-bleed page scanner: opacity 0→1 (280ms) + scale 1.04→1 (520ms × m, EASE). */
 export function ScanCamera() {
@@ -77,7 +80,9 @@ export function ScanCamera() {
     setTimeout(() => setFlashOn(false), 90);
     setShot('none');
     try {
-      const pic = await ref.current?.takePictureAsync({ quality: 0.85 });
+      const pic = await ref.current?.takePictureAsync({
+        quality: PHOTO_QUALITY,
+      });
       if (pic?.uri && nonce.current === n) setShot(pic.uri);
     } catch {
       /* keeps the live feed behind "Looks good?", like the prototype's failed capture */
@@ -88,7 +93,7 @@ export function ScanCamera() {
     try {
       const res = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ['images'],
-        quality: 0.85,
+        quality: PHOTO_QUALITY,
       });
       const uri = res.canceled ? null : res.assets[0]?.uri;
       if (uri) {
@@ -101,13 +106,14 @@ export function ScanCamera() {
   };
 
   const close = () => useNav.getState().closeCam(true);
-  const use = () => {
-    useNav.getState().closeCam(true);
-    toast('Reading recipes from photos isn’t available yet');
-  };
-
   const hasShot = !!shot;
   const imgOn = !!shot && shot !== 'none';
+  const use = () => {
+    if (!imgOn) return;
+    // The sheet reopens on the running import, so its progress is the first thing seen.
+    useNav.setState({ addJobId: startPhotoImport([shot]) });
+    useNav.getState().closeCam(true);
+  };
   const showErr = err && !imgOn;
 
   const root = useAnimatedStyle(() => ({
@@ -389,6 +395,8 @@ export function ScanCamera() {
           </Frost>
           <Press
             onPress={use}
+            disabled={!imgOn}
+            accessibilityLabel="Read recipe"
             scale={0.97}
             easing={CSS_EASE}
             style={{

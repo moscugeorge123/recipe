@@ -17,7 +17,11 @@ export const PLATFORMS: { kind: Brand; name: string; re: RegExp }[] = [
   { kind: 'tiktok', name: 'TikTok', re: /tiktok\.com/i },
   { kind: 'youtube', name: 'YouTube', re: /youtube\.com|youtu\.be/i },
   { kind: 'pinterest', name: 'Pinterest', re: /pinterest\.|pin\.it/i },
-  { kind: 'facebook', name: 'Facebook', re: /facebook\.com|fb\.watch/i },
+  {
+    kind: 'facebook',
+    name: 'Facebook',
+    re: /facebook\.com|fb\.watch|(?:^|[/.@])fb\.com/i,
+  },
 ];
 
 const HTTP_IN_TEXT = /https?:\/\/[^\s<>"']+/i;

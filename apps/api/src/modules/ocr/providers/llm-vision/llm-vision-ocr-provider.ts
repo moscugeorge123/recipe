@@ -13,6 +13,7 @@ import {
 } from '../../../../infrastructure/ai/llm/openai-provider.js';
 import type { AIUsageTracker } from '../../../../infrastructure/ai/usage/ai-usage-tracker.js';
 import { silentLogger, type AppLogger } from '../../../../infrastructure/logging/logger.js';
+import { tracePhotoImport } from '../../../../infrastructure/logging/photo-import-trace.js';
 import type { ImageInput, OCRProvider, OCRResult } from '../../domain/types.js';
 
 const OCR_SCHEMA = {
@@ -96,6 +97,7 @@ export class LLMVisionOCRProvider implements OCRProvider {
         { ...fields, durationMs: Date.now() - startedAt, ...openAIErrorFields(error), err: error },
         'ai.ocr.call failed',
       );
+      this.tracePhoto('failed', { ...fields, durationMs: Date.now() - startedAt }, error);
       throw error;
     });
 
@@ -131,6 +133,7 @@ export class LLMVisionOCRProvider implements OCRProvider {
     } else {
       this.log.info(resultFields, 'ai.ocr.call completed');
     }
+    this.tracePhoto('completed', { ...resultFields, text: parsed.text, modelResponse: content ?? null });
 
     return {
       text: parsed.text,
@@ -140,10 +143,23 @@ export class LLMVisionOCRProvider implements OCRProvider {
       ...originFields(image),
     };
   }
+
+  /** Picture imports keep the model's full reply in the photo-import log. Other sources do not. */
+  private tracePhoto(phase: 'completed' | 'failed', data: unknown, error?: unknown): void {
+    if (this.log.bindings().sourceType !== 'PHOTO') return;
+    tracePhotoImport({
+      ...(this.jobId ? { jobId: this.jobId } : {}),
+      step: 'ai.ocr.call',
+      phase,
+      data,
+      ...(error !== undefined ? { error } : {}),
+    });
+  }
 }
 
 const OCR_SYSTEM_PROMPT = [
-  'Extract all readable text from this image (a recipe video frame, text overlay, or recipe card/slide).',
+  'Extract all readable text from this image (a recipe video frame, text overlay, recipe card/slide, or a photo of a cookbook page or handwritten recipe).',
+  'For handwriting, read each word carefully and give your best reading of unclear words instead of skipping them; leave out crossed-out text.',
   'Return the text exactly as shown, in reading order, preserving line breaks, list bullets, numbers, fractions and units (e.g. "1 ½ cups", "200 g", "350°F").',
   'Omit watermarks, usernames/handles, app UI chrome and like/share counters.',
   'Also return a confidence score between 0 and 1. If there is no readable text, return an empty string and confidence 0.',

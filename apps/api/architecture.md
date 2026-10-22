@@ -174,7 +174,8 @@ src/
       providers/
         instagram/                  # InstagramContentProvider
         youtube/                      # YouTubeContentProvider
-        facebook/                     # stub MVP
+        facebook/                     # FacebookContentProvider (Apify + yt-dlp)
+        photo/                        # PhotoContentProvider (uploaded pages)
         tiktok/                       # stub MVP
         generic/                      # GenericWebContentProvider
       registry/                     # ContentProviderRegistry
@@ -762,7 +763,9 @@ interface ContentProviderRegistry {
 | Instagram | Apify | Phase 5 |
 | YouTube | yt-dlp | Phase 5 |
 | Generic web | HTTP fetch | Phase 5 |
-| Facebook / TikTok | — | Stub (UnsupportedSourceError) |
+| Facebook | Apify Facebook Posts Scraper + yt-dlp (reels/videos) | Implemented (public posts only) |
+| Photo upload | `POST /recipes/extract/photos` → storage → OCR/vision | Implemented |
+| TikTok | — | Stub (UnsupportedSourceError) |
 
 ### Storage
 
@@ -972,7 +975,7 @@ Each phase ends with: tests pass, typecheck, lint, docs update.
 
 **Deferred post-MVP / remaining:**
 
-- Facebook/TikTok real implementations (stubs only)
+- TikTok real implementation (stub only)
 - Playwright for JS-rendered pages
 - Second AI validation pass
 - Semantic search

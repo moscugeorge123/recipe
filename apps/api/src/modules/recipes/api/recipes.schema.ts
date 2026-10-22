@@ -58,7 +58,7 @@ export const recipeCategorySchema = z.object({
 export const listRecipesQuerySchema = paginationQuerySchema.extend({
   q: z.string().trim().min(1).max(200).optional(),
   cuisine: z.string().trim().min(1).max(80).optional(),
-  sourceType: z.enum(['INSTAGRAM', 'YOUTUBE', 'FACEBOOK', 'TIKTOK', 'GENERIC_WEB']).optional(),
+  sourceType: z.enum(['INSTAGRAM', 'YOUTUBE', 'FACEBOOK', 'TIKTOK', 'GENERIC_WEB', 'PHOTO']).optional(),
   sort: z.enum(['latest', 'engagement']).default('latest'),
 });
 

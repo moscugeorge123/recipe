@@ -381,8 +381,11 @@ function DoneRow({ job }: { job: ImportJob }) {
 
 function FailedRow({ job }: { job: ImportJob }) {
   const group = job.group ?? 'generic';
-  const copy = importErrorCopy(group, brandNameOf(job.src));
-  const left = useCountdown(group === 'rate_limited' ? job.retryAt : undefined);
+  const scan = job.src.kind === 'scan';
+  const copy = importErrorCopy(group, brandNameOf(job.src), scan);
+  const left = useCountdown(
+    !scan && group === 'rate_limited' ? job.retryAt : undefined,
+  );
   const locked = left > 0;
   return (
     <View style={card()}>
@@ -415,7 +418,15 @@ function FailedRow({ job }: { job: ImportJob }) {
         </Press>
       </View>
       <Press
-        onPress={() => retryImport(job.id, { slow: true })}
+        onPress={() => {
+          if (!scan) {
+            retryImport(job.id, { slow: true });
+            return;
+          }
+          useImports.getState().remove(job.id);
+          useNav.getState().closeImports();
+          useNav.getState().openCam();
+        }}
         disabled={locked}
         scale={0.97}
         easing={CSS_EASE}
@@ -432,7 +443,7 @@ function FailedRow({ job }: { job: ImportJob }) {
         }}
       >
         <T style={sans(13, 700, locked ? C.ink3 : C.green)}>
-          {locked ? `Retry in ${left}s` : 'Retry'}
+          {locked ? `Retry in ${left}s` : scan ? 'Scan again' : 'Retry'}
         </T>
       </Press>
     </View>

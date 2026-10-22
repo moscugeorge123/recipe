@@ -6,7 +6,6 @@ import { InstagramContentProvider } from '../../../../src/modules/content/provid
 import type { VideoDownloadClient } from '../../../../src/modules/content/providers/youtube/ytdlp-client.js';
 import { YouTubeContentProvider } from '../../../../src/modules/content/providers/youtube/youtube-content-provider.js';
 import { GenericWebContentProvider } from '../../../../src/modules/content/providers/generic/generic-web-content-provider.js';
-import { FacebookContentProvider } from '../../../../src/modules/content/providers/facebook/facebook-content-provider.js';
 import { TikTokContentProvider } from '../../../../src/modules/content/providers/tiktok/tiktok-content-provider.js';
 import { ContentAcquisitionFailedError } from '../../../../src/shared/errors/extraction-errors.js';
 import { UnsupportedSourceError } from '../../../../src/shared/errors/extraction-errors.js';
@@ -209,13 +208,6 @@ describe('GenericWebContentProvider', () => {
 });
 
 describe('stub providers', () => {
-  it('Facebook provider rejects acquisition', async () => {
-    const provider = new FacebookContentProvider();
-    await expect(
-      provider.acquire('https://www.facebook.com/reel/123', ctx),
-    ).rejects.toBeInstanceOf(UnsupportedSourceError);
-  });
-
   it('TikTok provider rejects acquisition', async () => {
     const provider = new TikTokContentProvider();
     await expect(

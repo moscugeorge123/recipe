@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import { PhotoContentProvider } from '../../../../src/modules/content/providers/photo/photo-content-provider.js';
 import { FacebookContentProvider } from '../../../../src/modules/content/providers/facebook/facebook-content-provider.js';
 import { FakeContentProvider } from '../../../../src/modules/content/providers/fake/fake-content-provider.js';
 import { GenericWebContentProvider } from '../../../../src/modules/content/providers/generic/generic-web-content-provider.js';
@@ -122,6 +123,7 @@ function productionRegistry(): DefaultContentProviderRegistry {
   );
   registry.register(new FacebookContentProvider());
   registry.register(new TikTokContentProvider());
+  registry.register(new PhotoContentProvider());
   registry.register(new FakeContentProvider());
   registry.register(new GenericWebContentProvider());
   return registry;
@@ -137,8 +139,10 @@ describe('link routing by URL', () => {
     ['https://www.tiktok.com/@chef/video/123', 'TIKTOK'],
     ['https://vm.tiktok.com/ZMabc/', 'TIKTOK'],
     ['https://www.facebook.com/reel/123', 'FACEBOOK'],
-    // Not matched by the Facebook provider's host check → generic web.
-    ['https://fb.watch/abc/', 'GENERIC_WEB'],
+    ['https://fb.watch/abc/', 'FACEBOOK'],
+    ['https://m.facebook.com/story.php?story_fbid=1', 'FACEBOOK'],
+    ['https://example.com/facebook.com/reel/1', 'GENERIC_WEB'],
+    ['photo://6f1c7f0e-8f5b-4c53-a7aa-5d8f5d1c2b11?pages=jpg', 'PHOTO'],
     // No Pinterest provider: pins fall through to generic web (OG tags + page text).
     ['https://www.pinterest.com/pin/123456/', 'GENERIC_WEB'],
     ['https://pin.it/abc', 'GENERIC_WEB'],
@@ -152,14 +156,10 @@ describe('link routing by URL', () => {
     expect(() => registry.getProvider('not a url')).toThrow(UnsupportedSourceError);
   });
 
-  it('TikTok and Facebook stubs fail acquisition with UNSUPPORTED_SOURCE', async () => {
-    for (const url of [
-      'https://www.tiktok.com/@chef/video/123',
-      'https://www.facebook.com/reel/1',
-    ]) {
-      await expect(registry.getProvider(url).acquire(url, ctx)).rejects.toMatchObject({
-        code: 'UNSUPPORTED_SOURCE',
-      });
-    }
+  it('TikTok stub fails acquisition with UNSUPPORTED_SOURCE', async () => {
+    const url = 'https://www.tiktok.com/@chef/video/123';
+    await expect(registry.getProvider(url).acquire(url, ctx)).rejects.toMatchObject({
+      code: 'UNSUPPORTED_SOURCE',
+    });
   });
 });

@@ -1,4 +1,9 @@
-export const SUPPORTED_PLATFORMS = ['Instagram', 'YouTube', 'Website'] as const;
+export const SUPPORTED_PLATFORMS = [
+  'Instagram',
+  'YouTube',
+  'Facebook',
+  'Website',
+] as const;
 
 export const SUPPORTED_CAPTURE_METHODS = [
   'Photo',
@@ -23,18 +28,17 @@ const YOUTUBE_HOSTS = [
   'youtu.be',
   'youtube-nocookie.com',
 ] as const;
-const UNSUPPORTED_PLATFORM_HOSTS = [
-  'tiktok.com',
-  'facebook.com',
-  'fb.com',
-  'fb.watch',
-] as const;
+const FACEBOOK_HOSTS = ['facebook.com', 'fb.com', 'fb.watch'] as const;
+const UNSUPPORTED_PLATFORM_HOSTS = ['tiktok.com'] as const;
 
 export type ClipboardOffer =
   | { kind: 'hidden' }
   | {
       kind: 'url';
-      source: Extract<CaptureSource, 'Instagram' | 'YouTube' | 'Website'>;
+      source: Extract<
+        CaptureSource,
+        'Instagram' | 'YouTube' | 'Facebook' | 'Website'
+      >;
       url: string;
       preview: string;
     }
@@ -132,6 +136,14 @@ export function inspectClipboard(raw: string): ClipboardOffer {
       return {
         kind: 'url',
         source: 'YouTube',
+        url: url.href,
+        preview: formatUrlPreview(url),
+      };
+    }
+    if (hostMatches(url.hostname, FACEBOOK_HOSTS)) {
+      return {
+        kind: 'url',
+        source: 'Facebook',
         url: url.href,
         preview: formatUrlPreview(url),
       };

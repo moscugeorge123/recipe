@@ -35,11 +35,44 @@ export type ImportErrorCopy = {
   secondary: { label: string; action: ImportErrorAction };
 };
 
-/** `source` is the platform name ("TikTok"); absent for plain websites. */
+/** What the error card says when the import was a photo, not a link. */
+function scanErrorCopy(group: ImportErrorGroup): ImportErrorCopy {
+  if (group === 'not_recipe') {
+    return {
+      icon: 'no_meals',
+      warn: false,
+      message: 'That photo doesn’t look like a recipe',
+      sub: 'Fit the whole page in the frame and avoid glare.',
+      primary: { label: 'Scan again', action: 'scan' },
+      secondary: { label: 'Write it yourself', action: 'write' },
+    };
+  }
+  return {
+    icon: 'sentiment_dissatisfied',
+    warn: group === 'rate_limited',
+    message:
+      group === 'rate_limited'
+        ? 'That’s a lot of scans — wait a moment'
+        : 'Couldn’t read a recipe from that photo',
+    sub:
+      group === 'rate_limited'
+        ? 'Try again in a minute. Nothing was lost.'
+        : 'Try again in good light with the page flat, or write it yourself.',
+    primary: { label: 'Scan again', action: 'scan' },
+    secondary: { label: 'Write it yourself', action: 'write' },
+  };
+}
+
+/**
+ * `source` is the platform name ("TikTok"); absent for plain websites. `scan` is for imports
+ * that came from a photo.
+ */
 export function importErrorCopy(
   group: ImportErrorGroup,
   source?: string,
+  scan = false,
 ): ImportErrorCopy {
+  if (scan) return scanErrorCopy(group);
   switch (group) {
     case 'not_recipe':
       return {
