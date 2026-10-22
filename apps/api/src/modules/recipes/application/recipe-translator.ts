@@ -24,9 +24,12 @@ export const recipeTranslationContentSchema = z.object({
       metricUnit: nullableText,
       imperialUnit: nullableText,
       preparation: nullableText,
+      group: nullableText.optional(),
     }),
   ),
-  steps: z.array(z.object({ title: nullableText, instruction: z.string() })),
+  steps: z.array(
+    z.object({ title: nullableText, section: nullableText.optional(), instruction: z.string() }),
+  ),
 });
 
 export class RecipeTranslationError extends Error {}

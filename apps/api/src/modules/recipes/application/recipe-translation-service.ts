@@ -1,10 +1,7 @@
 import { silentLogger, type AppLogger } from '../../../infrastructure/logging/logger.js';
 import { primaryLanguage } from '../prompts/recipe-extraction-v1.js';
 import type { RecipeTranslationContent } from '../prompts/recipe-translation-v1.js';
-import type {
-  EffectiveRecipeRecord,
-  IRecipeRepository,
-} from '../repository/recipe.repository.js';
+import type { EffectiveRecipeRecord, IRecipeRepository } from '../repository/recipe.repository.js';
 import { recipeTranslationContentSchema, type RecipeTranslator } from './recipe-translator.js';
 
 /** A PENDING row older than this is assumed dead (process restart) and is restarted. */
@@ -41,9 +38,38 @@ function toContent(recipe: EffectiveRecipeRecord): RecipeTranslationContent {
       metricUnit: ingredient.metricUnit,
       imperialUnit: ingredient.imperialUnit,
       preparation: ingredient.preparation,
+      group: ingredient.group ?? null,
     })),
-    steps: recipe.steps.map((step) => ({ title: step.title, instruction: step.instruction })),
+    steps: recipe.steps.map((step) => ({
+      title: step.title,
+      section: step.section ?? null,
+      instruction: step.instruction,
+    })),
   };
+}
+
+/** False for a translation stored before headings were translated while the recipe has some. */
+function translatesHeadings(
+  recipe: EffectiveRecipeRecord,
+  content: RecipeTranslationContent,
+): boolean {
+  return (
+    recipe.ingredients.every(
+      (ing, index) => !ing.group || content.ingredients[index]?.group !== undefined,
+    ) &&
+    recipe.steps.every(
+      (step, index) => !step.section || content.steps[index]?.section !== undefined,
+    )
+  );
+}
+
+/** A translated heading, or the original when the translation left it out. */
+function translatedHeading(
+  original: string | null | undefined,
+  translated: string | null | undefined,
+): string | null {
+  if (!original) return null;
+  return translated?.trim() || original;
 }
 
 /** Overlays translated text on a recipe; ids, amounts, times and temperatures are untouched. */
@@ -65,7 +91,9 @@ export function applyTranslation(
         metricUnit: ingredient.metricUnit === null ? null : (t.metricUnit ?? ingredient.metricUnit),
         imperialUnit:
           ingredient.imperialUnit === null ? null : (t.imperialUnit ?? ingredient.imperialUnit),
-        preparation: ingredient.preparation === null ? null : (t.preparation ?? ingredient.preparation),
+        preparation:
+          ingredient.preparation === null ? null : (t.preparation ?? ingredient.preparation),
+        group: translatedHeading(ingredient.group, t.group),
       };
     }),
     steps: recipe.steps.map((step, index) => {
@@ -74,6 +102,7 @@ export function applyTranslation(
       return {
         ...step,
         title: step.title === null ? null : (t.title ?? step.title),
+        section: translatedHeading(step.section, t.section),
         instruction: t.instruction.trim() || step.instruction,
       };
     }),
@@ -111,7 +140,8 @@ export class RecipeTranslationService {
         if (
           parsed.success &&
           parsed.data.ingredients.length === recipe.ingredients.length &&
-          parsed.data.steps.length === recipe.steps.length
+          parsed.data.steps.length === recipe.steps.length &&
+          translatesHeadings(recipe, parsed.data)
         ) {
           return {
             recipe: applyTranslation(recipe, parsed.data),
@@ -185,7 +215,10 @@ export class RecipeTranslationService {
           error: error instanceof Error ? error.message.slice(0, 500) : 'Translation failed',
         });
       } catch (saveError) {
-        this.log.error({ step: 'recipe.translate', err: saveError }, 'recipe.translate save failed');
+        this.log.error(
+          { step: 'recipe.translate', err: saveError },
+          'recipe.translate save failed',
+        );
       }
     }
   }

@@ -77,10 +77,7 @@ export function shapeExtractedStep(step: ExtractedStep): {
         ? `${cleaned} ${rawInstruction}`
         : capitalizeFirst(rawInstruction);
     if (words.length > MAX_SPLIT_TITLE_WORDS) title = null;
-  } else if (
-    overflow &&
-    !instruction.toLocaleLowerCase().includes(overflow.toLocaleLowerCase())
-  ) {
+  } else if (overflow && !instruction.toLocaleLowerCase().includes(overflow.toLocaleLowerCase())) {
     instruction = [overflow, instruction].filter(Boolean).join(' ');
   }
   instruction = capitalizeFirst(instruction);
@@ -141,12 +138,15 @@ function boundedInt(value: unknown, min: number, max: number): number | null {
   return rounded >= min && rounded <= max ? rounded : null;
 }
 
-export function normalizeNutrition(extracted: Pick<
-  ExtractedRecipe,
-  'calories' | 'nutrition' | 'nutritionSource'
->): {
+export function normalizeNutrition(
+  extracted: Pick<ExtractedRecipe, 'calories' | 'nutrition' | 'nutritionSource'>,
+): {
   calories: number | null;
-  nutrition: { proteinGrams: number | null; carbsGrams: number | null; fatGrams: number | null } | null;
+  nutrition: {
+    proteinGrams: number | null;
+    carbsGrams: number | null;
+    fatGrams: number | null;
+  } | null;
   nutritionSource: NutritionSource | null;
 } {
   const calories = boundedInt(extracted.calories, 1, MAX_KCAL_PER_SERVING);
@@ -233,7 +233,8 @@ const SEASONING_RULES: Array<{ name: string; inList: RegExp; inMethod: RegExp }>
   {
     name: 'Black pepper',
     inList: /\bpepper\b/i,
-    inMethod: /\b(?:black|ground|white|freshly ground|cracked)\s+pepper\b|\bsalt\s+and\s+pepper\b|\bpepper\s+to\s+taste\b/i,
+    inMethod:
+      /\b(?:black|ground|white|freshly ground|cracked)\s+pepper\b|\bsalt\s+and\s+pepper\b|\bpepper\s+to\s+taste\b/i,
   },
 ];
 
@@ -243,7 +244,9 @@ const SEASONING_RULES: Array<{ name: string; inList: RegExp; inMethod: RegExp }>
  */
 export function withInferredSeasonings(extracted: ExtractedRecipe): ExtractedRecipe['ingredients'] {
   const listed = extracted.ingredients.map((ing) => ing.name).join(' | ');
-  const method = extracted.steps.map((step) => `${step.title ?? ''} ${orEmpty(step.instruction)}`).join(' ');
+  const method = extracted.steps
+    .map((step) => `${step.title ?? ''} ${orEmpty(step.instruction)}`)
+    .join(' ');
   const added = SEASONING_RULES.filter(
     (rule) => !rule.inList.test(listed) && rule.inMethod.test(method),
   ).map((rule) => ({
@@ -260,25 +263,24 @@ export function withInferredSeasonings(extracted: ExtractedRecipe): ExtractedRec
 const BATCH_TITLE =
   /(cookie|muffin|cupcake|brownie|bar\b|bars\b|bite|roll|biscuit|dumpling|ball|scone|bun\b|truffle|party|crowd|batch|skewer|slider|pancake|waffle|fritter)/i;
 
-/** Heading words dropped before a group is appended to a repeated ingredient name. */
-function groupLabel(group: string): string {
-  return group.replace(/^\s*for\s+(?:the\s+)?/i, '').replace(/[:.]+$/, '').trim();
-}
-
-/** The same name in two groups ("Cocoa powder" for sponge and buttercream) gets the group suffix. */
-export function disambiguateRepeatedNames<
-  T extends { name: string; group: string | null },
->(ingredients: T[]): T[] {
-  const counts = new Map<string, number>();
-  for (const ing of ingredients) {
-    const key = ing.name.toLocaleLowerCase();
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return ingredients.map((ing) => {
-    const label = ing.group ? groupLabel(ing.group) : '';
-    if ((counts.get(ing.name.toLocaleLowerCase()) ?? 0) < 2 || !label) return ing;
-    return { ...ing, name: `${ing.name} (${label.toLocaleLowerCase()})` };
-  });
+/**
+ * Trims a list heading ("Pentru blat:" → "Pentru blat"). A heading that every item shares says
+ * nothing ("Ingredients"), so it is cleared and the list reads as one block.
+ */
+export function tidyHeadings<T, R>(
+  items: T[],
+  read: (item: T) => string | null | undefined,
+  write: (item: T, heading: string | null) => R,
+): R[] {
+  const headings = items.map(
+    (item) =>
+      read(item)
+        ?.trim()
+        .replace(/[:.]+$/, '')
+        .trim() || null,
+  );
+  const shared = headings.every((heading) => heading === headings[0]);
+  return items.map((item, index) => write(item, shared ? null : (headings[index] ?? null)));
 }
 
 const MIN_PLAUSIBLE_KCAL_PER_SERVING = 100;
@@ -294,7 +296,11 @@ export function servingsSanityWarnings(input: {
 }): { warnings: Array<{ code: string; message: string; field: string }>; dropCalories: boolean } {
   const warnings: Array<{ code: string; message: string; field: string }> = [];
   let dropCalories = false;
-  if (input.servings !== null && input.servings > MAX_SINGLE_DISH_SERVINGS && !BATCH_TITLE.test(input.title)) {
+  if (
+    input.servings !== null &&
+    input.servings > MAX_SINGLE_DISH_SERVINGS &&
+    !BATCH_TITLE.test(input.title)
+  ) {
     warnings.push({
       code: 'SERVINGS_SUSPECT',
       message: `${String(input.servings)} servings is unusually many for a single dish`,
@@ -349,42 +355,51 @@ export class RecipeNormalizer {
         sortOrder: normalized.sortOrder,
       };
     });
-    const ingredients = disambiguateRepeatedNames(mapped);
-
-    const steps: NormalizedStep[] = orderExtractedSteps(extracted.steps).map(
-      ({ step, ahead }, index, ordered) => {
-        const copy = shapeExtractedStep(step);
-        const instruction = addDualMeasurements(tidyInlineMeasurements(copy.instruction));
-        const temperature = reconcileTemperature({
-          celsius: step.temperatureCelsius ?? null,
-          fahrenheit: step.temperatureFahrenheit ?? null,
-          text: step.temperature ?? null,
-          instruction: instruction || copy.title || '',
-        });
-        return {
-          stepOrder: index + 1,
-          title: copy.title,
-          instruction,
-          durationMinutes: copy.durationMinutes,
-          temperature: step.temperature ?? null,
-          temperatureCelsius: temperature?.celsius ?? null,
-          temperatureFahrenheit: temperature?.fahrenheit ?? null,
-          ingredientRefs: ingredientRefs(step.ingredientIndexes, ingredients.length),
-          stage: isStepStage(step.stage) ? step.stage : stageForIndex(index, ordered.length),
-          ahead,
-          confidence: step.confidence,
-          provenance: step.provenance ? { source: step.provenance } : {},
-          warnings: (copy.titleSplit
-            ? [
-                {
-                  code: 'STEP_TITLE_SPLIT',
-                  message: 'The step title and instruction were one sentence and were merged',
-                },
-              ]
-            : []),
-        };
-      },
+    const ingredients = tidyHeadings(
+      mapped,
+      (ing) => ing.group,
+      (ing, group) => ({ ...ing, group }),
     );
+    const orderedSteps = orderExtractedSteps(extracted.steps);
+    const sections = tidyHeadings(
+      orderedSteps,
+      (item) => item.step.section,
+      (_item, section) => section,
+    );
+
+    const steps: NormalizedStep[] = orderedSteps.map(({ step, ahead }, index, ordered) => {
+      const copy = shapeExtractedStep(step);
+      const instruction = addDualMeasurements(tidyInlineMeasurements(copy.instruction));
+      const temperature = reconcileTemperature({
+        celsius: step.temperatureCelsius ?? null,
+        fahrenheit: step.temperatureFahrenheit ?? null,
+        text: step.temperature ?? null,
+        instruction: instruction || copy.title || '',
+      });
+      return {
+        stepOrder: index + 1,
+        title: copy.title,
+        section: sections[index] ?? null,
+        instruction,
+        durationMinutes: copy.durationMinutes,
+        temperature: step.temperature ?? null,
+        temperatureCelsius: temperature?.celsius ?? null,
+        temperatureFahrenheit: temperature?.fahrenheit ?? null,
+        ingredientRefs: ingredientRefs(step.ingredientIndexes, ingredients.length),
+        stage: isStepStage(step.stage) ? step.stage : stageForIndex(index, ordered.length),
+        ahead,
+        confidence: step.confidence,
+        provenance: step.provenance ? { source: step.provenance } : {},
+        warnings: copy.titleSplit
+          ? [
+              {
+                code: 'STEP_TITLE_SPLIT',
+                message: 'The step title and instruction were one sentence and were merged',
+              },
+            ]
+          : [],
+      };
+    });
 
     const computedTotal = (extracted.prepTimeMinutes ?? 0) + (extracted.cookTimeMinutes ?? 0);
     const totalTimeMinutes =
@@ -400,7 +415,12 @@ export class RecipeNormalizer {
     const trimmedCuisine = extracted.cuisine?.trim();
     const nutritionResult = normalizeNutrition(extracted);
     const servings = boundedInt(extracted.servings, 1, 1000);
-    const sanity = servingsSanityWarnings({ title, servings, calories: nutritionResult.calories, ingredients });
+    const sanity = servingsSanityWarnings({
+      title,
+      servings,
+      calories: nutritionResult.calories,
+      ingredients,
+    });
     // A kcal figure that cannot be right for this much food is dropped rather than shown.
     const calories = sanity.dropCalories ? null : nutritionResult.calories;
     const { nutrition } = nutritionResult;

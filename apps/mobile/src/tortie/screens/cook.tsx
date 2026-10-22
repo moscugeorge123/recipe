@@ -1,7 +1,7 @@
 import * as Haptics from 'expo-haptics';
 import { Image } from 'expo-image';
 import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import {
   ScrollView,
   View,
@@ -33,6 +33,7 @@ import { generalNotes, stepNotes } from '@/tortie/data/recipe-notes';
 import { useServings } from '@/tortie/data/recipe-ui';
 import {
   ingQty,
+  sectionsOf,
   useTRecipe,
   type TDetail,
   type TIng,
@@ -59,6 +60,7 @@ import {
   useSnoozeLabel,
 } from '@/tortie/screens/timer-alert';
 import type { RecipeNoteDto } from '@/features/recipes/schemas';
+import { SectionHead } from '@/tortie/ui/section-head';
 import { em, sans, serif, T } from '@/tortie/ui/text';
 import { useT } from '@/i18n';
 import { tEnum, tNow } from '@/i18n/format';
@@ -612,7 +614,9 @@ function StepPage({
         <T style={sans(13, 700, C.terra)}>
           {st.ahead
             ? tr('common.beforeYouStart')
-            : tNow('common.stepN', { n: i + 1 })}
+            : [st.sec, tNow('common.stepN', { n: i + 1 })]
+                .filter(Boolean)
+                .join(' · ')}
         </T>
         <T
           style={serif(34, 500, C.ink, {
@@ -1201,102 +1205,134 @@ function Intro({
       ) : null}
       <T style={[label, { marginTop: 24 }]}>{tr('common.ingredients')}</T>
       <View style={{ marginTop: 6 }}>
-        {r?.ings.map((x, i) => (
-          <View
-            key={i}
-            style={{
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 12,
-              paddingVertical: 11,
-              borderBottomWidth: 1,
-              borderBottomColor: C.surface3,
-            }}
-          >
-            <View
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 9,
-                backgroundColor: x.tint,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <T style={{ fontSize: 16, lineHeight: 20, textAlign: 'center' }}>
-                {x.emo}
-              </T>
-            </View>
-            <T
-              style={sans(15, 700, C.ink, { lineHeight: 20.25, minWidth: 72 })}
-            >
-              {ingQ(x, scale)}
-            </T>
-            <T style={sans(15, 400, C.ink, { lineHeight: 20.25, flex: 1 })}>
-              {x.n}
-            </T>
-          </View>
+        {sectionsOf(r?.ings ?? [], (x) => x.g).map((sec, si) => (
+          <Fragment key={si}>
+            {sec.head ? (
+              <SectionHead first={si === 0}>{sec.head}</SectionHead>
+            ) : null}
+            {sec.rows.map(({ x, i }) => (
+              <View
+                key={i}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 12,
+                  paddingVertical: 11,
+                  borderBottomWidth: 1,
+                  borderBottomColor: C.surface3,
+                }}
+              >
+                <View
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 9,
+                    backgroundColor: x.tint,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  <T
+                    style={{
+                      fontSize: 16,
+                      lineHeight: 20,
+                      textAlign: 'center',
+                    }}
+                  >
+                    {x.emo}
+                  </T>
+                </View>
+                <T
+                  style={sans(15, 700, C.ink, {
+                    lineHeight: 20.25,
+                    minWidth: 72,
+                  })}
+                >
+                  {ingQ(x, scale)}
+                </T>
+                <T style={sans(15, 400, C.ink, { lineHeight: 20.25, flex: 1 })}>
+                  {x.n}
+                </T>
+              </View>
+            ))}
+          </Fragment>
         ))}
       </View>
       <T style={[label, { marginTop: 26 }]}>{tr('common.steps')}</T>
       <View style={{ gap: 16, marginTop: 12 }}>
-        {r?.steps.map((st, i) => (
-          <View key={i} style={{ flexDirection: 'row', gap: 14 }}>
-            <View
-              style={{
-                width: 30,
-                height: 30,
-                borderRadius: 15,
-                backgroundColor: C.surface3,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <T style={sans(13, 700)}>{String(i + 1)}</T>
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              {st.ahead ? (
-                <T
-                  style={sans(11, 700, C.terra, {
-                    letterSpacing: em(11, 0.06),
-                    textTransform: 'uppercase',
-                    marginBottom: 3,
-                  })}
+        {sectionsOf(r?.steps ?? [], (st) => st.sec).map((sec, si) => (
+          <Fragment key={si}>
+            {sec.head ? (
+              <SectionHead first={si === 0}>{sec.head}</SectionHead>
+            ) : null}
+            {sec.rows.map(({ x: st, i }) => (
+              <View key={i} style={{ flexDirection: 'row', gap: 14 }}>
+                <View
+                  style={{
+                    width: 30,
+                    height: 30,
+                    borderRadius: 15,
+                    backgroundColor: C.surface3,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
                 >
-                  {tr('common.beforeYouStart')}
-                </T>
-              ) : null}
-              <View
-                style={{ flexDirection: 'row', alignItems: 'baseline', gap: 8 }}
-              >
-                <T style={sans(16, 700, C.ink, { flex: 1, lineHeight: 20.8 })}>
-                  {st.t}
-                </T>
-                {st.m > 0 ? (
+                  <T style={sans(13, 700)}>{String(i + 1)}</T>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  {st.ahead ? (
+                    <T
+                      style={sans(11, 700, C.terra, {
+                        letterSpacing: em(11, 0.06),
+                        textTransform: 'uppercase',
+                        marginBottom: 3,
+                      })}
+                    >
+                      {tr('common.beforeYouStart')}
+                    </T>
+                  ) : null}
                   <View
                     style={{
                       flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 3,
+                      alignItems: 'baseline',
+                      gap: 8,
                     }}
                   >
-                    <Glyph name="timer" size={15} color={C.terra} />
-                    <T style={sans(12, 600, C.terra)}>{fmtT(st.m)}</T>
+                    <T
+                      style={sans(16, 700, C.ink, {
+                        flex: 1,
+                        lineHeight: 20.8,
+                      })}
+                    >
+                      {st.t}
+                    </T>
+                    {st.m > 0 ? (
+                      <View
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 3,
+                        }}
+                      >
+                        <Glyph name="timer" size={15} color={C.terra} />
+                        <T style={sans(12, 600, C.terra)}>{fmtT(st.m)}</T>
+                      </View>
+                    ) : null}
                   </View>
-                ) : null}
+                  {st.d ? (
+                    <T
+                      style={sans(14, 400, C.ink2, {
+                        lineHeight: 21,
+                        marginTop: 3,
+                      })}
+                    >
+                      {scaleStepText(st.d, scale)}
+                    </T>
+                  ) : null}
+                </View>
               </View>
-              {st.d ? (
-                <T
-                  style={sans(14, 400, C.ink2, {
-                    lineHeight: 21,
-                    marginTop: 3,
-                  })}
-                >
-                  {scaleStepText(st.d, scale)}
-                </T>
-              ) : null}
-            </View>
-          </View>
+            ))}
+          </Fragment>
         ))}
       </View>
     </ScrollView>

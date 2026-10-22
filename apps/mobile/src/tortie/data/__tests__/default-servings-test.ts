@@ -21,6 +21,7 @@ const ing = (q: number | null, u: string): TIng => ({
   n: 'x',
   emo: '',
   tint: '',
+  g: null,
 });
 
 describe('default servings (Q33)', () => {

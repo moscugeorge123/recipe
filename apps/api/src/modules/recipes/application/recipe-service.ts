@@ -134,7 +134,10 @@ export class RecipeService {
     if (!this.translations) return { language, status: 'UNAVAILABLE' };
     const { translation } = await this.translations.resolve(recipe, language);
     if (translation.status !== 'FAILED') return translation;
-    return { language: translation.language, status: await this.translations.start(recipe, language) };
+    return {
+      language: translation.language,
+      status: await this.translations.start(recipe, language),
+    };
   }
 
   /** The stored source video behind the recipe's step clips. */
@@ -203,10 +206,15 @@ export class RecipeService {
         existing.steps.find((item) => item.stepOrder === step.stepOrder);
       const title = blankToNull(step.title !== undefined ? step.title : (previous?.title ?? null));
       // A clip belongs to the words of the step, so it only follows an unchanged instruction.
-      const sameText = existing.steps.find((item) => item.instruction.trim() === step.instruction.trim());
+      const sameText = existing.steps.find(
+        (item) => item.instruction.trim() === step.instruction.trim(),
+      );
       return {
         stepOrder: step.stepOrder,
         title,
+        section: blankToNull(
+          step.section !== undefined ? step.section : (previous?.section ?? null),
+        ),
         instruction: step.instruction,
         ahead: step.ahead !== undefined ? step.ahead : (previous?.ahead ?? false),
         clipSegments:
@@ -334,12 +342,7 @@ export class RecipeService {
     reviewState: RecipeReviewState,
     expectedUpdatedAt?: Date,
   ): Promise<RecipeEngagementRecord> {
-    const result = await this.recipeRepo.setReviewState(
-      id,
-      userId,
-      reviewState,
-      expectedUpdatedAt,
-    );
+    const result = await this.recipeRepo.setReviewState(id, userId, reviewState, expectedUpdatedAt);
     if (result === 'conflict') throw new RecipeEngagementConflictError();
     if (!result) throw new RecipeNotFoundError();
     return result;

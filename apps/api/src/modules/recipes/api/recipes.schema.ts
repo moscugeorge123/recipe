@@ -58,7 +58,9 @@ export const recipeCategorySchema = z.object({
 export const listRecipesQuerySchema = paginationQuerySchema.extend({
   q: z.string().trim().min(1).max(200).optional(),
   cuisine: z.string().trim().min(1).max(80).optional(),
-  sourceType: z.enum(['INSTAGRAM', 'YOUTUBE', 'FACEBOOK', 'TIKTOK', 'GENERIC_WEB', 'PHOTO']).optional(),
+  sourceType: z
+    .enum(['INSTAGRAM', 'YOUTUBE', 'FACEBOOK', 'TIKTOK', 'GENERIC_WEB', 'PHOTO'])
+    .optional(),
   sort: z.enum(['latest', 'engagement']).default('latest'),
 });
 
@@ -104,6 +106,8 @@ export const recipeStepSchema = z.object({
   id: dbUuid(),
   stepOrder: z.number().int(),
   title: z.string().nullable(),
+  /** Part of the method the step belongs to ("Make the sponge"); null when the method is one block. */
+  section: z.string().nullable().optional(),
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),
@@ -314,6 +318,7 @@ const patchRecipeIngredientSchema = z.object({
 const patchRecipeStepSchema = z.object({
   stepOrder: z.number(),
   title: z.string().nullable().optional(),
+  section: z.string().nullable().optional(),
   instruction: z.string(),
   durationMinutes: z.number().int().nullable(),
   temperature: z.string().nullable(),

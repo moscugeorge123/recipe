@@ -36,7 +36,10 @@ import {
 import { RecipeExtractor } from '../../recipes/application/recipe-extractor.js';
 import { createStepClipAligner } from '../../recipes/application/step-clip-aligner.js';
 import { transcriptDurationSeconds } from '../../recipes/application/step-clips.js';
-import { SOURCE_VIDEO_METADATA_KEY, type SourceVideo } from '../../recipes/application/source-video.js';
+import {
+  SOURCE_VIDEO_METADATA_KEY,
+  type SourceVideo,
+} from '../../recipes/application/source-video.js';
 import { primaryLanguage } from '../../recipes/prompts/recipe-extraction-v1.js';
 import type { MediaProcessingService } from '../../media/application/media-processing.service.js';
 import { createMediaStageHandlers } from './media-stage-handlers.js';
@@ -99,7 +102,11 @@ export class StageOrchestrator {
   async runStages(ctx: PipelineContext): Promise<void> {
     const log = this.log.child({ jobId: ctx.jobId });
     let previousStatus: JobStatus | undefined;
-    const traceStage = (phase: PhotoImportTracePhase, data: Record<string, unknown>, error?: unknown): void => {
+    const traceStage = (
+      phase: PhotoImportTracePhase,
+      data: Record<string, unknown>,
+      error?: unknown,
+    ): void => {
       if (!isPhotoSourceUrl(ctx.sourceUrl)) return;
       tracePhotoImport({
         jobId: ctx.jobId,
@@ -423,10 +430,12 @@ export function createDefaultStageHandlers(
         ctx.outputLanguage,
       );
       tracePhotoStep(ctx, 'content.acquire', ctx.acquiredContent);
-      log.child({ jobId: ctx.jobId }).info(
-        { step: 'content.acquire', ...summarizeAcquiredContent(ctx.acquiredContent) },
-        'content.acquire summary',
-      );
+      log
+        .child({ jobId: ctx.jobId })
+        .info(
+          { step: 'content.acquire', ...summarizeAcquiredContent(ctx.acquiredContent) },
+          'content.acquire summary',
+        );
 
       const options = parseJobOptions(job.options);
       ctx.options = options;
@@ -577,15 +586,11 @@ export function createDefaultStageHandlers(
         recipe: extracted,
         promptVersion,
         rawExtraction,
-      } = await logStep(
-        jobLog,
-        'ai.extract-recipe',
-        { evidenceCount: evidence.length },
-        () =>
-          extractor.extract({
-            evidence,
-            outputLanguage: ctx.outputLanguage,
-          }),
+      } = await logStep(jobLog, 'ai.extract-recipe', { evidenceCount: evidence.length }, () =>
+        extractor.extract({
+          evidence,
+          outputLanguage: ctx.outputLanguage,
+        }),
       );
       tracePhotoStep(ctx, 'ai.extract-recipe', { promptVersion, recipe: extracted, rawExtraction });
       jobLog.info(
@@ -611,7 +616,8 @@ export function createDefaultStageHandlers(
           step: 'recipe.normalize',
           ingredients: normalized.ingredients.length,
           steps: normalized.steps.length,
-          ingredientsWithoutQuantity: normalized.ingredients.filter((i) => i.quantity === null).length,
+          ingredientsWithoutQuantity: normalized.ingredients.filter((i) => i.quantity === null)
+            .length,
           ingredientsWithoutMetric: normalized.ingredients.filter((i) => !i.metricUnit).length,
           ingredientsWithoutImperial: normalized.ingredients.filter((i) => !i.imperialUnit).length,
         },
@@ -621,7 +627,11 @@ export function createDefaultStageHandlers(
         assertExtractedRecipeHasContent(normalized);
       } catch (error: unknown) {
         jobLog.warn(
-          { step: 'recipe.content-check', ingredients: normalized.ingredients.length, steps: normalized.steps.length },
+          {
+            step: 'recipe.content-check',
+            ingredients: normalized.ingredients.length,
+            steps: normalized.steps.length,
+          },
           'recipe.content-check rejected an empty extraction',
         );
         throw error;
@@ -738,6 +748,7 @@ export function createDefaultStageHandlers(
         steps: normalized.steps.map((step, index) => ({
           stepOrder: step.stepOrder,
           title: step.title,
+          section: step.section ?? null,
           instruction: step.instruction,
           durationMinutes: step.durationMinutes,
           temperature: step.temperature,
@@ -827,6 +838,7 @@ export function createDefaultStageHandlers(
             name: ing.name,
             quantity: ing.quantity?.toString() ?? null,
             unit: ing.unit,
+            group: ing.group,
             preparation: ing.preparation,
             optional: ing.optional,
             confidence: ing.confidence,
@@ -834,6 +846,7 @@ export function createDefaultStageHandlers(
           steps: recipe.steps.map((step) => ({
             stepOrder: step.stepOrder,
             title: step.title,
+            section: step.section,
             instruction: step.instruction,
             durationMinutes: step.durationMinutes,
             temperature: step.temperature,

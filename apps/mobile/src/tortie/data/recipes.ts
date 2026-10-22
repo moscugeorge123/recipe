@@ -58,6 +58,8 @@ export type TIng = {
   n: string;
   emo: string;
   tint: string;
+  /** Component heading ("For the sponge"); null when the list is one block. */
+  g: string | null;
 };
 export type TStep = {
   /** Short title from extraction, or the first sentence when a recipe has none. */
@@ -74,6 +76,8 @@ export type TStep = {
   tip: string;
   /** Indexes into `ings` mentioned by this step. */
   need: number[];
+  /** Part of the method ("Make the sponge"); null when the method is one block. */
+  sec: string | null;
 };
 export type TDetail = TRecipe & {
   ings: TIng[];
@@ -223,7 +227,14 @@ export function toTDetail(
       units === 'source'
         ? { quantity: x.quantity ?? null, unit: x.unit ?? null }
         : ingredientAmount(x, units);
-    return { q: amount.quantity, u: amount.unit ?? '', n, emo, tint: e.tint };
+    return {
+      q: amount.quantity,
+      u: amount.unit ?? '',
+      n,
+      emo,
+      tint: e.tint,
+      g: x.group ?? null,
+    };
   });
   const steps: TStep[] = [...v.steps]
     .sort((a, b) => a.stepOrder - b.stepOrder)
@@ -247,6 +258,7 @@ export function toTDetail(
         heat: stepHeat(s, units === 'source' ? 'metric' : units),
         tip: '',
         need,
+        sec: s.section ?? null,
       };
     });
   const clips = buildClips(
@@ -257,6 +269,27 @@ export function toTDetail(
   );
   const video = clips.length ? videoUrl(v.sourceVideoPath) : null;
   return { ...base, ings, steps, clips, video, view: v };
+}
+
+/** A run of consecutive rows under one heading; `i` is each row's index in the full list. */
+export type Section<T> = { head: string | null; rows: { x: T; i: number }[] };
+
+/**
+ * Splits ingredients or steps into consecutive runs by heading, so a layered cake reads as
+ * "For the sponge", "For the cream"… A list without headings comes back as one headless run.
+ */
+export function sectionsOf<T>(
+  items: readonly T[],
+  head: (x: T) => string | null,
+): Section<T>[] {
+  const out: Section<T>[] = [];
+  items.forEach((x, i) => {
+    const h = head(x);
+    const last = out[out.length - 1];
+    if (last && last.head === h) last.rows.push({ x, i });
+    else out.push({ head: h, rows: [{ x, i }] });
+  });
+  return out;
 }
 
 /** The API serves the source video next to the recipe; null without a path or an API URL. */

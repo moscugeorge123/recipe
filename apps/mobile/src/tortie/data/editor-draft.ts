@@ -10,8 +10,11 @@ import { useNav } from '@/tortie/nav-store';
 import { useTortiePrefs } from '@/tortie/prefs-store';
 import { lazyList, tNow } from '@/i18n/format';
 
-/** Editor rows (prototype `ed.ings` / `ed.steps`); `src` points at the loaded recipe's row. */
-export type EdIng = { k: string; txt: string; src?: number };
+/**
+ * Editor rows (prototype `ed.ings` / `ed.steps`); `src` points at the loaded recipe's row.
+ * `g` is the component heading ("For the sponge"); new rows take it from the row above on save.
+ */
+export type EdIng = { k: string; txt: string; src?: number; g?: string | null };
 export type EdStep = {
   k: string;
   t: string;
@@ -22,6 +25,8 @@ export type EdStep = {
   /** Work that happens before the cooking session. */
   ahead: boolean;
   src?: number;
+  /** Method section ("Make the sponge"); new rows take it from the row above on save. */
+  sec?: string | null;
 };
 export type Draft = {
   id: string | null;
@@ -83,6 +88,7 @@ export function makeDraft(r: TDetail): Draft {
       k: 'i' + i,
       txt: ingTxt(x.q, x.u, x.n),
       src: i,
+      g: x.g,
     })),
     steps: r.steps.map((x, i) => ({
       k: 's' + i,
@@ -93,6 +99,7 @@ export function makeDraft(r: TDetail): Draft {
       det: detectMin(x.t + ' ' + x.d),
       ahead: x.ahead,
       src: i,
+      sec: x.sec,
     })),
   };
 }
@@ -190,55 +197,60 @@ export function toRecipePatch(
   const orig0 = new Map(e0.ings.map((x) => [x.k, x]));
   const step0 = new Map(e0.steps.map((x) => [x.k, x]));
 
-  const ingredients = ed.ings
-    .filter((x) => x.txt.trim())
-    .map((x, i) => {
-      const o = orig0.get(x.k);
-      const src = x.src != null ? base.ingredients[x.src] : undefined;
-      if (src && o && o.txt.trim() === x.txt.trim())
-        return { ...src, sortOrder: i };
-      const p = parseIng(x.txt);
-      const raw = (p.n || x.txt).trim();
-      const cut = raw.indexOf(', ');
-      const name = cut > 0 ? raw.slice(0, cut) : raw;
-      const preparation = cut > 0 ? raw.slice(cut + 2) : null;
-      return {
-        name,
-        canonicalName: name.toLowerCase(),
-        emoji: emoOf(name).emo,
-        colorToken: src?.colorToken ?? 'peach',
-        quantity: p.q || null,
-        unit: p.u || null,
-        preparation,
-        optional: src?.optional ?? false,
-        category: src?.category ?? 'Pantry',
-        sortOrder: i,
-      };
-    });
+  const ingRows = ed.ings.filter((x) => x.txt.trim());
+  const ingGroups = inheritHeadings(ingRows.map((x) => x.g));
+  const ingredients = ingRows.map((x, i) => {
+    const o = orig0.get(x.k);
+    const src = x.src != null ? base.ingredients[x.src] : undefined;
+    const group = ingGroups[i] ?? null;
+    if (src && o && o.txt.trim() === x.txt.trim())
+      return { ...src, group, sortOrder: i };
+    const p = parseIng(x.txt);
+    const raw = (p.n || x.txt).trim();
+    const cut = raw.indexOf(', ');
+    const name = cut > 0 ? raw.slice(0, cut) : raw;
+    const preparation = cut > 0 ? raw.slice(cut + 2) : null;
+    return {
+      name,
+      canonicalName: name.toLowerCase(),
+      emoji: emoOf(name).emo,
+      colorToken: src?.colorToken ?? 'peach',
+      quantity: p.q || null,
+      unit: p.u || null,
+      preparation,
+      optional: src?.optional ?? false,
+      category: src?.category ?? 'Pantry',
+      group,
+      sortOrder: i,
+    };
+  });
 
-  const steps = ed.steps
-    .filter((x) => x.t.trim() || x.d.trim())
-    .map((x, i) => {
-      const o = step0.get(x.k);
-      const src = x.src != null ? base.steps[x.src] : undefined;
-      const minutes = x.m > 0 ? Math.round(x.m) : null;
-      if (src && o && o.t === x.t && o.d === x.d && o.ahead === x.ahead) {
-        return {
-          ...src,
-          stepOrder: i + 1,
-          durationMinutes: o.m === x.m ? src.durationMinutes : minutes,
-        };
-      }
+  const stepRows = ed.steps.filter((x) => x.t.trim() || x.d.trim());
+  const stepSections = inheritHeadings(stepRows.map((x) => x.sec));
+  const steps = stepRows.map((x, i) => {
+    const o = step0.get(x.k);
+    const src = x.src != null ? base.steps[x.src] : undefined;
+    const minutes = x.m > 0 ? Math.round(x.m) : null;
+    const section = stepSections[i] ?? null;
+    if (src && o && o.t === x.t && o.d === x.d && o.ahead === x.ahead) {
       return {
+        ...src,
+        section,
         stepOrder: i + 1,
-        title: x.t.trim() || null,
-        instruction: x.d.trim() || x.t.trim(),
-        durationMinutes: minutes,
-        temperature: src?.temperature ?? null,
-        stage: src?.stage ?? 'COOK',
-        ahead: x.ahead,
+        durationMinutes: o.m === x.m ? src.durationMinutes : minutes,
       };
-    });
+    }
+    return {
+      stepOrder: i + 1,
+      title: x.t.trim() || null,
+      section,
+      instruction: x.d.trim() || x.t.trim(),
+      durationMinutes: minutes,
+      temperature: src?.temperature ?? null,
+      stage: src?.stage ?? 'COOK',
+      ahead: x.ahead,
+    };
+  });
 
   if (!ingredients.length || !steps.length)
     return { error: tNow('editor.errNeedIngStep') };
@@ -264,6 +276,23 @@ export function toRecipePatch(
       steps,
     },
   };
+}
+
+/**
+ * Headings for saved rows: a row added in the editor (`undefined`) joins the heading of the row
+ * above it, or of the row below when it is first, so it lands in the section it was typed into.
+ */
+export function inheritHeadings(
+  heads: (string | null | undefined)[],
+): (string | null)[] {
+  const out = heads.map((h, i) => {
+    if (h !== undefined) return h;
+    for (let j = i - 1; j >= 0; j--)
+      if (heads[j] !== undefined) return heads[j]!;
+    return undefined;
+  });
+  const first = out.find((h) => h !== undefined) ?? null;
+  return out.map((h) => (h === undefined ? first : h));
 }
 
 /** Time-based fallback the API uses when a recipe has no extracted or edited difficulty. */
@@ -353,6 +382,7 @@ export function fromAssistDraft(
       )
         return o;
       const row: EdStep = {
+        ...(o?.sec !== undefined ? { sec: o.sec } : {}),
         k: o?.k ?? 'n' + uid(),
         t: x.title,
         d: x.body,

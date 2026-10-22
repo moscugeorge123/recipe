@@ -29,6 +29,8 @@ export type RecipeIngredientView = {
   preparation: string | null;
   optional: boolean;
   category: IngredientCategory;
+  /** Component heading ("For the sponge"); null when the list is one block. */
+  group?: string | null;
   confidence: number;
 };
 
@@ -37,6 +39,8 @@ export type RecipeStepView = {
   stepOrder: number;
   /** Short label from extraction. Null on recipes saved before titles existed. */
   title: string | null;
+  /** Part of the method ("Make the sponge"); null when the method is one block. */
+  section?: string | null;
   instruction: string;
   durationSeconds: number | null;
   temperature: string | null;

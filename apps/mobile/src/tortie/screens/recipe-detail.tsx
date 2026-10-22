@@ -4,6 +4,7 @@ import * as Clipboard from 'expo-clipboard';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Children,
+  Fragment,
   useEffect,
   useMemo,
   useRef,
@@ -64,6 +65,7 @@ import { useMotion } from '@/tortie/motion';
 import { useServings } from '@/tortie/data/recipe-ui';
 import {
   ingQty,
+  sectionsOf,
   sourceHost,
   useTRecipe,
   useTRecipes,
@@ -92,6 +94,7 @@ import {
   StepNotes,
   useNotesFor,
 } from '@/tortie/screens/recipe-notes';
+import { SectionHead } from '@/tortie/ui/section-head';
 import { Sheet, SheetScroll } from '@/tortie/ui/sheet';
 import { em, sans, serif, T } from '@/tortie/ui/text';
 import { TranslationBanner } from '@/tortie/ui/translation-banner';
@@ -365,58 +368,65 @@ export function RecipeDetail() {
                       : plz(r?.ings.length ?? 0, 'ingredient')}
                   </T>
                 </View>
-                {r?.ings.map((x, i) => (
-                  <View
-                    key={i}
-                    style={{
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 14,
-                      paddingVertical: 12,
-                      borderBottomWidth: 1,
-                      borderBottomColor: C.line,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 34,
-                        height: 34,
-                        borderRadius: 10,
-                        backgroundColor: x.tint,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <T style={{ fontSize: 18, textAlign: 'center' }}>
-                        {x.emo}
-                      </T>
-                    </View>
-                    <View
-                      style={{
-                        flex: 1,
-                        flexDirection: 'row',
-                        alignItems: 'flex-start',
-                        gap: 8,
-                      }}
-                    >
-                      <T
-                        style={sans(15, 700, C.ink, {
-                          lineHeight: 21,
-                          minWidth: 64,
-                        })}
+                {sectionsOf(r?.ings ?? [], (x) => x.g).map((sec, si) => (
+                  <Fragment key={si}>
+                    {sec.head ? (
+                      <SectionHead first={si === 0}>{sec.head}</SectionHead>
+                    ) : null}
+                    {sec.rows.map(({ x, i }) => (
+                      <View
+                        key={i}
+                        style={{
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          gap: 14,
+                          paddingVertical: 12,
+                          borderBottomWidth: 1,
+                          borderBottomColor: C.line,
+                        }}
                       >
-                        {ingQty(x, scale)}
-                      </T>
-                      <T
-                        style={sans(15, 400, C.ink, {
-                          lineHeight: 21,
-                          flex: 1,
-                        })}
-                      >
-                        {x.n}
-                      </T>
-                    </View>
-                  </View>
+                        <View
+                          style={{
+                            width: 34,
+                            height: 34,
+                            borderRadius: 10,
+                            backgroundColor: x.tint,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <T style={{ fontSize: 18, textAlign: 'center' }}>
+                            {x.emo}
+                          </T>
+                        </View>
+                        <View
+                          style={{
+                            flex: 1,
+                            flexDirection: 'row',
+                            alignItems: 'flex-start',
+                            gap: 8,
+                          }}
+                        >
+                          <T
+                            style={sans(15, 700, C.ink, {
+                              lineHeight: 21,
+                              minWidth: 64,
+                            })}
+                          >
+                            {ingQty(x, scale)}
+                          </T>
+                          <T
+                            style={sans(15, 400, C.ink, {
+                              lineHeight: 21,
+                              flex: 1,
+                            })}
+                          >
+                            {x.n}
+                          </T>
+                        </View>
+                      </View>
+                    ))}
+                  </Fragment>
                 ))}
               </Animated.View>
               <Animated.View
@@ -432,97 +442,112 @@ export function RecipeDetail() {
                     {tNow('detail.scaleNote', { serv, base: r.base })}
                   </T>
                 ) : null}
-                {r?.steps.map((st, i) => (
-                  <View
-                    key={i}
-                    style={{
-                      flexDirection: 'row',
-                      gap: 14,
-                      padding: 16,
-                      marginTop: 8,
-                      backgroundColor: C.surface2,
-                      borderRadius: 16,
-                      boxShadow: SH.hairline,
-                    }}
-                  >
-                    <View
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        backgroundColor: i === 0 ? C.terraBright : C.line,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                      }}
-                    >
-                      <T style={sans(15, 700, i === 0 ? C.terraInk2 : C.ink)}>
-                        {String(i + 1)}
-                      </T>
-                    </View>
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      {st.ahead ? (
-                        <T
-                          style={sans(11, 700, C.terra, {
-                            letterSpacing: em(11, 0.06),
-                            textTransform: 'uppercase',
-                            marginBottom: 4,
-                          })}
-                        >
-                          {tr('common.beforeYouStart')}
-                        </T>
-                      ) : null}
+                {sectionsOf(r?.steps ?? [], (st) => st.sec).map((sec, si) => (
+                  <Fragment key={si}>
+                    {sec.head ? (
+                      <SectionHead first={si === 0}>{sec.head}</SectionHead>
+                    ) : null}
+                    {sec.rows.map(({ x: st, i }) => (
                       <View
+                        key={i}
                         style={{
                           flexDirection: 'row',
-                          justifyContent: 'space-between',
-                          alignItems: 'flex-start',
-                          gap: 8,
+                          gap: 14,
+                          padding: 16,
+                          marginTop: 8,
+                          backgroundColor: C.surface2,
+                          borderRadius: 16,
+                          boxShadow: SH.hairline,
                         }}
                       >
-                        <T
-                          style={sans(15, 700, C.ink, {
-                            lineHeight: 20.25,
-                            flexShrink: 1,
-                          })}
+                        <View
+                          style={{
+                            width: 32,
+                            height: 32,
+                            borderRadius: 16,
+                            backgroundColor: i === 0 ? C.terraBright : C.line,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
                         >
-                          {st.t}
-                        </T>
-                        {st.m > 0 ? (
+                          <T
+                            style={sans(15, 700, i === 0 ? C.terraInk2 : C.ink)}
+                          >
+                            {String(i + 1)}
+                          </T>
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          {st.ahead ? (
+                            <T
+                              style={sans(11, 700, C.terra, {
+                                letterSpacing: em(11, 0.06),
+                                textTransform: 'uppercase',
+                                marginBottom: 4,
+                              })}
+                            >
+                              {tr('common.beforeYouStart')}
+                            </T>
+                          ) : null}
                           <View
                             style={{
-                              backgroundColor: C.terraSoft,
-                              paddingVertical: 3,
-                              paddingHorizontal: 10,
-                              borderRadius: 99,
+                              flexDirection: 'row',
+                              justifyContent: 'space-between',
+                              alignItems: 'flex-start',
+                              gap: 8,
                             }}
                           >
-                            <T style={sans(11, 700, C.terra)}>{fmtT(st.m)}</T>
+                            <T
+                              style={sans(15, 700, C.ink, {
+                                lineHeight: 20.25,
+                                flexShrink: 1,
+                              })}
+                            >
+                              {st.t}
+                            </T>
+                            {st.m > 0 ? (
+                              <View
+                                style={{
+                                  backgroundColor: C.terraSoft,
+                                  paddingVertical: 3,
+                                  paddingHorizontal: 10,
+                                  borderRadius: 99,
+                                }}
+                              >
+                                <T style={sans(11, 700, C.terra)}>
+                                  {fmtT(st.m)}
+                                </T>
+                              </View>
+                            ) : null}
                           </View>
-                        ) : null}
+                          {st.d ? (
+                            <T
+                              style={sans(14, 400, C.ink2, {
+                                lineHeight: 21.7,
+                                marginTop: 4,
+                              })}
+                            >
+                              {scaleStepText(st.d, scale)}
+                            </T>
+                          ) : null}
+                          {r && id ? (
+                            <StepClipChip
+                              recipeId={id}
+                              clips={r.clips}
+                              step={i}
+                            />
+                          ) : null}
+                          {canNote ? (
+                            <StepNotes
+                              notes={stepNotes(notes, i)}
+                              onAdd={() =>
+                                useNav.getState().openNotes(id, { step: i })
+                              }
+                            />
+                          ) : null}
+                        </View>
                       </View>
-                      {st.d ? (
-                        <T
-                          style={sans(14, 400, C.ink2, {
-                            lineHeight: 21.7,
-                            marginTop: 4,
-                          })}
-                        >
-                          {scaleStepText(st.d, scale)}
-                        </T>
-                      ) : null}
-                      {r && id ? (
-                        <StepClipChip recipeId={id} clips={r.clips} step={i} />
-                      ) : null}
-                      {canNote ? (
-                        <StepNotes
-                          notes={stepNotes(notes, i)}
-                          onAdd={() =>
-                            useNav.getState().openNotes(id, { step: i })
-                          }
-                        />
-                      ) : null}
-                    </View>
-                  </View>
+                    ))}
+                  </Fragment>
                 ))}
               </Animated.View>
             </Animated.View>
